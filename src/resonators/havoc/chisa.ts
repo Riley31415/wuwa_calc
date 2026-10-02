@@ -64,6 +64,7 @@ import {
   applyTeam,
   addBuff,
   currentAction,
+  pressed,
   runningAction,
   revokeCurrent,
   frozenStacks,
@@ -77,8 +78,9 @@ import {
   runningAnyOf,
   currentTeam,
   currentFrame,
+  runningBullet,
 } from "../../engine/context.js";
-import { Action, ActionGroup, Rotation, NOINTRO, ECHO, START_2, START_3, ActionTag, INTRO, INTRO_2 } from "../../engine/rotation.js";
+import { Action, ActionGroup, Rotation, NOINTRO, ECHO, START_LAST, ActionTag, INTRO } from "../../engine/rotation.js";
 import {
   HEALS, SHIELD, HAVOC_BANE, GLACIO_CHAFE, ELECTRO_FLARE, FUSION_BURST, AERO_EROSION, SPECTRO_FRAZZLE, ELECTRO_RAGE,
   inflictedNegativeStatusBy, gainShield } from "../../shared/status.js";
@@ -97,11 +99,11 @@ function chisaAction(id: string, def: object): Action {
 
 const Intro = chisaAction("Intro - Reverberance - Return", {
   animFrames: 55, prioFrames: 55, motionStop: 32,
-  node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 39, mv: 95.43, energy: 10, offtune: 6400 }], castConcerto: 10, castForte1: 20,
+  node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 39, mv: 9543, energy: 1000, offtune: 6400 }], castConcerto: 1000, castForte1: 20,
 });
 const Outro = chisaAction("Outro - Unraveling - Law Zero", {
   animFrames: 0,
-  cast: Cast.Outro, castConcerto: -100,
+  cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000,
   updateBuffs: () => applyTeam(RESONANT_THREAD_OF_CLOSURE, 1)
 });
 
@@ -109,7 +111,8 @@ const Outro = chisaAction("Outro - Unraveling - Law Zero", {
  *  (display-only forte2 is the gauge itself; this is the separate counter Eradication actually
  *  reads — see the file header). */
 const blitz = () => ({
-  updateBuffs: () => applyCurrent(RING_CONSUMED, -currentAction().forte2),
+  // the press's whole spend: its hits pay it, so the cast half alone reads none
+  updateBuffs: () => applyCurrent(RING_CONSUMED, -pressed().forte2),
 });
 /** Every hit of Skill and Serrated Loop marks Unseen Snare; Retraction and lock-on have no wuwalab
  *  entry (see file header) and aren't modelled. */
@@ -121,129 +124,129 @@ const SNIP_HEAL = { updateDebuffs: () => applyCurrent(HEALS, 1) };
 //     -> Thread Withdrawn is the full string; Hanging Finality and the mid-air/Heavy pieces below
 //     are reached from other points in it (Heavy Attack, mid-air) rather than this ground line.
 const BA1 = chisaAction("Basic - Reign of Silence 1", { animFrames: 23, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 8, mv: 16.71, energy: 0.35, concerto: 0.7, offtune: 1120, forte1: 2 },
-    { hitFrame: 17, mv: 16.71, energy: 0.35, concerto: 0.7, offtune: 1120, forte1: 2 },
+    { hitFrame: 8, mv: 1671, energy: 35, concerto: 70, offtune: 1120, forte1: 2 },
+    { hitFrame: 17, mv: 1671, energy: 35, concerto: 70, offtune: 1120, forte1: 2 },
   ]});
 const BA2 = chisaAction("Basic - Reign of Silence 2", { animFrames: 55, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 11, mv: 9.55, energy: 0.2, concerto: 0.4, offtune: 640, forte1: 2 },
-    { hitFrame: 21, mv: 19.09, energy: 0.4, concerto: 0.8, offtune: 1280, forte1: 3 },
-    { hitFrame: 38, mv: 66.81, energy: 1.4, concerto: 2.8, offtune: 4480, forte1: 9 },
+    { hitFrame: 11, mv: 955, energy: 20, concerto: 40, offtune: 640, forte1: 2 },
+    { hitFrame: 21, mv: 1909, energy: 40, concerto: 80, offtune: 1280, forte1: 3 },
+    { hitFrame: 38, mv: 6681, energy: 140, concerto: 280, offtune: 4480, forte1: 9 },
   ]});
 /** Dodge Counter's own Reign of Silence 2 — a bigger single burst than the plain combo stage,
  *  triggered off a successful Dodge rather than chained from Stage 1. Not in the rotation (nothing
  *  here models incoming attacks to dodge), defined for completeness. */
 const DodgeCounterBA2 = chisaAction("Dodge Counter - Reign of Silence 2", { animFrames: 57, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
-    { hitFrame: 11, mv: 23.86, energy: 0.5, concerto: 1, offtune: 1120, forte1: 3 },
-    { hitFrame: 22, mv: 47.72, energy: 1, concerto: 2, offtune: 2240, forte1: 5 },
-    { hitFrame: 40, mv: 167.01, energy: 3.5, concerto: 7, offtune: 7840, forte1: 15 },
-  ]});
+    { hitFrame: 11, mv: 2386, energy: 50, concerto: 100, offtune: 1120, forte1: 3 },
+    { hitFrame: 22, mv: 4772, energy: 100, concerto: 200, offtune: 2240, forte1: 5 },
+    { hitFrame: 40, mv: 16701, energy: 350, concerto: 700, offtune: 7840, forte1: 15 },
+  ], castConcerto: 1000});
 const RendingLunge = chisaAction("Basic - Rending Lunge", { animFrames: 80, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 18, mv: 15.11, energy: 0.32, concerto: 0.64, offtune: 1014, forte1: 2 },
-    { hitFrame: 24, mv: 15.11, energy: 0.32, concerto: 0.64, offtune: 1014, forte1: 2 },
-    { hitFrame: 27, mv: 15.11, energy: 0.32, concerto: 0.64, offtune: 1014, forte1: 2 },
-    { hitFrame: 32, mv: 15.11, energy: 0.32, concerto: 0.64, offtune: 1014, forte1: 2 },
-    { hitFrame: 58, mv: 90.66, energy: 1.91, concerto: 3.81, offtune: 6081, forte1: 12 },
+    { hitFrame: 18, mv: 1511, energy: 32, concerto: 64, offtune: 1014, forte1: 2 },
+    { hitFrame: 24, mv: 1511, energy: 32, concerto: 64, offtune: 1014, forte1: 2 },
+    { hitFrame: 27, mv: 1511, energy: 32, concerto: 64, offtune: 1014, forte1: 2 },
+    { hitFrame: 32, mv: 1511, energy: 32, concerto: 64, offtune: 1014, forte1: 2 },
+    { hitFrame: 58, mv: 9066, energy: 191, concerto: 381, offtune: 6081, forte1: 12 },
   ]});
 /** "The skill DMG is considered Resonance Liberation DMG" per the kit page — matches wuwalab's own
  *  damage_type for both hits. */
 const DeathSnip = chisaAction("Basic - Death Snip", { animFrames: 73, node: Node.Normal, cast: Cast.Basic, type: Type.Liberation, bullets: [
-    { hitFrame: 14, mv: 29.81, energy: 0.42, concerto: 0.84, offtune: 1333, forte1: 4 },
-    { hitFrame: 54, mv: 14.91, energy: 0.21, concerto: 0.42, offtune: 667, forte1: 2, ...SNIP_HEAL },
-    { hitFrame: 65, mv: 104.34, energy: 1.46, concerto: 2.92, offtune: 4665, forte1: 12 },
+    { hitFrame: 14, mv: 2981, energy: 42, concerto: 84, offtune: 1333, forte1: 4 },
+    { hitFrame: 54, mv: 1491, energy: 21, concerto: 42, offtune: 667, forte1: 2, ...SNIP_HEAL },
+    { hitFrame: 65, mv: 10434, energy: 146, concerto: 292, offtune: 4665, forte1: 12 },
   ]});
 /** The "insert an extra hit mid-snip" variant — same Resonance Liberation typing and heal. */
 const DeathSnipSpread = chisaAction("Basic - Death Snip + Spread", { animFrames: 76, node: Node.Normal, cast: Cast.Basic, type: Type.Liberation, bullets: [
-    { hitFrame: 15, mv: 29.81, energy: 0.42, concerto: 0.84, offtune: 1333, forte1: 4 },
-    { hitFrame: 32, mv: 47.78, energy: 0.67, concerto: 1.34, offtune: 2136, forte1: 9 },
-    { hitFrame: 55, mv: 14.91, energy: 0.21, concerto: 0.42, offtune: 667, forte1: 2, ...SNIP_HEAL },
-    { hitFrame: 65, mv: 104.34, energy: 1.46, concerto: 2.92, offtune: 4665, forte1: 12 },
+    { hitFrame: 15, mv: 2981, energy: 42, concerto: 84, offtune: 1333, forte1: 4 },
+    { hitFrame: 32, mv: 4778, energy: 67, concerto: 134, offtune: 2136, forte1: 9 },
+    { hitFrame: 55, mv: 1491, energy: 21, concerto: 42, offtune: 667, forte1: 2, ...SNIP_HEAL },
+    { hitFrame: 65, mv: 10434, energy: 146, concerto: 292, offtune: 4665, forte1: 12 },
   ]});
 const ThreadWithdrawn = chisaAction("Basic - Thread Withdrawn", { animFrames: 56, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 6, mv: 10.15, energy: 0.22, concerto: 0.43, offtune: 681, forte1: 3 },
-    { hitFrame: 15, commitFrame: 6, mv: 10.15, energy: 0.22, concerto: 0.43, offtune: 681, forte1: 3 },
-    { hitFrame: 48, commitFrame: 6, mv: 47.35, energy: 1, concerto: 1.99, offtune: 3176, forte1: 10 },
+    { hitFrame: 6, mv: 1015, energy: 22, concerto: 43, offtune: 681, forte1: 3 },
+    { hitFrame: 15, commitFrame: 6, mv: 1015, energy: 22, concerto: 43, offtune: 681, forte1: 3 },
+    { hitFrame: 48, commitFrame: 6, mv: 4735, energy: 100, concerto: 199, offtune: 3176, forte1: 10 },
   ]});
 /** The airborne normal attack — not part of the ground string, chains into Reign of Silence 2 in
  *  mid-air instead. Not in the rotation (nothing here models being airborne), defined for completeness. */
-const ReignOfSilenceMidAir = chisaAction("Mid-air - Reign of Silence Plunge", { animFrames: 47, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 33, mv: 73.96, energy: 1.55, concerto: 3.1, offtune: 4960, forte1: 9 }]});
+const ReignOfSilenceMidAir = chisaAction("Mid-air - Reign of Silence Plunge", { animFrames: 47, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 33, mv: 7396, energy: 155, concerto: 310, offtune: 4960, forte1: 9 }]});
 
 const HA = chisaAction("Heavy - Reign of Silence", { animFrames: 44, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
-    { hitFrame: 12, mv: 35.79, energy: 0.75, concerto: 1.5, offtune: 2400, forte1: 5 },
-    { hitFrame: 31, mv: 35.79, energy: 0.75, concerto: 1.5, offtune: 2400, forte1: 5 },
+    { hitFrame: 12, mv: 3579, energy: 75, concerto: 150, offtune: 2400, forte1: 5 },
+    { hitFrame: 31, mv: 3579, energy: 75, concerto: 150, offtune: 2400, forte1: 5 },
   ]});
 /** Heavy Attack's own mid-air follow-up, chaining into Hanging Finality. Not in the rotation. */
 const SeveredFacet = chisaAction("Heavy - Severed Facet (Mid-Air)", { animFrames: 53, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
-    { hitFrame: 29, mv: 44.74, energy: 0.94, concerto: 1.88, offtune: 3000, forte1: 6 },
-    { hitFrame: 36, mv: 44.74, energy: 0.94, concerto: 1.88, offtune: 3000, forte1: 6 },
+    { hitFrame: 29, mv: 4474, energy: 94, concerto: 188, offtune: 3000, forte1: 6 },
+    { hitFrame: 36, mv: 4474, energy: 94, concerto: 188, offtune: 3000, forte1: 6 },
   ]});
 /** Reached off Heavy Attack, Severed Facet, or Rending Lunge in mid-air; can chain into Death Snip.
  *  Not in the rotation (the ground string reaches Death Snip via Rending Lunge instead). */
 const HangingFinality = chisaAction("Basic - Hanging Finality", { animFrames: 77, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 6, mv: 11.93, energy: 0.25, concerto: 0.5, offtune: 800, forte1: 2 },
-    { hitFrame: 21, mv: 23.86, energy: 0.5, concerto: 1, offtune: 1600, forte1: 3 },
-    { hitFrame: 64, mv: 23.86, energy: 0.5, concerto: 1, offtune: 1600, forte1: 3 },
-    { hitFrame: 70, mv: 59.65, energy: 1.25, concerto: 2.5, offtune: 4000, forte1: 8 },
+    { hitFrame: 6, mv: 1193, energy: 25, concerto: 50, offtune: 800, forte1: 2 },
+    { hitFrame: 21, mv: 2386, energy: 50, concerto: 100, offtune: 1600, forte1: 3 },
+    { hitFrame: 64, mv: 2386, energy: 50, concerto: 100, offtune: 1600, forte1: 3 },
+    { hitFrame: 70, mv: 5965, energy: 125, concerto: 250, offtune: 4000, forte1: 8 },
   ]});
 
 // --- Resolution: Eye of Unraveling is her baseline Skill; Serrated Loop replaces it once the Ring
 //     of Chainsaw is full and is what sends her into Chainsaw Mode. All three mark Unseen Snare.
-const Skill = chisaAction("Skill - Eye of Unraveling", { animFrames: 20, cooldown: 60 * 12, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [{ hitFrame: 8, mv: 35.79, energy: 0.75, concerto: 1.5, offtune: 2400, forte1: 5 }], ...MARK_SNARE });
+const Skill = chisaAction("Skill - Eye of Unraveling", { animFrames: 20, cooldown: 60 * 12, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [{ hitFrame: 8, mv: 3579, energy: 75, concerto: 150, offtune: 2400, forte1: 5 }], ...MARK_SNARE });
 /** The plain tap — released immediately. Not in the rotation; the Hold below reaches Chainsaw Mode
  *  with more hits at no extra cost this engine models, so it's the strictly better pick here. */
 
-const SerratedLoop = chisaAction("Forte Skill - Serrated Loop", { animFrames: 83, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
-    { hitFrame: 27, mv: 17.45, energy: 0.37, concerto: 0.74, offtune: 1170 },
-    { hitFrame: 32, mv: 17.45, energy: 0.37, concerto: 0.74, offtune: 1170 },
-    { hitFrame: 39, mv: 17.45, energy: 0.37, concerto: 0.74, offtune: 1170 },
-    { hitFrame: 41, mv: 17.45, energy: 0.37, concerto: 0.74, offtune: 1170 },
-    { hitFrame: 46, mv: 17.45, energy: 0.37, concerto: 0.74, offtune: 1170 },
-    { hitFrame: 53, mv: 17.45, energy: 0.37, concerto: 0.74, offtune: 1170 },
-    { hitFrame: 63, mv: 17.45, energy: 0.37, concerto: 0.74, offtune: 1170 },
-    { hitFrame: 78, mv: 17.45, energy: 0.37, concerto: 0.74, offtune: 1170, forte2: 100 },
+const SerratedLoop = chisaAction("Forte Skill - Serrated Loop", { minForte1: 100, animFrames: 83, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+    { hitFrame: 27, mv: 1745, energy: 37, concerto: 74, offtune: 1170 },
+    { hitFrame: 32, mv: 1745, energy: 37, concerto: 74, offtune: 1170 },
+    { hitFrame: 39, mv: 1745, energy: 37, concerto: 74, offtune: 1170 },
+    { hitFrame: 41, mv: 1745, energy: 37, concerto: 74, offtune: 1170 },
+    { hitFrame: 46, mv: 1745, energy: 37, concerto: 74, offtune: 1170 },
+    { hitFrame: 53, mv: 1745, energy: 37, concerto: 74, offtune: 1170 },
+    { hitFrame: 63, mv: 1745, energy: 37, concerto: 74, offtune: 1170 },
+    { hitFrame: 78, mv: 1745, energy: 37, concerto: 74, offtune: 1170, forte2: 100 },
   ], castForte1: -100,...MARK_SNARE });
-const SerratedLoopHalfHold = chisaAction("Forte Skill - Serrated Loop (Half Hold)", { animFrames: 137, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
-    { hitFrame: 27, mv: 17.45, energy: 0.37, concerto: 0.74, offtune: 1170 },
-    { hitFrame: 32, mv: 17.45, energy: 0.37, concerto: 0.74, offtune: 1170 },
-    { hitFrame: 39, mv: 17.45, energy: 0.37, concerto: 0.74, offtune: 1170 },
-    { hitFrame: 41, mv: 17.45, energy: 0.37, concerto: 0.74, offtune: 1170 },
-    { hitFrame: 46, mv: 17.45, energy: 0.37, concerto: 0.74, offtune: 1170 },
-    { hitFrame: 53, mv: 17.45, energy: 0.37, concerto: 0.74, offtune: 1170 },
-    { hitFrame: 63, mv: 17.45, energy: 0.37, concerto: 0.74, offtune: 1170 },
-    { hitFrame: 78, mv: 17.45, energy: 0.37, concerto: 0.74, offtune: 1170 },
-    { hitFrame: 92, mv: 7.46, energy: 0.16, concerto: 0.32, offtune: 501 },
-    { hitFrame: 98, mv: 7.46, energy: 0.16, concerto: 0.32, offtune: 501 },
-    { hitFrame: 104, mv: 7.46, energy: 0.16, concerto: 0.32, offtune: 501 },
-    { hitFrame: 110, mv: 7.46, energy: 0.16, concerto: 0.32, offtune: 501 },
-    { hitFrame: 116, mv: 7.46, energy: 0.16, concerto: 0.32, offtune: 501 },
-    { hitFrame: 122, mv: 7.46, energy: 0.16, concerto: 0.32, offtune: 501 },
-    { hitFrame: 132, mv: 7.46, energy: 0.16, concerto: 0.32, offtune: 501 },
-    { hitFrame: 137, mv: 7.46, energy: 0.16, concerto: 0.32, offtune: 501, forte2: 100 },
+const SerratedLoopHalfHold = chisaAction("Forte Skill - Serrated Loop (Half Hold)", { minForte1: 100, animFrames: 137, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+    { hitFrame: 27, mv: 1745, energy: 37, concerto: 74, offtune: 1170 },
+    { hitFrame: 32, mv: 1745, energy: 37, concerto: 74, offtune: 1170 },
+    { hitFrame: 39, mv: 1745, energy: 37, concerto: 74, offtune: 1170 },
+    { hitFrame: 41, mv: 1745, energy: 37, concerto: 74, offtune: 1170 },
+    { hitFrame: 46, mv: 1745, energy: 37, concerto: 74, offtune: 1170 },
+    { hitFrame: 53, mv: 1745, energy: 37, concerto: 74, offtune: 1170 },
+    { hitFrame: 63, mv: 1745, energy: 37, concerto: 74, offtune: 1170 },
+    { hitFrame: 78, mv: 1745, energy: 37, concerto: 74, offtune: 1170 },
+    { hitFrame: 92, mv: 746, energy: 16, concerto: 32, offtune: 501 },
+    { hitFrame: 98, mv: 746, energy: 16, concerto: 32, offtune: 501 },
+    { hitFrame: 104, mv: 746, energy: 16, concerto: 32, offtune: 501 },
+    { hitFrame: 110, mv: 746, energy: 16, concerto: 32, offtune: 501 },
+    { hitFrame: 116, mv: 746, energy: 16, concerto: 32, offtune: 501 },
+    { hitFrame: 122, mv: 746, energy: 16, concerto: 32, offtune: 501 },
+    { hitFrame: 132, mv: 746, energy: 16, concerto: 32, offtune: 501 },
+    { hitFrame: 137, mv: 746, energy: 16, concerto: 32, offtune: 501, forte2: 100 },
   ], castForte1: -100,...MARK_SNARE });
-const SerratedLoopHold = chisaAction("Forte Skill - Serrated Loop (Hold)", { animFrames: 174, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
-    { hitFrame: 27, mv: 17.45, energy: 0.37, concerto: 0.74, offtune: 1170 },
-    { hitFrame: 32, mv: 17.45, energy: 0.37, concerto: 0.74, offtune: 1170 },
-    { hitFrame: 39, mv: 17.45, energy: 0.37, concerto: 0.74, offtune: 1170 },
-    { hitFrame: 41, mv: 17.45, energy: 0.37, concerto: 0.74, offtune: 1170 },
-    { hitFrame: 46, mv: 17.45, energy: 0.37, concerto: 0.74, offtune: 1170 },
-    { hitFrame: 53, mv: 17.45, energy: 0.37, concerto: 0.74, offtune: 1170 },
-    { hitFrame: 63, mv: 17.45, energy: 0.37, concerto: 0.74, offtune: 1170 },
-    { hitFrame: 78, mv: 17.45, energy: 0.37, concerto: 0.74, offtune: 1170 },
-    { hitFrame: 92, mv: 7.46, energy: 0.16, concerto: 0.32, offtune: 501 },
-    { hitFrame: 98, mv: 7.46, energy: 0.16, concerto: 0.32, offtune: 501 },
-    { hitFrame: 104, mv: 7.46, energy: 0.16, concerto: 0.32, offtune: 501 },
-    { hitFrame: 110, mv: 7.46, energy: 0.16, concerto: 0.32, offtune: 501 },
-    { hitFrame: 116, mv: 7.46, energy: 0.16, concerto: 0.32, offtune: 501 },
-    { hitFrame: 122, mv: 7.46, energy: 0.16, concerto: 0.32, offtune: 501 },
-    { hitFrame: 128, mv: 7.46, energy: 0.16, concerto: 0.32, offtune: 501 },
-    { hitFrame: 132, mv: 7.46, energy: 0.16, concerto: 0.32, offtune: 501 },
-    { hitFrame: 134, mv: 7.46, energy: 0.16, concerto: 0.32, offtune: 501 },
-    { hitFrame: 137, mv: 7.46, energy: 0.16, concerto: 0.32, offtune: 501 },
-    { hitFrame: 145, mv: 7.46, energy: 0.16, concerto: 0.32, offtune: 501 },
-    { hitFrame: 149, mv: 7.46, energy: 0.16, concerto: 0.32, offtune: 501 },
-    { hitFrame: 157, mv: 7.46, energy: 0.16, concerto: 0.32, offtune: 501 },
-    { hitFrame: 162, mv: 7.46, energy: 0.16, concerto: 0.32, offtune: 501 },
-    { hitFrame: 169, mv: 7.46, energy: 0.16, concerto: 0.32, offtune: 501 },
-    { hitFrame: 174, mv: 7.46, energy: 0.16, concerto: 0.32, offtune: 501, forte2: 100 },
+const SerratedLoopHold = chisaAction("Forte Skill - Serrated Loop (Hold)", { minForte1: 100, animFrames: 174, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+    { hitFrame: 27, mv: 1745, energy: 37, concerto: 74, offtune: 1170 },
+    { hitFrame: 32, mv: 1745, energy: 37, concerto: 74, offtune: 1170 },
+    { hitFrame: 39, mv: 1745, energy: 37, concerto: 74, offtune: 1170 },
+    { hitFrame: 41, mv: 1745, energy: 37, concerto: 74, offtune: 1170 },
+    { hitFrame: 46, mv: 1745, energy: 37, concerto: 74, offtune: 1170 },
+    { hitFrame: 53, mv: 1745, energy: 37, concerto: 74, offtune: 1170 },
+    { hitFrame: 63, mv: 1745, energy: 37, concerto: 74, offtune: 1170 },
+    { hitFrame: 78, mv: 1745, energy: 37, concerto: 74, offtune: 1170 },
+    { hitFrame: 92, mv: 746, energy: 16, concerto: 32, offtune: 501 },
+    { hitFrame: 98, mv: 746, energy: 16, concerto: 32, offtune: 501 },
+    { hitFrame: 104, mv: 746, energy: 16, concerto: 32, offtune: 501 },
+    { hitFrame: 110, mv: 746, energy: 16, concerto: 32, offtune: 501 },
+    { hitFrame: 116, mv: 746, energy: 16, concerto: 32, offtune: 501 },
+    { hitFrame: 122, mv: 746, energy: 16, concerto: 32, offtune: 501 },
+    { hitFrame: 128, mv: 746, energy: 16, concerto: 32, offtune: 501 },
+    { hitFrame: 132, mv: 746, energy: 16, concerto: 32, offtune: 501 },
+    { hitFrame: 134, mv: 746, energy: 16, concerto: 32, offtune: 501 },
+    { hitFrame: 137, mv: 746, energy: 16, concerto: 32, offtune: 501 },
+    { hitFrame: 145, mv: 746, energy: 16, concerto: 32, offtune: 501 },
+    { hitFrame: 149, mv: 746, energy: 16, concerto: 32, offtune: 501 },
+    { hitFrame: 157, mv: 746, energy: 16, concerto: 32, offtune: 501 },
+    { hitFrame: 162, mv: 746, energy: 16, concerto: 32, offtune: 501 },
+    { hitFrame: 169, mv: 746, energy: 16, concerto: 32, offtune: 501 },
+    { hitFrame: 174, mv: 746, energy: 16, concerto: 32, offtune: 501, forte2: 100 },
   ], castForte1: -100,...MARK_SNARE });
 
 /** Moment of Nihility: 954.29% Havoc, heals the team, banks 40 Ring of Chainsaw and hands herself
@@ -251,7 +254,7 @@ const SerratedLoopHold = chisaAction("Forte Skill - Serrated Loop (Hold)", { ani
 const Liberation = chisaAction("Liberation - Moment of Nihility", {
   animFrames: 220, timestop: 220, motionStop: 170, cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, resetEnergy: true,
-  bullets: [{ hitFrame: 160, mv: 954.29, offtune: 96000 }], castConcerto: 20, castForte1: 40,
+  bullets: [{ hitFrame: 160, mv: 95429, offtune: 96000 }], castConcerto: 2000, castForte1: 40,
   updateDebuffs: () => applyCurrent(HEALS, 1),
   updateBuffs: () => applyCurrent(WOVEN_MYRIAD_CONVERGENCE, 1),
 });
@@ -260,13 +263,13 @@ const Liberation = chisaAction("Liberation - Moment of Nihility", {
 //     Each stage both spends the Ring of Chainsaw gauge (forte1, display only) and banks the same
 //     amount onto RING_CONSUMED (spendRing above), which only Eradication ever reads.
 const Blitz1 = chisaAction("Forte Basic - Sawring Blitz 1", { animFrames: 31, node: Node.Forte, type: Type.Liberation, bullets: [
-    { hitFrame: 10, mv: 11.49, energy: 0.17, concerto: 0.33, offtune: 514 },
-    { hitFrame: 13, mv: 11.49, energy: 0.17, concerto: 0.33, offtune: 514 },
-    { hitFrame: 19, mv: 11.49, energy: 0.17, concerto: 0.33, offtune: 514 },
-    { hitFrame: 21, mv: 11.49, energy: 0.17, concerto: 0.33, offtune: 514 },
-    { hitFrame: 24, mv: 11.49, energy: 0.17, concerto: 0.33, offtune: 514 },
-    { hitFrame: 26, commitFrame: 24, mv: 11.49, energy: 0.17, concerto: 0.33, offtune: 514 },
-  ], castForte2: -18, ...blitz() });
+    { hitFrame: 10, mv: 1149, energy: 17, concerto: 33, offtune: 514, forte2: -3 },
+    { hitFrame: 13, mv: 1149, energy: 17, concerto: 33, offtune: 514, forte2: -3 },
+    { hitFrame: 19, mv: 1149, energy: 17, concerto: 33, offtune: 514, forte2: -3 },
+    { hitFrame: 21, mv: 1149, energy: 17, concerto: 33, offtune: 514, forte2: -3 },
+    { hitFrame: 24, mv: 1149, energy: 17, concerto: 33, offtune: 514, forte2: -3 },
+    { hitFrame: 26, commitFrame: 24, mv: 1149, energy: 17, concerto: 33, offtune: 514, forte2: -3 },
+  ], ...blitz() });
 
 /** Stage 2, as the four inputs that reach it. The Dodge Counter and the After Plunge are the same
  *  stage entered off a dodge or out of a plunge — wuwalab gives all three the same MV, energy,
@@ -275,138 +278,138 @@ const Blitz1 = chisaAction("Forte Basic - Sawring Blitz 1", { animFrames: 31, no
  *  presses all the same, so each gets its own row rather than being folded into the tap.
  *  Every one of them is a *release*, so any of them can follow up with Discordance. */
 const Blitz2 = chisaAction("Forte Basic - Sawring Blitz 2", { animFrames: 52, node: Node.Forte, type: Type.Liberation, bullets: [
-    { hitFrame: 19, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 21, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 23, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 25, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 33, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 38, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 39, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 43, commitFrame: 39, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-  ], castForte2: -22, ...blitz() });
+    { hitFrame: 19, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -2 },
+    { hitFrame: 21, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 23, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -2 },
+    { hitFrame: 25, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 33, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 38, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 39, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 43, commitFrame: 39, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+  ], ...blitz() });
 const Blitz2DodgeCounter = chisaAction("Forte Dodge Counter - Sawring Blitz 2", { animFrames: 52, node: Node.Forte, cast: Cast.DodgeCounter, type: Type.Liberation, bullets: [
-    { hitFrame: 19, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 21, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 23, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 25, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 33, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 38, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 39, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 43, commitFrame: 39, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-  ], castForte2: -22, ...blitz() });
+    { hitFrame: 19, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -2 },
+    { hitFrame: 21, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 23, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -2 },
+    { hitFrame: 25, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 33, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 38, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 39, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 43, commitFrame: 39, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+  ], ...blitz(), castConcerto: 1000 });
 const Blitz2AfterPlunge = chisaAction("Forte Basic - Sawring Blitz 2 (After Plunge)", { animFrames: 43, node: Node.Forte, type: Type.Liberation, bullets: [
-    { hitFrame: 11, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 14, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 14, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 18, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 25, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 29, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 32, commitFrame: 29, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 35, commitFrame: 29, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-  ], castForte2: -22, ...blitz() });
+    { hitFrame: 11, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -2 },
+    { hitFrame: 14, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 14, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -2 },
+    { hitFrame: 18, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 25, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 29, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 32, commitFrame: 29, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 35, commitFrame: 29, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+  ], ...blitz() });
 /** What a released Stage 2 can throw out on the way — only where the rotation writes it (`Blitz2D`). */
 const Blitz2Discordance = chisaAction("Forte Basic - Sawring Blitz 2: Discordance", { tag: ActionTag.Field, animFrames: 160, node: Node.Forte, type: Type.Liberation, bullets: [
-    { hitFrame: 4, mv: 3.58, energy: 0.05, concerto: 0.1, offtune: 160 },
-    { hitFrame: 8, mv: 3.58, energy: 0.05, concerto: 0.1, offtune: 160 },
-    { hitFrame: 17, mv: 3.58, energy: 0.05, concerto: 0.1, offtune: 160 },
-  ], castForte2: -3, ...blitz() });
+    { hitFrame: 4, mv: 358, energy: 5, concerto: 10, offtune: 160, forte2: -1 },
+    { hitFrame: 8, mv: 358, energy: 5, concerto: 10, offtune: 160, forte2: -1 },
+    { hitFrame: 17, mv: 358, energy: 5, concerto: 10, offtune: 160, forte2: -1 },
+  ], ...blitz() });
 
 /** Stage 2 held, its own three inputs: 18 hits rather than 8 for the same press, and it chains
  *  into Stage 3 instead of releasing, so none of them throws a Discordance. */
 const Blitz2Hold = chisaAction("Forte Basic - Sawring Blitz 2 (Hold)", { animFrames: 84, node: Node.Forte, type: Type.Liberation, bullets: [
-    { hitFrame: 19, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 21, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 23, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 25, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 33, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 38, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 39, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 43, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 45, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 51, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 52, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 57, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 60, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 65, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 66, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 71, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 73, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 78, commitFrame: 73, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-  ], castForte2: -52, ...blitz() });
+    { hitFrame: 19, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -2 },
+    { hitFrame: 21, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 23, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -2 },
+    { hitFrame: 25, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 33, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 38, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 39, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 43, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 45, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 51, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 52, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 57, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 60, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 65, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 66, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 71, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 73, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 78, commitFrame: 73, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+  ], ...blitz() });
 const Blitz2HoldDodgeCounter = chisaAction("Forte Dodge Counter - Sawring Blitz 2 (Hold)", { animFrames: 84, node: Node.Forte, cast: Cast.DodgeCounter, type: Type.Liberation, bullets: [
-    { hitFrame: 19, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 21, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 23, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 25, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 33, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 38, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 39, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 43, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 45, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 51, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 52, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 57, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 60, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 65, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 66, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 71, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 73, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 78, commitFrame: 73, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-  ], castForte2: -52, ...blitz() });
+    { hitFrame: 19, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -2 },
+    { hitFrame: 21, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 23, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -2 },
+    { hitFrame: 25, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 33, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 38, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 39, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 43, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 45, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 51, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 52, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 57, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 60, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 65, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 66, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 71, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 73, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 78, commitFrame: 73, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+  ], ...blitz(), castConcerto: 1000 });
 const Blitz2HoldAfterPlunge = chisaAction("Forte Basic - Sawring Blitz 2 (Hold After Plunge)", { animFrames: 65, node: Node.Forte, type: Type.Liberation, bullets: [
-    { hitFrame: 11, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 14, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 14, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 18, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 25, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 29, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 32, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 35, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 37, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 42, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 42, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 47, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 48, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 53, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 53, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 57, commitFrame: 53, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 57, commitFrame: 53, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-    { hitFrame: 62, commitFrame: 53, mv: 10.64, energy: 0.15, concerto: 0.3, offtune: 476 },
-  ], castForte2: -52, ...blitz() });
+    { hitFrame: 11, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -2 },
+    { hitFrame: 14, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 14, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -2 },
+    { hitFrame: 18, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 25, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 29, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 32, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 35, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 37, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 42, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 42, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 47, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 48, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 53, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 53, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 57, commitFrame: 53, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 57, commitFrame: 53, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 62, commitFrame: 53, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+  ], ...blitz() });
 
 const Blitz3 = chisaAction("Forte Basic - Sawring Blitz 3", { animFrames: 67, node: Node.Forte, type: Type.Liberation, bullets: [
-    { hitFrame: 32, mv: 15.98, energy: 0.23, concerto: 0.45, offtune: 715 },
-    { hitFrame: 38, mv: 15.98, energy: 0.23, concerto: 0.45, offtune: 715 },
-    { hitFrame: 41, mv: 15.98, energy: 0.23, concerto: 0.45, offtune: 715 },
-    { hitFrame: 47, mv: 15.98, energy: 0.23, concerto: 0.45, offtune: 715 },
-    { hitFrame: 50, mv: 15.98, energy: 0.23, concerto: 0.45, offtune: 715 },
-    { hitFrame: 56, mv: 15.98, energy: 0.23, concerto: 0.45, offtune: 715 },
-    { hitFrame: 62, commitFrame: 56, mv: 15.98, energy: 0.23, concerto: 0.45, offtune: 715 },
-    { hitFrame: 66, commitFrame: 56, mv: 15.98, energy: 0.23, concerto: 0.45, offtune: 715 },
-  ], castForte2: -26, ...blitz() });
+    { hitFrame: 32, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -3 },
+    { hitFrame: 38, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -3 },
+    { hitFrame: 41, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -3 },
+    { hitFrame: 47, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -3 },
+    { hitFrame: 50, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -3 },
+    { hitFrame: 56, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -3 },
+    { hitFrame: 62, commitFrame: 56, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -4 },
+    { hitFrame: 66, commitFrame: 56, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -4 },
+  ], ...blitz() });
 /** What a released Stage 3 can throw out, the same shape as Discordance above (`Blitz3F`). */
 const Blitz3Falltone = chisaAction("Forte Basic - Sawring Blitz 3: Falltone", { tag: ActionTag.Field, animFrames: 45, node: Node.Forte, type: Type.Liberation, bullets: [
-    { hitFrame: 2, mv: 3.58, energy: 0.05, concerto: 0.1, offtune: 160 },
-    { hitFrame: 6, mv: 3.58, energy: 0.05, concerto: 0.1, offtune: 160 },
-    { hitFrame: 9, mv: 3.58, energy: 0.05, concerto: 0.1, offtune: 160 },
-  ], castForte2: -3, ...blitz() });
+    { hitFrame: 2, mv: 358, energy: 5, concerto: 10, offtune: 160, forte2: -1 },
+    { hitFrame: 6, mv: 358, energy: 5, concerto: 10, offtune: 160, forte2: -1 },
+    { hitFrame: 9, mv: 358, energy: 5, concerto: 10, offtune: 160, forte2: -1 },
+  ], ...blitz() });
 /** Held Stage 3 chains into Eradication, so it throws no Falltone. */
 const Blitz3Hold = chisaAction("Forte Basic - Sawring Blitz 3 (Hold)", { animFrames: 99, node: Node.Forte, type: Type.Liberation, bullets: [
-    { hitFrame: 32, mv: 15.98, energy: 0.23, concerto: 0.45, offtune: 715 },
-    { hitFrame: 38, mv: 15.98, energy: 0.23, concerto: 0.45, offtune: 715 },
-    { hitFrame: 41, mv: 15.98, energy: 0.23, concerto: 0.45, offtune: 715 },
-    { hitFrame: 47, mv: 15.98, energy: 0.23, concerto: 0.45, offtune: 715 },
-    { hitFrame: 50, mv: 15.98, energy: 0.23, concerto: 0.45, offtune: 715 },
-    { hitFrame: 56, mv: 15.98, energy: 0.23, concerto: 0.45, offtune: 715 },
-    { hitFrame: 62, mv: 15.98, energy: 0.23, concerto: 0.45, offtune: 715 },
-    { hitFrame: 66, mv: 15.98, energy: 0.23, concerto: 0.45, offtune: 715 },
-    { hitFrame: 73, mv: 15.98, energy: 0.23, concerto: 0.45, offtune: 715 },
-    { hitFrame: 77, mv: 15.98, energy: 0.23, concerto: 0.45, offtune: 715 },
-    { hitFrame: 84, mv: 15.98, energy: 0.23, concerto: 0.45, offtune: 715 },
-    { hitFrame: 88, mv: 15.98, energy: 0.23, concerto: 0.45, offtune: 715 },
-    { hitFrame: 96, mv: 15.98, energy: 0.23, concerto: 0.45, offtune: 715 },
-    { hitFrame: 99, commitFrame: 96, mv: 15.98, energy: 0.23, concerto: 0.45, offtune: 715 },
-  ], castForte2: -50, ...blitz() });
+    { hitFrame: 32, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -3 },
+    { hitFrame: 38, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -3 },
+    { hitFrame: 41, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -3 },
+    { hitFrame: 47, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -3 },
+    { hitFrame: 50, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -3 },
+    { hitFrame: 56, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -3 },
+    { hitFrame: 62, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -4 },
+    { hitFrame: 66, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -4 },
+    { hitFrame: 73, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -4 },
+    { hitFrame: 77, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -4 },
+    { hitFrame: 84, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -4 },
+    { hitFrame: 88, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -4 },
+    { hitFrame: 96, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -4 },
+    { hitFrame: 99, commitFrame: 96, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -4 },
+  ], ...blitz() });
 
 /** A released stage and the burst it throws: Stage 2 into Discordance, Stage 3 into Falltone. */
 const Blitz2D = new ActionGroup("Forte Basic - Sawring Blitz 2 (Discordance)", [Blitz2, Blitz2Discordance]);
@@ -415,10 +418,10 @@ const Blitz3F = new ActionGroup("Forte Basic - Sawring Blitz 3 (Falltone)", [Bli
 const Eradication = chisaAction("Forte Basic - Sawring Eradication", {
   animFrames: 156,
   node: Node.Forte, type: Type.Liberation, bullets: [
-    { hitFrame: 53, mv: 51.54, energy: 4.48, concerto: 0.96, offtune: 1536,
+    { hitFrame: 53, mv: 5154, energy: 448, concerto: 96, offtune: 1536,
       updateDebuffs: () => gainShield() },
-    { hitFrame: 68, commitFrame: 65, mv: 206.13, energy: 17.92, concerto: 3.84, offtune: 6144 },
-  ], castConcerto: 45, 
+    { hitFrame: 68, commitFrame: 65, mv: 20613, energy: 1792, concerto: 384, offtune: 6144 },
+  ], castConcerto: 4500, 
   resetForte2: true,
 });
 
@@ -447,7 +450,9 @@ const WOVEN_MYRIAD_CONVERGENCE = new Buff({
  *  reads it — +2.59% MV a point at max rank — before it resets for the next Chainsaw Mode entry. */
 const RING_CONSUMED = new Buff({
   name: "Chisa: Ring of Chainsaw Consumed", maxStacks: 100,
-  applyStats: () => { if (runningAction(Eradication)) addStat(Stat.AddMv, 2.59 * frozenStacks()); },
+  applyStats: () => {
+    if (runningBullet(Eradication, -1)) addStat(Stat.AddMv, 259 * frozenStacks());
+  },
   afterAction: () => { if (runningAction(Eradication)) revokeCurrent(RING_CONSUMED); },
 });
 
@@ -527,7 +532,7 @@ const DESOLATE_CORRIDORS = new Buff({
 });
 /** S1's one-off: 61,803 fixed Havoc DMG, Basic Attack DMG that reads no bonus at all, on the first
  *  Snare a target ever takes. The 61.8% floor on the target's HP never binds against a boss. */
-const SnareStrike = chisaAction("Basic - Unseen Snare (S1)", { type: Type.Basic, scaling: Scaling.Fixed, mv: 61803 });
+const SnareStrike = chisaAction("Basic - Unseen Snare (S1)", { type: Type.Basic, scaling: Scaling.Fixed, bullets: [{ hitFrame: 0, mv: 6180300 }] });
 /** Whether that hit has already landed — once per target, which is once a fight here, so a marker
  *  on her own slot rather than the target's. No `name`, so it never enters the held-buffs list. */
 const SNARE_STRUCK = new Buff({});
@@ -622,7 +627,7 @@ const CHISA_RESONATOR = new Resonator({
   weapon: WeaponType.Broadblade,
   color: "#8a3b47",
   intro: Intro,
-  maxEnergy: 125,
+  maxEnergy: 12500,
   maxForte1: 100,
   maxForte2: 100,
 
@@ -640,12 +645,12 @@ const CHISA_RESONATOR = new Resonator({
  *  here models the timing that earns them, so the chain reads as the plain taps it is. */
 
 const CS_ROTATION = new Rotation([
-  NOINTRO, BA1, BA2.cancel(), Skill, RendingLunge, DeathSnipSpread, ThreadWithdrawn, ECHO.instaDodge(), Liberation,
+  NOINTRO, BA1, BA2.cancel(), Skill, RendingLunge, DeathSnipSpread, ThreadWithdrawn.instaCancel(), ECHO.instaDodge(), Liberation,
   SerratedLoop, Blitz2Hold, Blitz3Hold, Eradication.instaSwap(),
   Outro,
 
   INTRO, Skill, RendingLunge, DeathSnipSpread, ECHO.instaDodge(), Liberation,
-  SerratedLoop, Blitz2, Blitz3, Eradication.instaSwap(),
+  SerratedLoop, Blitz2Hold, Blitz3Hold, Eradication.instaSwap(),
   Outro,
 ]);
 

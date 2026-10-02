@@ -23,7 +23,7 @@ import {
   addEnemyStat,
   queue,
 } from "../../engine/context.js";
-import { Action, Rotation, NOINTRO, ECHO, ActionGroup, START_2, START_1, INTRO, Cooldown } from "../../engine/rotation.js";
+import { Action, Rotation, NOINTRO, ECHO, ActionGroup, START_FIRST, INTRO, Cooldown } from "../../engine/rotation.js";
 import { tuneBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
 import { SPECTRO_FRAZZLE, SHIMMER, HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
@@ -42,28 +42,28 @@ function roverAction(id: string, def: object): Action {
 
 // --- basics, heavies, mid-air, dodge counter. Every Normal Attack banks a little Diminutive
 //     Sound (forte1); Heavy Attack Aftertune is the big one at 45.
-const BA1 = roverAction("Basic - Vibration Manifestation 1", { animFrames: 21, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 10, mv: 59.15, energy: 0.5, concerto: 2, offtune: 2800, forte1: 3 }]});
-const BA2 = roverAction("Basic - Vibration Manifestation 2", { animFrames: 25, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 12, mv: 76.05, energy: 1, concerto: 4, offtune: 3600, forte1: 5 }]});
+const BA1 = roverAction("Basic - Vibration Manifestation 1", { animFrames: 21, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 10, mv: 5915, energy: 50, concerto: 200, offtune: 2800, forte1: 3 }]});
+const BA2 = roverAction("Basic - Vibration Manifestation 2", { animFrames: 25, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 12, mv: 7605, energy: 100, concerto: 400, offtune: 3600, forte1: 5 }]});
 const BA3 = roverAction("Basic - Vibration Manifestation 3", { animFrames: 24, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 14, mv: 15.21, energy: 0.3, concerto: 0.8, offtune: 720, forte1: 1 },
-    { hitFrame: 20, commitFrame: 14, mv: 15.21, energy: 0.3, concerto: 0.8, offtune: 720, forte1: 1 },
-    { hitFrame: 26, commitFrame: 14, mv: 15.21, energy: 0.3, concerto: 0.8, offtune: 720, forte1: 1 },
-    { hitFrame: 32, commitFrame: 14, mv: 15.21, energy: 0.3, concerto: 0.8, offtune: 720, forte1: 1 },
-    { hitFrame: 38, commitFrame: 14, mv: 15.21, energy: 0.3, concerto: 0.8, offtune: 720, forte1: 1 },
+    { hitFrame: 14, mv: 1521, energy: 30, concerto: 80, offtune: 720, forte1: 1 },
+    { hitFrame: 20, commitFrame: 14, mv: 1521, energy: 30, concerto: 80, offtune: 720, forte1: 1 },
+    { hitFrame: 26, commitFrame: 14, mv: 1521, energy: 30, concerto: 80, offtune: 720, forte1: 1 },
+    { hitFrame: 32, commitFrame: 14, mv: 1521, energy: 30, concerto: 80, offtune: 720, forte1: 1 },
+    { hitFrame: 38, commitFrame: 14, mv: 1521, energy: 30, concerto: 80, offtune: 720, forte1: 1 },
   ]});
-const BA4 = roverAction("Basic - Vibration Manifestation 4", { animFrames: 49, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 20, mv: 130.13, energy: 2, concerto: 6, offtune: 6160, forte1: 7 }]});
-const MA = roverAction("Mid-air - Vibration Manifestation Plunge", { animFrames: 54, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 39, mv: 104.78, energy: 0.51, concerto: 1, offtune: 4960 }]});
-const DC = roverAction("Dodge Counter - Vibration Manifestation", { animFrames: 27, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 17, mv: 195.34, energy: 2.62, concerto: 13.6, offtune: 3600 }]});
+const BA4 = roverAction("Basic - Vibration Manifestation 4", { animFrames: 49, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 20, mv: 13013, energy: 200, concerto: 600, offtune: 6160, forte1: 7 }]});
+const MA = roverAction("Mid-air - Vibration Manifestation Plunge", { animFrames: 54, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 39, mv: 10478, energy: 51, concerto: 100, offtune: 4960, forte1: 5 }]});
+const DC = roverAction("Dodge Counter - Vibration Manifestation", { animFrames: 27, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 17, mv: 19534, energy: 262, concerto: 360, offtune: 3600 }], castConcerto: 1000});
 
 const HA1 = roverAction("Heavy - Vibration Manifestation", { animFrames: 33, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
-    { hitFrame: 12, mv: 19.27, energy: 0.28, concerto: 0.91, offtune: 4560, forte1: 1 },
-    { hitFrame: 18, commitFrame: 12, mv: 19.27, energy: 0.28, concerto: 0.91, offtune: 4560, forte1: 1 },
-    { hitFrame: 24, commitFrame: 12, mv: 19.27, energy: 0.28, concerto: 0.91, offtune: 4560, forte1: 1 },
-    { hitFrame: 30, commitFrame: 12, mv: 19.27, energy: 0.28, concerto: 0.91, offtune: 4560, forte1: 1 },
-    { hitFrame: 36, commitFrame: 12, mv: 19.27, energy: 0.28, concerto: 0.91, offtune: 4560, forte1: 1 },
+    { hitFrame: 12, mv: 1927, energy: 28, concerto: 91, offtune: 4560, forte1: 1 },
+    { hitFrame: 18, commitFrame: 12, mv: 1927, energy: 28, concerto: 91, offtune: 4560, forte1: 1 },
+    { hitFrame: 24, commitFrame: 12, mv: 1927, energy: 28, concerto: 91, offtune: 4560, forte1: 1 },
+    { hitFrame: 30, commitFrame: 12, mv: 1927, energy: 28, concerto: 91, offtune: 4560, forte1: 1 },
+    { hitFrame: 36, commitFrame: 12, mv: 1927, energy: 28, concerto: 91, offtune: 4560, forte1: 1 },
   ]});
-const HA2 = roverAction("Heavy - Resonance", { animFrames: 27, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 17, mv: 76.05, energy: 1.12, concerto: 3.6, offtune: 3600 }]});
-const HA3 = roverAction("Heavy - Aftertune", { animFrames: 41, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 12, commitFrame: 0, mv: 126.75, energy: 1.87, concerto: 6, offtune: 6000, forte1: 45 }]});
+const HA2 = roverAction("Heavy - Resonance", { animFrames: 27, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 17, mv: 7605, energy: 112, concerto: 360, offtune: 3600 }]});
+const HA3 = roverAction("Heavy - Aftertune", { animFrames: 41, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 12, commitFrame: 0, mv: 12675, energy: 187, concerto: 600, offtune: 6000, forte1: 45 }]});
 const HA123 = new ActionGroup("Heavy - Attack + Resonance + Aftertune", [HA1, HA2, HA3]);
 
 // --- resonance skill, and the forte circuit that replaces it at 50 Diminutive Sound: Resonating
@@ -72,13 +72,13 @@ const HA123 = new ActionGroup("Heavy - Attack + Resonance + Aftertune", [HA1, HA
 //     Resonating Echoes follow-up, whose two stages the sheet keeps as one row.
 /** Resonating Spin is the same Skill button, enhanced: one 6s cooldown between them. */
 const SKILL_CD = new Cooldown({ frames: 60 * 6 });
-const Skill = roverAction("Skill - Resonating Slashes", { animFrames: 41, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [{ hitFrame: 16, mv: 236.19, energy: 10, offtune: 4800 }], castConcerto: 10});
+const Skill = roverAction("Skill - Resonating Slashes", { animFrames: 41, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [{ hitFrame: 16, mv: 23619, energy: 1000, offtune: 4800 }], castConcerto: 1000});
 const FSkill1 = roverAction("Forte Skill - Resonating Spin", {
   cooldown: SKILL_CD,
   animFrames: 58,
   node: Node.Forte, cast: Cast.Skill, type: Type.Skill, bullets: [
     {
-      hitFrame: 19, mv: 129.08, energy: 5, offtune: 10920,
+      hitFrame: 19, mv: 12908, energy: 500, offtune: 10920,
       // Shimmer rides along with the two stacks, and holds every Frazzle stack on the target for its
       // own 9s rather than letting the ticks eat them (shared/status.ts)
       updateDebuffs: () => {
@@ -87,13 +87,13 @@ const FSkill1 = roverAction("Forte Skill - Resonating Spin", {
         queue(ResonatingWhirl);
       },
     },
-    { hitFrame: 31, mv: 129.08, energy: 5, offtune: 10920 },
-  ], castConcerto: 20, castForte1: -50,
+    { hitFrame: 31, mv: 12908, energy: 500, offtune: 10920 },
+  ], castConcerto: 2000, castForte1: -50,
 });
-const ResonatingWhirl = roverAction("Forte Skill - Resonating Whirl", { node: Node.Forte, type: Type.Skill, mv: 39.77, energy: 2 });
+const ResonatingWhirl = roverAction("Forte Skill - Resonating Whirl", { node: Node.Forte, type: Type.Skill, bullets: [{ hitFrame: 0, mv: 3977, energy: 200 }] });
 const FBA = roverAction("Basic - Resonating Echoes", { animFrames: 60, node: Node.Forte, cast: Cast.Basic, type: Type.Skill, bullets: [
-    { hitFrame: 9, mv: 79.53, energy: 0.5, concerto: 3, offtune: 2400 },
-    { hitFrame: 36, mv: 159.05, energy: 2, concerto: 5, offtune: 4800 },
+    { hitFrame: 9, mv: 7953, energy: 50, concerto: 300, offtune: 2400 },
+    { hitFrame: 36, mv: 15905, energy: 200, concerto: 500, offtune: 4800 },
   ]});
 
 // --- liberation / intro / outro. Instant is a stasis field only — no damage, no stat.
@@ -103,17 +103,17 @@ const Liberation = roverAction("Liberation - Echoing Orchestra", {
   animFrames: 129, timestop: 129, motionStop: 79, cooldown: 60 * 20,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [
     {
-      hitFrame: 78, mv: 198.81, offtune: 13964,
+      hitFrame: 78, mv: 19881, offtune: 13964,
       updateDebuffs: () => {
         applyCurrent(HEALS, 1);
         applyEnemy(SPECTRO_FRAZZLE, 6);
       },
     },
-    { hitFrame: 123, mv: 675.96, offtune: 47477 },
-  ], castConcerto: 20, resetEnergy: true,
+    { hitFrame: 123, mv: 67596, offtune: 47477 },
+  ], castConcerto: 2000, resetEnergy: true,
 });
-const Intro = roverAction("Intro - Waveshock", { animFrames: 72, prioFrames: 72, motionStop: 48, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 56, mv: 168.99, energy: 10, offtune: 4880 }], castConcerto: 10, castForte1: 50});
-const Outro = roverAction("Outro - Instant", { animFrames: 0, cast: Cast.Outro, castConcerto: -100});
+const Intro = roverAction("Intro - Waveshock", { animFrames: 72, prioFrames: 72, motionStop: 48, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 56, mv: 16899, energy: 1000, offtune: 4880 }], castConcerto: 1000, castForte1: 50});
+const Outro = roverAction("Outro - Instant", { animFrames: 0, cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000});
 
 /* ------------------------------------------------------------------------------------ buffs */
 
@@ -206,7 +206,7 @@ const ROVER_SPECTRO_RESONATOR = new Resonator({
   color: "#e8d98f",
   intro: Intro,
   tuneBreak: tuneBreak(91, 91, 70, SWORD_BREAK),
-  maxEnergy: 125,
+  maxEnergy: 12500,
   maxForte1: 100,
   tier: Tier.Free,
 

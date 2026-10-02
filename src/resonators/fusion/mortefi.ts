@@ -48,42 +48,42 @@ function mortefiAction(id: string, def: object): Action {
 
 // --- basics, mid-air, dodge counter, heavy (Impromptu Show) — BA2/BA4 fold multiple hits into
 //     one action, same as their own mv already did
-const BA1 = mortefiAction("Basic - Impromptu Show 1", { animFrames: 21, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 12, mv: 48.3, energy: 0.86, concerto: 2.77, offtune: 2800, forte1: 5 }]});
+const BA1 = mortefiAction("Basic - Impromptu Show 1", { animFrames: 21, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 12, mv: 4830, energy: 86, concerto: 277, offtune: 2800, forte1: 5 }]});
 const BA2 = mortefiAction("Basic - Impromptu Show 2", { animFrames: 35, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 10, mv: 40.78, energy: 0.73, concerto: 2.34, offtune: 2360, forte1: 5 },
-    { hitFrame: 18, mv: 40.78, energy: 0.73, concerto: 2.34, offtune: 2360, forte1: 5 },
+    { hitFrame: 10, mv: 4078, energy: 73, concerto: 234, offtune: 2360, forte1: 5 },
+    { hitFrame: 18, mv: 4078, energy: 73, concerto: 234, offtune: 2360, forte1: 5 },
   ]});
-const BA3 = mortefiAction("Basic - Impromptu Show 3", { animFrames: 40, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 24, mv: 107.3, energy: 1.92, concerto: 6.16, offtune: 6160, forte1: 10 }]});
+const BA3 = mortefiAction("Basic - Impromptu Show 3", { animFrames: 40, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 24, mv: 10730, energy: 192, concerto: 616, offtune: 6160, forte1: 10 }]});
 const BA4 = mortefiAction("Basic - Impromptu Show 4", { animFrames: 91, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 18, mv: 21.02, energy: 0.37, concerto: 1.2, offtune: 1200, forte1: 2 },
-    { hitFrame: 24, mv: 21.02, energy: 0.37, concerto: 1.2, offtune: 1200, forte1: 2 },
-    { hitFrame: 30, mv: 21.02, energy: 0.37, concerto: 1.2, offtune: 1200, forte1: 2 },
-    { hitFrame: 36, mv: 21.02, energy: 0.37, concerto: 1.2, offtune: 1200, forte1: 2 },
-    { hitFrame: 54, mv: 126.93, energy: 2.28, concerto: 7.29, offtune: 7280, forte1: 17 },
+    { hitFrame: 18, mv: 2102, energy: 37, concerto: 120, offtune: 1200, forte1: 2 },
+    { hitFrame: 24, mv: 2102, energy: 37, concerto: 120, offtune: 1200, forte1: 2 },
+    { hitFrame: 30, mv: 2102, energy: 37, concerto: 120, offtune: 1200, forte1: 2 },
+    { hitFrame: 36, mv: 2102, energy: 37, concerto: 120, offtune: 1200, forte1: 2 },
+    { hitFrame: 54, mv: 12693, energy: 228, concerto: 729, offtune: 7280, forte1: 17 },
   ]});
 
-const HA = mortefiAction("Heavy - Impromptu Show", { node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, mv: 167.01, energy: 2.4, concerto: 7.68, offtune: 9600 });
-const MA1 = mortefiAction("Mid-air - Impromptu Show 1", { animFrames: 11, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 23.25, energy: 0.41, concerto: 1, offtune: 1360, forte1: 2 }]});
-const MA2 = mortefiAction("Mid-air - Impromptu Show 2", { animFrames: 11, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 23.25, energy: 0.41, concerto: 1, offtune: 1360, forte1: 2 }]});
-const DC = mortefiAction("Dodge Counter - Impromptu Show", { animFrames: 48, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 32, mv: 194.98, energy: 3.5, concerto: 16.4, offtune: 6400, forte1: 20 }]});
+const HA = mortefiAction("Heavy - Impromptu Show", { node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 16701, energy: 240, concerto: 768, offtune: 9600 }] });
+const MA1 = mortefiAction("Mid-air - Impromptu Show 1", { animFrames: 11, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 2325, energy: 41, concerto: 100, offtune: 1360, forte1: 2 }]});
+const MA2 = mortefiAction("Mid-air - Impromptu Show 2", { animFrames: 11, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 2325, energy: 41, concerto: 100, offtune: 1360, forte1: 2 }]});
+const DC = mortefiAction("Dodge Counter - Impromptu Show", { animFrames: 48, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 32, mv: 19498, energy: 350, concerto: 640, offtune: 6400, forte1: 20 }], castConcerto: 1000});
 
 // --- resonance skill: Passionate Variation. Elemental DMG reads 0, so concerto is the flat
 //     Concerto Regen (18) instead, same treatment as every other such row.
 const Skill = mortefiAction("Skill - Passionate Variation", {
   animFrames: 46, cooldown: 60 * 14,
-  node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [{ hitFrame: 16, mv: 208.76, energy: 10, offtune: 7200, forte1: 40 }], castConcerto: 18,
+  node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [{ hitFrame: 16, mv: 20876, energy: 1000, offtune: 7200, forte1: 40 }], castConcerto: 1800,
   updateBuffs: () => applyCurrent(PASSIONATE_TAIL, 1),
 });
 
 // --- forte circuit: Fury Fugue — spends every point of Annoyance, considered Resonance Skill DMG
-const FSkill = mortefiAction("Forte Skill - Fury Fugue", { animFrames: 67, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, bullets: [{ hitFrame: 20, mv: 326.05, energy: 10, offtune: 8000 }], castConcerto: 18, castForte1: -100});
+const FSkill = mortefiAction("Forte Skill - Fury Fugue", { minForte1: 100, animFrames: 67, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, bullets: [{ hitFrame: 20, mv: 32605, energy: 1000, offtune: 8000 }], castConcerto: 1800, castForte1: -100});
 
 // --- resonance liberation: Violent Finale opens Burning Rhapsody — 28 coordinated attacks banked
 //     (10s / 0.35s), the window itself and its firing rules in BURNING_RHAPSODY below. A fresh
 //     window is a fresh Rhythmic Vibrato ramp, so the old one is wiped here.
 const Liberation = mortefiAction("Liberation - Violent Finale", {
   animFrames: 120, timestop: 120, motionStop: 64, cooldown: 60 * 20,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 62, mv: 159.05, offtune: 96000 }], castConcerto: 20, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 62, mv: 15905, offtune: 96000 }], castConcerto: 2000, resetEnergy: true,
   updateBuffs: () => { revokeCurrent(VIBRATO); applyTeam(BURNING_RHAPSODY, 28); },
 });
 /** Burning Rhapsody as the report reads it: the field his Liberation puts out, which every
@@ -92,7 +92,7 @@ const MARCATO_FIELD = new ActionField("Mortefi: Burning Rhapsody");
 /** One Marcato, every hit its own row so the detail table's field row counts them — this is the
  *  lead hit of a coordinated attack, which is what carries the Vibrato ramp's +1. */
 const ACTION_MARCATO = mortefiAction("Liberation - Marcato", {
-  node: Node.Liberation, type: Type.Liberation, subtype: Subtype.Coordinated, bullets: [{ hitFrame: 32, mv: 31.81 }], field: MARCATO_FIELD,
+  node: Node.Liberation, type: Type.Liberation, subtype: Subtype.Coordinated, bullets: [{ hitFrame: 32, mv: 3181 }], field: MARCATO_FIELD,
   updateBuffs: () => applyCurrent(VIBRATO, 1),
 });
 /** The second hit of a Heavy/Skill pair — inside the lead's 0.35s Vibrato ICD, so no gain. */
@@ -101,16 +101,16 @@ const ACTION_MARCATO_PAIRED = ACTION_MARCATO.paired();
  *  `MORTEFI_S5` below. His own hits off his own press rather than the Liberation window's, so it
  *  belongs to no field and pairs with nothing: four of the one action, each a lead hit. */
 const ACTION_S5_MARCATO = mortefiAction("Liberation - Marcato (S5 Funerary Quartet)", {
-  node: Node.Liberation, type: Type.Liberation, subtype: Subtype.Coordinated, mv: 31.81,
+  node: Node.Liberation, type: Type.Liberation, subtype: Subtype.Coordinated, bullets: [{ hitFrame: 0, mv: 3181 }],
   updateBuffs: () => applyCurrent(VIBRATO, 1),
   applyStats: () => addStat(Stat.DmgBonus, -50),
 });
 
 // --- intro / outro
-const Intro = mortefiAction("Intro - Dissonance", { animFrames: 90, prioFrames: 90, motionStop: 46, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 44, mv: 168.99, energy: 10, offtune: 8000, forte1: 60 }], castConcerto: 10});
+const Intro = mortefiAction("Intro - Dissonance", { animFrames: 90, prioFrames: 90, motionStop: 46, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 44, mv: 16899, energy: 1000, offtune: 8000, forte1: 60 }], castConcerto: 1000});
 const Outro = mortefiAction("Outro - Rage Transposition", {
   animFrames: 0,
-  cast: Cast.Outro, castConcerto: -100,
+  cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000,
   updateBuffs: () => queueOutro(MORTEFI_OUTRO),
 });
 
@@ -124,9 +124,9 @@ const PASSIONATE_TAIL = new Buff({
   applyStats: () => {
     const a = currentAction();
     if (!casting(Cast.Basic) || !a.bullets.length) return;
-    // per hit, so the presses this file folds into one action pay for each of theirs: the second
-    // is two shots and the fourth is five, which is what carries a whole combo to 100 Annoyance
-    addStat(Stat.AddForte1, 7 * (runningAction(BA2) ? 2 : runningAction(BA4) ? 5 : 1));
+    // 7 a shot: the second press is two shots and the fourth five, which is what carries a whole
+    // combo to 100 Annoyance
+    addStat(Stat.AddForte1, 7);
   },
 });
 
@@ -225,7 +225,7 @@ const MORTEFI_S1 = new Sequence({
  *  ICD simplification. */
 const MORTEFI_S2 = new Sequence({
   name: "Mortefi S2: Hypocritical Hymn",
-  updateBuffs: () => { if (casting(Cast.Echo)) addToCast({ energy: 10 }); },
+  updateBuffs: () => { if (casting(Cast.Echo)) addToCast({ energy: 1000 }); },
 });
 
 /** S3 Flaming Recitativo: +30% Crit DMG on Marcato hits, scoped to `Subtype.Coordinated` (covers
@@ -276,7 +276,7 @@ const MORTEFI_RESONATOR = new Resonator({
   weapon: WeaponType.Pistols,
   color: "#d7370f",
   intro: Intro,
-  maxEnergy: 125,
+  maxEnergy: 12500,
   maxForte1: 100,
   tier: Tier.Free,
 

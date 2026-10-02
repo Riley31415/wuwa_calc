@@ -422,8 +422,9 @@ body {
    actually wears, and one point more of requirement would cost it a roll. */
 .rtrow .erreq { text-decoration: underline; text-underline-offset: 3px; }
 .rtrow .erreq.er-under { color: #e5484d; }
-.rtrow .erreq.er-slack { color: var(--amber); }
 .rtrow .erreq.er-met { color: #3ddc7a; }
+.pop .need-met { color: #3ddc7a; }
+.pop .need-miss { color: #e5484d; }
 
 /* Damage Contribution's two rules, both drawn on the cells rather than as boxes of their own (the
    rows are `display: contents`, so there is no row box to put a border on).
@@ -1070,13 +1071,15 @@ main {
    values read left-aligned against their labels rather than flush right on lengths that mean
    nothing next to each other. */
 .pop.info td.v { text-align: left; }
+/* a cut's tag box: one line on how it is played */
+.pop.note { white-space: nowrap; }
 
 /* The Time hover: laid out like a stat panel, the frames right-aligned the way a stat's figures are. */
 .pop.frames td.v, .pop.frames .sec td { text-align: right; }
 
 /* A cancelled press's tag, boxed at the right of its name: outlined in the cancel's colour over a
    faint wash of it — a plain cancel purple, a dash blue, a jump orange, an insta (swap included)
-   red, a swap cancel gold, a hit cancel yellow, an easy cancel green, and an off-field press gray. */
+   red, a swap cancel gold, every on-hit cut (cancel, dodge, jump) yellow, a mash or hold cancel green, and an off-field press gray. */
 .ctag {
   float: right;
   margin-left: 6px;

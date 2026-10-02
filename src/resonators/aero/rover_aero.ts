@@ -45,89 +45,89 @@ function roverAction(id: string, def: object): Action {
 
 // --- basics, heavies, mid-air, dodge counter. Basic 3/4 and Dodge Counter are the small
 //     Windstring (forte1) sources; the mid-air rows are the plain plunge, not Cloudburst Dance.
-const BA1 = roverAction("Basic - Wind Cutter 1", { animFrames: 21, bullets: [{ hitFrame: 15, mv: 35.31, energy: 0.76, concerto: 2.41, offtune: 2408 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
+const BA1 = roverAction("Basic - Wind Cutter 1", { animFrames: 21, bullets: [{ hitFrame: 15, mv: 3531, energy: 76, concerto: 241, offtune: 2408 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
 // PLACEHOLDER FRAMES
 const BA2 = roverAction("Basic - Wind Cutter 2", { animFrames: 44, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 28, mv: 43.05, energy: 0.92, concerto: 2.94, offtune: 2936 },
-    { hitFrame: 28, mv: 43.05, energy: 0.92, concerto: 2.94, offtune: 2936 },
+    { hitFrame: 28, mv: 4305, energy: 92, concerto: 294, offtune: 2936 },
+    { hitFrame: 28, mv: 4305, energy: 92, concerto: 294, offtune: 2936 },
   ]});
 // PLACEHOLDER FRAMES
 const BA3 = roverAction("Basic - Wind Cutter 3", { animFrames: 58, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 37, mv: 55.05, energy: 1.1766, concerto: 3.7558, offtune: 3752.645 },
-    { hitFrame: 37, mv: 1.99, energy: 0.0425, concerto: 0.1358, offtune: 135.6542 },
-    { hitFrame: 37, mv: 1.99, energy: 0.0425, concerto: 0.1358, offtune: 135.6542 },
-    { hitFrame: 37, mv: 1.99, energy: 0.0425, concerto: 0.1358, offtune: 135.6542 },
-    { hitFrame: 37, mv: 1.99, energy: 0.0425, concerto: 0.1358, offtune: 135.6542 },
-    { hitFrame: 37, mv: 1.99, energy: 0.0425, concerto: 0.1358, offtune: 135.6542 },
-    { hitFrame: 37, mv: 1.99, energy: 0.0425, concerto: 0.1358, offtune: 135.6542 },
-    { hitFrame: 37, mv: 1.99, energy: 0.0425, concerto: 0.1358, offtune: 135.6542 },
-    { hitFrame: 37, mv: 1.99, energy: 0.0425, concerto: 0.1358, offtune: 135.6542 },
-    { hitFrame: 37, mv: 1.99, energy: 0.0425, concerto: 0.1358, offtune: 135.6542 },
-    { hitFrame: 37, mv: 1.99, energy: 0.0425, concerto: 0.1358, offtune: 135.6542 },
-    { hitFrame: 37, mv: 1.99, energy: 0.0425, concerto: 0.1358, offtune: 135.6542 },
-    { hitFrame: 37, mv: 1.99, energy: 0.0425, concerto: 0.1358, offtune: 135.6542 },
-    { hitFrame: 37, mv: 1.99, energy: 0.0425, concerto: 0.1358, offtune: 135.6542 },
-    { hitFrame: 37, mv: 1.99, energy: 0.0425, concerto: 0.1358, offtune: 135.6542 },
-    { hitFrame: 37, mv: 1.99, energy: 0.0425, concerto: 0.1358, offtune: 135.6542 },
-    { hitFrame: 37, mv: 1.99, energy: 0.0425, concerto: 0.1358, offtune: 135.6542 },
-    { hitFrame: 37, mv: 1.99, energy: 0.0425, concerto: 0.1358, offtune: 135.6542 },
-    { hitFrame: 37, mv: 1.99, energy: 0.0425, concerto: 0.1358, offtune: 135.6542 },
-    { hitFrame: 37, mv: 1.99, energy: 0.0425, concerto: 0.1358, offtune: 135.6542 },
-    { hitFrame: 37, mv: 1.99, energy: 0.0425, concerto: 0.1358, offtune: 135.6542 },
-    { hitFrame: 37, mv: 1.99, energy: 0.0425, concerto: 0.1358, offtune: 135.6542 },
-    { hitFrame: 37, mv: 1.99, energy: 0.0425, concerto: 0.1358, offtune: 135.6542 },
-    { hitFrame: 37, mv: 1.99, energy: 0.0425, concerto: 0.1358, offtune: 135.6542 },
-    { hitFrame: 37, mv: 1.99, energy: 0.0425, concerto: 0.1358, offtune: 135.6542 },
-    { hitFrame: 37, mv: 1.99, energy: 0.0434, concerto: 0.135, offtune: 135.6542, forte1: 10 },
+    { hitFrame: 37, mv: 5505, energy: 224, concerto: 715, offtune: 7144 },
+    { hitFrame: 37, mv: 199 },
+    { hitFrame: 37, mv: 199 },
+    { hitFrame: 37, mv: 199 },
+    { hitFrame: 37, mv: 199 },
+    { hitFrame: 37, mv: 199 },
+    { hitFrame: 37, mv: 199 },
+    { hitFrame: 37, mv: 199 },
+    { hitFrame: 37, mv: 199 },
+    { hitFrame: 37, mv: 199 },
+    { hitFrame: 37, mv: 199 },
+    { hitFrame: 37, mv: 199 },
+    { hitFrame: 37, mv: 199 },
+    { hitFrame: 37, mv: 199 },
+    { hitFrame: 37, mv: 199 },
+    { hitFrame: 37, mv: 199 },
+    { hitFrame: 37, mv: 199 },
+    { hitFrame: 37, mv: 199 },
+    { hitFrame: 37, mv: 199 },
+    { hitFrame: 37, mv: 199 },
+    { hitFrame: 37, mv: 199 },
+    { hitFrame: 37, mv: 199 },
+    { hitFrame: 37, mv: 199 },
+    { hitFrame: 37, mv: 199 },
+    { hitFrame: 37, mv: 199 },
+    { hitFrame: 37, mv: 199, forte1: 10 },
   ]});
-const BA4 = roverAction("Basic - Wind Cutter 4", { animFrames: 46, bullets: [{ hitFrame: 27, mv: 76.72, energy: 1.64, concerto: 5.24, offtune: 5232, forte1: 10 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
+const BA4 = roverAction("Basic - Wind Cutter 4", { animFrames: 46, bullets: [{ hitFrame: 27, mv: 7672, energy: 164, concerto: 524, offtune: 5232, forte1: 10 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
 // PLACEHOLDER FRAMES
 const HA = roverAction("Heavy - Wind Cutter", { animFrames: 28, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
-    { hitFrame: 15, mv: 17.91, energy: 0.39, concerto: 1.23, offtune: 1222 },
-    { hitFrame: 15, mv: 17.91, energy: 0.39, concerto: 1.23, offtune: 1222 },
-    { hitFrame: 15, mv: 17.91, energy: 0.39, concerto: 1.23, offtune: 1222 },
+    { hitFrame: 15, mv: 1791, energy: 39, concerto: 123, offtune: 1222 },
+    { hitFrame: 15, mv: 1791, energy: 39, concerto: 123, offtune: 1222 },
+    { hitFrame: 15, mv: 1791, energy: 39, concerto: 123, offtune: 1222 },
   ]});
 // PLACEHOLDER FRAMES
 const RazorWind = roverAction("Heavy - Razor Wind", { animFrames: 40, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
-    { hitFrame: 27, mv: 36.37, energy: 0.7784, concerto: 2.4883, offtune: 2480.6113 },
-    { hitFrame: 27, mv: 44.46, energy: 0.9516, concerto: 3.0417, offtune: 3032.3887 },
+    { hitFrame: 27, mv: 3637, energy: 78, concerto: 249, offtune: 2481 },
+    { hitFrame: 27, mv: 4446, energy: 95, concerto: 304, offtune: 3032 },
   ]});
-const MA = roverAction("Mid-air - Wind Cutter Plunge", { animFrames: 62, bullets: [{ hitFrame: 35, mv: 140.76, energy: 0.52, concerto: 9.6, offtune: 9600 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
+const MA = roverAction("Mid-air - Wind Cutter Plunge", { animFrames: 62, bullets: [{ hitFrame: 35, mv: 14076, energy: 52, concerto: 960, offtune: 9600 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
 // PLACEHOLDER FRAMES
 const DC = roverAction("Dodge Counter - Wind Cutter", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
-    { hitFrame: 0, mv: 125.43, energy: 2.6779, concerto: 15.7163, offtune: 8551.9804 },
-    { hitFrame: 0, mv: 1.99, energy: 0.0425, concerto: 0.2493, offtune: 135.6808 },
-    { hitFrame: 0, mv: 1.99, energy: 0.0425, concerto: 0.2493, offtune: 135.6808 },
-    { hitFrame: 0, mv: 1.99, energy: 0.0425, concerto: 0.2493, offtune: 135.6808 },
-    { hitFrame: 0, mv: 1.99, energy: 0.0425, concerto: 0.2493, offtune: 135.6808 },
-    { hitFrame: 0, mv: 1.99, energy: 0.0425, concerto: 0.2493, offtune: 135.6808 },
-    { hitFrame: 0, mv: 1.99, energy: 0.0425, concerto: 0.2493, offtune: 135.6808 },
-    { hitFrame: 0, mv: 1.99, energy: 0.0425, concerto: 0.2493, offtune: 135.6808 },
-    { hitFrame: 0, mv: 1.99, energy: 0.0425, concerto: 0.2493, offtune: 135.6808 },
-    { hitFrame: 0, mv: 1.99, energy: 0.0425, concerto: 0.2493, offtune: 135.6808 },
-    { hitFrame: 0, mv: 1.99, energy: 0.0425, concerto: 0.2493, offtune: 135.6808 },
-    { hitFrame: 0, mv: 1.99, energy: 0.0425, concerto: 0.2493, offtune: 135.6808 },
-    { hitFrame: 0, mv: 1.99, energy: 0.0425, concerto: 0.2493, offtune: 135.6808 },
-    { hitFrame: 0, mv: 1.99, energy: 0.0425, concerto: 0.2493, offtune: 135.6808 },
-    { hitFrame: 0, mv: 1.99, energy: 0.0425, concerto: 0.2493, offtune: 135.6808 },
-    { hitFrame: 0, mv: 1.99, energy: 0.0425, concerto: 0.2493, offtune: 135.6808 },
-    { hitFrame: 0, mv: 1.99, energy: 0.0425, concerto: 0.2493, offtune: 135.6808 },
-    { hitFrame: 0, mv: 1.99, energy: 0.0425, concerto: 0.2493, offtune: 135.6808 },
-    { hitFrame: 0, mv: 1.99, energy: 0.0425, concerto: 0.2493, offtune: 135.6808 },
-    { hitFrame: 0, mv: 1.99, energy: 0.0425, concerto: 0.2493, offtune: 135.6808 },
-    { hitFrame: 0, mv: 1.99, energy: 0.0425, concerto: 0.2493, offtune: 135.6808 },
-    { hitFrame: 0, mv: 1.99, energy: 0.0425, concerto: 0.2493, offtune: 135.6808 },
-    { hitFrame: 0, mv: 1.99, energy: 0.0425, concerto: 0.2493, offtune: 135.6808 },
-    { hitFrame: 0, mv: 1.99, energy: 0.0425, concerto: 0.2493, offtune: 135.6808 },
-    { hitFrame: 0, mv: 1.99, energy: 0.0425, concerto: 0.2493, offtune: 135.6808 },
-    { hitFrame: 0, mv: 1.99, energy: 0.0421, concerto: 0.2505, offtune: 135.6804, forte1: 10 },
-  ]});
+    { hitFrame: 0, mv: 12543, energy: 374, concerto: 1195, offtune: 11944 },
+    { hitFrame: 0, mv: 199 },
+    { hitFrame: 0, mv: 199 },
+    { hitFrame: 0, mv: 199 },
+    { hitFrame: 0, mv: 199 },
+    { hitFrame: 0, mv: 199 },
+    { hitFrame: 0, mv: 199 },
+    { hitFrame: 0, mv: 199 },
+    { hitFrame: 0, mv: 199 },
+    { hitFrame: 0, mv: 199 },
+    { hitFrame: 0, mv: 199 },
+    { hitFrame: 0, mv: 199 },
+    { hitFrame: 0, mv: 199 },
+    { hitFrame: 0, mv: 199 },
+    { hitFrame: 0, mv: 199 },
+    { hitFrame: 0, mv: 199 },
+    { hitFrame: 0, mv: 199 },
+    { hitFrame: 0, mv: 199 },
+    { hitFrame: 0, mv: 199 },
+    { hitFrame: 0, mv: 199 },
+    { hitFrame: 0, mv: 199 },
+    { hitFrame: 0, mv: 199 },
+    { hitFrame: 0, mv: 199 },
+    { hitFrame: 0, mv: 199 },
+    { hitFrame: 0, mv: 199 },
+    { hitFrame: 0, mv: 199, forte1: 10 },
+  ], castConcerto: 1000});
 
 // --- resonance skill: Awakening Gale on the ground, Skyfall Severance from mid-air, which trades
 //     every other element's own Negative Status on the target for a stack of Aero Erosion each
 //     (the swap itself lives in the Resonator's updateDebuffs() below)
 // PLACEHOLDER FRAMES
-const Skill = roverAction("Skill - Awakening Gale", { animFrames: 63, cooldown: 60 * 3, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [{ hitFrame: 37, mv: 66.44, energy: 2, offtune: 3021.2 }, { hitFrame: 37, mv: 99.66, energy: 3, offtune: 4531.8 }], castConcerto: 10});
+const Skill = roverAction("Skill - Awakening Gale", { animFrames: 63, cooldown: 60 * 3, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [{ hitFrame: 37, mv: 6644, energy: 200, offtune: 3021 }, { hitFrame: 37, mv: 9966, energy: 300, offtune: 4532 }], castConcerto: 1000});
 /** Strips every other element's Negative Status off the target and pays back a stack of Aero
  *  Erosion per stack removed — capped, as always, by the buff system, so Aeolian Realm's own +3 to
  *  that cap is what decides how much of a big strip actually lands. */
@@ -135,7 +135,7 @@ const Skill = roverAction("Skill - Awakening Gale", { animFrames: 63, cooldown: 
 const SkyfallSeverance = roverAction("Skill - Skyfall Severance", {
   animFrames: 56, cooldown: 60 * 12,
   node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
-    { hitFrame: 43, mv: 23.37, energy: 0.336, concerto: 0.6667, offtune: 1066.8913,
+    { hitFrame: 43, mv: 2337, energy: 34, offtune: 1067,
       updateDebuffs: () => {
         let removed = 0;
         for (const status of [SPECTRO_FRAZZLE, HAVOC_BANE, FUSION_BURST, GLACIO_CHAFE, ELECTRO_FLARE]) {
@@ -144,36 +144,36 @@ const SkyfallSeverance = roverAction("Skill - Skyfall Severance", {
         }
         if (removed > 0) applyEnemy(AERO_EROSION, removed);
       } },
-    { hitFrame: 43, mv: 23.37, energy: 0.336, concerto: 0.6667, offtune: 1066.8913 },
-    { hitFrame: 43, mv: 23.37, energy: 0.336, concerto: 0.6667, offtune: 1066.8913 },
-    { hitFrame: 43, mv: 105.15, energy: 1.512, concerto: 2.9999, offtune: 4800.3261 },
-  ],
+    { hitFrame: 43, mv: 2337, energy: 34, offtune: 1067 },
+    { hitFrame: 43, mv: 2337, energy: 34, offtune: 1067 },
+    { hitFrame: 43, mv: 10515, energy: 150, offtune: 4800 },
+  ], castConcerto: 500,
 });
 
 // --- forte circuit: Cloudburst Dance (a Mid-air Attack considered Resonance Skill DMG, and the
 //     main Windstring source), then Unbound Flow, which replaces Awakening Gale at max gauge and
 //     spends 60 Windstrings a stage.
-const Cloudburst1 = roverAction("Mid-air - Cloudburst Dance 1", { animFrames: 30, bullets: [{ hitFrame: 11, mv: 128.80, energy: 0.92, concerto: 2.93, offtune: 2928, forte1: 25 }], node: Node.Forte, cast: Cast.Basic, type: Type.Skill});
-const Cloudburst2 = roverAction("Mid-air - Cloudburst Dance 2", { animFrames: 28, bullets: [{ hitFrame: 10, mv: 141.47, energy: 1.01, concerto: 3.22, offtune: 3216, forte1: 25 }], node: Node.Forte, cast: Cast.Basic, type: Type.Skill});
+const Cloudburst1 = roverAction("Mid-air - Cloudburst Dance 1", { animFrames: 30, bullets: [{ hitFrame: 11, mv: 12880, energy: 92, concerto: 293, offtune: 2928, forte1: 25 }], node: Node.Forte, cast: Cast.Basic, type: Type.Skill});
+const Cloudburst2 = roverAction("Mid-air - Cloudburst Dance 2", { animFrames: 28, bullets: [{ hitFrame: 10, mv: 14147, energy: 101, concerto: 322, offtune: 3216, forte1: 25 }], node: Node.Forte, cast: Cast.Basic, type: Type.Skill});
 // PLACEHOLDER FRAMES
 const UnboundFlow1 = roverAction("Forte Skill - Unbound Flow 1", { animFrames: 113, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, bullets: [
-    { hitFrame: 53, mv: 34.3, energy: 2, offtune: 5970, updateDebuffs: () => applyCurrent(HEALS, 1) },
-    { hitFrame: 53, mv: 34.3, energy: 2, offtune: 5970 },
-    { hitFrame: 53, mv: 34.3, energy: 2, offtune: 5970 },
-    { hitFrame: 53, mv: 34.3, energy: 2, offtune: 5970 },
-    { hitFrame: 53, mv: 34.3, energy: 2, offtune: 5970 },
-  ], castConcerto: 20, castForte1: -60});
-const UnboundFlow2 = roverAction("Forte Skill - Unbound Flow 2", { animFrames: 37, bullets: [{ hitFrame: 15, mv: 723.03, energy: 20, offtune: 28288 }], node: Node.Forte, cast: Cast.Skill, type: Type.Skill, castConcerto: 20, castForte1: -60});
+    { hitFrame: 53, mv: 3430, energy: 200, offtune: 5970, updateDebuffs: () => applyCurrent(HEALS, 1) },
+    { hitFrame: 53, mv: 3430, energy: 200, offtune: 5970 },
+    { hitFrame: 53, mv: 3430, energy: 200, offtune: 5970 },
+    { hitFrame: 53, mv: 3430, energy: 200, offtune: 5970 },
+    { hitFrame: 53, mv: 3430, energy: 200, offtune: 5970 },
+  ], castConcerto: 2000, castForte1: -60});
+const UnboundFlow2 = roverAction("Forte Skill - Unbound Flow 2", { animFrames: 37, bullets: [{ hitFrame: 15, mv: 72303, energy: 2000, offtune: 28288 }], node: Node.Forte, cast: Cast.Skill, type: Type.Skill, castConcerto: 2000, castForte1: -60});
 
 // --- liberation / intro / outro. Storm's Echo hands the whole team Aeolian Realm (see below).
-const Liberation = roverAction("Liberation - Omega Storm", { animFrames: 211, timestop: 211, motionStop: 211, prioFrames: 211, cooldown: 60 * 24, node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, mv: 536.79, castConcerto: 20, offtune: 48000, resetEnergy: true });
+const Liberation = roverAction("Liberation - Omega Storm", { animFrames: 211, timestop: 211, motionStop: 211, prioFrames: 211, cooldown: 60 * 24, node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 211, mv: 53679, offtune: 48000 }], castConcerto: 2000, resetEnergy: true });
 // PLACEHOLDER FRAMES
 const Intro = roverAction("Intro - Relentless Squall", { animFrames: 85, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
-    { hitFrame: 85, mv: 79.53, energy: 4.0001, offtune: 4586.1153 },
-    { hitFrame: 85, mv: 119.29, energy: 5.9999, offtune: 6878.8847, forte1: 20 },
-  ], castConcerto: 10});
+    { hitFrame: 85, mv: 7953, energy: 400, offtune: 4586 },
+    { hitFrame: 85, mv: 11929, energy: 600, offtune: 6879, forte1: 20 },
+  ], castConcerto: 1000});
 const Outro = roverAction("Outro - Storm's Echo", {
-  cast: Cast.Outro, castConcerto: -100,
+  cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000,
   updateBuffs: () => applyTeam(AEOLIAN_REALM, 1),
 });
 
@@ -265,7 +265,7 @@ export const ROVER_AERO_RESONATOR = new Resonator({
   weapon: WeaponType.Sword,
   color: "#6fd6b0",
   intro: Intro,
-  maxEnergy: 150,
+  maxEnergy: 15000,
   maxForte1: 120,
   tier: Tier.Free,
 

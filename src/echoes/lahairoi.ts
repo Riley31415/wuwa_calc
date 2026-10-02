@@ -19,9 +19,9 @@ import { TUNE_HACK_SHIFTING, TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING } from 
 
 /** Nameless Explorer, Sigrika's own mainslot echo — flat Aero/Echo Skill DMG Bonus for whoever
  *  wears it, no trigger. */
-export const ACTION_NAMELESS_EXPLORER = new Action("Echo - Nameless Explorer", {
+export const ACTION_NAMELESS_EXPLORER = new Action("Echo - Nameless Explorer", { animFrames: 8,
   cooldown: 60 * 20,
-  cast: Cast.Echo, element: Attribute.Aero, scaling: Scaling.Atk, type: Type.Echo, mv: 273.6, energy: 3.8,
+  cast: Cast.Echo, element: Attribute.Aero, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 27360, energy: 380 }], 
 });
 export const NAMELESS_EXPLORER = new Mainslot({
   name: "Nameless Explorer",
@@ -48,10 +48,10 @@ export const SOUND_OF_TRUE_NAME_5PC = new Sonata({
 
 /** Hyvatia: ten lasers at 27.36% apiece, and 0.03 energy each — a tenth of what a hit that size
  *  usually pays, which is what its own damage row gives. */
-export const ACTION_HYVATIA = new Action("Echo - Hyvatia", {
+export const ACTION_HYVATIA = new Action("Echo - Hyvatia", { animFrames: 8,
   cooldown: 60 * 20,
   cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type.Echo,
-  mv: 27.36 * 10, energy: 0.03 * 10,
+  bullets: [{ hitFrame: 0, mv: 2736 * 10, energy: 3 * 10 }], 
   updateBuffs: () => queueOutro(HYVATIA_HANDOFF),
 });
 
@@ -71,7 +71,7 @@ export const HYVATIA = new Mainslot({
  *  which is the reason Mornye wants it, her Liberation turning every point of ER past 100% into
  *  crit. */
 export const ACTION_REACTOR_HUSK = new Action("Echo - Reactor Husk", {
-  animFrames: 60, bullets: [{ hitFrame: 46, mv: 351, energy: 4.87 }],
+  animFrames: 60, bullets: [{ hitFrame: 46, mv: 35100, energy: 487 }],
   cooldown: 60 * 20,
   cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo,
 });
@@ -83,7 +83,7 @@ export const REACTOR_HUSK = new Mainslot({
 
 /** Spacetrek Explorer: a 10%-of-Max-HP team shield and nothing else — no damage of its own, so
  *  only the cast exists here. Kept because it is a real mainslot option for a sustain build. */
-export const ACTION_SPACETREK = new Action("Echo - Spacetrek Explorer", {
+export const ACTION_SPACETREK = new Action("Echo - Spacetrek Explorer", { animFrames: 8,
   cooldown: 60 * 20,
   cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, updateDebuffs: () => gainShield()
 });
@@ -97,10 +97,10 @@ export const SPACETREK_EXPLORER = new Mainslot({
 /** Reminiscence: Threnodian - Voidborne Construct, Hiyuki's own mainslot echo: Aleph-1's Creation
  *  lands five 21.88% Glacio hits and one 164.16%. The main-slot wearer also gets a flat +12%
  *  Glacio DMG Bonus and +12% Resonance Liberation DMG Bonus. */
-export const ACTION_VOIDBORNE_CONSTRUCT = new Action("Echo - Reminiscence: Voidborne Construct", {
+export const ACTION_VOIDBORNE_CONSTRUCT = new Action("Echo - Reminiscence: Voidborne Construct", { animFrames: 8,
   cooldown: 60 * 20,
   cast: Cast.Echo, element: Attribute.Glacio, scaling: Scaling.Atk, type: Type.Echo,
-  mv: 21.88 * 5 + 164.16, energy: 0.12 * 5 + 1.36,
+  bullets: [{ hitFrame: 0, mv: 2188 * 5 + 16416, energy: 12 * 5 + 136 }], 
 });
 export const VOIDBORNE_CONSTRUCT = new Mainslot({
   name: "Reminiscence: Threnodian - Voidborne",
@@ -110,9 +110,9 @@ export const VOIDBORNE_CONSTRUCT = new Mainslot({
 
 /** Glommoth: one 273.6% Glacio stomp, and an Outro within 15s of the summon hands the incoming
  *  resonator +12% Glacio DMG Bonus for 15s — the same shape as Hyvatia's own handoff above. */
-export const ACTION_GLOMMOTH = new Action("Echo - Glommoth", {
+export const ACTION_GLOMMOTH = new Action("Echo - Glommoth", { animFrames: 8,
   cooldown: 60 * 20,
-  cast: Cast.Echo, element: Attribute.Glacio, scaling: Scaling.Atk, type: Type.Echo, mv: 273.6, energy: 3.8,
+  cast: Cast.Echo, element: Attribute.Glacio, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 27360, energy: 380 }], 
   updateBuffs: () => queueOutro(GLOMMOTH_HANDOFF),
 });
 export const GLOMMOTH_HANDOFF = handoff("Glommoth: Outro", () => addStat(Stat.DmgBonus, 12, Attribute.Glacio));
@@ -288,7 +288,7 @@ export const GILDED_REVELATION_STACKS = new Buff({
  *  Blade in a second 4-cost slot and the Blade's own hit count, which the page doesn't give — not
  *  modelled; this is the Cannon on its own. */
 export const ACTION_NEBULOUS_CANNON = new Action("Echo - Twin Nova: Nebulous Cannon", {
-  animFrames: 60, bullets: [{ hitFrame: 46, mv: 80.51 * 2, energy: 0.55 * 2 }],
+  animFrames: 60, bullets: [{ hitFrame: 46, mv: 8051 * 2, energy: 55 * 2 }],
   cooldown: 60 * 8,
   cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type.Echo,
 });
@@ -303,9 +303,9 @@ export const NEBULOUS_CANNON = new Mainslot({
 /** Reminiscence: Denia — "Trickster", her own mainslot echo: one 273.6% Fusion hit, and an Outro
  *  within 15s of the summon hands the incoming resonator +12% Fusion DMG Bonus for 15s. Pairs
  *  with Chromatic Foam above. */
-export const ACTION_TRICKSTER = new Action("Echo - Trickster", {
+export const ACTION_TRICKSTER = new Action("Echo - Trickster", { animFrames: 8,
   cooldown: 60 * 20,
-  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo, mv: 273.6, energy: 3.8,
+  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 27360, energy: 380 }], 
   updateBuffs: () => queueOutro(TRICKSTER_HANDOFF),
 });
 /** Not the `handoff()` window: the text's plain 15s, with no end on switching out — the same
@@ -324,7 +324,7 @@ export const TRICKSTER = new Mainslot({
  *  rotation places (the hold is a long channel), the hold kept as its own cast. Either way an
  *  Outro within 15s hands the incoming resonator +12% ATK for 15s. */
 export const ACTION_VOIDWING_MOTH = new Action("Echo - Voidwing Moth", {
-  animFrames: 60, bullets: [{ hitFrame: 46, mv: 405, energy: 5.62 }],
+  animFrames: 60, bullets: [{ hitFrame: 46, mv: 40500, energy: 562 }],
   cooldown: 60 * 25,
   cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type.Echo,
   updateBuffs: () => queueOutro(VOIDWING_HANDOFF),
@@ -369,9 +369,9 @@ export const SHATTERED_DREAMS_1PC = new Sonata1pc({
   grants: [{ on: onInflict(TUNE_HACK_SHIFTING), buff: SHATTERED_DREAMS }],
 });
 
-export const ACTION_ADAM_SMASHER_LUCY = new Action("Echo - Adam Smasher", {
+export const ACTION_ADAM_SMASHER_LUCY = new Action("Echo - Adam Smasher", { animFrames: 8,
   cooldown: 60 * 20,
-  cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type.Echo, mv: 273.6, energy: 3.8,
+  cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 27360, energy: 380 }], 
 });
 export const ADAM_SMASHER_LUCY = new Mainslot({
   name: "Nightmare: Adam Smasher",
@@ -379,10 +379,10 @@ export const ADAM_SMASHER_LUCY = new Mainslot({
   stats: [[Stat.CritRate, 15]],
 });
 
-export const ACTION_ADAM_SMASHER_REBECCA = new Action("Echo - Adam Smasher", {
+export const ACTION_ADAM_SMASHER_REBECCA = new Action("Echo - Adam Smasher", { animFrames: 8,
   cooldown: 60 * 20,
   cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
-  mv: 17.1 * 16, energy: 0.23 * 16,
+  bullets: [{ hitFrame: 0, mv: 1710 * 16, energy: 23 * 16 }], 
 });
 export const ADAM_SMASHER_REBECCA = new Mainslot({
   name: "Nightmare: Adam Smasher",
@@ -395,9 +395,9 @@ export const ADAM_SMASHER_REBECCA = new Mainslot({
 /** Sigillum, Aemeath's own mainslot echo: two Fusion hits, 68.4% and 205.2%. The +25% Resonance
  *  Liberation DMG Bonus is "when equipped in the main slot by Aemeath" — only her loadouts list
  *  it, so it is granted flat here. Pairs with Trailblazing Star above. */
-export const ACTION_SIGILLUM = new Action("Echo - Sigillum", {
+export const ACTION_SIGILLUM = new Action("Echo - Sigillum", { animFrames: 8,
   cooldown: 60 * 20,
-  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo, mv: 68.4 + 205.2, energy: 0.23 + 2.13,
+  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 6840 + 20520, energy: 23 + 213 }], 
 });
 export const SIGILLUM = new Mainslot({
   name: "Sigillum",

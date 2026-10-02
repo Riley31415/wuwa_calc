@@ -36,7 +36,7 @@ function concertoWeapon(name: string, weaponType: WeaponType, tier: Tier = Tier.
       name: `${name}: Ceaseless Aria${rank}`,
       updateBuffs: () => {
         if (!casting(Cast.Skill)) return;
-        addToCast({ concerto: [8, 10, 12, 14, 16][r]! });
+        addToCast({ concerto: [800, 1000, 1200, 1400, 1600][r]! });
         revokeCurrent(CEASELESS_ARIA);
       },
     });

@@ -61,7 +61,7 @@ import {
   pressed,
   addToCast,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, ECHO, START_3, INTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, ECHO, START_LAST, INTRO } from "../../engine/rotation.js";
 import { applyStrain, TUNE_BREAK, TUNE_STRAIN_SHIFTING, TUNE_STRAIN_INTERFERED, strainPayout, tuneBreak } from "../../shared/tunebreak.js";
 import { GLINT_OF_CLOUDS, RED_SPRING } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS, NEW_STD_SWORD } from "../../weapons/standard.js";
@@ -80,169 +80,170 @@ function qxAction(id: string, def: object): Action {
 //     chain and the dodge counter are Drawn Stance (Sword Cadence, forte2). Gauge gains at their
 //     plain rate, doubled by HEAVENS_CLARITY; everything else is the same row either way.
 const BA1 = qxAction("Basic - Stringblade 1", { animFrames: 29, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 15, mv: 30.13, energy: 0.55, concerto: 1.09, offtune: 1732, forte1: 4.87 },
-    { hitFrame: 22, mv: 30.13, energy: 0.55, concerto: 1.09, offtune: 1732, forte1: 4.87 },
+    { hitFrame: 15, mv: 3013, energy: 55, concerto: 109, offtune: 1732, forte1: 487 },
+    { hitFrame: 22, mv: 3013, energy: 55, concerto: 109, offtune: 1732, forte1: 487 },
   ]});
 const BA2 = qxAction("Basic - Stringblade 2", { animFrames: 37, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 12, mv: 37.09, energy: 0.67, concerto: 1.34, offtune: 2132, forte2: 3.56 },
-    { hitFrame: 28, mv: 37.09, energy: 0.67, concerto: 1.34, offtune: 2132, forte2: 3.56 },
+    { hitFrame: 12, mv: 3709, energy: 67, concerto: 134, offtune: 2132, forte2: 356 },
+    { hitFrame: 28, mv: 3709, energy: 67, concerto: 134, offtune: 2132, forte2: 356 },
   ]});
 const BA3 = qxAction("Basic - Stringblade 3", { animFrames: 48, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 6, mv: 24.36, energy: 0.44, concerto: 0.88, offtune: 1400, forte2: 2.34 },
-    { hitFrame: 12, mv: 24.36, energy: 0.44, concerto: 0.88, offtune: 1400, forte2: 2.34 },
-    { hitFrame: 18, mv: 24.36, energy: 0.44, concerto: 0.88, offtune: 1400, forte2: 2.34 },
-    { hitFrame: 20, mv: 24.36, energy: 0.44, concerto: 0.88, offtune: 1400, forte2: 2.34 },
+    { hitFrame: 6, mv: 2436, energy: 44, concerto: 88, offtune: 1400, forte2: 234 },
+    { hitFrame: 12, mv: 2436, energy: 44, concerto: 88, offtune: 1400, forte2: 234 },
+    { hitFrame: 18, mv: 2436, energy: 44, concerto: 88, offtune: 1400, forte2: 234 },
+    { hitFrame: 20, mv: 2436, energy: 44, concerto: 88, offtune: 1400, forte2: 234 },
   ]});
 const BA4 = qxAction("Basic - Stringblade 4", { animFrames: 52, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 17, mv: 86.73, energy: 1.56, concerto: 3.12, offtune: 4986, forte1: 14.02 },
-    { hitFrame: 32, mv: 5.43, energy: 0.1, concerto: 0.2, offtune: 312, forte1: 0.88 },
-    { hitFrame: 36, mv: 5.43, energy: 0.1, concerto: 0.2, offtune: 312, forte1: 0.88 },
-    { hitFrame: 39, mv: 5.43, energy: 0.1, concerto: 0.2, offtune: 312, forte1: 0.88 },
-    { hitFrame: 42, mv: 5.43, energy: 0.1, concerto: 0.2, offtune: 312, forte1: 0.88 },
+    { hitFrame: 17, mv: 8673, energy: 156, concerto: 312, offtune: 4986, forte1: 1402 },
+    { hitFrame: 32, mv: 543, energy: 10, concerto: 20, offtune: 312, forte1: 88 },
+    { hitFrame: 36, mv: 543, energy: 10, concerto: 20, offtune: 312, forte1: 88 },
+    { hitFrame: 39, mv: 543, energy: 10, concerto: 20, offtune: 312, forte1: 88 },
+    { hitFrame: 42, mv: 543, energy: 10, concerto: 20, offtune: 312, forte1: 88 },
   ]});
 const MA1 = qxAction("Mid-air - Stringblade 1", { animFrames: 42, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 0, mv: 7.24, energy: 0.13, concerto: 0.26, offtune: 416, forte2: 0.7 },
-    { hitFrame: 6, commitFrame: 0, mv: 7.24, energy: 0.13, concerto: 0.26, offtune: 416, forte2: 0.7 },
-    { hitFrame: 12, commitFrame: 0, mv: 7.24, energy: 0.13, concerto: 0.26, offtune: 416, forte2: 0.7 },
-    { hitFrame: 18, commitFrame: 0, mv: 7.24, energy: 0.13, concerto: 0.26, offtune: 416, forte2: 0.7 },
-    { hitFrame: 24, commitFrame: 0, mv: 7.24, energy: 0.13, concerto: 0.26, offtune: 416, forte2: 0.7 },
-    { hitFrame: 30, commitFrame: 0, mv: 54.28, energy: 0.98, concerto: 1.95, offtune: 3120, forte2: 5.21 },
+    { hitFrame: 0, mv: 724, energy: 13, concerto: 26, offtune: 416, forte2: 70 },
+    { hitFrame: 6, commitFrame: 0, mv: 724, energy: 13, concerto: 26, offtune: 416, forte2: 70 },
+    { hitFrame: 12, commitFrame: 0, mv: 724, energy: 13, concerto: 26, offtune: 416, forte2: 70 },
+    { hitFrame: 18, commitFrame: 0, mv: 724, energy: 13, concerto: 26, offtune: 416, forte2: 70 },
+    { hitFrame: 24, commitFrame: 0, mv: 724, energy: 13, concerto: 26, offtune: 416, forte2: 70 },
+    { hitFrame: 30, commitFrame: 0, mv: 5428, energy: 98, concerto: 195, offtune: 3120, forte2: 521 },
   ]});
 const MA2 = qxAction("Mid-air - Stringblade 2", { animFrames: 45, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 12, mv: 44.89, energy: 0.81, concerto: 1.62, offtune: 2580, forte2: 4.31 },
-    { hitFrame: 18, mv: 22.45, energy: 0.41, concerto: 0.81, offtune: 1290, forte2: 2.16 },
-    { hitFrame: 23, mv: 22.45, energy: 0.41, concerto: 0.81, offtune: 1290, forte2: 2.16 },
+    { hitFrame: 12, mv: 4489, energy: 81, concerto: 162, offtune: 2580, forte2: 431 },
+    { hitFrame: 18, mv: 2245, energy: 41, concerto: 81, offtune: 1290, forte2: 216 },
+    { hitFrame: 23, mv: 2245, energy: 41, concerto: 81, offtune: 1290, forte2: 216 },
   ]});
 const MA3 = qxAction("Mid-air - Stringblade 3", { animFrames: 86, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 18, mv: 11.14, energy: 0.2, concerto: 0.4, offtune: 640, forte2: 1.07 },
-    { hitFrame: 24, mv: 11.14, energy: 0.2, concerto: 0.4, offtune: 640, forte2: 1.07 },
-    { hitFrame: 30, mv: 11.14, energy: 0.2, concerto: 0.4, offtune: 640, forte2: 1.07 },
-    { hitFrame: 36, mv: 11.14, energy: 0.2, concerto: 0.4, offtune: 640, forte2: 1.07 },
-    { hitFrame: 42, mv: 11.14, energy: 0.2, concerto: 0.4, offtune: 640, forte2: 1.07 },
-    { hitFrame: 70, mv: 83.51, energy: 1.5, concerto: 3, offtune: 4800, forte2: 8.02 },
+    { hitFrame: 18, mv: 1114, energy: 20, concerto: 40, offtune: 640, forte2: 107 },
+    { hitFrame: 24, mv: 1114, energy: 20, concerto: 40, offtune: 640, forte2: 107 },
+    { hitFrame: 30, mv: 1114, energy: 20, concerto: 40, offtune: 640, forte2: 107 },
+    { hitFrame: 36, mv: 1114, energy: 20, concerto: 40, offtune: 640, forte2: 107 },
+    { hitFrame: 42, mv: 1114, energy: 20, concerto: 40, offtune: 640, forte2: 107 },
+    { hitFrame: 70, mv: 8351, energy: 150, concerto: 300, offtune: 4800, forte2: 802 },
   ]});
-const Plunge = qxAction("Mid-air - Plunging Attack", { animFrames: 63, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 39, mv: 86.29, energy: 1.55, concerto: 3.1, offtune: 4960 }]});
+const Plunge = qxAction("Mid-air - Plunging Attack", { animFrames: 63, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 39, mv: 8629, energy: 155, concerto: 310, offtune: 4960 }]});
 const DC = qxAction("Dodge Counter - Stringblade", { animFrames: 48, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
-    { hitFrame: 6, mv: 45.23, energy: 0.82, concerto: 4.13, offtune: 2600, forte2: 6.51 },
-    { hitFrame: 12, mv: 45.23, energy: 0.82, concerto: 4.13, offtune: 2600, forte2: 6.51 },
-    { hitFrame: 18, mv: 45.23, energy: 0.82, concerto: 4.13, offtune: 2600, forte2: 6.51 },
-    { hitFrame: 20, mv: 45.23, energy: 0.82, concerto: 4.13, offtune: 2600, forte2: 6.51 },
-  ]});
+    { hitFrame: 6, mv: 4523, energy: 82, concerto: 163, offtune: 2600, forte2: 434 },
+    { hitFrame: 12, mv: 4523, energy: 82, concerto: 163, offtune: 2600, forte2: 434 },
+    { hitFrame: 18, mv: 4523, energy: 82, concerto: 163, offtune: 2600, forte2: 434 },
+    { hitFrame: 20, mv: 4523, energy: 82, concerto: 163, offtune: 2600, forte2: 434 },
+  ], castConcerto: 1000});
 
 /** Spends both gauges in full — pre-clamped here so its own declared -100s land exactly on 0 —
  *  and opens Ephemeral Transcendence. Under Clarity it also arms the enhanced Heaven's Reckoning,
  *  which is Clarity's own doing (see HEAVENS_CLARITY). */
-const HA = qxAction("Heavy - Stringblade", {
+const HA = qxAction("Heavy - Stringblade", { minForte1: 10000, minForte2: 10000,
   animFrames: 137,
   node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
-    { hitFrame: 26, mv: 14.62, energy: 0.18, concerto: 0.35, offtune: 560 },
-    { hitFrame: 35, mv: 14.62, energy: 0.18, concerto: 0.35, offtune: 560 },
-    { hitFrame: 43, mv: 21.92, energy: 0.27, concerto: 0.53, offtune: 840 },
-    { hitFrame: 44, mv: 14.62, energy: 0.18, concerto: 0.35, offtune: 560 },
-    { hitFrame: 52, mv: 21.92, energy: 0.27, concerto: 0.53, offtune: 840 },
-    { hitFrame: 54, mv: 21.92, energy: 0.27, concerto: 0.53, offtune: 840 },
-    { hitFrame: 61, mv: 21.92, energy: 0.27, concerto: 0.53, offtune: 840 },
-    { hitFrame: 63, mv: 21.92, energy: 0.27, concerto: 0.53, offtune: 840 },
-    { hitFrame: 72, mv: 21.92, energy: 0.27, concerto: 0.53, offtune: 840 },
-    { hitFrame: 109, mv: 263.03, energy: 3.15, concerto: 6.3, offtune: 10080, updateDebuffs: () => stringbladeMindlock(), hitGlobal: () => stringbladeBanks() },
-  ], castForte1: -100, castForte2: -100,
+    { hitFrame: 26, mv: 1462, energy: 18, concerto: 35, offtune: 560 },
+    { hitFrame: 35, mv: 1462, energy: 18, concerto: 35, offtune: 560 },
+    { hitFrame: 43, mv: 2192, energy: 27, concerto: 53, offtune: 840 },
+    { hitFrame: 44, mv: 1462, energy: 18, concerto: 35, offtune: 560 },
+    { hitFrame: 52, mv: 2192, energy: 27, concerto: 53, offtune: 840 },
+    { hitFrame: 54, mv: 2192, energy: 27, concerto: 53, offtune: 840 },
+    { hitFrame: 61, mv: 2192, energy: 27, concerto: 53, offtune: 840 },
+    { hitFrame: 63, mv: 2192, energy: 27, concerto: 53, offtune: 840 },
+    { hitFrame: 72, mv: 2192, energy: 27, concerto: 53, offtune: 840 },
+    { hitFrame: 109, mv: 26303, energy: 315, concerto: 630, offtune: 10080, updateDebuffs: () => stringbladeMindlock(), hitGlobal: () => stringbladeBanks() },
+  ], castForte1: -10000, castForte2: -10000,
 });
 
 // --- Severing Note: Judgement banks nothing of its own on the table (the page's "45 Qin Heart
 //     during this skill" isn't there) — only Resonant Chime's 30 after an Intro; Ascendant is the
 //     Drawn-stance skill inside a basic chain.
 const Skill = qxAction("Skill - Severing Note: Judgement", { animFrames: 81, cooldown: 60 * 20, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
-    { hitFrame: 4, mv: 20.88, energy: 0.38, concerto: 0.75, offtune: 1200 },
-    { hitFrame: 13, mv: 20.88, energy: 0.38, concerto: 0.75, offtune: 1200 },
-    { hitFrame: 72, mv: 97.42, energy: 1.75, concerto: 3.5, offtune: 5600, forte1: 45 },
+    { hitFrame: 4, mv: 2088, energy: 38, concerto: 75, offtune: 1200 },
+    { hitFrame: 13, mv: 2088, energy: 38, concerto: 75, offtune: 1200 },
+    { hitFrame: 72, mv: 9742, energy: 175, concerto: 350, offtune: 5600, forte1: 4500 },
   ]});
 const Ascendant = qxAction("Skill - Severing Note: Ascendant", { animFrames: 64, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
-    { hitFrame: 16, mv: 33.13, energy: 0.6, concerto: 1.19, offtune: 1904, forte2: 3.18 },
-    { hitFrame: 16, mv: 28.4, energy: 0.51, concerto: 1.02, offtune: 1632, forte2: 2.73 },
-    { hitFrame: 25, commitFrame: 16, mv: 33.13, energy: 0.6, concerto: 1.19, offtune: 1904, forte2: 3.18 },
+    { hitFrame: 16, mv: 3313, energy: 60, concerto: 119, offtune: 1904, forte2: 318 },
+    { hitFrame: 16, mv: 2840, energy: 51, concerto: 102, offtune: 1632, forte2: 273 },
+    { hitFrame: 25, commitFrame: 16, mv: 3313, energy: 60, concerto: 119, offtune: 1904, forte2: 318 },
   ]});
 
 // --- Ephemeral Transcendence: the basics bank Heart Sword Intent (forte1, cleared by the Heavy
 //     on the way in) and, while it's short of full, deal double — see EPHEMERAL and QINGXIAO_RESONATOR's own
-//     applyStats. Heaven's Reckoning spends it all and ends the state. Stage 1 is the table's own
-//     row (a 22.45% hit more than nanoka's). Both dodge counters carry +10 Concerto (CLAUDE.md).
+//     applyStats. Heaven's Reckoning spends it all and ends the state. Stage 1 is nanoka's
+//     44.89%+22.45%*2. Both dodge counters carry +10 Concerto (CLAUDE.md).
 const FBA1 = qxAction("Basic - Ephemeral Transcendence 1", { animFrames: 40, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 12, mv: 56.1137, energy: 1.0137, concerto: 2.025, offtune: 3225 },
-    { hitFrame: 16, mv: 28.0631, energy: 0.5131, concerto: 1.0125, offtune: 1612.5 },
-    { hitFrame: 19, mv: 28.0632, energy: 0.5132, concerto: 1.0125, offtune: 1612.5, forte1: 25.55 },
+    { hitFrame: 12, mv: 4489, energy: 81, concerto: 162, offtune: 2580, forte1: 1022 },
+    { hitFrame: 16, mv: 2245, energy: 41, concerto: 81, offtune: 1290, forte1: 511 },
+    { hitFrame: 19, mv: 2245, energy: 41, concerto: 81, offtune: 1290, forte1: 511 },
   ],
-  applyStats: () => { if (forte1() < 100) addStat(Stat.MulMv, 100); }
+  applyStats: () => { if (forte1() < 10000) addStat(Stat.MulMv, 100); }
 });
 const FBA2 = qxAction("Basic - Ephemeral Transcendence 2", { animFrames: 58, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 14, mv: 23.11, energy: 0.42, concerto: 0.83, offtune: 1328 },
-    { hitFrame: 17, mv: 23.11, energy: 0.42, concerto: 0.83, offtune: 1328 },
-    { hitFrame: 20, mv: 23.11, energy: 0.42, concerto: 0.83, offtune: 1328 },
-    { hitFrame: 26, mv: 23.11, energy: 0.42, concerto: 0.83, offtune: 1328 },
-    { hitFrame: 29, mv: 23.11, energy: 0.42, concerto: 0.83, offtune: 1328, forte1: 26.35 },
+    { hitFrame: 14, mv: 2311, energy: 42, concerto: 83, offtune: 1328, forte1: 527 },
+    { hitFrame: 17, mv: 2311, energy: 42, concerto: 83, offtune: 1328, forte1: 527 },
+    { hitFrame: 20, mv: 2311, energy: 42, concerto: 83, offtune: 1328, forte1: 527 },
+    { hitFrame: 26, mv: 2311, energy: 42, concerto: 83, offtune: 1328, forte1: 527 },
+    { hitFrame: 29, mv: 2311, energy: 42, concerto: 83, offtune: 1328, forte1: 527 },
   ],
-applyStats: () => { if (forte1() < 100) addStat(Stat.MulMv, 100); }
+applyStats: () => { if (forte1() < 10000) addStat(Stat.MulMv, 100); }
 });
 const FBA3 = qxAction("Basic - Ephemeral Transcendence 3", { animFrames: 57, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 10, mv: 20.88, energy: 0.38, concerto: 0.75, offtune: 1200 },
-    { hitFrame: 20, mv: 31.32, energy: 0.57, concerto: 1.13, offtune: 1800 },
-    { hitFrame: 30, mv: 20.88, energy: 0.38, concerto: 0.75, offtune: 1200 },
-    { hitFrame: 40, mv: 31.32, energy: 0.57, concerto: 1.13, offtune: 1800 },
-    { hitFrame: 50, mv: 20.88, energy: 0.38, concerto: 0.75, offtune: 1200, forte1: 28.56 },
+    { hitFrame: 10, mv: 2088, energy: 38, concerto: 75, offtune: 1200, forte1: 476 },
+    { hitFrame: 20, mv: 3132, energy: 57, concerto: 113, offtune: 1800, forte1: 714 },
+    { hitFrame: 30, mv: 2088, energy: 38, concerto: 75, offtune: 1200, forte1: 476 },
+    { hitFrame: 40, mv: 3132, energy: 57, concerto: 113, offtune: 1800, forte1: 714 },
+    { hitFrame: 50, mv: 2088, energy: 38, concerto: 75, offtune: 1200, forte1: 476 },
   ],
-applyStats: () => { if (forte1() < 100) addStat(Stat.MulMv, 100); }
+applyStats: () => { if (forte1() < 10000) addStat(Stat.MulMv, 100); }
 });
 const FBA4 = qxAction("Basic - Ephemeral Transcendence 4", { animFrames: 87, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 10, mv: 18.1, energy: 0.33, concerto: 0.65, offtune: 1040 },
-    { hitFrame: 23, mv: 18.1, energy: 0.33, concerto: 0.65, offtune: 1040 },
-    { hitFrame: 32, mv: 18.1, energy: 0.33, concerto: 0.65, offtune: 1040 },
-    { hitFrame: 43, mv: 18.1, energy: 0.33, concerto: 0.65, offtune: 1040 },
-    { hitFrame: 61, mv: 108.56, energy: 1.95, concerto: 3.9, offtune: 6240, forte1: 41.2 },
+    { hitFrame: 10, mv: 1810, energy: 33, concerto: 65, offtune: 1040, forte1: 412 },
+    { hitFrame: 23, mv: 1810, energy: 33, concerto: 65, offtune: 1040, forte1: 412 },
+    { hitFrame: 32, mv: 1810, energy: 33, concerto: 65, offtune: 1040, forte1: 412 },
+    { hitFrame: 43, mv: 1810, energy: 33, concerto: 65, offtune: 1040, forte1: 412 },
+    { hitFrame: 61, mv: 10856, energy: 195, concerto: 390, offtune: 6240, forte1: 2472 },
   ],
-applyStats: () => { if (forte1() < 100) addStat(Stat.MulMv, 100); }
+applyStats: () => { if (forte1() < 10000) addStat(Stat.MulMv, 100); }
 });
 const FDC = qxAction("Dodge Counter - Ephemeral Transcendence", { animFrames: 87, node: Node.Forte, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
-    { hitFrame: 10, mv: 26.45, energy: 0.48, concerto: 1.95, offtune: 1520 },
-    { hitFrame: 23, mv: 26.45, energy: 0.48, concerto: 1.95, offtune: 1520 },
-    { hitFrame: 32, mv: 26.45, energy: 0.48, concerto: 1.95, offtune: 1520 },
-    { hitFrame: 43, mv: 26.45, energy: 0.48, concerto: 1.95, offtune: 1520 },
-    { hitFrame: 61, mv: 158.66, energy: 2.85, concerto: 11.7, offtune: 9120, forte1: 60.26 },
+    { hitFrame: 10, mv: 2645, energy: 48, concerto: 95, offtune: 1520, forte1: 603 },
+    { hitFrame: 23, mv: 2645, energy: 48, concerto: 95, offtune: 1520, forte1: 603 },
+    { hitFrame: 32, mv: 2645, energy: 48, concerto: 95, offtune: 1520, forte1: 603 },
+    { hitFrame: 43, mv: 2645, energy: 48, concerto: 95, offtune: 1520, forte1: 603 },
+    { hitFrame: 61, mv: 15866, energy: 285, concerto: 570, offtune: 9120, forte1: 3614 },
   ],
-applyStats: () => { if (forte1() < 100) addStat(Stat.MulMv, 100); }
+applyStats: () => { if (forte1() < 10000) addStat(Stat.MulMv, 100); }, castConcerto: 1000
 });
 /** Spends all Heart Sword Intent and takes Heaven's Clarity with it. */
-const FHA = qxAction("Forte Heavy - Heaven's Reckoning", {
+const FHA = qxAction("Forte Heavy - Heaven's Reckoning", { minForte1: 10000,
   animFrames: 180, timestop: 180, motionStop: 180,
   node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
-    { hitFrame: 32, mv: 27.84, energy: 0.92, offtune: 320 },
-    { hitFrame: 44, mv: 27.84, energy: 0.92, offtune: 320 },
-    { hitFrame: 47, mv: 27.84, energy: 0.92, offtune: 320 },
-    { hitFrame: 58, mv: 27.84, energy: 0.92, offtune: 320 },
-    { hitFrame: 60, mv: 27.84, energy: 0.92, offtune: 320 },
-    { hitFrame: 72, mv: 27.84, energy: 0.92, offtune: 320 },
-    { hitFrame: 83, mv: 27.84, energy: 0.92, offtune: 320 },
-    { hitFrame: 90, mv: 27.84, energy: 0.92, offtune: 320 },
-    { hitFrame: 102, mv: 27.84, energy: 0.92, offtune: 320 },
-    { hitFrame: 119, mv: 445.34, energy: 14.72, offtune: 5120 },
-  ], castConcerto: 25, castForte1: -100,
+    { hitFrame: 32, mv: 2784, energy: 92, offtune: 320 },
+    { hitFrame: 44, mv: 2784, energy: 92, offtune: 320 },
+    { hitFrame: 47, mv: 2784, energy: 92, offtune: 320 },
+    { hitFrame: 58, mv: 2784, energy: 92, offtune: 320 },
+    { hitFrame: 60, mv: 2784, energy: 92, offtune: 320 },
+    { hitFrame: 72, mv: 2784, energy: 92, offtune: 320 },
+    { hitFrame: 83, mv: 2784, energy: 92, offtune: 320 },
+    { hitFrame: 90, mv: 2784, energy: 92, offtune: 320 },
+    { hitFrame: 102, mv: 2784, energy: 92, offtune: 320 },
+    { hitFrame: 119, mv: 44534, energy: 1472, offtune: 5120 },
+  ], castConcerto: 2500, castForte1: -10000,
   updateBuffs: () => revokeCurrent(HEAVENS_CLARITY),
+  resetForte2: true,
 });
 
 const Liberation = qxAction("Liberation - Billows Beneath Heaven", {
   animFrames: 300, timestop: 300, motionStop: 300, cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [
-    { hitFrame: 140, mv: 33.41, offtune: 160 },
-    { hitFrame: 146, mv: 33.41, offtune: 160 },
-    { hitFrame: 152, mv: 33.41, offtune: 160 },
-    { hitFrame: 158, mv: 33.41, offtune: 160 },
-    { hitFrame: 164, mv: 33.41, offtune: 160 },
-    { hitFrame: 170, mv: 33.41, offtune: 160 },
-    { hitFrame: 176, mv: 33.41, offtune: 160 },
-    { hitFrame: 182, mv: 33.41, offtune: 160 },
-    { hitFrame: 188, mv: 33.41, offtune: 160 },
-    { hitFrame: 194, mv: 33.41, offtune: 160 },
-    { hitFrame: 238, mv: 1336.01, offtune: 6400 },
+    { hitFrame: 140, mv: 3341, offtune: 160 },
+    { hitFrame: 146, mv: 3341, offtune: 160 },
+    { hitFrame: 152, mv: 3341, offtune: 160 },
+    { hitFrame: 158, mv: 3341, offtune: 160 },
+    { hitFrame: 164, mv: 3341, offtune: 160 },
+    { hitFrame: 170, mv: 3341, offtune: 160 },
+    { hitFrame: 176, mv: 3341, offtune: 160 },
+    { hitFrame: 182, mv: 3341, offtune: 160 },
+    { hitFrame: 188, mv: 3341, offtune: 160 },
+    { hitFrame: 194, mv: 3341, offtune: 160 },
+    { hitFrame: 238, mv: 133601, offtune: 6400 },
   ],
-  castConcerto: 20, resetEnergy: true,
+  castConcerto: 2000, resetEnergy: true,
   updateBuffs: () => applyCurrent(HEAVENS_CLARITY, 1),
 });
 
@@ -251,23 +252,23 @@ const Liberation = qxAction("Liberation - Billows Beneath Heaven", {
 const Intro = qxAction("Intro - Tonality Shift", {
   animFrames: 64, prioFrames: 64, motionStop: 29,
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
-    { hitFrame: 35, mv: 39.79, energy: 3, offtune: 2288 },
-    { hitFrame: 43, mv: 46.42, energy: 3.5, offtune: 2669 },
-    { hitFrame: 52, mv: 46.42, energy: 3.5, offtune: 2669 },
-  ], castConcerto: 10, castForte2: 30,
+    { hitFrame: 35, mv: 3979, energy: 300, offtune: 2288 },
+    { hitFrame: 43, mv: 4642, energy: 350, offtune: 2669 },
+    { hitFrame: 52, mv: 4642, energy: 350, offtune: 2669 },
+  ], castConcerto: 1000, castForte2: 3000,
   updateBuffs: () => applyCurrent(RESONANT_CHIME, 1),
 });
 /** S1's Juque Perdition: 400% as Basic Attack DMG, off the first Stringblade/Ephemeral basic to land
  *  while she holds Exorcising Seal, which it then spends — every stack spent is +4% more damage
  *  taken from it. Not a row on the kit page, so no energy, concerto or off-tune of its own. */
 const JuquePerdition = qxAction("Basic - Juque Perdition (S1)", {
-  node: Node.Normal, type: Type.Basic, mv: 400,
+  node: Node.Normal, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 40000 }],
   applyStats: () => addStat(Stat.DamageTaken, 4 * stacksOf(EXORCISING_SEAL)),
   afterAction: () => revokeCurrent(EXORCISING_SEAL),
 });
 
 /** Lingering Song: a real 800% Aero hit on the way out. */
-const Outro = qxAction("Outro - Lingering Song", { animFrames: 0, cast: Cast.Outro, type: Type.Outro, bullets: [{ hitFrame: 0, mv: 800 }], castConcerto: -100});
+const Outro = qxAction("Outro - Lingering Song", { animFrames: 0, cast: Cast.Outro, type: Type.Outro, bullets: [{ hitFrame: 0, mv: 80000 }], minConcerto: 10000, castConcerto: -10000});
 
 /* ------------------------------------------------------------------------------------- buffs */
 
@@ -310,7 +311,7 @@ const RESONANT_CHIME = new Buff({
   name: "Qingxiao: Resonant Chime",
   updateBuffs: () => {
     if (!runningAction(Skill)) return;
-    addToCast({ forte1: 30 });
+    addToCast({ forte1: 3000 });
     revokeCurrent(RESONANT_CHIME);
   },
 });
@@ -323,8 +324,8 @@ const HEAVENS_CLARITY = new Buff({
   name: "Qingxiao: Heaven's Clarity",
   grants: [{ on: onAction(HA), buff: () => RECKONING_ENHANCED }],
   applyStats: () => {
-    // what the press gains on its hits, each hit taking its share
-    const a = pressed();
+    // what this hit gains, doubled
+    const a = currentAction();
     // Sheathed/Drawn stance hits only — Heart Sword Intent rides forte1 as well, and Ephemeral
     // Transcendence is neither stance, so its own gains are never doubled
     if (CLARITY_FORTE.has(pressed())) {
@@ -335,11 +336,15 @@ const HEAVENS_CLARITY = new Buff({
 });
 
 /** The enhanced Heaven's Reckoning: x2 multiplier and 160,000 off-tune in place of the plain
- *  8,000 (nanoka's own enhanced rows). Ends on switching out or once it's cast. */
+ *  8,000 (nanoka's own enhanced rows) — x20 on each hit's own. Ends on switching out or once it's cast. */
 const RECKONING_ENHANCED = new Buff({
   name: "Qingxiao: Heaven's Reckoning Enhancement",
   lostOnSwap: true,
-  applyStats: () => { if (runningAction(FHA)) { addStat(Stat.MulMv, 100); addStat(Stat.AddOfftune, 152000); } },
+  applyStats: () => {
+    if (!runningAction(FHA)) return;
+    addStat(Stat.MulMv, 100);
+    addStat(Stat.AddOfftune, 19 * currentAction().offtune);
+  },
   afterAction: () => { if (runningAction(FHA)) revokeCurrent(RECKONING_ENHANCED); },
 });
 
@@ -390,10 +395,11 @@ const QINGXIAO_RESONATOR = new Resonator({
   weapon: WeaponType.Sword,
   color: "#6cc5b0",
   intro: Intro,
-  tuneBreak: tuneBreak(120, 120, 100, [[64, 100], [70, 100], [76, 100], [82, 100], [101, 1200]]),
-  maxEnergy: 125,
-  maxForte1: 100,
-  maxForte2: 100,
+  tuneBreak: tuneBreak(120, 120, 100, [[64, 10000], [70, 10000], [76, 10000], [82, 10000], [101, 120000]]),
+  maxEnergy: 12500,
+  forteScale: [0.01, 0.01, 1, 1, 1],
+  maxForte1: 10000,
+  maxForte2: 10000,
 
   // Draw and Sunder: "while Qingxiao is in the team"; Heaven's Clarity and Formless Heart Sword
   // are up from the first action
@@ -519,9 +525,9 @@ const MA123 = new ActionGroup("Mid-air - Stringblade 123", [MA1, MA2, MA3]);
 const BA34 = new ActionGroup("Basic - Stringblade 34", [BA3, BA4]);
 
 const QX_ROTATION = new Rotation([
-  START_3, Liberation, ECHO.instaSwap(),
+  START_LAST, Liberation, ECHO.instaSwap(),
   INTRO, MA123, BA34, Skill, HA,
-  FBA1234.easyCancel(), FHA,
+  FBA1234.holdCancel(), FHA,
   Liberation, ECHO.instaSwap(), Outro,
 ]);
 

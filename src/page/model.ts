@@ -134,9 +134,9 @@ export const picksCache = new Map<string, Pick[]>();
 /** Every combo run this session by `TeamRow.key` — a row is simulated once and never again. */
 export const results = new Map<string, TeamRun>();
 
-export function storeSolved(teamKey: string, solved: Solved): void {
-  bestPicks.set(bestKey(teamKey, TEAMS[teamKey]!, filters), solved);
-  picksCache.set(picksKey(teamKey, TEAMS[teamKey]!, filters), solved.picks);
+export function storeSolved(teamKey: string, solved: Solved, f: Filters = filters): void {
+  bestPicks.set(bestKey(teamKey, TEAMS[teamKey]!, f), solved);
+  picksCache.set(picksKey(teamKey, TEAMS[teamKey]!, f), solved.picks);
   solvesDirty = true;
 }
 
@@ -193,13 +193,18 @@ function tagsHold(map: Map<string, ResonatorFilter>, names: string[], fielded: s
  *  trio shows the teams it actually forms rather than every team any pair of them appears on. */
 let poolAdded: string[] = [];
 let poolNeeds = new Map<string, number>();
+/** The added names who share no team with anyone else added: each opens every team fielding them. */
+let poolAlone = new Set<string>();
 let poolKey: string | null = null;
 function leaderNeeds(): Map<string, number> {
   const added = [...resonatorFilters].filter(([, mode]) => mode === "include").map(([name]) => name);
   const key = added.join(" ");
   if (key === poolKey) return poolNeeds;
   [poolKey, poolAdded, poolNeeds] = [key, added, new Map()];
+  poolAlone = new Set(added);
   for (const ms of Object.values(TEAMS)) {
+    const here = added.filter((o) => ms.some((x) => x.name === o));
+    if (here.length > 1) for (const o of here) poolAlone.delete(o);
     // a team every one of whose slots is added: it counts for each of the three, not just whoever leads
     const whole = ms.every((x) => added.includes(x.name));
     for (const m of ms) {
@@ -232,7 +237,9 @@ function leaderNeeds(): Map<string, number> {
  *
  * Their sets are ORed, and anyone hidden strikes out every team they appear on. With none of them
  * added there is nothing to lead the narrowing, so it falls back to the whole roster narrowed by
- * everyone added: a lone support reads as "every team fielding them".
+ * everyone added: a lone support reads as "every team fielding them". And anyone added who shares
+ * no team with any other name added reads the same, led or not — Sanhua beside Hsin, who never
+ * play together, still brings in every Sanhua team.
  */
 export function teamWanted(key: string, members: Member[]): boolean {
   const has = (name: string): boolean => members.some((m) => m.name === name);
@@ -246,6 +253,7 @@ export function teamWanted(key: string, members: Member[]): boolean {
     && !members.every((m) => INTERCHANGEABLE.has(m.loadout) || resonatorFilters.get(m.name) === "include")) return false;
   for (const [name, mode] of resonatorFilters) if (mode === "exclude" && has(name)) return false;
   const needs = leaderNeeds();
+  if (poolAdded.length > 1 && poolAdded.some((o) => poolAlone.has(o) && has(o))) return true;
   if (!needs.size) return poolAdded.every(has);
   for (const m of members) {
     const need = needs.get(m.name);

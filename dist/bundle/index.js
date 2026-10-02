@@ -4,13 +4,17 @@ import {
   ActionTag,
   BASE_RESISTANCE,
   CAST_NAME,
+  CONCERTO_UNIT,
   ENEMY_MAX_OFFTUNE,
+  ENERGY_UNIT,
   ER_TOLERANCE,
   INTERCHANGEABLE,
   LEVEL_90_DOT,
   LEVEL_90_TUNE,
   MAINSTAT_ROWS,
+  MV_UNIT,
   NODE_NAME,
+  OWN_DEF,
   PRIMARY_TEAM,
   RESONATOR_LEVEL,
   RESOURCE_NAME,
@@ -25,6 +29,7 @@ import {
   comboOf,
   compares,
   damageFactors,
+  defFactorOf,
   defaultFilters,
   echoLabel,
   echoLines,
@@ -52,15 +57,18 @@ import {
   sequenceLevels,
   solveTeam,
   splitStat,
+  statDisplayScale,
   statLabel,
   substatRollBuffs,
   tagKind,
   teamAt,
   teamKey,
   weaponBase
-} from "./chunk-UCG6KI5U.js";
+} from "./chunk-HJY354XL.js";
 
 // dist/src/display.js
+var shown = (s, i) => s.shownAfter?.[i] ?? [s.energy, s.concerto, s.offtune, ...s.forte][i];
+var shownBefore = (s, i) => s.shownBefore?.[i] ?? [s.energyBefore, s.concertoBefore, s.offtuneBefore, ...s.forteBefore][i];
 var formatters = /* @__PURE__ */ new Map();
 var fmt = (v, digits = 0, pad = false, group = true) => {
   if (typeof v !== "number")
@@ -71,8 +79,16 @@ var fmt = (v, digits = 0, pad = false, group = true) => {
   if (!f)
     formatters.set(key, f = new Intl.NumberFormat("en-US", { maximumFractionDigits: digits, minimumFractionDigits: pad ? digits : 0, useGrouping: group }));
   const cut = Math.trunc(Number((v * scale).toFixed(6))) / scale;
-  return f.format(cut === 0 ? 0 : cut);
+  const memo = `${key}|${cut === 0 ? 0 : cut}`;
+  let out = formatted.get(memo);
+  if (out === void 0) {
+    if (formatted.size > 5e4)
+      formatted.clear();
+    formatted.set(memo, out = f.format(cut === 0 ? 0 : cut));
+  }
+  return out;
 };
+var formatted = /* @__PURE__ */ new Map();
 var exact = new Intl.NumberFormat("en-US", { maximumFractionDigits: 10 });
 var fmtExact = (v) => typeof v === "number" ? exact.format(v) : String(v ?? "");
 var FORTE_GAUGES = [
@@ -323,13 +339,16 @@ var actionInfo = (action, type, source) => {
   push("Scaling", action.scaling === null ? null : SCALING_NAME[action.scaling]);
   push("Type", kinds((h) => h.type, type));
   push("Subtype", kinds((h) => h.subtype));
-  push("Hits", action.bullets.length > 1 ? action.bullets.map((h) => h.hitFrame).join(", ") : null);
-  push("Commits", action.bullets.some((h) => h.commitFrame !== h.hitFrame) ? action.bullets.map((h) => h.commitFrame).join(", ") : null);
-  push("Anim Frames", String(action.animFrames));
-  push("Prio Frames", action.prioFrames ? String(action.prioFrames) : null);
-  push("QTE Frames", action.qteFrames ? String(action.qteFrames) : null);
-  push("Time Stop", action.timestop ? String(action.timestop) : null);
-  push("Motion Stop", action.motionStop ? String(action.motionStop) : null);
+  let press = action;
+  while (press.cancelOf ?? press.formOf)
+    press = press.cancelOf ?? press.formOf;
+  push("Hit Frames", press.bullets.length ? press.bullets.map((h) => h.hitFrame).join(", ") : null);
+  push("Commit Frames", press.bullets.some((h) => h.commitFrame !== h.hitFrame) ? press.bullets.map((h) => h.commitFrame).join(", ") : null);
+  push("Animation Frames", String(press.animFrames));
+  push("High Priority Frames", press.prioFrames ? String(press.prioFrames) : null);
+  push("Outro Buff Frames", press.qteFrames ? String(press.qteFrames) : null);
+  push("Time Stop Frames", press.timestop ? String(press.timestop) : null);
+  push("Motion Stop Frames", press.motionStop ? String(press.motionStop) : null);
   if (source)
     info.push({ label: "Source", value: source.name, source: source.source });
   return info;
@@ -360,24 +379,46 @@ function tagRank(key) {
   const tag = splitStat(key)[1];
   return tag === null ? 0 : tagKind(tag);
 }
+var entryIndex = /* @__PURE__ */ new WeakMap();
+function entriesOf(entries, stats) {
+  let index = entryIndex.get(entries);
+  if (!index) {
+    index = /* @__PURE__ */ new Map();
+    for (let i = 0; i < entries.length; i++) {
+      const at = index.get(entries[i].stat);
+      if (at)
+        at.push(i);
+      else
+        index.set(entries[i].stat, [i]);
+    }
+    entryIndex.set(entries, index);
+  }
+  const out = [];
+  for (const stat of new Set(stats)) {
+    const at = index.get(stat);
+    if (at)
+      for (const i of at)
+        out.push(i);
+  }
+  return out.sort((a, b) => a - b);
+}
 function tracing(snapshot, stats, merge = true) {
-  const wanted = new Set(stats);
   const by = /* @__PURE__ */ new Map();
   const rows = [];
-  for (const e of snapshot.entries) {
-    if (!wanted.has(e.stat))
-      continue;
+  const entries = snapshot.entries;
+  for (const i of entriesOf(entries, stats)) {
+    const e = entries[i];
     const key = `${e.source} ${e.stat}`;
     const seen = merge ? by.get(key) : void 0;
     if (seen)
-      seen.value += e.value;
+      seen.value += e.value / statDisplayScale(splitStat(e.stat)[0]);
     else {
       const [stat, tag] = splitStat(e.stat);
       const base = e.source === BASE_RESISTANCE.name;
       const row = {
         source: e.source ?? "",
         stat: e.stat,
-        value: e.value,
+        value: e.value / statDisplayScale(stat),
         section: base ? "Base RES" : SECTION_OF[stat] ?? (tag === null ? null : statLabel(e.stat)),
         owner: e.owner ?? null
       };
@@ -391,7 +432,7 @@ var gaugeSuffix = (raw, key) => {
   const cap = raw[`max:${key}`];
   return typeof cap === "number" ? `/${fmt(cap, decimalsOf(cap), false, false)}` : "";
 };
-var RESOURCE_SCALE = { energy: 1, concerto: 1, offtune: 1e4 };
+var RESOURCE_SCALE = { energy: ENERGY_UNIT, concerto: CONCERTO_UNIT, offtune: 1e4 };
 var COMBINED_COLUMNS = [
   "mv",
   "energy",
@@ -434,6 +475,7 @@ function ownShares(snap, total, cast) {
   }
   return total ? [{ source: snap.action.name, value: total, owner: snap.member }] : [];
 }
+var STAT_COLUMNS = ["scaler", "mv", "dmgBonus", "amp", "cr", "cd", "dealt", "effDef", "effRes", "avg"];
 function rowValues(snap, { mv, avg }, members = []) {
   const dealsDamage = mv !== 0;
   const scaler = scalerOf(snap.action);
@@ -445,7 +487,7 @@ function rowValues(snap, { mv, avg }, members = []) {
     // hit reads nothing, so its cell is blank
     scaler: scaler ? snap[scaler.key] : constant?.value ?? null,
     // a fixed hit's motion value *is* its damage rather than a multiplier, so no mv cell either
-    mv: dealsDamage && !fixed(snap.action) ? mv : null,
+    mv: dealsDamage && !fixed(snap.action) ? mv / MV_UNIT : null,
     // what a dot/tune/fixed hit doesn't read is blank, matching `FEEDS`
     dmgBonus: special(snap.action) ? null : snap.dmgBonus,
     amp: fixed(snap.action) ? null : snap.action.scaling === 4 ? null : snap.action.scaling === 3 ? snap.subtypeAmp : snap.amp,
@@ -468,26 +510,28 @@ function rowValues(snap, { mv, avg }, members = []) {
     ) / 100) - 1) * 100,
     effDef: fixed(snap.action) ? null : effectiveShred(snap) * 100,
     effRes: fixed(snap.action) ? null : effectiveRes(snap),
-    energy: snap.energy / RESOURCE_SCALE.energy,
-    concerto: snap.concerto / RESOURCE_SCALE.concerto,
-    offtune: snap.offtune / RESOURCE_SCALE.offtune,
+    energy: shown(snap, 0) / RESOURCE_SCALE.energy,
+    concerto: shown(snap, 1) / RESOURCE_SCALE.concerto,
+    offtune: shown(snap, 2) / RESOURCE_SCALE.offtune,
     // off-tune is the enemy's one shared bar, so its ceiling is the same on every row
     "max:offtune": ENEMY_MAX_OFFTUNE / RESOURCE_SCALE.offtune,
     // what each held coming in — the running-column blanking reads these (page/detail.ts stepRow)
-    "before:energy": snap.energyBefore / RESOURCE_SCALE.energy,
-    "before:concerto": snap.concertoBefore / RESOURCE_SCALE.concerto,
-    "before:offtune": snap.offtuneBefore / RESOURCE_SCALE.offtune,
+    "before:energy": shownBefore(snap, 0) / RESOURCE_SCALE.energy,
+    "before:concerto": shownBefore(snap, 1) / RESOURCE_SCALE.concerto,
+    "before:offtune": shownBefore(snap, 2) / RESOURCE_SCALE.offtune,
     avg: dealsDamage ? avg : null
   };
   FORTE_GAUGES.forEach((key, i) => {
-    raw[`gauge:${RESOURCE_NAME[key]}`] = snap.forte[i];
-    raw[`before:gauge:${RESOURCE_NAME[key]}`] = snap.forteBefore[i];
+    const unit2 = snap.forteScale[i];
+    raw[`gauge:${RESOURCE_NAME[key]}`] = shown(snap, 3 + i) * unit2;
+    raw[`before:gauge:${RESOURCE_NAME[key]}`] = shownBefore(snap, 3 + i) * unit2;
     if (snap.maxForte[i])
-      raw[`max:gauge:${RESOURCE_NAME[key]}`] = snap.maxForte[i];
+      raw[`max:gauge:${RESOURCE_NAME[key]}`] = snap.maxForte[i] * unit2;
   });
-  raw["short:concerto"] = snap.concertoShort ? 1 : 0;
+  raw["short:energy"] = snap.castUnmet?.[0] ? 1 : 0;
+  raw["short:concerto"] = snap.castUnmet?.[1] ? 1 : 0;
   FORTE_GAUGES.forEach((key, i) => {
-    raw[`short:gauge:${RESOURCE_NAME[key]}`] = snap.forteShort[i] ? 1 : 0;
+    raw[`short:gauge:${RESOURCE_NAME[key]}`] = snap.castUnmet?.[2 + i] ? 1 : 0;
   });
   const sources = {};
   for (const [key, feeds] of Object.entries(FEEDS))
@@ -512,11 +556,14 @@ function rowValues(snap, { mv, avg }, members = []) {
     const base = fmt(snap.enemyDef, 0, false, false);
     const inner = [reduce, ignoreOld].filter((v) => v !== 0).map((v) => ` \u2212 ${pct(v)}`).join("");
     const floored = inner ? `floor(${base} \xD7 (1${inner}))` : base;
-    const formula = `1 \u2212 ${floored}${ignoreNew ? ` \xD7 (1 \u2212 ${pct(ignoreNew)})` : ""} / ${base}`;
+    const own = fmt(OWN_DEF, 0, false, false);
+    const formula = `${own} / (${own} + ${floored}${ignoreNew ? ` \xD7 (1 \u2212 ${pct(ignoreNew)})` : ""})`;
     sources.effDef = [
       ...sources.effDef ?? [],
-      { source: "", label: "Formula", value: 0, text: formula, summary: true, place: "afterTotal" },
-      { source: "", label: "Effective Def Shred", value: effectiveShred(snap) * 100, percent: true, digits: 2, summary: true, place: "afterTotal", joined: true }
+      // the formula reads across the whole row, so it rides in the label with the value cell left empty
+      { source: "", label: `Formula: ${formula}`, value: 0, text: "", summary: true, place: "afterTotal" },
+      { source: "", label: "Defense Factor", value: defFactorOf(snap), digits: 4, summary: true, place: "afterTotal", joined: true },
+      { source: "", label: "Effective Defense Shred", value: effectiveShred(snap) * 100, percent: true, digits: 2, summary: true, place: "afterTotal", joined: true }
     ];
   }
   const RESOURCE_STAT = {
@@ -533,37 +580,34 @@ function rowValues(snap, { mv, avg }, members = []) {
       /* Stat.AddOfftune */
     ]
   };
-  const CAST_SHARE = { energy: snap.action.castEnergy, concerto: snap.action.castConcerto, offtune: 0 };
+  const CAST_SHARE = { energy: snap.action.castEnergy, concerto: snap.action.castConcerto, offtune: snap.action.castOfftune };
   const castAdded = (i) => (snap.castAdds ?? []).filter((c) => c.gains[i] !== 0).map((c) => ({ source: c.source, value: c.gains[i], owner: c.owner ?? void 0, label: "on cast" }));
   const CAST_ADD = { energy: 0, concerto: 1, offtune: -1 };
   for (const key of ["energy", "concerto", "offtune"]) {
-    const wiped = key === "energy" && snap.energyWiped;
-    const traced = wiped ? [] : [
+    const traced = [
       ...RESOURCE_STAT[key].flatMap((st) => tracing(snap, keysFor(snap.action, st), false)),
       ...CAST_ADD[key] < 0 ? [] : castAdded(CAST_ADD[key])
     ].map((r) => ({ ...r, value: r.value / RESOURCE_SCALE[key] }));
-    const own = wiped ? [] : ownShares(snap, snap.action[key] / RESOURCE_SCALE[key], CAST_SHARE[key] / RESOURCE_SCALE[key]);
+    const own = ownShares(snap, snap.action[key] / RESOURCE_SCALE[key], CAST_SHARE[key] / RESOURCE_SCALE[key]);
     const rows = [...own, ...traced];
     const folded = [...own, ...foldDuplicates(traced)];
-    if (folded.length || wiped)
+    if (folded.length)
       sources[key] = folded;
     if (traced.length)
       buffed.add(key);
     raw[`moved:${key}`] = rows.reduce((n, r) => n + r.value, 0);
   }
-  if (!snap.energyWiped) {
-    const rate = tracing(snap, keysFor(
-      snap.action,
+  const rate = tracing(snap, keysFor(
+    snap.action,
+    14
+    /* Stat.EnergyRegenMult */
+  ));
+  if (rate.length) {
+    sources.energy = [...sources.energy ?? [], ...rate.map((r) => ({ ...r, section: ENERGY_RATE }))];
+    raw["moved:energy"] = (Number(raw["moved:energy"]) || 0) * (1 + snap.stat(
       14
       /* Stat.EnergyRegenMult */
-    ));
-    if (rate.length) {
-      sources.energy = [...sources.energy ?? [], ...rate.map((r) => ({ ...r, section: ENERGY_RATE }))];
-      raw["moved:energy"] = (Number(raw["moved:energy"]) || 0) * (1 + snap.stat(
-        14
-        /* Stat.EnergyRegenMult */
-      ) / 100);
-    }
+    ) / 100);
   }
   const buildingOfftune = snap.action.offtune + tracing(snap, keysFor(
     snap.action,
@@ -571,13 +615,13 @@ function rowValues(snap, { mv, avg }, members = []) {
     /* Stat.AddOfftune */
   )).reduce((n, r) => n + r.value, 0);
   if (buildingOfftune > 0) {
-    const rate = tracing(snap, keysFor(
+    const rate2 = tracing(snap, keysFor(
       snap.action,
       13
       /* Stat.OfftuneBuildup */
     ));
-    if (rate.length)
-      sources.offtune = [...sources.offtune ?? [], ...rate.map((r) => ({ ...r, section: OFFTUNE_RATE }))];
+    if (rate2.length)
+      sources.offtune = [...sources.offtune ?? [], ...rate2.map((r) => ({ ...r, section: OFFTUNE_RATE }))];
   }
   const direct = tracing(snap, keysFor(
     snap.action,
@@ -606,13 +650,14 @@ function rowValues(snap, { mv, avg }, members = []) {
     /* Stat.AddForte5 */
   ];
   FORTE_GAUGES.forEach((key, i) => {
-    const declared = snap.action[FORTE_FIELD[i]];
-    const traced = [...tracing(snap, keysFor(snap.action, FORTE_STAT[i])), ...castAdded(2 + i)];
+    const unit2 = snap.forteScale[i];
+    const declared = snap.action[FORTE_FIELD[i]] * unit2;
+    const traced = [...tracing(snap, keysFor(snap.action, FORTE_STAT[i])), ...castAdded(2 + i)].map((r) => ({ ...r, value: r.value * unit2 }));
     const rows = [];
     if (snap.action.resetForte[i]) {
-      rows.push({ source: snap.action.name, value: 0, text: "RESET", owner: snap.member });
+      rows.push({ source: snap.action.name, value: 0, text: "Reset", owner: snap.member });
     }
-    rows.push(...ownShares(snap, declared, snap.action.castForte[i]));
+    rows.push(...ownShares(snap, declared, snap.action.castForte[i] * unit2));
     rows.push(...traced);
     if (rows.length)
       sources[`gauge:${RESOURCE_NAME[key]}`] = rows;
@@ -628,7 +673,7 @@ function rowValues(snap, { mv, avg }, members = []) {
     if (parts.length)
       buffed.add("mv");
     sources.mv = [
-      ...snap.action.mv ? [{ source: snap.action.name, label: "Base MV", value: snap.action.mv, percent: true, owner: snap.member }] : [],
+      ...snap.action.mv ? [{ source: snap.action.name, label: "Base MV", value: snap.action.mv / MV_UNIT, percent: true, owner: snap.member }] : [],
       ...parts.filter((r) => !isFactor(r)),
       ...parts.filter(isFactor).map((r) => ({ ...r, section: MV_MULTIPLIER }))
     ];
@@ -673,7 +718,7 @@ function rowValues(snap, { mv, avg }, members = []) {
   }
   if (members.length > 1) {
     const per = members.map((m) => rowValues(m, { mv: mvPercent(m), avg: 0 }));
-    for (const key of ["short:concerto", ...FORTE_GAUGES.map((k) => `short:gauge:${RESOURCE_NAME[k]}`)]) {
+    for (const key of ["short:energy", "short:concerto", ...FORTE_GAUGES.map((k) => `short:gauge:${RESOURCE_NAME[k]}`)]) {
       raw[key] = per.some((p) => Number(p.raw[key])) ? 1 : 0;
     }
     for (const key of COMBINED_COLUMNS) {
@@ -693,26 +738,47 @@ function rowValues(snap, { mv, avg }, members = []) {
       }
     }
     FORTE_GAUGES.forEach((key, i) => {
-      raw[`before:gauge:${RESOURCE_NAME[key]}`] = members[0].forteBefore[i];
+      raw[`before:gauge:${RESOURCE_NAME[key]}`] = shownBefore(members[0], 3 + i) * members[0].forteScale[i];
     });
-    raw["before:energy"] = members[0].energyBefore / RESOURCE_SCALE.energy;
-    raw["before:concerto"] = members[0].concertoBefore / RESOURCE_SCALE.concerto;
-    raw["before:offtune"] = members[0].offtuneBefore / RESOURCE_SCALE.offtune;
+    raw["before:energy"] = shownBefore(members[0], 0) / RESOURCE_SCALE.energy;
+    raw["before:concerto"] = shownBefore(members[0], 1) / RESOURCE_SCALE.concerto;
+    raw["before:offtune"] = shownBefore(members[0], 2) / RESOURCE_SCALE.offtune;
   }
-  const f = damageFactors(snap);
+  const floor4 = (v) => Math.floor(v * 1e4) / 1e4;
+  const dealers = (members.length ? members : [snap]).filter((m) => mvPercent(m) !== 0);
+  const fs = (dealers.length ? dealers : [snap]).map(damageFactors);
+  const f = fs[fs.length - 1];
+  const factor = (source, label, pick, mult, round = (v) => v) => {
+    const vs = fs.map((x) => round(pick(x)));
+    const lo = Math.min(...vs), hi = Math.max(...vs);
+    const row = { source, label, value: vs[vs.length - 1], ...mult ? { mult: true } : {} };
+    return lo === hi ? row : { ...row, text: `${mult ? "\xD7" : ""}${fmtExact(lo)}\u2013${fmtExact(hi)}` };
+  };
+  const any = (pick) => fs.some(pick);
   if (dealsDamage)
     sources.avg = [
-      { source: f.scaling === null ? "" : STAT_SOURCE[f.scaling] ?? SCALING_NAME[f.scaling], label: "Final Stat", value: f.finalStat },
-      { source: snap.action.name, label: "Motion Value", value: f.finalMv, mult: true },
-      { source: "buffs", label: "Damage Bonus", value: f.bonusFactor, mult: true },
-      { source: "buffs", label: "Amplification", value: f.ampFactor, mult: true },
-      ...f.scaling === 4 ? [{ source: "buffs", label: "Tune Break Boost", value: f.tbbFactor, mult: true }] : [],
-      ...f.dealtFactor > 1 ? [{ source: "buffs", label: "Total Damage", value: f.dealtFactor, mult: true }] : [],
-      ...f.takenFactor > 1 ? [{ source: "enemy", label: "Damage Taken", value: f.takenFactor, mult: true }] : [],
-      { source: "enemy", label: "Res Factor", value: f.resFactor, mult: true },
-      { source: "enemy", label: "Def Factor", value: f.defFactor, mult: true },
-      { source: "crit", label: "Average Crit", value: f.critFactor, mult: true }
+      factor(f.scaling === null ? "" : STAT_SOURCE[f.scaling] ?? SCALING_NAME[f.scaling], "Final Stat", (x) => x.finalStat, false),
+      { source: snap.action.name, label: "Motion Value", value: floor4(fs.reduce((n, x) => n + x.finalMv, 0)), mult: true },
+      factor("buffs", "Damage Bonus", (x) => x.bonusFactor, true),
+      factor("buffs", "Amplification", (x) => x.ampFactor, true),
+      ...any(
+        (x) => x.scaling === 4
+        /* Scaling.Tune */
+      ) ? [factor("buffs", "Tune Break Boost", (x) => x.tbbFactor, true)] : [],
+      ...any((x) => x.dealtFactor > 1) ? [factor("buffs", "Total Damage", (x) => x.dealtFactor, true)] : [],
+      ...any((x) => x.takenFactor > 1) ? [factor("enemy", "Damage Taken", (x) => x.takenFactor, true)] : [],
+      factor("enemy", "Res Factor", (x) => x.resFactor, true),
+      factor("enemy", "Def Factor", (x) => x.defFactor, true, floor4),
+      factor("crit", "Average Crit", (x) => x.critFactor, true, floor4)
     ];
+  if (!(members.length ? members : [snap]).some((m) => m.action.bullets.length)) {
+    for (const key of STAT_COLUMNS) {
+      raw[key] = null;
+      delete sources[key];
+      buffed.delete(key);
+    }
+    delete raw["empty:scaler"];
+  }
   return { raw, sources, buffed };
 }
 function buildReport(lines) {
@@ -730,7 +796,7 @@ function buildReport(lines) {
     { key: "cr", label: "cr%", digits: 1, percent: true, full: "Crit Rate" },
     { key: "cd", label: "cd%", digits: 1, percent: true, full: "Crit Dmg" },
     // both halves carry their own section heading, so `full` is only the empty-panel one
-    // its panel ends on the shred's own formula and result rather than a Total
+    // its panel ends on the defense factor's formula and results rather than a Total
     { key: "effDef", label: "shred%", digits: 1, percent: true, noTotal: true, full: "DEF Ignore", fullEmpty: "DEF Shred" },
     { key: "effRes", label: "res%", digits: 1, percent: true, full: "Enemy RES" },
     { key: "dealt", label: "vuln%", digits: 1, percent: true, full: "Vulnerability" },
@@ -748,14 +814,15 @@ function buildReport(lines) {
       full: RESOURCE_NAME[key]
     }))
   ];
-  const isShort = (snap) => snap.triggered;
+  const isShort = (snap) => snap.triggered && snap.action.cast !== 8;
   const isShortLine = (line) => line.members?.length ? line.members.every(isShort) : isShort(line.snap);
-  const partOf = (snap, avg, shown2) => {
+  const endOf = (s) => s.triggered && s.hitAt !== void 0 ? s.hitAt : s.frame + s.frames + (s.swapFrames ?? 0);
+  const partOf = (snap, avg, shown3) => {
     const part = rowValues(snap, { mv: mvPercent(snap), avg });
     part.raw.action = snap.action.name;
     if (tagOf(snap))
       part.raw["tag:action"] = tagOf(snap);
-    const end = snap.frame + snap.frames + (snap.swapFrames ?? 0);
+    const end = endOf(snap);
     part.raw.time = clockAt(end);
     part.raw["end:time"] = end;
     return {
@@ -763,7 +830,7 @@ function buildReport(lines) {
       info: actionInfo(snap.action, snap.type, snap.source),
       type: snap.type,
       scaling: snap.action.scaling,
-      isShown: snap === shown2,
+      isShown: snap === shown3,
       snap,
       short: isShort(snap)
     };
@@ -774,7 +841,7 @@ function buildReport(lines) {
     raw.action = line.id;
     if (tagOf(snap))
       raw["tag:action"] = tagOf(snap);
-    const end = Math.max(...(line.members?.length ? line.members : [snap]).map((s) => s.frame + s.frames + (s.swapFrames ?? 0)));
+    const end = Math.max(...(line.members?.length ? line.members : [snap]).map(endOf));
     raw.time = clockAt(end);
     raw["end:time"] = end;
     return {
@@ -812,7 +879,7 @@ function buildReport(lines) {
   }
   const moved = (r, key) => Math.abs(Number(r.raw[key]) || 0) > 1e-9;
   const used = columns.filter((c) => !c.hideIfZero || rows.some((r) => moved(r, c.key) || r.parts.some((p) => moved(p, c.key))));
-  const shown = (r, c) => {
+  const shown2 = (r, c) => {
     const v = r.raw[c.key];
     return typeof v === "number" ? fmt(v, digitsOf(r.raw, c), PAD_DIGITS_COLUMNS.has(c.key), GROUPED_COLUMNS.has(c.key)) + (c.percent ? "%" : "") + gaugeSuffix(r.raw, c.key) : String(v ?? "");
   };
@@ -820,9 +887,9 @@ function buildReport(lines) {
   const sized = used.map((c) => {
     const lens = [c.label.length];
     for (const r of rows) {
-      lens.push(shown(r, c).length + tagLen(r, c));
+      lens.push(shown2(r, c).length + tagLen(r, c));
       for (const p of r.parts)
-        lens.push(shown(p, c).length + (c.key === "action" ? 3 : 0) + tagLen(p, c));
+        lens.push(shown2(p, c).length + (c.key === "action" ? 3 : 0) + tagLen(p, c));
     }
     return { ...c, width: Math.max(...lens) + 1 };
   });
@@ -920,9 +987,9 @@ var ROW_CAP = 3e3;
 var bestPicks = /* @__PURE__ */ new Map();
 var picksCache = /* @__PURE__ */ new Map();
 var results = /* @__PURE__ */ new Map();
-function storeSolved(teamKey2, solved) {
-  bestPicks.set(bestKey(teamKey2, TEAMS[teamKey2], filters), solved);
-  picksCache.set(picksKey(teamKey2, TEAMS[teamKey2], filters), solved.picks);
+function storeSolved(teamKey2, solved, f = filters) {
+  bestPicks.set(bestKey(teamKey2, TEAMS[teamKey2], f), solved);
+  picksCache.set(picksKey(teamKey2, TEAMS[teamKey2], f), solved.picks);
   solvesDirty = true;
 }
 var visibleRows = [];
@@ -948,6 +1015,7 @@ function tagsHold(map, names, fielded) {
 }
 var poolAdded = [];
 var poolNeeds = /* @__PURE__ */ new Map();
+var poolAlone = /* @__PURE__ */ new Set();
 var poolKey = null;
 function leaderNeeds() {
   const added2 = [...resonatorFilters].filter(([, mode]) => mode === "include").map(([name]) => name);
@@ -955,7 +1023,12 @@ function leaderNeeds() {
   if (key === poolKey)
     return poolNeeds;
   [poolKey, poolAdded, poolNeeds] = [key, added2, /* @__PURE__ */ new Map()];
+  poolAlone = new Set(added2);
   for (const ms of Object.values(TEAMS)) {
+    const here = added2.filter((o) => ms.some((x) => x.name === o));
+    if (here.length > 1)
+      for (const o of here)
+        poolAlone.delete(o);
     const whole = ms.every((x) => added2.includes(x.name));
     for (const m of ms) {
       if (!MDPS_NAMES.has(m.name) || !added2.includes(m.name))
@@ -974,6 +1047,8 @@ function teamWanted(key, members) {
     if (mode === "exclude" && has(name))
       return false;
   const needs = leaderNeeds();
+  if (poolAdded.length > 1 && poolAdded.some((o) => poolAlone.has(o) && has(o)))
+    return true;
   if (!needs.size)
     return poolAdded.every(has);
   for (const m of members) {
@@ -1470,21 +1545,29 @@ function framesPopover(snaps) {
   for (const s of snaps) {
     if (!s.active)
       continue;
-    const cost = (s.hitAt !== void 0 ? s.action.castPart() : s.action).cost(s.tag);
+    const press = s.hitAt !== void 0 ? s.action.castPart() : s.action;
+    const hold = s.tag === ActionTag.HoldCancel && s.holdPaid >= 0;
+    const cost = hold ? press.holdCost(s.action.letGo(s.holdPaid)) : press.cost(s.tag);
     total += cost.total - s.timestopBanked;
     const insta = s.tag === ActionTag.InstaCancel || s.tag === ActionTag.InstaDodge || s.tag === ActionTag.InstaJump || s.tag === ActionTag.InstaSwap;
-    const fast = s.tag === ActionTag.EasyCancel;
-    const cut = s.tag === ActionTag.Cancel || s.tag === ActionTag.EasyCancel || s.tag === ActionTag.DodgeCancel || s.tag === ActionTag.JumpCancel || s.tag === ActionTag.SwapCancel || s.tag === ActionTag.HitCancel || s.tag === ActionTag.DodgeOnHit || s.tag === ActionTag.JumpOnHit;
-    if (!insta)
+    const fast = s.tag === ActionTag.MashCancel;
+    const cut = s.tag === ActionTag.Cancel || s.tag === ActionTag.MashCancel || s.tag === ActionTag.HoldCancel || s.tag === ActionTag.DodgeCancel || s.tag === ActionTag.JumpCancel || s.tag === ActionTag.SwapCancel || s.tag === ActionTag.HitCancel || s.tag === ActionTag.DodgeOnHit || s.tag === ActionTag.JumpOnHit;
+    if (hold) {
+      const own = Math.min(Math.max(s.holdPaid, s.action.prioFrames), cost.action);
+      if (own)
+        rows.push(line(`${s.action.name} (c)`, own));
+      if (cost.action > own)
+        rows.push(line("Hold Input", cost.action - own));
+    } else if (!insta)
       rows.push(line(`${s.action.name}${cut ? " (c)" : ""}`, cost.action));
     if (cost.timestop)
       rows.push(line("Timestop", -cost.timestop));
     if (cost.global)
-      rows.push(line(insta ? "Input Delay" : fast ? "Mash/Hold delay" : "Cancel Timing", cost.global));
+      rows.push(line(insta ? "Input Delay" : fast ? "Mash delay" : "Cancel Timing", cost.global));
     if (s.timestopBanked)
       rows.push(line("Banked Timestop", -s.timestopBanked));
     if (s.swapFrames)
-      rows.push(line("Swap", s.swapFrames));
+      rows.push(line("Swap Delay", s.swapFrames));
     total += s.swapFrames ?? 0;
     banks += Math.max(0, s.action.timestop - cost.timestop);
   }
@@ -1714,7 +1797,7 @@ var statRow = (e, owner, slotHue, noStat = false) => {
   const percent = isPercent(e.stat);
   const stat = splitStat(e.stat)[0];
   const resource = stat === 26 || stat === 27;
-  return `<tr class="stat${e.dim ? " one" : ""}"><td class="s" style="--own:${slotHue.get(owner) ?? FALLBACK_HUE}">${esc(e.source)}</td>` + (noStat ? "" : `<td class="k">${esc(statLabel(e.stat))}</td>`) + `<td class="v">${fmt(e.value, percent ? 1 : resource ? 2 : 0)}${percent ? "%" : ""}</td></tr>`;
+  return `<tr class="stat${e.dim ? " one" : ""}"><td class="s" style="--own:${slotHue.get(owner) ?? FALLBACK_HUE}">${esc(e.source)}</td>` + (noStat ? "" : `<td class="k">${esc(statLabel(e.stat))}</td>`) + `<td class="v">${fmt(e.value / statDisplayScale(stat), percent ? 1 : resource ? 2 : 0)}${percent ? "%" : ""}</td></tr>`;
 };
 function piecePopover(run, pieces, owner, slotHue) {
   const own = new Set(pieces);
@@ -1742,7 +1825,7 @@ function statsPanel(stats, buffs, owner, slotHue, heading = "Stats", noStat = fa
     return "";
   return lazyPop(`<span class="pop gear"><table>` + (stats.length ? `<tr class="sec"><td colspan="${cols}">${esc(heading)}</td></tr>${stats.map(row).join("")}` : "") + (buffs.length ? `<tr class="sec"><td colspan="${cols}">Buffs</td></tr>${buffs.map(row).join("")}` : "") + `</table></span>`);
 }
-function loadoutTable(run, erReq) {
+function loadoutTable(run, needs) {
   const erRolls = erRollsFor(run.teamKey, run.members, run.combo);
   const builds = run.members.map((m, i) => ({ member: m, combo: run.combo[i], erRolls: erRolls[i] }));
   const slotHue = new Map([
@@ -1801,12 +1884,10 @@ function loadoutTable(run, erReq) {
     rows.push(row("Mode", builds.map((b) => gearCell(b.member.name, b.member.loadout.mode ?? null))));
   }
   rows.push(row("Menu Stats", builds.map((b) => {
-    const req = erReq?.get(b.member.name);
+    const req = needs?.get(b.member.name);
     const stats = menuStatRows(b.member, b.combo, b.erRolls).map((r) => {
-      const label = r.label === statLabel(
-        11
-        /* Stat.Er */
-      ) && req ? `${esc(r.label)} ${req}` : esc(r.label);
+      const need = req?.get(r.label);
+      const label = need ? `${esc(r.label)} ${need}` : esc(r.label);
       return `<tr><td class="k">${label}</td><td class="v">${esc(r.value)}</td></tr>`;
     }).join("");
     return `<div class="c menustats"><table>${stats}</table></div>`;
@@ -2401,8 +2482,9 @@ var COST_HELP = [
 var MATRIX_HELP = "Enables matrix exclusive buffs for older characters, scaled down to a neutral environment. Lucy also activates 1 stack of her boss kill inherent.";
 var README = [
   "All beta calculations are subject to change!",
+  "If you find any bug or issue ping me on discord @rileyy._.",
   "Enemy lv100, 20% res, Resonator lv 90, Nodes lv10",
-  "If you find any bug or issue ping me on discord @rileyy._."
+  "Update: Added timer, cancels, and accurate buff timings"
 ];
 var openHelp = /* @__PURE__ */ new Set(["readme"]);
 function comparisonFilters() {
@@ -2876,14 +2958,14 @@ function comparisonTable(rows) {
   const gearRatio = (run, pos, axis) => {
     const dpr = personalFigure(run, run.members[pos].name);
     const all = twins.get(twinKey(run, pos, axis)) ?? [];
-    const shown = all.filter((t) => t.shown);
+    const shown2 = all.filter((t) => t.shown);
     const offered = all.filter((t) => t.offered);
-    for (const pool2 of [shown, offered]) {
+    for (const pool2 of [shown2, offered]) {
       const base = bestOf(pool2, run, pos, axis);
       if (base > 0)
         return dpr / base;
     }
-    const left = shown.length ? shown : offered;
+    const left = shown2.length ? shown2 : offered;
     if (!left.length)
       return null;
     const low = Math.min(...left.map((t) => t.dpr));
@@ -3515,14 +3597,30 @@ var TAG_KIND = {
   [ActionTag.InstaJump]: "insta",
   [ActionTag.InstaSwap]: "insta",
   [ActionTag.SwapCancel]: "swap",
-  [ActionTag.EasyCancel]: "easy",
+  [ActionTag.MashCancel]: "easy",
+  [ActionTag.HoldCancel]: "easy",
   [ActionTag.Field]: "field",
   [ActionTag.DodgeCancel]: "dash",
   [ActionTag.JumpCancel]: "jump",
   [ActionTag.Cancel]: "cancel",
   [ActionTag.HitCancel]: "hit",
-  [ActionTag.DodgeOnHit]: "dash",
-  [ActionTag.JumpOnHit]: "jump"
+  [ActionTag.DodgeOnHit]: "hit",
+  [ActionTag.JumpOnHit]: "hit"
+};
+var TAG_NOTE = {
+  [ActionTag.InstaCancel]: "After casting, input the next action instantly",
+  [ActionTag.InstaDodge]: "After casting, dodge instantly",
+  [ActionTag.InstaJump]: "After casting, jump instantly",
+  [ActionTag.InstaSwap]: "After casting, swap instantly",
+  [ActionTag.Cancel]: "After the final hit, input the next action",
+  [ActionTag.DodgeCancel]: "After the final hit, dodge",
+  [ActionTag.JumpCancel]: "After the final hit, jump",
+  [ActionTag.SwapCancel]: "After the final hit, swap",
+  [ActionTag.MashCancel]: "After casting, mash the next input to cancel on the final hit",
+  [ActionTag.HoldCancel]: "After casting, hold the next input to cancel upon receiving forte",
+  [ActionTag.HitCancel]: "After the first hit, input the next action",
+  [ActionTag.DodgeOnHit]: "After the first hit, dodge",
+  [ActionTag.JumpOnHit]: "After the first hit, jump"
 };
 function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = true } = {}) {
   return columns.map((col) => {
@@ -3533,7 +3631,7 @@ function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = tr
       if ("line" in row && row.line.aggregate)
         return cell(col);
       const cast = ("line" in row ? row.line.snap : row.snap).action.cast;
-      const spend = col.key === "offtune" ? cast === 8 : (col.key === "concerto" || col.key === "energy") && cast === 6;
+      const spend = col.key === "offtune" ? cast === 8 : col.key === "concerto" && cast === 6;
       const before = Number(row.raw[`before:${col.key}`]) || 0;
       if (!spend)
         attr = ` data-val="${Number(v) || 0}" data-before="${before}"`;
@@ -3552,7 +3650,7 @@ function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = tr
       cls.push("buffed");
     if (col.key.startsWith("gauge:") && Number(row.raw[`clear:${col.key}`]))
       cls.push("buffed");
-    if (col.key === "concerto" && Number(row.raw["short:concerto"]))
+    if ((col.key === "concerto" || col.key === "energy") && Number(row.raw[`short:${col.key}`]))
       cls.push("underspent");
     if (col.key.startsWith("gauge:") && Number(row.raw[`short:${col.key}`]))
       cls.push("negative");
@@ -3563,8 +3661,9 @@ function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = tr
     }
     const tag = col.key === "action" ? String(row.raw["tag:action"] ?? "") : "";
     if (tag) {
-      const kind = TAG_KIND[tag] ?? "cancel";
-      html = `<span class="ctag ctag-${kind}">${esc(tag.toUpperCase())}</span>${html}`;
+      const kind = TAG_KIND[tag] ?? "cancel", note = TAG_NOTE[tag];
+      const tagPop = note ? lazyPop(`<span class="pop note">${esc(note)}</span>`) : "";
+      html = `<span class="ctag ctag-${kind}"${tagPop}>${esc(tag.toUpperCase())}</span>${html}`;
     }
     const suffix = col.key === "mv" && row.scaling !== null ? ` ${SCALING_NAME[row.scaling]}` : "";
     let pop = "";
@@ -3581,7 +3680,7 @@ function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = tr
     } else if (text) {
       pop = popover(col, sources, row.raw[`moved:${col.key}`] ?? v, slotHue, suffix, String(row.raw[`empty:${col.key}`] ?? ""));
     }
-    const mem = slotHue.get(String(v)) ?? FALLBACK_HUE;
+    const mem = col.key === "member" ? rowHue("line" in row ? row.line.snap : row.snap, slotHue) : slotHue.get(String(v)) ?? FALLBACK_HUE;
     const style = col.key === "member" ? `--mem:${mem};color:${mem}` : col.key === "avg" ? `--mem:${slotHue.get(String(row.raw["member"] ?? "")) ?? FALLBACK_HUE}` : "";
     if (col.key === "avg" && typeof v === "number")
       attr = ` data-avg="${v}"`;
@@ -3593,9 +3692,10 @@ function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = tr
     return cell(col, { cls, html, pop, style, attr });
   }).join("");
 }
+var rowHue = (snap, slotHue) => snap.slot === TUNE_BREAK_ENEMY.name ? TUNE_BREAK_ENEMY.color : slotHue.get(snap.member) ?? FALLBACK_HUE;
 function partRows(columns, parts, slotHue, gearByMember, fieldOf) {
   return parts.map((p) => {
-    const hue = slotHue.get(String(p.raw.member)) ?? FALLBACK_HUE;
+    const hue = rowHue(p.snap, slotHue);
     const field = fieldOf.get(p.snap);
     const mark2 = field === void 0 ? "" : ` data-fh="${field}"`;
     return `<div class="r${p.short ? " short" : ""}" style="--m:${hue}"${mark2}>${stepRow(columns, p, slotHue, gearByMember, { part: true })}</div>`;
@@ -3637,7 +3737,7 @@ function rotationTable(report, slotHue, gearByMember, starts) {
       out.push(`<div class="loopline"><span>loop ${loop}</span></div>`);
     }
     const snap = row.line.snap;
-    const hue = slotHue.get(snap.member) ?? FALLBACK_HUE;
+    const hue = rowHue(snap, slotHue);
     const style = ` style="--m:${hue}"`;
     const cells = stepRow(columns, row, slotHue, gearByMember);
     const shortCls = row.short ? " short" : "";
@@ -3703,7 +3803,7 @@ function erRequirement(flat, resetIdx, member2, maxEnergy, constant) {
         continue;
       if (s.action.resetEnergy)
         break walk;
-      if (s.energyWiped)
+      if (s.endsLoop)
         continue;
       const gain = (s.action.energy + s.stat(
         26
@@ -3725,6 +3825,8 @@ function energyRequirements(run, lines) {
   const erOf = erRollsFor(run.teamKey, run.members, run.combo);
   const cells = /* @__PURE__ */ new Map();
   run.members.forEach((m, idx) => {
+    const own = /* @__PURE__ */ new Map();
+    cells.set(m.name, own);
     const maxEnergy = m.loadout.resonator.maxEnergy;
     const combo = run.combo[idx];
     const constantSources = menuStats(m.loadout.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs, erOf[idx])).filter(
@@ -3734,12 +3836,37 @@ function energyRequirements(run, lines) {
     const constant = constantSources.reduce((n, e) => n + e.value, 0);
     const casts = resetIndices(flat, 0, flat.length, m.name).slice(1);
     const asked = casts.map((i) => erRequirement(flat, i, m.name, maxEnergy, constant)).filter((v) => v != null);
-    const req = asked.length ? Math.max(...asked) : null;
-    const met = req == null ? "" : req > constant + ER_TOLERANCE ? " er-under" : req > constant ? " er-slack" : " er-met";
-    if (req != null) {
-      const verdict = met === " er-met" ? "Met" : met === " er-slack" ? "Barely Not Met" : "Not Met";
-      const tip = lazyPop(`<span class="pop tip">Unbuffed Energy Regen Requirement (${verdict})</span>`);
-      cells.set(m.name, `<span class="erneed has"${tip}>> <span class="erreq${met}">${fmt(req, 1, true)}%</span></span>`);
+    const bar = asked.length ? Math.max(...asked) : null;
+    const name = m.loadout.resonator.name;
+    const line = (what, need, held) => {
+      const met = need <= held + ER_TOLERANCE;
+      return { met, html: `<div>${what}: <span class="${met ? "need-met" : "need-miss"}">${fmt(need, 1, true)}%</span> (${met ? "Met" : "Not Met"})</div>` };
+    };
+    const tag = (need, met, lines2) => {
+      const tip = lazyPop(`<span class="pop tip">${lines2.join("")}</span>`);
+      return `<span class="erneed has"${tip}>> <span class="erreq ${met ? "er-met" : "er-under"}">${fmt(need, 1, true)}%</span></span>`;
+    };
+    const minEr = m.loadout.minEr;
+    if (bar != null || minEr) {
+      const lines2 = [];
+      if (bar != null)
+        lines2.push(line("Energy Regen requirement", bar, constant));
+      if (minEr)
+        lines2.push(line("Energy Regen requirement for kit", minEr, constant));
+      const need = Math.max(bar ?? 0, minEr);
+      own.set(statLabel(
+        11
+        /* Stat.Er */
+      ), tag(need, need <= constant + ER_TOLERANCE, lines2.map((l) => l.html)));
+    }
+    const minCr = m.loadout.minCritRate;
+    if (minCr) {
+      const cr = menuStats(m.loadout.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs, erOf[idx])).reduce((n, e) => n + (e.stat === 9 ? e.value : 0), 0);
+      const kit = line("Kit Crit Rate Requirement", minCr, cr);
+      own.set(statLabel(
+        9
+        /* Stat.CritRate */
+      ), tag(minCr, kit.met, [kit.html]));
     }
   });
   return cells;
@@ -3875,6 +4002,7 @@ function blockPanel(sel) {
   let dmg = 0, dmgCells = 0;
   let frames = 0, timeCells = 0;
   let gained = 0, tuneCells = 0, tuneDigits = 2;
+  let energy = 0, energyCells = 0, energyDigits = 2;
   const held = new Set(sel.rows.slice(sel.r0, sel.r1 + 1));
   const rows = blockCells(sel);
   for (let i = 0; i < rows.length; i++) {
@@ -3894,6 +4022,12 @@ function blockPanel(sel) {
       if (c.dataset.val === void 0)
         continue;
       const col = logColumns[[...c.parentElement.children].indexOf(c)];
+      if (col.key === "energy") {
+        energy += (Number(c.dataset.val) || 0) - (Number(c.dataset.before) || 0);
+        energyDigits = col.digits ?? 2;
+        energyCells++;
+        continue;
+      }
       if (col.key !== "offtune")
         continue;
       gained += (Number(c.dataset.val) || 0) - (Number(c.dataset.before) || 0);
@@ -3904,6 +4038,8 @@ function blockPanel(sel) {
   const lines = dmgCells > 1 ? [["Total Dmg", fmt(dmg, 0)]] : [];
   if (timeCells > 1)
     lines.push(["Total Time", `${(frames / 60).toFixed(2)}s`]);
+  if (energyCells)
+    lines.push(["Total Energy", fmt(energy, energyDigits, true, false)]);
   if (tuneCells)
     lines.push(["Total Offtune", fmt(gained, tuneDigits, true, false)]);
   if (!lines.length)
@@ -4051,6 +4187,8 @@ function wireCellSelect(root) {
   grid.addEventListener("pointerdown", (e) => {
     const cell2 = e.target.closest(".r:not(.head) > .c");
     if (e.button !== 0 || holding || arming || !cell2)
+      return;
+    if (e.target.closest(".ctag"))
       return;
     const g = rect(grid);
     const cols = [...grid.querySelectorAll(":scope > .r.head > .c[data-col]")].map((h, nth) => {
@@ -4354,10 +4492,10 @@ var DETAIL_STAGE = 5;
 var HEAD = 14;
 var shownNow = () => [...resonatorFilters].filter(([, mode]) => mode === "include").map(([name]) => name);
 var comparedNow = () => [...filters.scoped.map(scopedKey), ...AXES.flatMap((axis) => filters[axis].map((name) => `${axis}|${name}`))];
-var shownBefore = /* @__PURE__ */ new Set();
+var shownBefore2 = /* @__PURE__ */ new Set();
 var comparedBefore = /* @__PURE__ */ new Set();
 function baseline() {
-  shownBefore = new Set(shownNow());
+  shownBefore2 = new Set(shownNow());
   comparedBefore = new Set(comparedNow());
 }
 function added(now, before) {
@@ -4366,7 +4504,7 @@ function added(now, before) {
       before.delete(key);
   return now.some((key) => !before.has(key));
 }
-var showing = () => added(shownNow(), shownBefore);
+var showing = () => added(shownNow(), shownBefore2);
 var comparing = () => added(comparedNow(), comparedBefore);
 var atBasePage = () => AXES.every((axis) => filters[axis].length === 0) && !filters.scoped.length && !filters.matrix.length && [resonatorFilters, weaponFilters, echoFilters, sequenceFilters, refineFilters].every((m) => m.size === 0);
 var firstChip = () => document.querySelector(".tcchips .rchip");
@@ -4623,17 +4761,21 @@ document.addEventListener("click", (e) => {
     return;
   const input = document.querySelector("#optionSearch");
   const cells = [...rowElementAt(0)?.querySelectorAll(".c.name.res") ?? []];
-  const name = (cells[2] ?? cells[cells.length - 1])?.dataset.resonator;
+  const top = (cells[2] ?? cells[cells.length - 1])?.dataset.resonator;
+  const shown2 = [top, ...[...document.querySelectorAll(".c.name.res")].map((c) => c.dataset.resonator)];
+  const onScreen = new Set(visibleRows.flatMap((row) => row.members.map((m) => m.name)));
+  const unseen = Object.values(TEAMS).flat().map((m) => m.name).find((n) => !onScreen.has(n) && !resonatorFilters.has(n));
+  const name = unseen ?? shown2.find((n) => n && !resonatorFilters.has(n)) ?? top;
   if (!input || input.value || !name)
     return;
-  const text = name.slice(0, 3);
+  const text = name;
   let at = 0;
   const key = () => {
     input.value = text.slice(0, ++at);
     input.dispatchEvent(new Event("input", { bubbles: true }));
-    typing = at < text.length ? setTimeout(key, 100) : void 0;
+    typing = at < text.length ? setTimeout(key, 50) : void 0;
   };
-  typing = setTimeout(key, 100);
+  typing = setTimeout(key, 50);
 }, true);
 function searchUsed() {
   if (!layer || layer.hidden || stage !== 2)
@@ -4819,7 +4961,7 @@ async function breathe() {
   await paint();
   lastPaint = performance.now();
 }
-async function runMissing(rows) {
+async function runMissing(rows, stale) {
   const missing = rows.filter((row) => !results.has(row.key));
   if (!missing.length)
     return;
@@ -4827,6 +4969,8 @@ async function runMissing(rows) {
   const cached = rows.length - missing.length;
   barProgress(cached, rows.length);
   for (let i = 0; i < missing.length; i++) {
+    if (stale())
+      return;
     const row = missing[i];
     results.set(row.key, runTeam(row.teamKey, row.members, row.combo));
     barProgress(cached + i + 1, rows.length);
@@ -4837,10 +4981,17 @@ async function runMissing(rows) {
 var WORKER_LIMIT = 8;
 var pool = null;
 var poolTried = false;
+var queue = [];
+var busy = /* @__PURE__ */ new Map();
+var inFlight = /* @__PURE__ */ new Map();
+var jobId = 0;
 function dropWorkers() {
   for (const w of pool ?? [])
     w.terminate();
   pool = null;
+  queue.unshift(...busy.values());
+  busy.clear();
+  void drainHere();
 }
 function workerPool() {
   if (poolTried)
@@ -4849,81 +5000,120 @@ function workerPool() {
   const want = Math.max(1, Math.min(WORKER_LIMIT, (navigator.hardwareConcurrency || 4) - 1));
   try {
     pool = Array.from({ length: want }, () => new Worker(new URL(`./solver.js?v=${Date.now()}`, import.meta.url), { type: "module" }));
+    for (const w of pool)
+      listen(w);
   } catch (err) {
     console.warn("Workers unavailable, optimizing on the main thread instead:", err);
     pool = null;
   }
   return pool;
 }
-function solveOnWorkers(workers, teams, onDone, onShare) {
-  return new Promise((resolve) => {
-    let next = 0, live = 0, id = 0;
-    const pump = async (w) => {
-      for (; ; ) {
-        if (next >= teams.length) {
-          if (--live === 0)
-            resolve();
-          return;
-        }
-        if (pool)
-          break;
-        const [key2, members2] = teams[next++];
-        storeSolved(key2, solveTeam(key2, members2, filters, picksCache.get(picksKey(key2, members2, filters)) ?? null));
-        onDone(members2);
-        await breathe();
-      }
-      const [key, members] = teams[next++];
-      const known = picksCache.get(picksKey(key, members, filters)) ?? null;
-      const finish2 = (solved) => {
-        storeSolved(key, solved);
-        onDone(members);
-        void pump(w);
-      };
-      w.onmessage = ({ data }) => {
-        if (isProgress(data)) {
-          onShare?.(members, data.share);
-          return;
-        }
-        const solved = { picks: data.picks, rows: data.rows, scores: data.scores, hidden: data.hidden ?? [], hiddenScores: data.hiddenScores ?? [] };
-        if (solveFits(bestKey(key, members, filters), solved)) {
-          finish2(solved);
-          return;
-        }
-        if (pool) {
-          console.warn(`the workers are on a different build than this page (first seen on ${key}); solving the rest here. Reload once the rebuild has landed.`);
-          dropWorkers();
-        }
-        finish2(solveTeam(key, members, filters, known));
-      };
-      w.onerror = (e) => {
-        console.warn(`worker failed on ${key}, solving it here:`, e.message);
-        e.preventDefault();
-        finish2(solveTeam(key, members, filters, known));
-      };
-      const request = { id: id++, teamKey: key, filters, picks: known };
-      w.postMessage(request);
-    };
-    for (const w of workers.slice(0, teams.length)) {
-      live++;
-      void pump(w);
+function listen(w) {
+  w.onmessage = ({ data }) => {
+    const job = busy.get(w);
+    if (!job || data.id !== job.id)
+      return;
+    if (isProgress(data)) {
+      job.onShare(data.share);
+      return;
     }
-    if (live === 0)
-      resolve();
-  });
+    const solved = { picks: data.picks, rows: data.rows, scores: data.scores, hidden: data.hidden ?? [], hiddenScores: data.hiddenScores ?? [] };
+    if (solveFits(bestKey(job.key, job.members, job.f), solved)) {
+      settle2(w, job, solved);
+      return;
+    }
+    console.warn(`the workers are on a different build than this page (first seen on ${job.key}); solving the rest here. Reload once the rebuild has landed.`);
+    dropWorkers();
+  };
+  w.onerror = (e) => {
+    const job = busy.get(w);
+    e.preventDefault();
+    if (!job)
+      return;
+    console.warn(`worker failed on ${job.key}, solving it here:`, e.message);
+    settle2(w, job, solveTeam(job.key, job.members, job.f, job.known));
+  };
 }
-async function ensureBestPicks(inPlay) {
-  await loadShipped(filters);
-  const teams = inPlay.filter(([key, members]) => !bestPicks.has(bestKey(key, members, filters)));
+function settle2(w, job, solved) {
+  storeSolved(job.key, solved, job.f);
+  busy.delete(w);
+  job.done();
+  handOut(w);
+}
+function handOut(w) {
+  const job = queue.shift();
+  if (!job)
+    return;
+  busy.set(w, job);
+  const request = { id: job.id, teamKey: job.key, filters: job.f, picks: job.known };
+  w.postMessage(request);
+}
+var draining = false;
+async function drainHere() {
+  if (draining)
+    return;
+  draining = true;
+  for (let job = queue.shift(); job; job = queue.shift()) {
+    storeSolved(job.key, solveTeam(job.key, job.members, job.f, job.known, job.onShare), job.f);
+    job.done();
+    await breathe();
+  }
+  draining = false;
+}
+function cancelQueued() {
+  for (const job of queue.splice(0))
+    job.done();
+}
+function solveAll(teams, f, share) {
+  const waits = teams.map(([key, members]) => {
+    const bk = bestKey(key, members, f);
+    const out = inFlight.get(bk);
+    if (out)
+      return out.then(() => share(members, 1));
+    const solved = new Promise((resolve) => queue.push({
+      id: jobId++,
+      key,
+      members,
+      f,
+      known: picksCache.get(picksKey(key, members, f)) ?? null,
+      onShare: (part) => share(members, part),
+      done: () => {
+        inFlight.delete(bk);
+        share(members, 1);
+        resolve();
+      }
+    }));
+    inFlight.set(bk, solved);
+    return solved;
+  });
+  if (pool) {
+    for (const w of pool)
+      if (!busy.has(w))
+        handOut(w);
+  } else
+    void drainHere();
+  return Promise.all(waits).then(() => void 0);
+}
+async function ensureBestPicks(inPlay, f, stale) {
+  await loadShipped(f);
+  if (stale())
+    return false;
+  const teams = inPlay.filter(([key, members]) => !bestPicks.has(bestKey(key, members, f)));
   if (!teams.length)
     return false;
-  const rowsOf = (members) => members.every((m) => hasBuild(m, filters)) ? estimatedRowCount(members) : 0;
-  const solvable = teams.filter(([, members]) => members.every((m) => hasBuild(m, filters))).map((t) => [t, rowsOf(t[1])]).sort((a, b) => b[1] - a[1]).map(([t]) => t);
+  const rowsOf = (members) => members.every((m) => hasBuild(m, f)) ? estimatedRowCount(members, f) : 0;
+  const solvable = teams.filter(([, members]) => members.every((m) => hasBuild(m, f))).map((t) => [t, rowsOf(t[1])]).sort((a, b) => b[1] - a[1]).map(([t]) => t);
   if (!solvable.length)
     return false;
   const total = solvable.reduce((n, [, members]) => n + rowsOf(members), 0);
   await overlayNow("Running Calculations...");
+  if (stale())
+    return false;
   let done2 = 0;
-  const progress = () => barProgress(done2, total);
+  const progress = () => {
+    if (!stale())
+      barProgress(done2, total);
+  };
   progress();
   const counted = /* @__PURE__ */ new Map();
   const share = (members, part) => {
@@ -4935,20 +5125,14 @@ async function ensureBestPicks(inPlay) {
     done2 += at - was;
     progress();
   };
-  const pool2 = workerPool();
-  if (pool2)
-    await solveOnWorkers(pool2, solvable, (members) => share(members, 1), share);
-  else {
-    for (const [key, members] of solvable) {
-      const known = picksCache.get(picksKey(key, members, filters)) ?? null;
-      storeSolved(key, solveTeam(key, members, filters, known, (part) => share(members, part)));
-      share(members, 1);
-      await breathe();
-    }
-  }
+  workerPool();
+  await solveAll(solvable, f, share);
+  if (stale())
+    return false;
   await paint();
   return true;
 }
+var generation = 0;
 var tableRequested = false;
 var route = () => {
   const key = routeTeam();
@@ -4966,20 +5150,28 @@ var route = () => {
 };
 async function refresh2() {
   tableRequested = true;
+  const gen = ++generation;
+  const stale = () => gen !== generation;
+  cancelQueued();
+  const f = structuredClone(filters);
   barReset();
   try {
     const inPlay = Object.entries(TEAMS).filter(([key, members]) => teamWanted(key, members));
-    if (inPlay.some(([key, members]) => !bestPicks.has(bestKey(key, members, filters))))
+    if (inPlay.some(([key, members]) => !bestPicks.has(bestKey(key, members, f))))
       workerPool();
     if (!visibleRows.length)
       route();
-    await ensureBestPicks(inPlay);
+    await ensureBestPicks(inPlay, f, stale);
+    if (stale())
+      return;
     saveSolves();
     const rows = teamRows();
     const cached = rows.filter((row) => results.has(row.key));
     const missing = cached.length !== rows.length;
     if (!missing && cached.length) {
       await overlayNow("Rendering Table...", rows.length);
+      if (stale())
+        return;
       barProgress(rows.length, rows.length);
       setVisibleRows(cached);
       route();
@@ -4987,13 +5179,19 @@ async function refresh2() {
       setVisibleRows([]);
       route();
     }
-    await runMissing(rows);
+    await runMissing(rows, stale);
+    if (stale())
+      return;
     if (missing) {
       await overlayNow("Rendering Table\u2026", rows.length);
+      if (stale())
+        return;
       setVisibleRows(rows);
       route();
     }
   } catch (err) {
+    if (stale())
+      return;
     if (discardRestoredSolves()) {
       console.warn("restored solves failed to load; solving the roster here instead", err);
       setVisibleRows([]);

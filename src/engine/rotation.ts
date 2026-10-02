@@ -6,7 +6,7 @@
  * constructor splits apart:
  *
  *   new Rotation([
- *     START_2, Skill,                                       // the fight's own first seconds
+ *     START_LAST, Skill.swap(),                             // the fight's own first seconds
  *     NOINTRO, BA1, BA2, GeopotentialShift,                  // leading the team, with no Intro to cast
  *     INTRO, Liberation, WBA1, WBA2, ECHO.swap(), OUTRO, // every visit after
  *   ])
@@ -26,10 +26,11 @@
 import { Gear } from "./gear.js";
 import { run } from "./evaluate.js";
 import { currentMember, isCast } from "./context.js";
+import { ctx, resolving } from "./runtime.js";
 import type { GearDef, Mainslot } from "./gear.js";
 import type { State, VisitGate } from "./state.js";
 import type { Result } from "./evaluate.js";
-import { Cast, ActionTag, INSTA_DELAY, EASY_DELAY, CANCEL_DELAY, SWAP_DELAY } from "./stats.js";
+import { Cast, ActionTag, INSTA_DELAY, MASH_DELAY, HOLD_DELAY, CANCEL_DELAY, SWAP_DELAY, FULL_CONCERTO } from "./stats.js";
 import type { Attribute, Type, Subtype, Node, Scaling } from "./stats.js";
 
 /* ------------------------------------------------------------------------------- the action */
@@ -43,9 +44,8 @@ export interface ActionDef extends GearDef {
   subcast?: Cast | null;
   node?: Node | null;
   scaling?: Scaling | null;
-  mv?: number;
-  /** How much Resonance Energy/Concerto/Off-tune this action's *hit* generates — the baseline
-   *  every action carries regardless of any buff, same declared-once shape as `mv`. evaluate()
+  /** How much Resonance Energy/Concerto/Off-tune a press with no `bullets` banks on its cast — a
+   *  press that hits declares these on its bullets, as it does its motion value. evaluate()
    *  banks it into the running total automatically (TeamMember.energy/concerto, State.offtune)
    *  right alongside whatever AddEnergy/AddConcerto/AddOfftune a held buff contributed — a kit
    *  never touches these fields itself, only declares them per action. */
@@ -58,6 +58,9 @@ export interface ActionDef extends GearDef {
    *  summon) or never (an insta cut) still pays its cast share then. */
   castEnergy?: number;
   castConcerto?: number;
+  /** Off-tune the cast moves the bar by. Only the Tune Break's drain uses it: a negative comes off
+   *  in full, unscaled by Off-Tune Buildup Rate (evaluate.ts). */
+  castOfftune?: number;
   castForte1?: number;
   castForte2?: number;
   castForte3?: number;
@@ -92,6 +95,24 @@ export interface ActionDef extends GearDef {
   resetForte3?: boolean;
   resetForte4?: boolean;
   resetForte5?: boolean;
+  /** The cast's condition on its owner's bars as it is cast — at least `minX`, at most `maxX`
+   *  (Iuno's Absolute Fullness `minConcerto: 100`, Hsin's Stilling All Horizons `maxForte2: 0`).
+   *  What a cast spends is no condition of its own. A row cast outside one reads red, and a hold
+   *  cancel holds until the next press's are met (`Action.holdPaid()`). */
+  minEnergy?: number;
+  maxEnergy?: number;
+  minConcerto?: number;
+  maxConcerto?: number;
+  minForte1?: number;
+  maxForte1?: number;
+  minForte2?: number;
+  maxForte2?: number;
+  minForte3?: number;
+  maxForte3?: number;
+  minForte4?: number;
+  maxForte4?: number;
+  minForte5?: number;
+  maxForte5?: number;
   /** A rotation marker rather than a real cast: `run()` calls this to get whichever action to
    *  actually evaluate in its place, with the "current" pointers already aimed at the acting slot
    *  (so it can read `currentMember()` etc. the same as any other kit logic). Every marker below
@@ -141,6 +162,12 @@ export interface ActionDef extends GearDef {
   /** The one tag this action carries: how it is cut short, or that it plays beside the fight
    *  (`Field`). An Outro is always `Field`; everything else `Default` unless it says otherwise. */
   tag?: ActionTag;
+  /** A wait on the game timer (`Cooldown.wait()`): `animFrames` are game frames, and it plays
+   *  however many real ones that takes, time stop landing inside it included. */
+  gameWait?: boolean;
+  /** Queued, it is cast only once the press playing on the field has run out, never part-way
+   *  through it (the auto Tune Break). */
+  afterPlay?: boolean;
 }
 
 export { ActionTag };
@@ -181,7 +208,8 @@ export interface Bullet extends BulletDef {
 /** A press's frames as the clock charges them: the action up to its cut (its whole length when
  *  it runs out; `cutFrame`, or an on-hit cut's first hit), less the world's time stop inside that,
  *  plus the delay its cut runs on past that point — `CANCEL_DELAY` for a plain, dodge, jump or on-hit
- *  cancel, `EASY_DELAY`, `INSTA_DELAY`; a swap's `SWAP_DELAY` is the handoff's (`run()`). An insta cut
+ *  cancel, `MASH_DELAY`, `INSTA_DELAY`; a swap's `SWAP_DELAY` is the handoff's (`run()`). A hold cancel
+ *  lets go where the next press can pay (`holdAt()`), `HOLD_DELAY` at the least. An insta cut
  *  is made on the press and a field press lands beside the fight, so neither plays any of its own. */
 export function cancelCost(a: Action, cut: ActionTag | null): { action: number; timestop: number; global: number; total: number } {
   const full = a.animFrames;
@@ -190,12 +218,26 @@ export function cancelCost(a: Action, cut: ActionTag | null): { action: number; 
   // a cut plays to its cut frame in place of its frames, never past its end — the whole press's,
   // a part holding none of its bullets
   const whole = a.half === "cast" ? a.formOf ?? a : a;
-  const action = tag === ActionTag.Default ? full : tag === ActionTag.Field || insta ? 0 : Math.min(whole.onHitAt ?? whole.cutFrame, full);
+  const action = tag === ActionTag.Default ? full : tag === ActionTag.Field || insta ? 0
+    : tag === ActionTag.HoldCancel ? Math.min(HOLD_DELAY, full) : Math.min(whole.onHitAt ?? whole.cutFrame, full);
   const timestop = Math.min(a.timestop, action);
   // a swap's own frames are the handoff's (SWAP_DELAY), charged when the next resonator comes in (`run()`)
-  const global = tag === ActionTag.InstaSwap || tag === ActionTag.SwapCancel ? 0 : insta ? INSTA_DELAY : tag === ActionTag.EasyCancel ? EASY_DELAY
+  const global = tag === ActionTag.InstaSwap || tag === ActionTag.SwapCancel ? 0 : insta ? INSTA_DELAY : tag === ActionTag.MashCancel ? MASH_DELAY
     : tag === ActionTag.Cancel || tag === ActionTag.DodgeCancel || tag === ActionTag.JumpCancel || tag === ActionTag.HitCancel || tag === ActionTag.DodgeOnHit || tag === ActionTag.JumpOnHit ? CANCEL_DELAY : 0;
   return { action, timestop, global, total: action - timestop + global };
+}
+
+/** A bar after `delta` banks on it, the way evaluate() banks one — `k` 0 energy and 1 concerto,
+ *  which a gain never leaves below empty (and a concerto spend takes from its 100 ceiling); 2-6 a
+ *  forte gauge, which a reset or a red bar taking a gain (or any cast) empties first, a spend
+ *  starting from its cap. A reset empties energy the same way. */
+export function bankBar(k: number, g: number, delta: number, reset: boolean, cast: boolean, cap: readonly number[]): number {
+  if (k === 0) return Math.max(0, (reset ? 0 : g) + delta);
+  if (k === 1) return delta < 0 ? Math.min(g, FULL_CONCERTO) + delta : Math.max(0, g + delta);
+  const max = cap[k - 2]!;
+  if (reset || (g < 0 && (delta > 0 || cast))) g = 0;
+  if (max > 0 && delta < 0 && g > max) g = max;
+  return g + delta;
 }
 
 export interface CooldownDef {
@@ -205,6 +247,10 @@ export interface CooldownDef {
   /** Charges held at most, and at the start of the fight — a function where a sequence adds one. */
   charges?: number | (() => number);
 }
+
+/** A row of nothing but `frames` of waiting, named for what it waits on. */
+export const waitFor = (frames: number, what: string, gameWait = false): Action =>
+  new Action(`Wait ${(frames / 60).toFixed(2)}s for ${what}`, { animFrames: frames, gameWait });
 
 /** A cooldown one or more casts draw on, tracked per member (`TeamMember.cooldownAt()`): each
  *  press spends a charge, and a spent charge comes back `frames` later, one at a time, while the
@@ -217,14 +263,16 @@ export class Cooldown {
     this.frames = typeof frames === "function" ? frames : () => frames;
     this.charges = typeof charges === "function" ? charges : () => charges;
   }
-  /** The row a press on this stands behind while no charge is left: nothing but the frames. */
-  wait(frames: number): Action {
-    let out = this.waits.get(frames);
-    if (!out) this.waits.set(frames, (out = new Action(`Wait ${(frames / 60).toFixed(2)}s`, { animFrames: frames })));
+  /** The row a press on this stands behind while no charge is left: nothing but the frames, named
+   *  for the press it waits on. */
+  wait(frames: number, forPress: string): Action {
+    const key = `${frames}|${forPress}`;
+    let out = this.waits.get(key);
+    if (!out) this.waits.set(key, (out = waitFor(frames, `${forPress}'s cooldown`, true)));
     return out;
   }
-  /** One wait row per length, so its parts are made once. */
-  private readonly waits = new Map<number, Action>();
+  /** One wait row per length and press, so its parts are made once. */
+  private readonly waits = new Map<string, Action>();
 }
 
 /** A cast. Mostly data — element/type/cast tags, its motion value, and the energy/concerto/
@@ -255,20 +303,22 @@ export class Action extends Gear {
   hitIndex = -1;
   /** A hitless press's cast part: it runs the hit's hooks too, there being no hit to run them. */
   hitsAtCast = false;
-  /** A hit part's share of its press's motion value — what it takes of a buff's per-press adds
-   *  (evaluate.ts's `PER_PRESS`). 1 on anything else. */
-  mvShare = 1;
   /** The bullets this press lands (see `ActionDef.bullets`). */
   bullets: Bullet[];
   /** The bullet whose tags a part or a whole press deals as — its last (a part holds one) — or
    *  null on a cast with no bullet, which deals as nothing. */
   get lastBullet(): Bullet | null { return this.bullets[this.bullets.length - 1] ?? null; }
-  /** The cast's own share of `energy` / `concerto` / forte1-5. */
+  /** The cast's own share of `energy` / `concerto` / `offtune` / forte1-5. */
   castEnergy: number;
   castConcerto: number;
+  castOfftune: number;
   castForte: number[];
   slot: string | null;
   resetEnergy: boolean;
+  /** The cast's condition (`ActionDef.minEnergy` and on), bar by bar — energy, concerto, forte 1-5 —
+   *  or null where it has none. */
+  castMin: number[] | null;
+  castMax: number[] | null;
   forte1: number;
   /** forte1-5 as one array, for evaluate()'s banking loop. */
   forteDeltas: number[];
@@ -289,6 +339,8 @@ export class Action extends Gear {
   motionStop: number;
   cooldown: Cooldown | null;
   cooldownFrames: number;
+  gameWait: boolean;
+  afterPlay: boolean;
   tag: ActionTag;
   /** What this was built from, kept so `variant()` can rebuild it with a change or two. */
   readonly def: ActionDef;
@@ -317,13 +369,10 @@ export class Action extends Gear {
     this.prioFrames = def.prioFrames ?? 0;
     this.qteFrames = def.qteFrames ?? 0;
     if (def.qteFrames !== undefined && def.cast !== Cast.Intro) throw new Error(`${name}: qteFrames is an Intro's alone`);
-    // declared bullets sum to the action's own totals; with none, a motion value is one implicit bullet
+    // declared bullets sum to the action's own totals; an action's motion value is only ever its bullets'
     const sum = (k: keyof BulletDef): number | undefined => (def.bullets ? def.bullets.reduce((n, h) => n + ((h[k] as number | undefined) ?? 0), 0) : undefined);
-    this.mv = sum("mv") ?? def.mv ?? 0;
-    const bullets: BulletDef[] = def.bullets ?? (this.mv ? [{
-      hitFrame: this.animFrames, mv: this.mv, energy: def.energy, concerto: def.concerto, offtune: def.offtune,
-      forte1: def.forte1, forte2: def.forte2, forte3: def.forte3, forte4: def.forte4, forte5: def.forte5,
-    }] : []);
+    this.mv = sum("mv") ?? 0;
+    const bullets: BulletDef[] = def.bullets ?? [];
     const tag = <T>(own: T | null | undefined, shared: T | null | undefined): T | null => (own !== undefined ? own : shared ?? null);
     this.bullets = bullets.map((h) => ({
       ...h, commitFrame: h.commitFrame ?? h.hitFrame, element: tag(h.element, def.element), type: tag(h.type, def.type), subtype: tag(h.subtype, def.subtype),
@@ -335,11 +384,16 @@ export class Action extends Gear {
     // the Action's own fields hold cast and hit together — what a press banks in all
     this.castEnergy = def.castEnergy ?? 0;
     this.castConcerto = def.castConcerto ?? 0;
+    this.castOfftune = def.castOfftune ?? 0;
     this.energy = (sum("energy") ?? def.energy ?? 0) + this.castEnergy;
     this.concerto = (sum("concerto") ?? def.concerto ?? 0) + this.castConcerto;
-    this.offtune = sum("offtune") ?? def.offtune ?? 0;
+    this.offtune = (sum("offtune") ?? def.offtune ?? 0) + this.castOfftune;
     this.slot = def.slot ?? null;
     this.resetEnergy = def.resetEnergy ?? false;
+    const min = [def.minEnergy, def.minConcerto, def.minForte1, def.minForte2, def.minForte3, def.minForte4, def.minForte5];
+    const max = [def.maxEnergy, def.maxConcerto, def.maxForte1, def.maxForte2, def.maxForte3, def.maxForte4, def.maxForte5];
+    this.castMin = min.some((v) => v !== undefined) ? min.map((v) => v ?? -Infinity) : null;
+    this.castMax = max.some((v) => v !== undefined) ? max.map((v) => v ?? Infinity) : null;
     this.castForte = [def.castForte1 ?? 0, def.castForte2 ?? 0, def.castForte3 ?? 0, def.castForte4 ?? 0, def.castForte5 ?? 0];
     this.forte1 = (sum("forte1") ?? def.forte1 ?? 0) + this.castForte[0]!;
     this.forte2 = (sum("forte2") ?? def.forte2 ?? 0) + this.castForte[1]!;
@@ -358,6 +412,8 @@ export class Action extends Gear {
     this.cooldown = typeof def.cooldown === "number" ? new Cooldown({ frames: def.cooldown }) : def.cooldown ?? null;
     this.def = typeof def.cooldown === "number" ? { ...def, cooldown: this.cooldown! } : def;
     this.cooldownFrames = def.cooldownFrames ?? 0;
+    this.gameWait = def.gameWait ?? false;
+    this.afterPlay = def.afterPlay ?? false;
   }
 
   /** Where a cancel cuts this press: its last bullet committed, and never inside its priority. */
@@ -373,8 +429,64 @@ export class Action extends Gear {
     if (!out) (this.costs ??= new Map()).set(cut, (out = cancelCost(this, cut)));
     return out;
   }
+  /** Does cutting this echo by `kind` — its dash after included, for a dash cut — free its wearer
+   *  sooner than pressing it whole? Where it doesn't, the echo plays whole and drops the dash. */
+  cutPays(kind: ActionTag): boolean {
+    const c = this.cost(kind);
+    const jump = kind === ActionTag.JumpCancel || kind === ActionTag.InstaJump || kind === ActionTag.JumpOnHit;
+    const dashes = jump || kind === ActionTag.DodgeCancel || kind === ActionTag.InstaDodge || kind === ActionTag.DodgeOnHit;
+    return c.action + c.global + (dashes ? dashFor(jump, ECHO).animFrames : 0) < this.animFrames;
+  }
   /** `cost()` by cut, made once: an action's frames never change once built. */
   private costs?: Map<ActionTag | null, ReturnType<typeof cancelCost>>;
+  /** What the clock charges this press let go at animation frame `frame` by a hold cancel. */
+  holdCost(frame: number): ReturnType<typeof cancelCost> {
+    const timestop = Math.min(this.timestop, frame);
+    return { action: frame, timestop, global: 0, total: frame - timestop };
+  }
+  /** What this cast banks on each bar — energy, concerto, forte 1-5 — its bullets' aside. */
+  castBars(): number[] {
+    const own = !this.bullets.length;
+    return [own ? this.energy : this.castEnergy, own ? this.concerto : this.castConcerto, ...this.castForte.map((c, i) => (own ? this.forteDeltas[i]! : c))];
+  }
+  /** Which of `bars` (energy, concerto, forte 1-5, as the cast finds them) fall outside this cast's
+   *  condition (`ActionDef.minEnergy` and on) — a forte gauge left below empty reading as empty —
+   *  or null where it has none or every one is met. */
+  castUnmet(bars: readonly number[]): boolean[] | null {
+    if (!this.castMin && !this.castMax) return null;
+    const out = bars.map((v, k) => {
+      const at = k >= 2 ? Math.max(0, v) : v;
+      return at < (this.castMin?.[k] ?? -Infinity) - 1e-9 || at > (this.castMax?.[k] ?? Infinity) + 1e-9;
+    });
+    return out.some(Boolean) ? out : null;
+  }
+  /** The animation frame a hold cancel of this press has its owner's `bars` (energy, concerto,
+   *  forte 1-5, before its cast) meeting `next`'s cast condition: 0 where they do on the cast's own
+   *  gain (`castGain` what its hooks added, the same way round) or `next` has none, else the bullet
+   *  that brings them there — its last bullet where none does, after which nothing of it moves them. */
+  holdPaid(bars: readonly number[], cap: readonly number[], next: Action | null, castGain: readonly number[] | null = null): number {
+    if (!next || (!next.castMin && !next.castMax)) return 0;
+    const cast = this.castBars();
+    const reset = [this.resetEnergy, false, ...this.resetForte];
+    const g = bars.map((v, k) => bankBar(k, v, cast[k]! + (castGain?.[k] ?? 0), reset[k]!, this.cast !== null, cap));
+    if (!next.castUnmet(g)) return 0;
+    let last = this.bullets.length ? 0 : this.animFrames;
+    for (const b of [...this.bullets].sort((x, y) => x.hitFrame - y.hitFrame)) {
+      for (let k = 0; k < 7; k++) g[k] = bankBar(k, g[k]!, (b[BAR_KEYS[k]!] as number | undefined) ?? 0, false, false, cap);
+      if (!next.castUnmet(g)) return Math.min(b.hitFrame, this.animFrames);
+      last = b.hitFrame;
+    }
+    return Math.min(last, this.animFrames);
+  }
+  /** Where a hold cancel paid at `paid` (`holdPaid()`) lets go: never inside `HOLD_DELAY`, nor
+   *  inside the press's own priority (`prioFrames`). */
+  letGo(paid: number): number {
+    return Math.min(Math.max(HOLD_DELAY, this.prioFrames, paid), this.animFrames);
+  }
+  /** `letGo()` of `holdPaid()`: where a hold cancel of this press lets go. */
+  holdAt(bars: readonly number[], cap: readonly number[], next: Action | null, castGain: readonly number[] | null = null): number {
+    return this.letGo(this.holdPaid(bars, cap, next, castGain));
+  }
   /** Does this take its owner off the field — what "lost on swap" reads: an Outro or a swap. A
    *  FIELD press (a summon, a coordinated hit) lands beside the fight but moves nobody. */
   get swapOut(): boolean { return this.cast === Cast.Outro || this.swapsAfterHit || this.tag === ActionTag.InstaSwap; }
@@ -391,12 +503,15 @@ export class Action extends Gear {
   /** This cast cut at its cancel frame — its hit lands, and the clock charges `cancelCost()`.
    *  The same Action runs, so every `===` a kit makes against it still holds. */
   cancel(): Action { return new CancelledStep(this, ActionTag.Cancel); }
-  /** The same, cut perfectly on its cancel frame — `EASY_DELAY` after it rather than `CANCEL_DELAY`. */
-  easyCancel(): Action { return new CancelledStep(this, ActionTag.EasyCancel); }
+  /** The same, cut on its cancel frame by mashing the next press — `MASH_DELAY` after it rather
+   *  than `CANCEL_DELAY`. */
+  mashCancel(): Action { return new CancelledStep(this, ActionTag.MashCancel); }
+  /** The same, held into the next press: let go the moment the bars pay for it (`holdAt()`). */
+  holdCancel(): Action { return new CancelledStep(this, ActionTag.HoldCancel); }
   /** The same, cut by a dash: a group of this press and the dash after it (`dashed()`). */
   dodgeCancel(): Action { return dashed(this, ActionTag.DodgeCancel); }
   /** The same, cut by a jump. */
-  jump(): Action { return dashed(this, ActionTag.JumpCancel); }
+  jumpCancel(): Action { return dashed(this, ActionTag.JumpCancel); }
 
   /** This cast cancelled the moment it is pressed — its own effects (the hooks, the cast tags) with
    *  none of its hit: no motion value, element, types, scaling, or energy/concerto/off-tune/forte. */
@@ -423,7 +538,7 @@ export class Action extends Gear {
     const out = kept.length === this.bullets.length ? this.variant(this.name, { tag: kind }) : kept.length ? this.variant(this.name, { tag: kind, bullets: kept }) : new Action(this.name, {
       ...this.def, tag: kind, bullets: [],
       // every hit lost, the cast's own banking stands
-      mv: 0, energy: 0, concerto: 0, offtune: 0, forte1: 0, forte2: 0, forte3: 0, forte4: 0, forte5: 0,
+      energy: 0, concerto: 0, offtune: 0, forte1: 0, forte2: 0, forte3: 0, forte4: 0, forte5: 0,
     });
     out.cancelOf = this;
     // an insta cut that lost every hit is its cast alone
@@ -450,22 +565,22 @@ export class Action extends Gear {
   get castsInstantly(): boolean {
     return this.cast === Cast.Outro || this.tag === ActionTag.InstaSwap || this.tag === ActionTag.Field;
   }
-  /** Fight-clock frames from the cast to bullet `k`'s hit: its frame less the time stop ahead of it.
-   *  A committed bullet lands whatever cuts the animation after the cast. */
+  /** Real frames from the cast to bullet `k`'s hit — its own frame, time stop or not. A committed
+   *  bullet lands whatever cuts the animation after the cast. */
   hitDelay(k: number): number {
-    const at = this.bullets[k]?.hitFrame ?? 0;
-    return Math.max(0, at - Math.min(this.timestop, at));
+    return this.bullets[k]?.hitFrame ?? 0;
   }
-  /** Fight-clock frames from the cast to its last hit. */
+  /** Real frames from the cast to its last hit. */
   lastHitDelay(): number {
-    let most = 0;
-    for (let k = 0; k < this.bullets.length; k++) most = Math.max(most, this.hitDelay(k));
-    return most;
+    if (this.lastHit === undefined) {
+      let most = 0;
+      for (let k = 0; k < this.bullets.length; k++) most = Math.max(most, this.hitDelay(k));
+      this.lastHit = most;
+    }
+    return this.lastHit;
   }
-  /** Fight-clock frames from an instantly-cast press to its end: its animation less its time stop. */
-  instantEnd(): number {
-    return Math.max(0, this.animFrames - this.timestop);
-  }
+  /** `lastHitDelay()`, made once: an action's frames never change once built. */
+  private lastHit?: number;
   private castCopy?: Action;
   private hitCopies?: Action[];
   private endCopy?: Action;
@@ -476,7 +591,7 @@ export class Action extends Gear {
       const instant = this.castsInstantly ? { animFrames: 0, prioFrames: 0, timestop: 0 } : {};
       // a hitless press banks what it declares on its cast
       this.castCopy = this.variant(this.name, this.bullets.length ? {
-        bullets: [], mv: 0, energy: 0, offtune: 0, concerto: 0, forte1: 0, forte2: 0, forte3: 0, forte4: 0, forte5: 0, ...instant,
+        bullets: [], energy: 0, offtune: 0, concerto: 0, forte1: 0, forte2: 0, forte3: 0, forte4: 0, forte5: 0, ...instant,
       } : instant);
       this.castCopy.formOf = this;
       this.castCopy.half = "cast";
@@ -493,7 +608,7 @@ export class Action extends Gear {
       const copy = this.variant(this.name, {
         bullets: [{ ...h, hitFrame: 0, commitFrame: 0 }],
         animFrames: 0, prioFrames: 0, timestop: 0, motionStop: 0, cooldown: undefined,
-        castEnergy: 0, castConcerto: 0, castForte1: 0, castForte2: 0, castForte3: 0, castForte4: 0, castForte5: 0,
+        castEnergy: 0, castConcerto: 0, castOfftune: 0, castForte1: 0, castForte2: 0, castForte3: 0, castForte4: 0, castForte5: 0,
         resetEnergy: false, resetForte1: false, resetForte2: false, resetForte3: false, resetForte4: false, resetForte5: false,
         // the swap was the cast's; the hit is no cut of its own
         tag: this.tag === ActionTag.Field ? ActionTag.Field : ActionTag.Default,
@@ -501,7 +616,6 @@ export class Action extends Gear {
       copy.formOf = this;
       copy.half = "hit";
       copy.hitIndex = k;
-      copy.mvShare = this.mv ? (h.mv ?? 0) / this.mv : 1 / this.bullets.length;
       copies[k] = copy;
     }
     return copies[k]!;
@@ -511,9 +625,9 @@ export class Action extends Gear {
   endPart(): Action {
     if (!this.endCopy) {
       this.endCopy = this.variant(this.name, {
-        bullets: [], mv: 0, energy: 0, offtune: 0, concerto: 0, forte1: 0, forte2: 0, forte3: 0, forte4: 0, forte5: 0,
+        bullets: [], energy: 0, offtune: 0, concerto: 0, forte1: 0, forte2: 0, forte3: 0, forte4: 0, forte5: 0,
         animFrames: 0, prioFrames: 0, timestop: 0, motionStop: 0, cooldown: undefined,
-        castEnergy: 0, castConcerto: 0, castForte1: 0, castForte2: 0, castForte3: 0, castForte4: 0, castForte5: 0,
+        castEnergy: 0, castConcerto: 0, castOfftune: 0, castForte1: 0, castForte2: 0, castForte3: 0, castForte4: 0, castForte5: 0,
         resetEnergy: false, resetForte1: false, resetForte2: false, resetForte3: false, resetForte4: false, resetForte5: false,
         tag: this.tag === ActionTag.Field ? ActionTag.Field : ActionTag.Default,
       });
@@ -539,19 +653,19 @@ export class Action extends Gear {
     return this.variant(this.name, { updateBuffs: undefined });
   }
 
-  /** The press cut `CANCEL_DELAY` after its first bullet hits, only the bullets committed by then
-   *  landing: CANCEL ON HIT. Only for a press whose bullets hit on more than one frame, like the two below. */
+  /** The press cut `CANCEL_DELAY` after its first bullet hits, the bullets committed by the end of
+   *  that delay landing: CANCEL ON HIT. Only for a press whose bullets hit on more than one frame, like the two below. */
   hitCancel(): Action {
     if (this.resolveFn) return this.swapResolver((a) => a.hitCancel());
     return this.cutOnHit(ActionTag.HitCancel);
   }
   /** The same cut by a dash after its first hit — DODGE ON HIT — the dash a press of its own. */
-  dodgeOnHit(): Action { return this.dashOnHit(ActionTag.DodgeOnHit); }
+  hitDodge(): Action { return this.dashOnHit(ActionTag.DodgeOnHit); }
   /** The same by a jump — JUMP ON HIT. */
   jumpOnHit(): Action { return this.dashOnHit(ActionTag.JumpOnHit); }
   private dashOnHit(kind: ActionTag): Action {
     const cut = this.resolveFn ? this.swapResolver((a) => a.cutOnHit(kind)) : this.cutOnHit(kind);
-    return new ActionGroup(this.resolveFn ? "" : this.name, [cut, new DashMarker(kind === ActionTag.JumpOnHit, this)], 1);
+    return new ActionGroup(this.resolveFn ? "" : this.name, [cut, new DashMarker(kind === ActionTag.JumpOnHit, this, kind)], 1);
   }
   /** The same cast made on the way out, under its own name and a SWAP CANCEL tag — identical in
    *  every field, but a swap-out: it plays to its cancel frame, its hit landing on field, and swaps
@@ -562,11 +676,12 @@ export class Action extends Gear {
     out.formOf = this;
     return out;
   }
-  /** This press cut on its first bullet's hit, keeping the bullets committed by then. */
+  /** This press cut on its first bullet's hit: the bullets committed by the time the next press
+   *  truly starts, `CANCEL_DELAY` on, still land. */
   private cutOnHit(kind: ActionTag): Action {
     const first = Math.min(...this.bullets.map((h) => h.hitFrame));
     if (this.bullets.length < 2 || this.bullets.every((h) => h.hitFrame === first)) throw new Error(`${this.name}: ${kind} needs bullets hitting on more than one frame`);
-    const out = this.variant(this.name, { tag: kind, bullets: this.bullets.filter((h) => h.commitFrame <= first) });
+    const out = this.variant(this.name, { tag: kind, bullets: this.bullets.filter((h) => h.commitFrame <= first + CANCEL_DELAY) });
     out.onHitAt = first;
     out.cancelOf = this;
     return out;
@@ -608,6 +723,9 @@ export class Action extends Gear {
  *  `midActionGroup()` and tunebreak.ts). The break itself is not part of the group — it is queued
  *  behind that last cast like any other follow-up. */
 export class ActionGroup extends Action {
+  dodgeOnHit(): Action {
+    throw new Error("Method not implemented.");
+  }
   actions: Action[];
   /** How many members after the one the folded row reads — a dash group's own trailing dash, so
    *  its row shows the press that was cut. */
@@ -619,15 +737,16 @@ export class ActionGroup extends Action {
   }
   // a group is cut where its last press is
   override cancel(): Action { return this.withLast((a) => a.cancel()); }
-  override easyCancel(): Action { return this.withLast((a) => a.easyCancel()); }
+  override mashCancel(): Action { return this.withLast((a) => a.mashCancel()); }
+  override holdCancel(): Action { return this.withLast((a) => a.holdCancel()); }
   override dodgeCancel(): Action { return this.dashLast((a) => a.dodgeCancel()); }
-  override jump(): Action { return this.dashLast((a) => a.jump()); }
+  override jumpCancel(): Action { return this.dashLast((a) => a.jumpCancel()); }
   override instaCancel(): Action { return this.withLast((a) => a.instaCancel()); }
   override instaDodge(): Action { return this.dashLast((a) => a.instaDodge()); }
   override instaJump(): Action { return this.dashLast((a) => a.instaJump()); }
   override swapCancel(): Action { return this.withLast((a) => a.swapCancel()); }
   override hitCancel(): Action { return this.withLast((a) => a.hitCancel()); }
-  override dodgeOnHit(): Action { return this.dashLast((a) => a.dodgeOnHit()); }
+  override hitDodge(): Action { return this.dashLast((a) => a.hitDodge()); }
   override jumpOnHit(): Action { return this.dashLast((a) => a.jumpOnHit()); }
   override instaSwap(): Action { return this.withLast((a) => a.instaSwap()); }
   private withLast(cut: (a: Action) => Action): ActionGroup {
@@ -648,31 +767,57 @@ function dashed(after: Action, kind: ActionTag): ActionGroup {
   const cut = insta ? after.instaForm(kind) : new CancelledStep(after, kind);
   const jump = kind === ActionTag.JumpCancel || kind === ActionTag.InstaJump;
   // a marker's group is named for what it resolves to, row by row (teamrun.ts's `toLines`)
-  return new ActionGroup(after.resolveFn ? "" : after.name, [cut, new DashMarker(jump, after)], 1);
+  return new ActionGroup(after.resolveFn ? "" : after.name, [cut, new DashMarker(jump, after, kind)], 1);
 }
 
 
 /** The plain dash and jump — what a resonator without one of its own makes (`ResonatorDef.dodge`). */
-export const DODGE = new Action("Dodge", { animFrames: 20 });
-export const JUMP = new Action("Jump", { animFrames: 15 });
+export const DEFAULT_DODGE = new Action("Dodge", { animFrames: 20 });
+export const DEFAULT_JUMP = new Action("Jump", { animFrames: 5 });
+/** Is the step after this press the dodge its cut wrote, still to come and the plain one
+ *  (`DEFAULT_DODGE`) rather than a kit's own. */
+export function nextIsPlainDodge(): boolean {
+  const next = ctx.nextStep;
+  if (!(next instanceof DashMarker) || next.name !== "Dodge Placeholder") return false;
+  return resolving(next.resolveFn!) === DEFAULT_DODGE;
+}
+
+/** The dash (or jump) the acting resonator makes after `after`: their own, else the plain one. */
+const dashFor = (isJump: boolean, after: Action): Action => {
+  const resonator = currentMember().resonator;
+  return (isJump ? resonator?.jumpFn?.(after) : resonator?.dodgeFn?.(after)) ?? (isJump ? DEFAULT_JUMP : DEFAULT_DODGE);
+};
+/** What a dash written on its own follows: this member's last press of the visit, cut or not, else
+ *  the Intro they arrived on. */
+const lastPress = (): Action => {
+  const last = ctx.state?.lastOwn;
+  let a: Action | null = last && last.member === currentMember().name ? last.action : null;
+  while (a && (a.cancelOf ?? a.formOf)) a = a.cancelOf ?? a.formOf;
+  return a ?? currentMember().resonator?.intro ?? INTRO;
+};
+/** A dodge or jump written in a rotation on its own, resolved when reached: the resonator's own
+ *  (`ResonatorDef.dodge`/`jump`), off the press it follows, else DEFAULT_DODGE / DEFAULT_JUMP. */
+export const DODGE = new Action("Dodge Marker", { resolve: () => dashFor(false, lastPress()) });
+export const JUMP = new Action("Jump Marker", { resolve: () => dashFor(true, lastPress()) });
 
 /** The dash (or jump) a `dodge()`/`jump()` cut makes after `after`, resolved when reached the way
  *  INTRO is: the resonator's own for that press (Jingran's Shadow Step, Galbrena's Hellstride),
  *  else the plain one. Cut to an insta cancel by `run()` where the next press stops time. */
 export class DashMarker extends Action {
-  constructor(isJump: boolean, readonly after: Action) {
+  constructor(isJump: boolean, readonly after: Action, kind: ActionTag) {
     super(isJump ? "Jump Placeholder" : "Dodge Placeholder", {
       resolve: () => {
-        // a summon echo leaves its wearer nothing to cancel, nor does one short enough to press whole: no dash at all
+        // an echo pressed whole, or one short enough to insta cancel with no dash: no dash at all
         const mainslot = currentMember().mainslot;
-        if (after === ECHO && mainslot && (mainslot.onfield === mainslot.outro || echoPressedWhole(mainslot))) return null;
-        const resonator = currentMember().resonator;
-        const pressed = after === INTRO ? resonator?.intro ?? after : after;
-        return (isJump ? resonator?.jumpFn?.(pressed) : resonator?.dodgeFn?.(pressed)) ?? (isJump ? JUMP : DODGE);
+        const undashed = kind === ActionTag.InstaDodge && mainslot?.cancel.tag === ActionTag.InstaCancel;
+        if (after === ECHO && mainslot && (undashed || !mainslot.onfield.cutPays(kind))) return null;
+        return dashFor(isJump, after === INTRO ? currentMember().resonator?.intro ?? after : after);
       },
     });
   }
 }
+
+const BAR_KEYS = ["energy", "concerto", "forte1", "forte2", "forte3", "forte4", "forte5"] as const;
 
 /** A rotation step that plays `of` itself cut short by `kind` — `run()` unwraps it, so the press
  *  is the very Action the kit declared and only its frames and its row's tag differ. */
@@ -705,28 +850,30 @@ export class ActionField {
  *  in holding, well before anyone has the concerto for an Intro. Every member who declares a
  *  section gets a visit, in team order, each swapping straight out into the next.
  *
- *  One marker per team position, and a section only ever plays for the position it names: START_1
- *  for the member standing first, START_2 second, START_3 third. What a resonator does in the
- *  fight's first seconds depends on where they stand — the leader opens the fight, the third
- *  member is usually banking something for a visit that is still two swaps away — and the same
- *  loadout sits in different positions in different teams, so one section that fired wherever they
- *  stood could only ever describe one of those. A rotation may declare one section per position,
- *  and the ones whose position this member isn't standing in are skipped whole, contents and all.
+ *  One marker per team position, and a section only ever plays for the position it names (see
+ *  `slotPosition()`): START_FIRST for the member standing first, START_LAST for the one standing
+ *  last *and* playing last — no double Intro bringing anyone's visit round after theirs. What a
+ *  resonator does in the fight's first seconds depends on where they stand — the leader opens the
+ *  fight, the last member is usually banking something for a visit that is still two swaps away —
+ *  and the same loadout sits in different positions in different teams, so one section that fired
+ *  wherever they stood could only ever describe one of those. START is the section for wherever
+ *  they stand, played where no position's own section is written; a member standing in neither
+ *  position with no START plays no section at all.
  *
  *  The three ignore each other: a marker opens a section alongside whatever is already open rather
- *  than closing it, so markers written back to back share one body — `START_2, START_3,
- *  Skill.swap()` is one section that reads the same from either position — and one written part-way
- *  through takes only the casts after it.
+ *  than closing it, so markers written back to back share one body — `START_FIRST, START_LAST,
+ *  Skill.swap()` is one section that reads the same from either position — and one written
+ *  part-way through takes only the casts after it.
  *
  *  A section closes on a cast's `.swap()`, and sits on its own ahead of the chains — never inside
  *  one. */
-export const START_1 = new Action("Start of Combat (1st)");
-export const START_2 = new Action("Start of Combat (2nd)");
-export const START_3 = new Action("Start of Combat (3rd)");
+export const START_FIRST = new Action("Start of Combat (First)");
+export const START_LAST = new Action("Start of Combat (Last)");
+export const START = new Action("Start of Combat");
 
-/** The three above by the position each names, and the reverse lookup — which position a marker
- *  opens a section for, or -1 for anything that isn't one. */
-const STARTS = [START_1, START_2, START_3];
+/** The three above by the position each names (START last, standing for any), and the reverse
+ *  lookup — which position a marker opens a section for, or -1 for anything that isn't one. */
+const STARTS = [START_FIRST, START_LAST, START];
 const startPosition = (action: Action): number => STARTS.indexOf(action);
 
 /** Chain entry: on field with no Intro to cast, because nobody has outro'd yet — the visit that
@@ -750,27 +897,24 @@ export const INTRO = new Action("Intro Placeholder", {
 });
 
 /** Chain entries by team position: the Intro chain this resonator plays instead of the main one
- *  while they stand first, second or third (the positions START_1/2/3 name) — written as the
- *  marker (then INTRO, if the Intro it casts is cut), then the chain, closed by an outro of its own; from any other
- *  position it is simply never played, and a position with none plays the main chain. A
- *  FIRST_INTRO chain still takes the first arrival. */
-const introAt = (n: number): Action => new Action(`Intro (${["1st", "2nd", "3rd"][n]})`);
-export const INTRO_1 = introAt(0);
-export const INTRO_2 = introAt(1);
-export const INTRO_3 = introAt(2);
-const INTROS = [INTRO_1, INTRO_2, INTRO_3];
+ *  while they stand first or last (the positions START_FIRST/START_LAST name) — written as the
+ *  marker (then INTRO, if the Intro it casts is cut), then the chain, closed by an outro of its own;
+ *  from any other position it is simply never played, and a position with none plays the main
+ *  chain. An INTRO_OPENER chain still takes the first arrival. */
+export const INTRO_FIRST = new Action("Intro (First)");
+export const INTRO_LAST = new Action("Intro (Last)");
+const INTROS = [INTRO_FIRST, INTRO_LAST];
 const introPosition = (action: Action): number => INTROS.indexOf(action);
 
-/** The same for the NOINTRO chain: the no-Intro visit this resonator plays from one position
- *  rather than from any — leading, that is the fight's opening visit; second or third, it is the
- *  fill a swap-form double Intro hands back to (see DOUBLE_INTRO). Closed by an OUTRO of its own,
- *  or run into the INTRO chain or its own position's INTRO_n chain to share that chain's tail,
- *  exactly as NOINTRO may. A position with none plays the NOINTRO chain. */
-export const NOINTRO_1 = new Action("No Intro (1st)");
-export const NOINTRO_2 = new Action("No Intro (2nd)");
-export const NOINTRO_3 = new Action("No Intro (3rd)");
-const NOINTROS = [NOINTRO_1, NOINTRO_2, NOINTRO_3];
-const nointroPosition = (action: Action): number => NOINTROS.indexOf(action);
+/** The named position slot `i` stands in — 0 first, 1 last, -1 neither. The last slot is only
+ *  last when nobody plays after it: a double-Intro leader brings their own main visit, and every
+ *  other double-Intro member's, round after a last slot without one. */
+export function slotPosition(rotations: Rotation[], i: number): number {
+  const last = rotations.length - 1;
+  if (i === 0) return 0;
+  if (i !== last) return -1;
+  return !rotations[0]!.doubleIntro || rotations[last]!.doubleIntro ? 1 : -1;
+}
 
 /** A marker resolving to one form of the equipped mainslot echo. */
 const echoForm = (name: string, written: string, pick: (m: Mainslot) => Action): Action => new Action(name, {
@@ -781,28 +925,23 @@ const echoForm = (name: string, written: string, pick: (m: Mainslot) => Action):
   },
 });
 const ECHO_SWAP_FORM = echoForm("Echo Placeholder (swap)", "ECHO.swap()", (m) => m.outro);
-/** Is the equipped echo no longer than its wearer's own dash out of it plus an insta cut — pressed
- *  whole rather than dashed out of (`ECHO.instaDodge()`)? */
-const echoPressedWhole = (m: Mainslot): boolean =>
-  m.onfield.animFrames <= (currentMember().resonator?.dodgeFn?.(ECHO) ?? DODGE).animFrames + INSTA_DELAY;
-const ECHO_INSTA_FORM = echoForm("Echo Placeholder (insta dash)", "ECHO.instaDodge()", (m) => (echoPressedWhole(m) ? m.onfield : m.cancel));
+const ECHO_INSTA_FORM = echoForm("Echo Placeholder (insta dash)", "ECHO.instaDodge()", (m) => (m.cancel.tag === ActionTag.InstaCancel || m.onfield.cutPays(ActionTag.InstaDodge) ? m.cancel : m.onfield));
 const ECHO_INSTA_SWAP_FORM = echoForm("Echo Placeholder (insta swap)", "ECHO.instaSwap()", (m) => m.instaOut);
 
 /** ECHO's own class: its swap and insta dash are the mainslot's own forms; every other cut is an
- *  ordinary step, which a summon (a hit its creature lands) never takes. */
+ *  ordinary step, taken only where it pays (`Action.cutPays`). */
 class EchoMarker extends Action {
   override swapCancel(): Action { return ECHO_SWAP_FORM; }
   override instaSwap(): Action { return ECHO_INSTA_SWAP_FORM; }
-  override instaDodge(): Action { return new ActionGroup("", [ECHO_INSTA_FORM, new DashMarker(false, this)], 1); }
+  override instaDodge(): Action { return new ActionGroup("", [ECHO_INSTA_FORM, new DashMarker(false, this, ActionTag.InstaDodge)], 1); }
 }
 
 /** The "cast the equipped mainslot echo here" marker — every build equips exactly one, so a
  *  rotation names the slot rather than the echo, and says *how* it is pressed. What lands is the
- *  echo's own business (gear.ts's `Mainslot`, by its action's frames): a SUMMON is the same follow-up hit
- *  every way, reported as triggered (`run()`), and never cut; a TRANSFORM is a press of the resonator's own —
- *  ECHO the full cast, cut like any other (`ECHO.dodgeCancel()`), `ECHO.instaDodge()` the cast
- *  dash-cancelled before it lands (its effects, none of its hit), and `ECHO.swap()` the cast made on
- *  the way out: `Action.swap()`'s swap-out form, resolved right where it stands. */
+ *  echo's own business (gear.ts's `Mainslot`): a press of the resonator's own — ECHO the full cast,
+ *  cut like any other (`ECHO.dodgeCancel()`) where the cut frees them sooner, `ECHO.instaDodge()` the
+ *  cast dash-cancelled before it lands, and `ECHO.swap()` the cast made on the way out, resolved
+ *  right where it stands. */
 export const ECHO: Action = new EchoMarker("Echo Placeholder (on field)", {
   resolve: () => {
     const mainslot = currentMember().mainslot;
@@ -821,7 +960,7 @@ export const EVERY_OTHER = new Action("Every Other", {
 });
 
 /** The DOUBLE_INTRO section's entry, as the scheduler reads it. Written as the DOUBLE_INTRO marker,
- *  which casts INTRO (or the cut one written right after it, like FIRST_INTRO): a second Intro this
+ *  which casts INTRO (or the cut one written right after it, like INTRO_OPENER): a second Intro this
  *  resonator needs *before* their real one — usually a main DPS
  *  banking Intro effects twice. It takes the outro that would have opened the previous
  *  resonator's visit: the owner's Intro is cast, the section's casts play, and it leaves on its
@@ -838,16 +977,16 @@ export const DOUBLE_INTRO = new Action("Double Intro Marker");
  *  OUTRO of its own, and cast exactly like an INTRO chain; every visit after is the ordinary INTRO
  *  chain. For everyone but the team's leader that first arrival is the Opener section; a leader
  *  opens on their NOINTRO chain instead, so theirs falls on the visit after it. */
-export const FIRST_INTRO = new Action("First Intro");
+export const INTRO_OPENER = new Action("Intro (Opener)");
 
 /** The no-Intro chain's own first-arrival form: played in place of NOINTRO the one time a
  *  resonator arrives having never played, and only then — a leader's opening visit, or the first
  *  time a swap-out hands them the field. Every arrival after takes the ordinary NOINTRO chain. It
- *  is what FIRST_INTRO is for the other entry: a kit whose opening visit has something the loop
+ *  is what INTRO_OPENER is for the other entry: a kit whose opening visit has something the loop
  *  hasn't (Hiyuki's fourth Iai, bought by being out of combat) writes it once here. Closed by an
- *  OUTRO of its own, or run into the FIRST_INTRO chain to share that chain's tail, exactly as
+ *  OUTRO of its own, or run into the INTRO_OPENER chain to share that chain's tail, exactly as
  *  NOINTRO may run into INTRO. */
-export const NOINTRO_FIRST = new Action("First No Intro");
+export const NOINTRO_OPENER = new Action("No Intro (Opener)");
 
 
 /** A chain's exit when it leaves on its last cast's `.swap()` rather than an Outro — never
@@ -872,29 +1011,47 @@ export interface Chain {
 }
 
 /** A visit's cooldown-gated presses and how many frames after its handoff each comes up, off what
- *  its presses charge the clock — for a handoff into a visit not played yet. `intro` stands in for
- *  the chain's Intro marker. Stops at the first press it can't time ahead (a marker resolved only
- *  when reached), and leaves out the engine's own follow-ups, so a press can come up later than
- *  this says, never earlier. */
-export function chainGates(chain: Chain, intro: Action | null): VisitGate[] {
+ *  its presses charge the clock — for a handoff into a visit not played yet. Every gated press
+ *  counts, a cooldown used twice twice. `intro` is the arriving member's own (none: no timing past
+ *  it), and `resolve` reads a marker (INTRO cut as written, an Intro Resolver, ECHO) the way the
+ *  incoming member would reach it; one resolving to no press takes no time. Leaves out the
+ *  engine's own follow-ups, so a press can come up later than this says, never earlier. */
+export function chainGates(chain: Chain, intro: Action | null, resolve: (marker: Action) => Action | null, bars: readonly number[], cap: readonly number[]): VisitGate[] {
   const out: VisitGate[] = [];
-  const seen = new Set<Cooldown>();
-  let t = 0;
+  // every press as it will play: a marker resolved, a hold cancel reading the press after it
+  const presses: { pressed: Action; a: Action; cut: ActionTag | null }[] = [];
   const list = chain.cast ? [chain.cast, ...chain.body] : chain.body;
-  for (const entry of list) {
+  walk: for (const entry of list) {
     const members = (entry as ActionGroup).actions ?? [entry];
     for (const m of members) {
-      const step = m === chain.cast ? intro : m;
-      if (!step) return out;
-      const [a, cut] = step instanceof CancelledStep ? step.of.cutAs(step.kind) : [step, null];
-      if (a.resolveFn) return out;
-      if (a.cooldown && !seen.has(a.cooldown)) {
-        seen.add(a.cooldown);
-        out.push({ cd: a.cooldown, offset: t });
-      }
-      t += a.cost(cut ?? a.tag).total;
+      // the Intro as written, cut and all — INTRO resolves to the arriving member's own
+      if (m === chain.cast && !intro) break walk;
+      const [marked, kind] = m instanceof CancelledStep ? [m.of, m.kind] : [m, null];
+      const pressed = marked.resolveFn ? resolve(marked) : marked;
+      // a marker resolving to no press at all (a summon echo's dash) takes no time
+      if (!pressed) continue;
+      if (pressed.resolveFn) break walk;
+      const [a, cut] = kind ? pressed.cutAs(kind) : [pressed, null];
+      presses.push({ pressed, a, cut });
     }
   }
+  // the bars run through the visit, each press banking its cast and the bullets it keeps — read
+  // only by a hold cancel, so banked up to the last one and no further
+  let lastHold = -1;
+  for (let n = 0; n < presses.length; n++) if (presses[n]!.cut === ActionTag.HoldCancel) lastHold = n;
+  const g = [...bars];
+  let t = 0;
+  presses.forEach(({ pressed, a, cut }, n) => {
+    if (a.cooldown) out.push({ cd: a.cooldown, offset: t, press: pressed.name });
+    const hold = cut === ActionTag.HoldCancel ? a.holdAt(g, cap, presses[n + 1]?.pressed ?? null) : -1;
+    t += (hold >= 0 ? a.holdCost(hold) : a.cost(cut ?? a.tag)).total;
+    if (n >= lastHold) return;
+    const cast = a.castBars(), reset = [a.resetEnergy, false, ...a.resetForte];
+    for (let k = 0; k < 7; k++) {
+      g[k] = bankBar(k, g[k]!, cast[k]!, reset[k]!, a.cast !== null, cap);
+      for (const b of a.bullets) if (hold < 0 || b.commitFrame <= hold) g[k] = bankBar(k, g[k]!, (b[BAR_KEYS[k]!] as number | undefined) ?? 0, false, false, cap);
+    }
+  });
   return out;
 }
 
@@ -904,51 +1061,53 @@ export function chainGates(chain: Chain, intro: Action | null): VisitGate[] {
  *  NOINTRO chain simply can't lead a team, and `doubleIntro` marks the pre-Intro visit a
  *  DOUBLE_INTRO section declares (see `runRotations()`). */
 export class Rotation {
-  /** What each start-of-combat section holds, by the team position it is for (START_1/2/3) —
-   *  body only, closing cast included. `null` at a position this rotation declares no section for, which is most of them. */
+  /** What each start-of-combat section holds, by the team position it is for (START_FIRST/LAST,
+   *  then START's for any) — body only, closing cast included. `null` where none is declared. */
   startCombat: (Action[] | null)[] = [null, null, null];
   opener: Chain | null = null;
   intro: Chain;
   /** The DOUBLE_INTRO section: `exit` is SWAP_EXIT for the swap-back form (its last cast's
    *  `.swap()`, running into the Intro) or its outro for the outro-back form. */
   doubleIntro: Chain | null = null;
-  /** The FIRST_INTRO chain, played in place of `intro` on this resonator's first arrival. */
+  /** The DOUBLE_INTRO section's first-arrival form: an INTRO_OPENER written part-way through it
+   *  has the first pre-visit play only the tail after it. */
+  firstDoubleIntro: Chain | null = null;
+  /** The INTRO_OPENER chain, played in place of `intro` on this resonator's first arrival. */
   firstIntro: Chain | null = null;
-  /** The NOINTRO_FIRST chain, played in place of `opener` on that same first arrival. */
+  /** The NOINTRO_OPENER chain, played in place of `opener` on that same first arrival. */
   firstOpener: Chain | null = null;
-  /** The INTRO_1/2/3 chains, each played in place of `intro` while this resonator stands in that
-   *  position, and the NOINTRO_1/2/3 chains likewise in place of `opener`. */
-  intros: (Chain | null)[] = [null, null, null];
-  openers: (Chain | null)[] = [null, null, null];
+  /** The INTRO_FIRST/LAST chains, each played in place of `intro` while this resonator stands in
+   *  that position (`slotPosition()`). */
+  intros: (Chain | null)[] = [null, null];
 
   constructor(actions: Action[]) {
-    // `intro@n` / `opener@n` are the per-position chains' own phases
-    let phase: "none" | "opener" | "double" | "intro" | "first" | "firstOpener" | `intro@${number}` | `opener@${number}` = "none";
+    // `intro@n` are the per-position chains' own phases
+    let phase: "none" | "opener" | "double" | "intro" | "first" | "firstOpener" | `intro@${number}` = "none";
     const prefix: Action[] = [], loop: Action[] = [], dbl: Action[] = [], first: Action[] = [], firstPre: Action[] = [];
-    const loops: Action[][] = [[], [], []], prefixes: Action[][] = [[], [], []];
+    const loops: Action[][] = [[], []];
     // which positions' start-of-combat sections are open — more than one where the markers were
     // written back to back, which is how a section that reads the same from two positions is
-    // spelled (`START_2, START_3, Skill.swap()`) — and what each has collected
+    // spelled (`START_FIRST, START_LAST, Skill.swap()`) — and what each has collected
     let inStart: number[] = [];
     const starts: (Action[] | null)[] = [null, null, null];
     const body = (): Action[] | null =>
       (phase === "opener" ? prefix : phase === "intro" ? loop : phase === "double" ? dbl : phase === "first" ? first
         : phase === "firstOpener" ? firstPre
-        : phase.startsWith("intro@") ? loops[Number(phase.slice(6))]! : phase.startsWith("opener@") ? prefixes[Number(phase.slice(7))]! : null);
+        : phase.startsWith("intro@") ? loops[Number(phase.slice(6))]! : null);
     // set when the NOINTRO chain ran into the INTRO marker rather than an outro of its own, which
     // is what makes the two share everything from there down
     let shared = false;
     // ...and the same for a NOINTRO chain that ran into DOUBLE_INTRO instead (see that branch)
     let sharedDouble = false;
-    // ...and for a NOINTRO_FIRST chain that ran into FIRST_INTRO, the first-arrival pair sharing
+    // ...and for a NOINTRO_OPENER chain that ran into INTRO_OPENER, the first-arrival pair sharing
     // their tail exactly as NOINTRO and INTRO do
     let sharedFirst = false;
     let openerExit: Action | null = null, introExit: Action | null = null, doubleExit: Action | null = null;
     let firstExit: Action | null = null, firstOpenerExit: Action | null = null;
-    const introExits: (Action | null)[] = [null, null, null], openerExits: (Action | null)[] = [null, null, null];
-    // what each NOINTRO_n chain ran into rather than closing on an outro: the INTRO chain
-    // ("main") or its own position's INTRO_n chain (n)
-    const sharedInto: ("main" | number | null)[] = [null, null, null];
+    // an INTRO_OPENER written part-way through an Intro chain or a DOUBLE_INTRO section: where in
+    // that chain's body the first arrival picks it up, the Intro still cast ahead of it
+    let firstFrom: { phase: "intro" | "double"; at: number } | null = null;
+    const introExits: (Action | null)[] = [null, null];
 
     // OUTRO or SWAP_EXIT ending whichever chain is open
     const close = (action: Action): void => {
@@ -958,11 +1117,10 @@ export class Rotation {
       else if (phase === "first") { firstExit = action; phase = "none"; }
       else if (phase === "firstOpener") { firstOpenerExit = action; phase = "none"; }
       else if (phase.startsWith("intro@")) { introExits[Number(phase.slice(6))] = action; phase = "none"; }
-      else if (phase.startsWith("opener@")) { openerExits[Number(phase.slice(7))] = action; phase = "none"; }
       else throw new Error(`rotation: ${action.name} closes a chain that was never opened`);
     };
 
-    // the Intro each chain opens with, as written; a FIRST_INTRO / INTRO_n marker takes the one
+    // the Intro each chain opens with, as written; an INTRO_OPENER / INTRO_FIRST / INTRO_LAST marker takes the one
     // written right after it, or a plain INTRO where none is
     const cuts = new Map<string, Action>();
     let castFor: string | null = null;
@@ -975,8 +1133,8 @@ export class Rotation {
     while (entries.length) {
       const written = entries.shift()!;
       const [bare, step] = unstep(written);
-      // a marker that casts INTRO, cut (`INTRO_3.easyCancel()`), is that marker and the INTRO it casts, cut
-      if (step && (bare === FIRST_INTRO || bare === DOUBLE_INTRO || introPosition(bare) >= 0)) {
+      // a marker that casts INTRO, cut (`INTRO_LAST.mashCancel()`), is that marker and the INTRO it casts, cut
+      if (step && (bare === INTRO_OPENER || bare === DOUBLE_INTRO || introPosition(bare) >= 0)) {
         entries.unshift(bare, new CancelledStep(INTRO, step.kind));
         continue;
       }
@@ -1023,30 +1181,27 @@ export class Rotation {
         if (phase === "opener") sharedDouble = true;
         else if (phase !== "none") throw new Error("rotation: DOUBLE_INTRO opens a chain while one is still open");
         phase = "double";
-      } else if (action === FIRST_INTRO) {
-        if (firstExit || first.length) throw new Error("rotation: only one FIRST_INTRO chain");
+      } else if (action === INTRO_OPENER && (phase === "intro" || phase === "double")) {
+        // part-way through a chain: the first arrival casts its Intro and skips straight here
+        if (firstExit || first.length || firstFrom) throw new Error("rotation: only one INTRO_OPENER chain");
+        firstFrom = { phase, at: body()!.length };
+      } else if (action === INTRO_OPENER) {
+        if (firstExit || first.length || firstFrom) throw new Error("rotation: only one INTRO_OPENER chain");
         castFor = "first";
-        // the walk-through: a FIRST_INTRO reached inside an open NOINTRO_FIRST chain isn't cast, it
+        // the walk-through: an INTRO_OPENER reached inside an open NOINTRO_OPENER chain isn't cast, it
         // just marks where the tail the two share begins
         if (phase === "firstOpener") sharedFirst = true;
-        else if (phase !== "none") throw new Error("rotation: FIRST_INTRO opens a chain while one is still open");
+        else if (phase !== "none") throw new Error("rotation: INTRO_OPENER opens a chain while one is still open");
         phase = "first";
-      } else if (action === NOINTRO_FIRST) {
-        if (firstOpenerExit || firstPre.length || sharedFirst) throw new Error("rotation: only one NOINTRO_FIRST chain");
-        if (phase !== "none") throw new Error("rotation: NOINTRO_FIRST opens a chain while one is still open");
+      } else if (action === NOINTRO_OPENER) {
+        if (firstOpenerExit || firstPre.length || sharedFirst) throw new Error("rotation: only one NOINTRO_OPENER chain");
+        if (phase !== "none") throw new Error("rotation: NOINTRO_OPENER opens a chain while one is still open");
         phase = "firstOpener";
-      } else if (nointroPosition(action) >= 0) {
-        const n = nointroPosition(action);
-        if (openerExits[n] || prefixes[n]!.length || sharedInto[n] !== null) throw new Error(`rotation: only one ${action.name} chain`);
-        if (phase !== "none") throw new Error(`rotation: ${action.name} opens a chain while one is still open`);
-        phase = `opener@${n}`;
       } else if (introPosition(action) >= 0) {
         const n = introPosition(action);
         castFor = `intro@${n}`;
         if (introExits[n] || loops[n]!.length) throw new Error(`rotation: only one ${action.name} chain`);
-        // a NOINTRO_n chain running into its own position's INTRO_n shares the tail from there
-        if (phase === `opener@${n}`) sharedInto[n] = n;
-        else if (phase !== "none") throw new Error(`rotation: ${action.name} opens a chain while one is still open`);
+        if (phase !== "none") throw new Error(`rotation: ${action.name} opens a chain while one is still open`);
         phase = `intro@${n}`;
       } else if (isIntro(action)) {
         // an Intro inside an already-open Intro chain is a cast, not a chain boundary — Camellya's
@@ -1056,9 +1211,8 @@ export class Rotation {
         if (introExit) throw new Error("rotation: only one Intro chain");
         cuts.set("intro", written);
         // the walk-through: an INTRO reached inside an open NOINTRO chain isn't cast, it just marks
-        // where the tail the two share begins — a NOINTRO_n chain shares the same way
+        // where the tail the two share begins
         if (phase === "opener") shared = true;
-        if (phase.startsWith("opener@")) sharedInto[Number(phase.slice(7))] = "main";
         // a DOUBLE_INTRO section leaves on its last cast's `.swap()` (closed above) or its outro
         if (phase === "double") throw new Error("rotation: a DOUBLE_INTRO section runs into the Intro without leaving on a cast's .swap()");
         phase = "intro";
@@ -1074,7 +1228,7 @@ export class Rotation {
     if (inStart.length) throw new Error(`rotation: the ${inStart.map((at) => STARTS[at]!.name).join(" / ")} section is never closed by a cast's .swap()`);
     if (phase !== "none" && leftOnSwap()) close(SWAP_EXIT);
     if (phase !== "none") throw new Error("rotation: a chain is left open with neither an outro nor a .swap() to close it");
-    // a rotation written only for named positions (INTRO_2/INTRO_3, a fixed-slot sub-DPS) has no
+    // a rotation written only for named positions (INTRO_FIRST/INTRO_LAST) has no
     // main chain of its own: the first position written stands in wherever no chain is named
     const stand = introExits.findIndex(Boolean);
     if (!introExit && stand < 0) throw new Error("rotation: every rotation needs an Intro chain closed by an outro");
@@ -1091,7 +1245,8 @@ export class Rotation {
       throw new Error("rotation: the NOINTRO chain is closed by neither an outro nor an Intro");
     }
     if (doubleExit) this.doubleIntro = { entry: DOUBLE_ENTRY, cast: cuts.get("double"), body: dbl, exit: doubleExit };
-    // an Intro chain's entry, not FIRST_INTRO: it is an Intro chain in every way the scheduler
+    if (firstFrom?.phase === "double" && this.doubleIntro) this.firstDoubleIntro = { ...this.doubleIntro, body: dbl.slice(firstFrom.at) };
+    // an Intro chain's entry, not INTRO_OPENER: it is an Intro chain in every way the scheduler
     // cares about, and only which visit plays it differs
     if (firstExit) this.firstIntro = { entry: INTRO_ENTRY, cast: cuts.get("first"), body: first, exit: firstExit };
     // entry NOINTRO for the same reason the one above is INTRO: it arrives the way an opener does,
@@ -1099,19 +1254,13 @@ export class Rotation {
     if (firstOpenerExit || sharedFirst) {
       this.firstOpener = { entry: NOINTRO, body: sharedFirst ? [...firstPre, ...first] : firstPre, exit: firstOpenerExit ?? firstExit! };
     } else if (firstPre.length) {
-      throw new Error("rotation: the NOINTRO_FIRST chain is closed by neither an outro nor a FIRST_INTRO");
+      throw new Error("rotation: the NOINTRO_OPENER chain is closed by neither an outro nor an INTRO_OPENER");
     }
     this.intro = { entry: INTRO_ENTRY, cast: cuts.get("intro") ?? cuts.get(`intro@${stand}`), body: loop, exit: introExit };
-    for (const n of [0, 1, 2]) {
+    if (firstFrom?.phase === "intro") this.firstIntro = { ...this.intro, body: loop.slice(firstFrom.at) };
+    for (const n of [0, 1]) {
       const exit = introExits[n];
       if (exit) this.intros[n] = { entry: INTRO_ENTRY, cast: cuts.get(`intro@${n}`), body: loops[n]!, exit };
-      const into = sharedInto[n];
-      if (openerExits[n]) this.openers[n] = { entry: NOINTRO, body: prefixes[n]!, exit: openerExits[n]! };
-      else if (into === "main") this.openers[n] = { entry: NOINTRO, body: [...prefixes[n]!, ...loop], exit: introExit };
-      else if (into !== null) {
-        if (!exit) throw new Error(`rotation: the ${NOINTROS[n]!.name} chain runs into ${INTROS[n]!.name}, which is never closed`);
-        this.openers[n] = { entry: NOINTRO, body: [...prefixes[n]!, ...loops[n]!], exit };
-      } else if (prefixes[n]!.length) throw new Error(`rotation: the ${NOINTROS[n]!.name} chain is closed by neither an outro nor an Intro`);
     }
   }
 }
@@ -1129,7 +1278,7 @@ const isOutro = (a: Action): boolean => a.cast === Cast.Outro;
 /** Does it open a chain — an Intro or an entry marker — what a chain left
  *  open on a `.swap()` runs into. */
 const opensChain = (a: Action): boolean =>
-  isIntro(a) || [NOINTRO, NOINTRO_FIRST, FIRST_INTRO, DOUBLE_INTRO, ...NOINTROS, ...INTROS].includes(a);
+  isIntro(a) || [NOINTRO, NOINTRO_OPENER, INTRO_OPENER, DOUBLE_INTRO, ...INTROS].includes(a);
 const unstep = (a: Action): [Action, CancelledStep | null] => (a instanceof CancelledStep ? [a.of, a] : [a, null]);
 
 /** Does this entry leave the field — a cast's `swap()` / `instaSwap()` form, the echo's, or a group
@@ -1161,8 +1310,9 @@ function staysOnField(a: Action): Action {
  * section is filled.
  *
  * A leader with a DOUBLE_INTRO section of their own changes the trip's shape: every pre-visit in
- * team order, then every main visit in team order (Suoming > Hsin > Jinhsi reads Suo1 Hsin1 Jin1
- * Suo2 Hsin2 Jin2), the opener standing in for the leader's first pre-visit.
+ * team order, a member without one playing their only visit in its place, then every main visit
+ * in team order (Jinhsi > Hsin > Shorekeeper reads Jin1 Hsin1 SK Jin2 Hsin2), the opener standing
+ * in for the leader's first pre-visit.
  *
  * A section closes on the Intro the *last* slot's own Outro hands into — one full trip round the
  * team, ending where the next begins. The outro's own follow-ups, that Intro, and whatever the
@@ -1184,12 +1334,11 @@ function staysOnField(a: Action): Action {
  *    Intro off the owner's own outro. Paired with an outro-form double Intro in the third slot
  *    (Hsin and Suoming, Suoming and Jinhsi) the two pre-visits play in turn and it is fine. */
 export function teamPlayable(rotations: Rotation[], names: string[]): string | null {
-  // a slot's own no-Intro chain: the one written for the position it stands in, else the plain one
-  const openerChain = (i: number): Chain | null => rotations[i]!.openers[i] ?? rotations[i]!.opener ?? rotations[i]!.firstOpener;
+  const openerChain = (i: number): Chain | null => rotations[i]!.opener ?? rotations[i]!.firstOpener;
   if (!openerChain(0)) return `${names[0]} leads the team but declares no NOINTRO chain`;
   for (let i = 0; i < rotations.length; i++) {
     const r = rotations[i]!, nxt = (i + 1) % rotations.length;
-    if ([r.intros[i] ?? r.intro, r.firstIntro, r.firstOpener, openerChain(i)].some((c) => c?.exit === SWAP_EXIT) && !openerChain(nxt)) {
+    if ([r.intros[slotPosition(rotations, i)] ?? r.intro, r.firstIntro, r.firstOpener, openerChain(i)].some((c) => c?.exit === SWAP_EXIT) && !openerChain(nxt)) {
       return `${names[nxt]} follows ${names[i]}'s swap-out but declares no NOINTRO chain`;
     }
     const d = r.doubleIntro;
@@ -1204,21 +1353,40 @@ export function teamPlayable(rotations: Rotation[], names: string[]): string | n
   return null;
 }
 
-export function runRotations(state: State, rotations: Rotation[], count: number): { sections: Result[][]; starts: number[]; end: number } {
+/** Each team's learned visit successors (`State.successor`), by its rotations — the order visits
+ *  come in depends on the rotations alone, so every run of the team shares one map. */
+const SUCCESSORS = new Map<string, Map<object, { slot: number; visit: object }>>();
+const ROTATION_ID = new WeakMap<Rotation, number>();
+const rotationsKey = (rotations: Rotation[]): string => rotations.map((r) => {
+  let id = ROTATION_ID.get(r);
+  if (id === undefined) ROTATION_ID.set(r, (id = ROTATION_ID_NEXT.n++));
+  return id;
+}).join(",");
+const ROTATION_ID_NEXT = { n: 0 };
+
+/** `blind`: a handoff found no successor learned yet (see `State.successorMissed`) — the caller
+ *  plays the fight again, every successor now known. */
+export function runRotations(state: State, rotations: Rotation[], count: number): { sections: Result[][]; starts: number[]; end: number; blind: boolean } {
   const why = teamPlayable(rotations, state.slots.map((s) => s.name));
   if (why) throw new Error(why);
   // Whoever has already played, and so which of the two forms of a chain an arrival takes: the
   // first-arrival ones are the chain a resonator plays the one time they turn up having never
   // acted, whichever entry that arrival uses.
   const visited = new Set<number>();
-  // a slot's own no-Intro chain: its first-arrival form, else the one written for the position it
-  // stands in, else the plain one
+  // a slot's own no-Intro chain: its first-arrival form, else the plain one
   const openerChain = (i: number): Chain | null => {
     const r = rotations[i]!;
-    const main = r.openers[i] ?? r.opener;
-    return !visited.has(i) && r.firstOpener ? r.firstOpener : main ?? r.firstOpener;
+    return !visited.has(i) && r.firstOpener ? r.firstOpener : r.opener ?? r.firstOpener;
+  };
+  // ...and its DOUBLE_INTRO pre-visit the same way, undefined where it declares none
+  const doubleChain = (i: number): Chain | undefined => {
+    const r = rotations[i]!;
+    return (!visited.has(i) && r.firstDoubleIntro) || r.doubleIntro || undefined;
   };
   const last = state.slots.length - 1;
+  // the slot whose own visit ends a trip round the team: the last, unless a double-Intro leader
+  // moves it (see that branch below)
+  let closer = last;
   const out: Result[][] = [[]];
   // the frame each section opens on: its last member's swap out, where the next opens (see `place()`)
   const starts: number[] = [0];
@@ -1228,13 +1396,36 @@ export function runRotations(state: State, rotations: Rotation[], count: number)
   const going = (): boolean => section + (closing ? 1 : 0) < count;
   // the fight ends past the last handoff's swap, where the next Intro would have begun; the hits
   // still in flight land then, in the section that cast them
-  const finish = (): { sections: Result[][]; starts: number[]; end: number } => {
+  const finish = (): { sections: Result[][]; starts: number[]; end: number; blind: boolean } => {
     state.plannedGates = null;
-    // the last member's swap out, charged to their last press like any other
-    if (state.lastOwn) state.lastOwn.swapFrames = (state.lastOwn.swapFrames ?? 0) + SWAP_DELAY;
-    const end = Math.max(state.frame, state.playsTo) + SWAP_DELAY;
-    if (state.timed.length) out[section]!.push(...run(state, [], true));
-    return { sections: out, starts, end };
+    state.handoffWaits = false;
+    const blind = state.successorMissed;
+    state.successor = null;
+    state.lastHandoff = null;
+    // the last member's swap out, charged to their last press like any other (an outro paid its own)
+    // the fight ends on that swap — or, where the last visit left on its outro, at that outro's
+    // handoff, the outro and all after it cut: what is due by the swap lands, and whatever is still
+    // in flight (an insta-swapped press's hits) never does
+    let end: number, endReal: number;
+    if (fightEnd) {
+      const rows = out[section]!;
+      rows.length = Math.max(0, rows.indexOf(fightEnd));
+      end = fightEnd.starts;
+      endReal = fightEnd.realStarts;
+    } else {
+      if (state.lastOwn) state.lastOwn.swapFrames = (state.lastOwn.swapFrames ?? 0) + SWAP_DELAY;
+      endReal = Math.max(state.real, state.playsTo) + SWAP_DELAY;
+      end = state.gameOf(endReal);
+    }
+    state.timed = state.timed.filter((h) => h.due <= endReal - SWAP_DELAY);
+    // ...and nothing what lands queues past it plays either (Hecate's next attack, say)
+    if (state.timed.length || state.behindNext.length) out[section]!.push(...run(state, [], true, endReal - SWAP_DELAY));
+    // a break the drain cast can't be swapped out of: the swap, and the fight's end, come after it
+    if (state.drainUntil > endReal - SWAP_DELAY && state.drainUntil < Infinity) {
+      endReal = state.drainUntil + SWAP_DELAY;
+      end = state.gameOf(endReal);
+    }
+    return { sections: out, starts, end, blind };
   };
 
   // The section the last slot has just outro'd out of ends with that visit — its outro and every
@@ -1248,6 +1439,12 @@ export function runRotations(state: State, rotations: Rotation[], count: number)
   // would leave that partner's own visit to open the next section. So it is held until the wait
   // it ran inside is over.
   let awaiting = 0, closePending = false;
+  // the outro the fight's last trip left on, where it closed inside a wait rather than as the
+  // final visit (which leaves on no outro at all): the fight ends at its handoff
+  let fightEnd: Result | null = null;
+  // where a held close's outro sits in its section, how long the section was, and the frame the
+  // incoming member was handed the field: if nothing lands before the close, it opens the next one
+  let pendingAt = -1, pendingLen = -1, pendingOpens = 0;
   // Which slots have had their own visit this trip round the team, and which slot the trip opened
   // on. A double-Intro pair spends its pre-visits *inside* the trip, so the field can come back to
   // a slot that is already done with — it steps over that slot rather than giving it a second
@@ -1266,13 +1463,13 @@ export function runRotations(state: State, rotations: Rotation[], count: number)
     out[section]!.push(...snaps);
   };
 
-  // A FIRST_INTRO chain stands in for the ordinary one until this slot has played at all — the
+  // An INTRO_OPENER chain stands in for the ordinary one until this slot has played at all — the
   // same `visited` the no-Intro pair reads, so a leader's opening visit spends whichever
   // first-arrival chain it enters on rather than leaving the other standing for the next.
   const introChain = (i: number): Chain => {
     const r = rotations[i]!;
     // the chain written for the position this slot stands in, where there is one
-    const main = r.intros[i] ?? r.intro;
+    const main = r.intros[slotPosition(rotations, i)] ?? r.intro;
     return !visited.has(i) && r.firstIntro ? r.firstIntro : main;
   };
   // whether the field arrived on a plain swap rather than an outro: no Intro to cast, so the
@@ -1286,16 +1483,46 @@ export function runRotations(state: State, rotations: Rotation[], count: number)
     return c;
   };
 
-  // a handoff with nothing learned yet times the visit it opens off that visit's own presses; a
-  // double-Intro slot's next visit isn't knowable from here, so it goes without
-  const planned = (to: number, swap: boolean): VisitGate[] | null => {
-    if (rotations[to]!.doubleIntro) return null;
-    const chain = swap ? openerChain(to) : introChain(to);
-    return chain ? chainGates(chain, state.slots[to]!.resonator?.intro ?? null) : null;
+  // a handoff with nothing learned yet times the visit it opens off that visit's own presses — the
+  // one it was seen to open, else the slot's usual one
+  const planned = (to: number, swap: boolean, visit: object | null = null): VisitGate[] | null => {
+    const chain = (visit as Chain | null) ?? (swap ? openerChain(to) : introChain(to));
+    if (!chain) return null;
+    // a marker reads the fight through the "current" pointers, here as the member arriving, and
+    // an Outro handoff's ahead of that Outro (`handoffPending()`)
+    const resolve = (marker: Action): Action | null => {
+      const was = ctx.slot;
+      ctx.state = state;
+      ctx.slot = state.slots[to]!;
+      ctx.handoffPending = !swap;
+      try {
+        return resolving(marker.resolveFn!) ?? null;
+      } finally {
+        ctx.slot = was;
+        ctx.handoffPending = false;
+      }
+    };
+    const into = state.slots[to]!;
+    return chainGates(chain, into.resonator?.intro ?? null, resolve, [into.energy, into.concerto, ...into.forte], into.resonator?.maxForte ?? [0, 0, 0, 0, 0]);
   };
-  state.plannedGates = (to) => planned(to, false);
+  state.plannedGates = (to, visit) => planned(to, false, visit);
+  state.handoffWaits = true;
+  if (rotations.some((r) => r.doubleIntro)) {
+    const key = rotationsKey(rotations);
+    let known = SUCCESSORS.get(key);
+    if (!known) SUCCESSORS.set(key, (known = new Map()));
+    state.successor = known;
+  } else state.successor = null;
+  state.successorMissed = false;
   const runChain = (i: number, chain: Chain): void => {
     state.active = i;
+    // the handoff that brought the field here: which visit really follows that one, and the
+    // arrival the gates are learned from, where the Outro's own guess named another slot
+    if (state.lastHandoff) {
+      if (state.successor && state.lastHandoff.from) state.successor.set(state.lastHandoff.from, { slot: i, visit: chain });
+      state.slots[i]!.arrive(state.lastHandoff.from, state.lastHandoff.at);
+      state.lastHandoff = null;
+    }
     if (!state.slots[i]!.resonator) throw new Error(`${state.slots[i]!.name} outros but has no Resonator equipped`);
     // a DOUBLE_INTRO section's own outro hands the field *backward*, to whoever plays while its
     // owner waits on their main Intro; every other outro advances
@@ -1310,7 +1537,7 @@ export function runRotations(state: State, rotations: Rotation[], count: number)
     swapped = chain.exit === SWAP_EXIT;
     // the visit that closes the fight swaps out and ends there: its Outro would open a rotation
     // that never comes
-    const closes = i === last && chain.entry !== DOUBLE_ENTRY && !awaiting;
+    const closes = i === closer && chain.entry !== DOUBLE_ENTRY && !awaiting;
     const final = closes && section + 1 >= count;
     const exit = swapped || final ? [] : [chain.exit];
     const list = chain.entry === INTRO_ENTRY || chain.entry === DOUBLE_ENTRY ? [chain.cast!, ...casts, ...exit] : [...casts, ...exit];
@@ -1321,17 +1548,24 @@ export function runRotations(state: State, rotations: Rotation[], count: number)
     // first, on the one swapping out, until the incoming visit's cooldown-gated press would land ready
     // the fight's last swap out holds for the next visit's cooldown like every other, so the last
     // rotation ends where the others do
-    if (final) {
-      const into = state.slots[(i + 1) % rotations.length]!;
-      const short = into.handoffShortfall(chain, Math.max(state.frame, state.playsTo) + SWAP_DELAY, planned((i + 1) % rotations.length, false));
-      if (short) snaps.push(...run(state, [short.cd.wait(short.frames)]));
+    const next = final && state.successor ? state.successorOf(chain) : null;
+    const after = !final ? -1 : state.successor ? next?.slot ?? -1 : (i + 1) % rotations.length;
+    if (final && after >= 0 && state.handoffWaits) {
+      const into = state.slots[after]!;
+      const from = Math.max(state.real, state.playsTo);
+      const short = into.handoffShortfall(chain, state.gameOf(from + SWAP_DELAY), planned(after, false, next?.visit ?? null));
+      if (short) snaps.push(...run(state, [short.cd.wait(short.frames, short.press)]));
     }
     if (swapped) {
       const to = (i + 1) % rotations.length;
-      const short = state.slots[to]!.handoffShortfall(chain, Math.max(state.frame, state.playsTo), planned(to, true));
-      if (short) snaps.push(...run(state, [short.cd.wait(short.frames)]));
+      const seen = state.successor ? state.successorOf(chain) : null;
+      const from = Math.max(state.real, state.playsTo);
+      const short = (!state.successor || seen?.slot === to) && state.handoffWaits ? state.slots[to]!.handoffShortfall(chain, state.gameOf(from), planned(to, true, seen?.visit ?? null)) : null;
+      if (short) snaps.push(...run(state, [short.cd.wait(short.frames, short.press)]));
+      const handoff = state.gameOf(Math.max(state.real, state.playsTo));
       state.active = to;
-      state.slots[to]!.arrive(chain, Math.max(state.frame, state.playsTo));
+      state.slots[to]!.arrive(chain, handoff);
+      state.lastHandoff = { from: chain, at: handoff };
     }
     // A rotation ends as its last member swaps out: the Outro that swap triggers, and everything
     // from it on, opens the next one.
@@ -1352,23 +1586,39 @@ export function runRotations(state: State, rotations: Rotation[], count: number)
     // one full trip round the team is done — the section ends on this outro, and the Intro it
     // hands into opens the next (see `place()`). A double-Intro visit never closes one: its
     // owner's main outro does.
-    if (i === last && chain.entry !== DOUBLE_ENTRY) {
-      opensAt = Math.max(state.frame, state.playsTo);
-      if (awaiting) closePending = true; else closing = true;
+    if (i === closer && chain.entry !== DOUBLE_ENTRY) {
+      if (section + 1 >= count && !final && !swapped) {
+        const name = state.slots[i]!.name;
+        for (let k = snaps.length - 1; k >= 0 && !fightEnd; k--) if (snaps[k]!.member === name && isCast(snaps[k]!.action, Cast.Outro) && !snaps[k]!.queued) fightEnd = snaps[k]!;
+      }
+      opensAt = state.gameOf(Math.max(state.real, state.playsTo));
+      if (awaiting) {
+        closePending = true;
+        const rows = out[section]!, name = state.slots[i]!.name;
+        pendingAt = -1;
+        for (let k = rows.length - 1; k >= rows.length - snaps.length && pendingAt < 0; k--) if (rows[k]!.member === name && isCast(rows[k]!.action, Cast.Outro) && !rows[k]!.queued) pendingAt = k;
+        pendingLen = rows.length;
+        pendingOpens = state.slots[state.active]!.handoffAt;
+      } else closing = true;
     }
   };
 
   // the fight's own first seconds — everyone who declares a section for them, in team order, each
   // swapping into the next; the last hands over to slot 1, whose opener starts the rotation cycle
   const starters: number[] = [];
-  rotations.forEach((r, i) => { if (r.startCombat[i]) starters.push(i); });
+  // the section for the position a slot stands in, else the one for any
+  const startOf = (i: number): Action[] | null => {
+    const r = rotations[i]!, at = slotPosition(rotations, i);
+    return (at >= 0 ? r.startCombat[at] : null) ?? r.startCombat[2]!;
+  };
+  rotations.forEach((_, i) => { if (startOf(i)) starters.push(i); });
   for (let k = 0; k < starters.length; k++) {
     const i = starters[k]!;
     const next = starters[k + 1] ?? 0;
     state.active = i;
     // the section leaves on its own last cast's swap form; with nobody to swap to, the resonator
     // carries straight on and that cast stays on field
-    const opening = rotations[i]!.startCombat[i]!;
+    const opening = startOf(i)!;
     const last = opening[opening.length - 1]!;
     const chain = next === i && leavesField(last) ? [...opening.slice(0, -1), staysOnField(last)] : opening;
     out[section]!.push(...run(state, chain));
@@ -1415,7 +1665,7 @@ export function runRotations(state: State, rotations: Rotation[], count: number)
     // Pre-visits belong behind the trip's own opening visit — a fresh trip plays that first, and
     // only then does the pair fire. A lone one still fires from the slot ahead (a 3rd member's
     // pre-visit hands to the 2nd, whose whole visit runs before the 3rd's main Intro).
-    const d = mained.size && !mained.has(nxt) && !paired ? rotations[nxt]!.doubleIntro : undefined;
+    const d = mained.size && !mained.has(nxt) && !paired ? doubleChain(nxt) : undefined;
     if (d && !doubled.has(nxt)) {
       doubled.add(nxt);
       if (d.exit !== SWAP_EXIT) {
@@ -1437,7 +1687,7 @@ export function runRotations(state: State, rotations: Rotation[], count: number)
     // answers her Unison outro), or handed the field by the pre-visit just run above, which is
     // Suoming's own shape: the slot behind her opens, she leaves on her Unison outro straight
     // back to them, and their whole visit runs before her main Intro below. Outro form only.
-    const own = mained.size ? rotations[i]!.doubleIntro : undefined;
+    const own = mained.size ? doubleChain(i) : undefined;
     let waited = false;
     if (own && own.exit !== SWAP_EXIT && !doubled.has(i)) {
       doubled.add(i);
@@ -1471,22 +1721,28 @@ export function runRotations(state: State, rotations: Rotation[], count: number)
     if (awaiting || !closePending) return;
     closePending = false;
     closing = true;
+    // nothing landed since the held outro: the rotation ends on that swap, as an unheld one does
+    const rows = out[section]!;
+    if (pendingAt < 0 || rows.length !== pendingLen || section + 1 >= count) return;
+    opensAt = pendingOpens;
+    place(rows.splice(pendingAt));
   }
 
-  // A leader with a double Intro of their own: pre-visits in team order, then main visits in team
-  // order (see the header). Outro-form sections only — a swap-back form leans on the previous
+  // A leader with a double Intro of their own: pre-visits in team order, a slot without one playing
+  // its whole visit in its place, then the main visits in team order (see the header). The trip
+  // ends on the last of those. Outro-form sections only — a swap-back form leans on the previous
   // slot's NOINTRO fill, which this shape has no place for.
   if (rotations[0]!.doubleIntro) {
+    closer = rotations.reduce((at, r, i) => (r.doubleIntro ? i : at), 0);
     let first = true, trips = 0;
     while (going()) {
       if (++trips > 1000) throw new Error("rotation scheduler never closed its sections");
       // the opener already stood in for the leader's first pre-visit
-      for (let i = first ? 1 : 0; i < rotations.length && going(); i++) {
-        const d = rotations[i]!.doubleIntro;
-        if (d) runChain(i, d);
-      }
+      for (let i = first ? 1 : 0; i < rotations.length && going(); i++) runChain(i, doubleChain(i) ?? arrival(i));
       first = false;
-      for (let i = 0; i < rotations.length && going(); i++) runChain(i, arrival(i));
+      for (let i = 0; i < rotations.length && going(); i++) {
+        if (rotations[i]!.doubleIntro) runChain(i, arrival(i));
+      }
     }
     return finish();
   }

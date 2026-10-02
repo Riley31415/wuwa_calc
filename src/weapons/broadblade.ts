@@ -164,7 +164,7 @@ export const STARFIELD_CALIBRATOR = refinements((r, rank) => {
     name: `Starfield Calibrator: Definite Solution${rank}`,
     updateBuffs: () => {
       if (!casting(Cast.Skill)) return;
-      addToCast({ concerto: [8, 10, 12, 14, 16][r]! });
+      addToCast({ concerto: [800, 1000, 1200, 1400, 1600][r]! });
       revokeCurrent(DEFINITE_SOLUTION);
     },
   });

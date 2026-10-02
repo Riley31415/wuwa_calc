@@ -15,10 +15,9 @@
  * Interfered from a marker it holds (tunebreak.ts): a kit whose Intro has a Unison form picks it
  * in its `introFn` off `unisonIntro()`, and that Intro action declares `respondToUnison()` in its
  * updateDebuffs — that is "triggering Unison Response", which every weapon and sonata reads
- * through `unisonResponse()`. Unison Boon pays only a slot granting a `boonPayout()` of its own, which such a
- * kit grants itself from its own combatStart — so a Jinhsi beside Suoming holds the stacks and
- * reads nothing from them, as the kit text says, and the payout is sourced to the Boon itself.
- * Anybody else simply adopts and drops the Intro marker on their Intro row.
+ * through `unisonResponse()`. Only a Unison Boon reactor (`BOON_REACTOR`, which such a kit grants
+ * itself from its own combatStart) can gain Unison Boon at all — so a Jinhsi beside Suoming never
+ * holds it. Anybody else simply adopts and drops the Intro marker on their Intro row.
  */
 import { Cast, Stat } from "../engine/stats.js";
 import { Buff } from "../engine/gear.js";
@@ -27,16 +26,17 @@ import {
   addStat,
   applied,
   applyCurrent,
-  applyTeam,
+  applyOn,
   casting,
   castGained,
   currentAction,
   currentTeam,
+  frozenStacks,
   getStat,
   inflicting,
   isHeld,
   queueOutro,
-  refreshTeam,
+  removeStack,
   revokeCurrent,
   stacksOfTeam,
 } from "../engine/context.js";
@@ -54,13 +54,13 @@ export const UNISON = new Buff({
   },
 });
 
-/** The Unison form of a kit's Outro: the same cast declaring no Concerto spend, since Unison pays
- *  for the swap in the bar's place — so the bar carries over into the owner's next visit, and the
- *  outro is never short whatever it held. A Unison-capable kit builds one off its plain Outro and
+/** The Unison form of a kit's Outro: the same cast with no Concerto spend and no full-bar
+ *  condition, since Unison pays for the swap in the bar's place — so the bar carries over into the
+ *  owner's next visit, and the outro is never short whatever it held. A Unison-capable kit builds one off its plain Outro and
  *  its `outro` fn picks it while Unison is held (`isHeld(UNISON)`), the way an Intro fn picks its
  *  Unison form off `unisonIntro()`. */
 export const unisonOutro = (outro: Action): Action => {
-  const out = outro.variant(`${outro.name} (Unison)`, { concerto: 0, castConcerto: 0 });
+  const out = outro.variant(`${outro.name} (Unison)`, { concerto: 0, castConcerto: 0, minConcerto: undefined });
   out.formOf = outro;
   return out;
 };
@@ -111,49 +111,40 @@ export const unisonResponse = inflicting(() => applied(UNISON_RESPONSE) > 0);
 export const consumedConcerto = (): boolean =>
   currentAction().concerto + getStat(Stat.AddConcerto) + castGained("concerto") < 0 && !casting(Cast.Outro);
 
-/** Unison Boon: +3% DMG dealt a stack, two at most — three with Hsin's Gleaning Simple Joys and
- *  four with her S6, each of which is both a cap raise and the extra grant that reaches it — 30s,
- *  refreshed by every grant. It pays only a slot holding
- *  a `boonPayout()`. The cap is declared at its highest here rather than raised at runtime
- *  (`maxStackIncrease` is enemy-debuff only): without those two pieces nothing grants a third
- *  stack anyway. */
-export const UNISON_BOON = new Buff({ name: "Unison Boon", maxStacks: 4, duration: 60 * 30 });
-
-/** One granter's stack of the Boon: theirs to give once while it stands, and every retrigger after
- *  that resets its 30s rather than adding a second ("Suoming can grant up to 1 stack of Unison Boon
- *  this way. Gaining it again only resets the duration"). `marker` is that granter's own latch, so
- *  two granters on a team still make two stacks — and once the Boon has lapsed entirely the latch
- *  means nothing and the next response grants afresh. */
-export function grantBoon(marker: Buff): void {
-  if (stacksOfTeam(UNISON_BOON) > 0 && isHeld(marker)) {
-    refreshTeam(UNISON_BOON);
-    return;
-  }
-  applyTeam(UNISON_BOON, 1);
-  applyCurrent(marker, 1);
-}
-
-/** The Boon's payout: +3% Total DMG a stack, +4.5% beside Suoming's S6. Carried by a
- *  responder's own `boonPayout()` buff rather than by the Boon itself — the Boon is one shared
- *  team-wide Gear, so whoever granted it first would be the only member the loadout hover could
- *  trace it back to (see `State.grantedBy`). */
-export const unisonBoonDmg = (): void => {
-  const stacks = stacksOfTeam(UNISON_BOON);
-  // filed under the Boon itself, so the stat's own hover names what actually pays it rather than
-  // the piece that called for it — the caller is still the holder, so the loadout hover keeps
-  // listing it under that mode/resonator
-  if (stacks) addStat(Stat.TotalDmg, (stacksOfTeam(NINE_SHADOWS) ? 4.5 : 3) * stacks);
-};
-
-/** Suoming's S6 on the team: every stack of Unison Boon pays half again — +4.5% rather than +3%,
- *  for every responder, not only her. Put up team-wide by that sequence's own combatStart. */
+/** Suoming's S6 on the team: every stack of Unison Boon pays half again — +4.5% rather than +3%.
+ *  Put up team-wide by that sequence's own combatStart. */
 export const NINE_SHADOWS = new Buff({ name: "Suoming S6: Nine Shadows at Her Side" });
 
+/** A Unison Boon reactor — Hsin in her Unison mode, Suoming — the only members who can gain the
+ *  Boon. Their kit grants it from its own combatStart. */
+export const BOON_REACTOR = new Buff({ name: "Unison Boon Reactor", hidden: true });
 
-/** A responder's own carrier for the payout above: granted by the mode or kit that responds, so the
- *  loadout hover traces the bonus back to that piece, while the stat's own hover reads the name
- *  here. Hidden, since the Boon it stands for is already a held buff in its own right. */
-export const boonPayout = (): Buff => new Buff({
-  name: "Unison Boon", hidden: true,
-  applyStats: () => unisonBoonDmg(),
+/** Unison Boon: +3% Total DMG a stack (+4.5% beside Suoming's S6), two at most — three with Hsin's
+ *  Gleaning Simple Joys and four with her S6, each of which is both a cap raise and the extra grant
+ *  that reaches it — 30s, refreshed by every grant. Held by each reactor on the team, and only by
+ *  them. The cap is declared at its highest here rather than raised at runtime: without those two
+ *  pieces nothing grants a third stack anyway. */
+export const UNISON_BOON = new Buff({
+  name: "Unison Boon", maxStacks: 4, duration: 60 * 30,
+  applyStats: () => addStat(Stat.TotalDmg, (stacksOfTeam(NINE_SHADOWS) ? 4.5 : 3) * frozenStacks()),
 });
+
+/** Every reactor on the team, each as the Resonator `applyOn` runs their own grants as. */
+const reactors = () => currentTeam().slots.filter((m) => m.isHeld(BOON_REACTOR) && m.resonator).map((m) => m.resonator!);
+
+/** One granter's stack of the Boon, to every reactor: theirs to give once while it stands, and
+ *  every retrigger after that resets its 30s rather than adding a second ("Suoming can grant up to
+ *  1 stack of Unison Boon this way. Gaining it again only resets the duration"). `marker` is that
+ *  granter's own latch, so two granters on a team still make two stacks — and once the Boon has
+ *  lapsed entirely the latch means nothing and the next response grants afresh. */
+export function grantBoon(marker: Buff): void {
+  const standing = currentTeam().slots.some((m) => m.stacksOf(UNISON_BOON) > 0);
+  const n = standing && isHeld(marker) ? 0 : 1;
+  for (const r of reactors()) applyOn(r, () => applyCurrent(UNISON_BOON, n));
+  if (n) applyCurrent(marker, 1);
+}
+
+/** Take one granter's stack back off every reactor. */
+export function takeBoon(): void {
+  for (const r of reactors()) applyOn(r, () => removeStack(UNISON_BOON, 1));
+}

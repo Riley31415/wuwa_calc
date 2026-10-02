@@ -34,7 +34,7 @@ import { JINGRAN } from "./resonators/fusion/jingran.js";
 import { LUPA } from "./resonators/fusion/lupa.js";
 import { MORNYE } from "./resonators/fusion/mornye.js";
 import { MORTEFI } from "./resonators/fusion/mortefi.js";
-import { CARLOTTA } from "./resonators/glacio/carlotta.js";
+import { CARLOTTA, CARLOTTA_FAST } from "./resonators/glacio/carlotta.js";
 import { HIYUKI } from "./resonators/glacio/hiyuki.js";
 import { LUCILLA, LUCILLA_CHAFE } from "./resonators/glacio/lucilla.js";
 import { SANHUA } from "./resonators/glacio/sanhua.js";
@@ -48,7 +48,7 @@ import { PHRO_12s, PHRO_10s } from "./resonators/havoc/phrolova.js";
 import { ROCCIA, ROCCIA_MDPS } from "./resonators/havoc/roccia.js";
 import { ROVER_HAVOC } from "./resonators/havoc/rover_havoc.js";
 import { XUANLING,  } from "./resonators/havoc/xuanling.js";
-import { JINHSI, JINHSI_SUPPORT } from "./resonators/spectro/jinhsi.js";
+import { JINHSI, JINHSI_FULL, JINHSI_SUPPORT } from "./resonators/spectro/jinhsi.js";
 import { LUCY } from "./resonators/spectro/lucy.js";
 import { LUUK, LUUK_16s } from "./resonators/spectro/luuk.js";
 import { LYNAE_RUPTURE, LYNAE_STRAIN } from "./resonators/spectro/lynae.js";
@@ -74,7 +74,6 @@ const TEAMS: Slot[][] = [
   // suoming mdps, electro basic unison
   [[SHOREKEEPER], [JINHSI_SUPPORT], SUOMING_MDPS],
   [[SHOREKEEPER, VERINA, MORNYE], [SANHUA], SUOMING_MDPS_DOUBLE],
-  [[SHOREKEEPER, VERINA, MORNYE], [SANHUA], SUOMING_MDPS],
   [[SHOREKEEPER, VERINA, MORNYE], [JINHSI_SUPPORT], SUOMING_MDPS],
   [[MORNYE, SHOREKEEPER, VERINA], [LYNAE_RUPTURE, REBECCA], SUOMING_MDPS],
 
@@ -83,6 +82,14 @@ const TEAMS: Slot[][] = [
   [[BULING], [SUOMING], HSIN_UNISON],
   [[SUOMING], HSIN_UNISON, [JINHSI_SUPPORT]],
 
+  // jinhsi: spectro skill
+  [[SHOREKEEPER, MORNYE, SUISUI, VERINA, BULING], [CANTARELLA, YINLIN, SUOMING], JINHSI],
+  [[MORNYE, SHOREKEEPER, SUISUI, VERINA, BULING], [LYNAE_RUPTURE], JINHSI],
+  [[MORNYE, SHOREKEEPER, SUISUI, VERINA, BULING], [REBECCA], JINHSI],
+  
+  [[SHOREKEEPER, MORNYE, SUISUI, VERINA, BULING], [ZHEZHI], JINHSI_FULL],
+  [JINHSI, [HSIN_UNISON], [SHOREKEEPER, MORNYE, SUISUI, VERINA, BULING]],
+
   // hsin (Electro Flare mode): electro skill flare
   [[SUISUI, CHISA, SHOREKEEPER, MORNYE, VERINA], [ROVER_ELECTRO, CHISA], HSIN_FLARE],
   [[BULING], [CHISA, ROVER_ELECTRO], HSIN_FLARE],
@@ -90,12 +97,6 @@ const TEAMS: Slot[][] = [
 
   [[SUISUI, MORNYE, SHOREKEEPER, VERINA], [LYNAE_RUPTURE, REBECCA], HSIN_FLARE],
   [[BULING], [LYNAE_RUPTURE, REBECCA], HSIN_FLARE],
-
-  // jinhsi: spectro skill
-  [[SHOREKEEPER, MORNYE, SUISUI, VERINA, BULING], [ZHEZHI, CANTARELLA, SUOMING, YINLIN], JINHSI],
-  [[SHOREKEEPER, MORNYE, SUISUI, VERINA, BULING], JINHSI, [HSIN_UNISON]],
-  [[MORNYE], [LYNAE_RUPTURE], JINHSI],
-  [[MORNYE], [REBECCA], JINHSI],
 
   // electro rover mdps: Apex Resonance, the Thrum of All Sounds chains
   [[MORNYE, SHOREKEEPER, CHISA, BULING, VERINA, SUISUI], [LYNAE_RUPTURE], ROVER_ELECTRO_MDPS],
@@ -120,9 +121,9 @@ const TEAMS: Slot[][] = [
   // hiyuki: glacio chafe/bite — every stack the team lands calculates at the target's own limit,
   // which is why Chisa (+3 to it) and Lucilla's Chafe build stand behind her
   [[SUISUI], PHRO_10s, HIYUKI],
-  [[SUISUI], CARLOTTA, HIYUKI],
+  [[SUISUI], CARLOTTA_FAST, HIYUKI],
   [PHRO_10s, [LUCILLA], HIYUKI],
-  [HIYUKI, CARLOTTA, [LUCILLA_CHAFE]],
+  [HIYUKI, CARLOTTA_FAST, [LUCILLA_CHAFE]],
   [[SUISUI, CHISA, MORNYE, VERINA, SHOREKEEPER], [LUCILLA_CHAFE, LYNAE_RUPTURE, CHISA, JIANXIN, ROVER_ELECTRO], HIYUKI],
 
   // sigrika: aero + echo
@@ -135,9 +136,8 @@ const TEAMS: Slot[][] = [
   [[SHOREKEEPER, VERINA, MORNYE], [QIUYUAN, CIACCONA, CANTARELLA], SIGRIKA_EXTEND],
 
   // luuk: spectro basic, tune strain
-  [[VERINA], [LYNAE_STRAIN], LUUK_16s],
   [[MORNYE, SHOREKEEPER, VERINA], [SANHUA, DENIA_STRAIN], LUUK_16s],
-  [[MORNYE, SHOREKEEPER], [LYNAE_STRAIN], LUUK],
+  [[MORNYE, SHOREKEEPER, VERINA], [LYNAE_STRAIN], LUUK],
 
   // aemeath: fusion liberation on tune rupture — Mornye and Lynae answer the break beside her
   [[MORNYE, SHOREKEEPER, VERINA], [LYNAE_RUPTURE, CHANGLI, LUPA], AEMEATH_RUPTURE],
@@ -158,7 +158,8 @@ const TEAMS: Slot[][] = [
   [[SHOREKEEPER, VERINA], PHRO_10s, QIUYUAN_MDPS],
 
   // galbrena: fusion echo and heavy
-  [[SHOREKEEPER, VERINA, MORNYE, SUISUI, LUPA], [BRANT, MORTEFI, IUNO, QIUYUAN, LUCILLA], GALBRENA],
+  [[SHOREKEEPER, VERINA, MORNYE, SUISUI, LUPA], [MORTEFI, IUNO, QIUYUAN, LUCILLA], GALBRENA],
+  [[LUPA], [BRANT], GALBRENA],
   [[MORNYE, SHOREKEEPER, VERINA, SUISUI, DENIA_BURST], [LUPA], GALBRENA],
   [[MORNYE, SHOREKEEPER, VERINA, SUISUI, DENIA_BURST], [REBECCA], GALBRENA],
   [[MORNYE], [LYNAE_RUPTURE], GALBRENA],

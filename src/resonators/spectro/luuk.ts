@@ -44,7 +44,7 @@ import {
   lostOnSwap,
   addToCast,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, START_3, ECHO, INTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, START_LAST, ECHO, INTRO } from "../../engine/rotation.js";
 import { applied } from "../../engine/context.js";
 import { TUNE_STRAIN_SHIFTING, tuneBreak } from "../../shared/tunebreak.js";
 import { applyStrain, TUNE_BREAK, TUNE_STRAIN_INTERFERED, strainPayout } from "../../shared/tunebreak.js";
@@ -66,62 +66,62 @@ function luukAction(id: string, def: object): Action {
 // --- Such is Light, the ground chain. Stage 3 hurls a whirling blade (5.02% x30, taken at the
 //     table's own full count); Stage 4 is what replaces Resonance Skill with Aureole of Execution.
 const BA1 = luukAction("Basic - Such is Light 1", { animFrames: 31, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 10, mv: 40.56, energy: 0.6, concerto: 1.2, offtune: 1920, forte1: 6 },
-    { hitFrame: 21, mv: 40.56, energy: 0.6, concerto: 1.2, offtune: 1920, forte1: 6 },
+    { hitFrame: 10, mv: 4056, energy: 60, concerto: 120, offtune: 1920, forte1: 600 },
+    { hitFrame: 21, mv: 4056, energy: 60, concerto: 120, offtune: 1920, forte1: 600 },
   ]});
 const BA2 = luukAction("Basic - Such is Light 2", { animFrames: 56, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 8, mv: 60.16, energy: 0.89, concerto: 1.78, offtune: 2848, forte1: 8.9 },
-    { hitFrame: 51, mv: 90.24, energy: 1.34, concerto: 2.67, offtune: 4272, forte1: 13.35 },
+    { hitFrame: 8, mv: 6016, energy: 89, concerto: 178, offtune: 2848, forte1: 890 },
+    { hitFrame: 51, mv: 9024, energy: 134, concerto: 267, offtune: 4272, forte1: 1335 },
   ]});
 const BA3 = luukAction("Basic - Such is Light 3", { animFrames: 56, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 33, commitFrame: 21, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
-    { hitFrame: 35, commitFrame: 21, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
-    { hitFrame: 40, commitFrame: 21, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
-    { hitFrame: 46, commitFrame: 21, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
-    { hitFrame: 52, commitFrame: 21, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
-    { hitFrame: 59, commitFrame: 21, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
-    { hitFrame: 64, commitFrame: 21, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
-    { hitFrame: 70, commitFrame: 21, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
-    { hitFrame: 76, commitFrame: 21, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
-    { hitFrame: 82, commitFrame: 21, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
-    { hitFrame: 89, commitFrame: 21, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
-    { hitFrame: 94, commitFrame: 21, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
-    { hitFrame: 100, commitFrame: 21, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
-    { hitFrame: 106, commitFrame: 21, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
-    { hitFrame: 112, commitFrame: 21, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
-    { hitFrame: 119, commitFrame: 21, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
-    { hitFrame: 124, commitFrame: 21, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
-    { hitFrame: 130, commitFrame: 21, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
-    { hitFrame: 136, commitFrame: 21, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
-    { hitFrame: 142, commitFrame: 21, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
-    { hitFrame: 149, commitFrame: 21, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
-    { hitFrame: 154, commitFrame: 21, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
-    { hitFrame: 160, commitFrame: 21, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
-    { hitFrame: 166, commitFrame: 21, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
-    { hitFrame: 172, commitFrame: 21, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
-    { hitFrame: 179, commitFrame: 21, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
-    { hitFrame: 184, commitFrame: 21, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
-    { hitFrame: 190, commitFrame: 21, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
-    { hitFrame: 196, commitFrame: 21, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
-    { hitFrame: 202, commitFrame: 21, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
+    { hitFrame: 33, commitFrame: 21, mv: 502, energy: 8, concerto: 15, offtune: 237, forte1: 75 },
+    { hitFrame: 35, commitFrame: 21, mv: 502, energy: 8, concerto: 15, offtune: 237, forte1: 75 },
+    { hitFrame: 40, commitFrame: 21, mv: 502, energy: 8, concerto: 15, offtune: 237, forte1: 75 },
+    { hitFrame: 46, commitFrame: 21, mv: 502, energy: 8, concerto: 15, offtune: 237, forte1: 75 },
+    { hitFrame: 52, commitFrame: 21, mv: 502, energy: 8, concerto: 15, offtune: 237, forte1: 75 },
+    { hitFrame: 59, commitFrame: 21, mv: 502, energy: 8, concerto: 15, offtune: 237, forte1: 75 },
+    { hitFrame: 64, commitFrame: 21, mv: 502, energy: 8, concerto: 15, offtune: 237, forte1: 75 },
+    { hitFrame: 70, commitFrame: 21, mv: 502, energy: 8, concerto: 15, offtune: 237, forte1: 75 },
+    { hitFrame: 76, commitFrame: 21, mv: 502, energy: 8, concerto: 15, offtune: 237, forte1: 75 },
+    { hitFrame: 82, commitFrame: 21, mv: 502, energy: 8, concerto: 15, offtune: 237, forte1: 75 },
+    { hitFrame: 89, commitFrame: 21, mv: 502, energy: 8, concerto: 15, offtune: 237, forte1: 75 },
+    { hitFrame: 94, commitFrame: 21, mv: 502, energy: 8, concerto: 15, offtune: 237, forte1: 75 },
+    { hitFrame: 100, commitFrame: 21, mv: 502, energy: 8, concerto: 15, offtune: 237, forte1: 75 },
+    { hitFrame: 106, commitFrame: 21, mv: 502, energy: 8, concerto: 15, offtune: 237, forte1: 75 },
+    { hitFrame: 112, commitFrame: 21, mv: 502, energy: 8, concerto: 15, offtune: 237, forte1: 75 },
+    { hitFrame: 119, commitFrame: 21, mv: 502, energy: 8, concerto: 15, offtune: 237, forte1: 75 },
+    { hitFrame: 124, commitFrame: 21, mv: 502, energy: 8, concerto: 15, offtune: 237, forte1: 75 },
+    { hitFrame: 130, commitFrame: 21, mv: 502, energy: 8, concerto: 15, offtune: 237, forte1: 75 },
+    { hitFrame: 136, commitFrame: 21, mv: 502, energy: 8, concerto: 15, offtune: 237, forte1: 75 },
+    { hitFrame: 142, commitFrame: 21, mv: 502, energy: 8, concerto: 15, offtune: 237, forte1: 75 },
+    { hitFrame: 149, commitFrame: 21, mv: 502, energy: 8, concerto: 15, offtune: 237, forte1: 75 },
+    { hitFrame: 154, commitFrame: 21, mv: 502, energy: 8, concerto: 15, offtune: 237, forte1: 75 },
+    { hitFrame: 160, commitFrame: 21, mv: 502, energy: 8, concerto: 15, offtune: 237, forte1: 75 },
+    { hitFrame: 166, commitFrame: 21, mv: 502, energy: 8, concerto: 15, offtune: 237, forte1: 75 },
+    { hitFrame: 172, commitFrame: 21, mv: 502, energy: 8, concerto: 15, offtune: 237, forte1: 75 },
+    { hitFrame: 179, commitFrame: 21, mv: 502, energy: 8, concerto: 15, offtune: 237, forte1: 75 },
+    { hitFrame: 184, commitFrame: 21, mv: 502, energy: 8, concerto: 15, offtune: 237, forte1: 75 },
+    { hitFrame: 190, commitFrame: 21, mv: 502, energy: 8, concerto: 15, offtune: 237, forte1: 75 },
+    { hitFrame: 196, commitFrame: 21, mv: 502, energy: 8, concerto: 15, offtune: 237, forte1: 75 },
+    { hitFrame: 202, commitFrame: 21, mv: 502, energy: 8, concerto: 15, offtune: 237, forte1: 75 },
   ]});
-const BA4 = luukAction("Basic - Such is Light 4", { animFrames: 39, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 21, mv: 96.33, energy: 1.43, concerto: 2.85, offtune: 4560, forte1: 14.25 }]});
-const HA = luukAction("Heavy - Such is Light", { animFrames: 60, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 24, mv: 91.26, energy: 1.35, concerto: 2.7, offtune: 4320, forte1: 13.5 }]});
-const DC = luukAction("Dodge Counter - Such is Light", { animFrames: 56, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 50, mv: 251.8, energy: 2.24, concerto: 17.46, offtune: 7120, forte1: 11.13 }]});
+const BA4 = luukAction("Basic - Such is Light 4", { animFrames: 39, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 21, mv: 9633, energy: 143, concerto: 285, offtune: 4560, forte1: 1425 }]});
+const HA = luukAction("Heavy - Such is Light", { animFrames: 60, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 24, mv: 9126, energy: 135, concerto: 270, offtune: 4320, forte1: 1350 }]});
+const DC = luukAction("Dodge Counter - Such is Light", { animFrames: 56, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 50, mv: 25180, energy: 224, concerto: 1746, offtune: 7120, forte1: 1113 }]});
 
 // --- the mid-air chain. Stage 2 and 3 come in two forms by input: Scythe: Dissection (Normal
 //     Attack) or Scythe: Resection (Jump), the latter inflicting Tune Strain - Shifting. Stage 3
 //     of either is what replaces Resonance Skill with Aureole of Execution.
-const MA1 = luukAction("Mid-air - Such is Light 1", { animFrames: 37, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 10, mv: 57.46, energy: 0.85, concerto: 1.7, offtune: 2720, forte1: 8.5 }]});
+const MA1 = luukAction("Mid-air - Such is Light 1", { animFrames: 37, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 10, mv: 5746, energy: 85, concerto: 170, offtune: 2720, forte1: 850 }]});
 const MA2 = luukAction("Mid-air - Scythe: Dissection 2", { animFrames: 27, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 11, mv: 28.23, energy: 0.42, concerto: 0.75, offtune: 1200, forte1: 3.75 },
-    { hitFrame: 17, mv: 28.23, energy: 0.42, concerto: 0.75, offtune: 1200, forte1: 3.75 },
-    { hitFrame: 27, mv: 37.63, energy: 0.56, concerto: 1, offtune: 1600, forte1: 5 },
+    { hitFrame: 11, mv: 2823, energy: 42, concerto: 75, offtune: 1200, forte1: 375 },
+    { hitFrame: 17, mv: 2823, energy: 42, concerto: 75, offtune: 1200, forte1: 375 },
+    { hitFrame: 27, mv: 3763, energy: 56, concerto: 100, offtune: 1600, forte1: 500 },
   ]});
 const MA3 = luukAction("Mid-air - Scythe: Dissection 3", { animFrames: 72, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 8, mv: 42.93, energy: 0.82, concerto: 1.19, offtune: 1896, forte1: 5.93 },
-    { hitFrame: 18, mv: 42.93, energy: 0.82, concerto: 1.19, offtune: 1896, forte1: 5.93 },
-    { hitFrame: 64, mv: 57.24, energy: 1.09, concerto: 1.58, offtune: 2528, forte1: 7.9 },
+    { hitFrame: 8, mv: 4293, energy: 82, concerto: 119, offtune: 1896, forte1: 593 },
+    { hitFrame: 18, mv: 4293, energy: 82, concerto: 119, offtune: 1896, forte1: 593 },
+    { hitFrame: 64, mv: 5724, energy: 109, concerto: 158, offtune: 2528, forte1: 790 },
   ]});
 // Resection 2/3, Golden Reflux, every Aureole of Execution and his Intro lay Tune Strain - Shifting
 const STRAIN = { updateDebuffs: () => applyStrain() };
@@ -129,15 +129,15 @@ const STRAIN = { updateDebuffs: () => applyStrain() };
  *  cast banks (see ENDNOTES). */
 const AUREOLE = { ...STRAIN, updateBuffs: () => applyCurrent(ENDNOTES, 1) };
 const MA2R = luukAction("Mid-air - Scythe: Resection 2", { animFrames: 30, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 13, mv: 50.42, energy: 0.75, concerto: 1.35, offtune: 2160, forte1: 6.75 },
-    { hitFrame: 30, mv: 50.42, energy: 0.75, concerto: 1.35, offtune: 2160, forte1: 6.75 },
+    { hitFrame: 13, mv: 5042, energy: 75, concerto: 135, offtune: 2160, forte1: 675 },
+    { hitFrame: 30, mv: 5042, energy: 75, concerto: 135, offtune: 2160, forte1: 675 },
   ], ...STRAIN });
 const MA3R = luukAction("Mid-air - Scythe: Resection 3", { animFrames: 66, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 14, mv: 74.92, energy: 1.41, concerto: 2.08, offtune: 3320, forte1: 10.38 },
-    { hitFrame: 47, mv: 74.92, energy: 1.41, concerto: 2.08, offtune: 3320, forte1: 10.38 },
+    { hitFrame: 14, mv: 7492, energy: 141, concerto: 208, offtune: 3320, forte1: 1038 },
+    { hitFrame: 47, mv: 7492, energy: 141, concerto: 208, offtune: 3320, forte1: 1038 },
   ], ...STRAIN });
-const MA4 = luukAction("Mid-air - Such is Light 4", { animFrames: 60, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 40, mv: 104.78, energy: 1.55, concerto: 1, offtune: 4960, forte1: 15.5 }]});
-const MDC = luukAction("Dodge Counter - Such is Light (Mid-Air)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, mv: 256.87, energy: 2.3, concerto: 17.6, offtune: 7360, forte1: 23 });
+const MA4 = luukAction("Mid-air - Such is Light 4", { animFrames: 60, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 40, mv: 10478, energy: 155, concerto: 100, offtune: 4960, forte1: 1550 }]});
+const MDC = luukAction("Dodge Counter - Such is Light (Mid-Air)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 25687, energy: 230, concerto: 760, offtune: 7360, forte1: 2300 }], castConcerto: 1000 });
 
 // --- Reunion of All the Fallen. Golden Reflux is the plain Resonance Skill (2 charges); after
 //     Basic Stage 4 / Mid-air Stage 3 it becomes Aureole of Execution, cycling Ring -> Breach ->
@@ -147,31 +147,31 @@ const MDC = luukAction("Dodge Counter - Such is Light (Mid-Air)", { node: Node.N
 //     Earthshaker detonates.
 // Golden Reflux: 2 charges on an 8s recharge; S5 takes 2s off and adds a third
 const SKILL_CD = new Cooldown({ frames: () => (isHeld(LK_S5) ? 60 * 6 : 60 * 8), charges: () => (isHeld(LK_S5) ? 3 : 2) });
-const Skill = luukAction("Skill - Golden Reflux", { animFrames: 68, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [{ hitFrame: 46, mv: 201.2, energy: 2.3, concerto: 4.6, offtune: 7360, forte1: 23 }], ...STRAIN });
+const Skill = luukAction("Skill - Golden Reflux", { animFrames: 68, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [{ hitFrame: 46, mv: 20120, energy: 230, concerto: 460, offtune: 7360, forte1: 2300 }], ...STRAIN });
 const Ring = luukAction("Skill - Aureole of Execution: Ring", { animFrames: 81, node: Node.Skill, cast: Cast.Skill, type: Type.Basic, bullets: [
-    { hitFrame: 15, mv: 26.56, energy: 0.96, concerto: 1.2, offtune: 1248, forte1: 3.9 },
-    { hitFrame: 21, mv: 26.56, energy: 0.96, concerto: 1.2, offtune: 1248, forte1: 3.9 },
-    { hitFrame: 27, mv: 26.56, energy: 0.96, concerto: 1.2, offtune: 1248, forte1: 3.9 },
-    { hitFrame: 33, mv: 26.56, energy: 0.96, concerto: 1.2, offtune: 1248, forte1: 3.9 },
-    { hitFrame: 39, mv: 26.56, energy: 0.96, concerto: 1.2, offtune: 1248, forte1: 3.9 },
-    { hitFrame: 46, mv: 88.53, energy: 3.2, concerto: 4, offtune: 4160, forte1: 13 },
+    { hitFrame: 15, mv: 2656, energy: 96, concerto: 120, offtune: 1248, forte1: 390 },
+    { hitFrame: 21, mv: 2656, energy: 96, concerto: 120, offtune: 1248, forte1: 390 },
+    { hitFrame: 27, mv: 2656, energy: 96, concerto: 120, offtune: 1248, forte1: 390 },
+    { hitFrame: 33, mv: 2656, energy: 96, concerto: 120, offtune: 1248, forte1: 390 },
+    { hitFrame: 39, mv: 2656, energy: 96, concerto: 120, offtune: 1248, forte1: 390 },
+    { hitFrame: 46, mv: 8853, energy: 320, concerto: 400, offtune: 4160, forte1: 1300 },
   ], ...AUREOLE });
 const Breach = luukAction("Skill - Aureole of Execution: Breach", { animFrames: 81, node: Node.Skill, cast: Cast.Skill, type: Type.Basic, bullets: [
-    { hitFrame: 33, mv: 95.91, energy: 2.67, concerto: 3.34, offtune: 3440, forte1: 10.75 },
-    { hitFrame: 39, mv: 95.91, energy: 2.67, concerto: 3.34, offtune: 3440, forte1: 10.75 },
-    { hitFrame: 45, mv: 95.91, energy: 2.67, concerto: 3.34, offtune: 3440, forte1: 10.75 },
+    { hitFrame: 33, mv: 9591, energy: 267, concerto: 334, offtune: 3440, forte1: 1075 },
+    { hitFrame: 39, mv: 9591, energy: 267, concerto: 334, offtune: 3440, forte1: 1075 },
+    { hitFrame: 45, mv: 9591, energy: 267, concerto: 334, offtune: 3440, forte1: 1075 },
   ], ...AUREOLE });
-const Glare = luukAction("Skill - Aureole of Execution: Glare", { animFrames: 106, node: Node.Skill, cast: Cast.Skill, type: Type.Basic, bullets: [{ hitFrame: 50, mv: 354.11, energy: 6, concerto: 10, offtune: 7840, forte1: 24.5 }], ...AUREOLE });
-const GoldenImpale = luukAction("Basic - Golden Impale", { animFrames: 68, node: Node.Skill, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 46, mv: 155.47, energy: 2.3, concerto: 4.6, offtune: 7360, forte1: 23 }]});
+const Glare = luukAction("Skill - Aureole of Execution: Glare", { animFrames: 106, node: Node.Skill, cast: Cast.Skill, type: Type.Basic, bullets: [{ hitFrame: 50, mv: 35411, energy: 600, concerto: 1000, offtune: 7840, forte1: 2450 }], ...AUREOLE });
+const GoldenImpale = luukAction("Basic - Golden Impale", { animFrames: 68, node: Node.Skill, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 46, mv: 15547, energy: 230, concerto: 460, offtune: 7360, forte1: 2300 }]});
 /** Detonates 5s after Glare lays it, or the moment a Gavel of Earthshaker lands on it — queued
  *  off the Gavel here, since the rotation always follows a Glare with one. */
-const IchorDeposit = luukAction("Skill - Ichor Deposit", { animFrames: 0, node: Node.Skill, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 153.45 }]});
+const IchorDeposit = luukAction("Skill - Ichor Deposit", { animFrames: 0, node: Node.Skill, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 15345 }]});
 
 // --- Spark from the Frost. Gavel of Earthshaker is the mid-air slam a Glare opens up; it
 //     detonates the Deposit, and its Concerto is all the flat regen row (the hit itself carries 0).
 const Gavel = luukAction("Mid-air - Gavel of Earthshaker", {
   animFrames: 41,
-  node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 26, mv: 306.9, energy: 6, concerto: 10, offtune: 8080, forte1: 25.25 }],
+  node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 26, mv: 30690, energy: 600, offtune: 8080, forte1: 2525 }], castConcerto: 1000,
   updateDebuffs: () => queue(IchorDeposit),
 });
 
@@ -180,66 +180,66 @@ const Gavel = luukAction("Mid-air - Gavel of Earthshaker", {
  *  table's full 5s (33 ticks); in play it vanishes on his next damaging cast, so this is its
  *  ceiling — at 330 damage a summon, nothing turns on it. Hurled by the Intro and by Breach. */
 const IchorBlade = luukAction("Forte - Ichor Blade", { animFrames: 357, node: Node.Forte, type: Type.Basic, scaling: Scaling.Fixed, bullets: [
-    { hitFrame: 60, mv: 9.7059 },
-    { hitFrame: 69, mv: 9.7059 },
-    { hitFrame: 78, mv: 9.7059 },
-    { hitFrame: 87, mv: 9.7059 },
-    { hitFrame: 96, mv: 9.7059 },
-    { hitFrame: 105, mv: 9.7059 },
-    { hitFrame: 114, mv: 9.7059 },
-    { hitFrame: 123, mv: 9.7059 },
-    { hitFrame: 132, mv: 9.7059 },
-    { hitFrame: 141, mv: 9.7059 },
-    { hitFrame: 150, mv: 9.7059 },
-    { hitFrame: 159, mv: 9.7059 },
-    { hitFrame: 168, mv: 9.7059 },
-    { hitFrame: 177, mv: 9.7059 },
-    { hitFrame: 186, mv: 9.7059 },
-    { hitFrame: 195, mv: 9.7059 },
-    { hitFrame: 204, mv: 9.7059 },
-    { hitFrame: 213, mv: 9.7059 },
-    { hitFrame: 222, mv: 9.7059 },
-    { hitFrame: 231, mv: 9.7059 },
-    { hitFrame: 240, mv: 9.7059 },
-    { hitFrame: 249, mv: 9.7059 },
-    { hitFrame: 258, mv: 9.7059 },
-    { hitFrame: 267, mv: 9.7059 },
-    { hitFrame: 276, mv: 9.7059 },
-    { hitFrame: 285, mv: 9.7059 },
-    { hitFrame: 294, mv: 9.7059 },
-    { hitFrame: 303, mv: 9.7059 },
-    { hitFrame: 312, mv: 9.7059 },
-    { hitFrame: 321, mv: 9.7059 },
-    { hitFrame: 330, mv: 9.7059 },
-    { hitFrame: 339, mv: 9.7059 },
-    { hitFrame: 348, mv: 9.7059 },
-    { hitFrame: 357, mv: 9.7053 },
+    { hitFrame: 60, mv: 971 },
+    { hitFrame: 69, mv: 971 },
+    { hitFrame: 78, mv: 971 },
+    { hitFrame: 87, mv: 971 },
+    { hitFrame: 96, mv: 971 },
+    { hitFrame: 105, mv: 971 },
+    { hitFrame: 114, mv: 971 },
+    { hitFrame: 123, mv: 971 },
+    { hitFrame: 132, mv: 971 },
+    { hitFrame: 141, mv: 971 },
+    { hitFrame: 150, mv: 971 },
+    { hitFrame: 159, mv: 971 },
+    { hitFrame: 168, mv: 971 },
+    { hitFrame: 177, mv: 971 },
+    { hitFrame: 186, mv: 971 },
+    { hitFrame: 195, mv: 971 },
+    { hitFrame: 204, mv: 971 },
+    { hitFrame: 213, mv: 971 },
+    { hitFrame: 222, mv: 971 },
+    { hitFrame: 231, mv: 971 },
+    { hitFrame: 240, mv: 970 },
+    { hitFrame: 249, mv: 970 },
+    { hitFrame: 258, mv: 970 },
+    { hitFrame: 267, mv: 970 },
+    { hitFrame: 276, mv: 970 },
+    { hitFrame: 285, mv: 970 },
+    { hitFrame: 294, mv: 970 },
+    { hitFrame: 303, mv: 970 },
+    { hitFrame: 312, mv: 970 },
+    { hitFrame: 321, mv: 970 },
+    { hitFrame: 330, mv: 970 },
+    { hitFrame: 339, mv: 970 },
+    { hitFrame: 348, mv: 970 },
+    { hitFrame: 357, mv: 970 },
   ]});
 
 const Liberation = luukAction("Liberation - Rewritten in Winter's Margins", {
   animFrames: 247, timestop: 247, motionStop: 247, cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Basic, bullets: [
-    { hitFrame: 230, mv: 745.54, offtune: 50400 },
-    { hitFrame: 232, mv: 49.71, offtune: 3360 },
-    { hitFrame: 234, mv: 49.71, offtune: 3360 },
-    { hitFrame: 237, mv: 49.71, offtune: 3360 },
-    { hitFrame: 239, mv: 49.71, offtune: 3360 },
-    { hitFrame: 242, mv: 49.71, offtune: 3360 },
-  ], castConcerto: 20, resetEnergy: true,
+    { hitFrame: 230, mv: 74554, offtune: 50400 },
+    { hitFrame: 232, mv: 4971, offtune: 3360 },
+    { hitFrame: 234, mv: 4971, offtune: 3360 },
+    { hitFrame: 237, mv: 4971, offtune: 3360 },
+    { hitFrame: 239, mv: 4971, offtune: 3360 },
+    { hitFrame: 242, mv: 4971, offtune: 3360 },
+  ], castConcerto: 2000, resetEnergy: true,
 });
 
 const Intro = luukAction("Intro - Before Injection of Dawn", {
   animFrames: 75, prioFrames: 73, motionStop: 21,
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
-    { hitFrame: 27, mv: 72.67, energy: 3.34, offtune: 3440 },
-    { hitFrame: 33, mv: 72.67, energy: 3.34, offtune: 3440 },
-    { hitFrame: 39, mv: 72.67, energy: 3.34, offtune: 3440, forte1: 100 },
-  ], castConcerto: 10, ...STRAIN,
+    { hitFrame: 27, mv: 7267, energy: 334, offtune: 3440 },
+    { hitFrame: 33, mv: 7267, energy: 334, offtune: 3440 },
+    { hitFrame: 39, mv: 7267, energy: 334, offtune: 3440, forte1: 10000 },
+  ], castConcerto: 1000, ...STRAIN,
   // updateBuffs: () => applyCurrent(DAWNLIT_KEEP, 1),  // DAWNLIT_KEEP grants no stat and nothing reads it
 });
 const Outro = luukAction("Outro - Bow to the Last Light", {
   animFrames: 0,
-  cast: Cast.Outro, type: Type.Outro, bullets: [{ hitFrame: 0, mv: 500 }], castConcerto: -100,
+  cast: Cast.Outro, type: Type.Outro, bullets: [{ hitFrame: 0, mv: 50000 }], minConcerto: 10000, castConcerto: -10000,
   updateBuffs: () => applyCurrent(GOLDEN_RULE),
 });
 
@@ -263,12 +263,16 @@ const AUREATE_JUDGE = new Buff({
       revokeCurrent(AUREATE_JUDGE);
       return;
     }
-    if (isAureole()) addToCast({ forte1: -100 });
+    if (isAureole()) addToCast({ forte1: -10000 });
   },
   applyStats: () => {
-    const a = pressed();
+    const a = currentAction();
     if (a.forte1 > a.castForte[0]!) addStat(Stat.AddForte1, -(a.forte1 - a.castForte[0]!));
-    if (isAureole() || runningAction(Gavel)) { addStat(Stat.MulMv, 110); addStat(Stat.AddOfftune, 25200); }
+    if (isAureole() || runningAction(Gavel)) {
+      addStat(Stat.MulMv, 110);
+      // a flat 25,200 a press, on its first hit
+      if (currentAction().hitIndex <= 0) addStat(Stat.AddOfftune, 25200);
+    }
     if (runningAction(IchorDeposit)) addStat(Stat.MulMv, 110);
   },
 });
@@ -290,7 +294,7 @@ const GOLDEN_RULE = new Buff({
   name: "Luuk: Golden Rule",
   updateBuffs: () => {
     if (!casting(Cast.Intro)) return;
-    addToCast({ forte1: 200, concerto: 12 });
+    addToCast({ forte1: 20000, concerto: 1200 });
     revokeCurrent(GOLDEN_RULE);
   },
 });
@@ -349,16 +353,17 @@ const LUUK_RESONATOR = new Resonator({
   weapon: WeaponType.Gauntlets,
   color: "#ddb246",
   intro: Intro,
-  tuneBreak: tuneBreak(94, 94, 70, [[72, 1600]]),
-  maxEnergy: 125,
-  maxForte1: 300,
+  tuneBreak: tuneBreak(94, 94, 70, [[72, 160000]]),
+  maxEnergy: 12500,
+  forteScale: [0.01, 1, 1, 1, 1],
+  maxForte1: 30000,
 
   // his kit raises the target's Tune Strain - Interfered limit by 1 on top of the base 1; Golden
   // Rule is armed from the start so his first Intro is brought in the same way every later one is
   combatStart: () => { maxStackIncrease(TUNE_STRAIN_INTERFERED, 1); applyCurrent(GOLDEN_RULE, 1); applyCurrent(LK_STRAIN_PAYOUT, 1); },
 
   updateBuffs: () => {
-    if (forte1() >= 300) applyCurrent(AUREATE_JUDGE, 1);
+    if (forte1() >= 30000) applyCurrent(AUREATE_JUDGE, 1);
   },
 
   stats: [
@@ -466,20 +471,20 @@ const MA23 = new ActionGroup("Mid-air - Scythe: Dissection 23", [MA2, MA3]);
 const Jump23 = new ActionGroup("Mid-air - Scythe: Resection 23", [MA2R, MA3R]);
 
 const LK_ROTATION = new Rotation([
-  START_3, Skill.cancel(), Liberation, Skill.instaSwap(),
+  START_LAST, Skill.cancel(), Liberation, Skill.instaSwap(),
 
   INTRO, Jump23.cancel(), Ring, GoldenImpale,
   Jump123.cancel(), Breach, GoldenImpale,
-  Jump123.cancel(), Glare.easyCancel(), Gavel.cancel(),
+  Jump123.cancel(), Glare.mashCancel(), Gavel.cancel(),
   Liberation, Skill.instaSwap(), Outro,
 ]);
 
 const LK_ROTATION_16s = new Rotation([
-  START_3, Liberation, Skill, Skill.instaSwap(),
+  START_LAST, Liberation, Skill, Skill.instaSwap(),
   
   INTRO, Jump23.cancel(), Ring, GoldenImpale,
   Jump123.cancel(), Breach, GoldenImpale,
-  Jump123.cancel(), Glare.easyCancel(), Gavel.cancel(),
+  Jump123.cancel(), Glare.mashCancel(), Gavel.cancel(),
   Liberation, Jump123.cancel(), Ring.instaSwap(), Outro,
 ]);
 

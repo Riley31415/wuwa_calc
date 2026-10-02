@@ -85,8 +85,8 @@ import {
   pressed,
   addToCast,
 } from "../../engine/context.js";
-import { Action, ActionField, ActionGroup, Rotation, ECHO, NOINTRO, ActionTag, INTRO, START_3, DOUBLE_INTRO } from "../../engine/rotation.js";
-import { UNISON, UNISON_BOON, UNISON_RESPONSE, grantBoon, respondToUnison, boonPayout, unisonIntro, unisonOutro, unisonResponse } from "../../shared/unison.js";
+import { Action, ActionField, ActionGroup, Rotation, ECHO, NOINTRO, ActionTag, INTRO, START_LAST, DOUBLE_INTRO, INTRO_OPENER } from "../../engine/rotation.js";
+import { UNISON, UNISON_BOON, UNISON_RESPONSE, BOON_REACTOR, grantBoon, respondToUnison, unisonIntro, unisonOutro, unisonResponse } from "../../shared/unison.js";
 import { ELECTRO_FLARE, ELECTRO_RAGE, FLARE_RETAINED, inflictElectroFlare } from "../../shared/status.js";
 import { BLOOMING_JADEHAVEN, FREEZE_FRAME, LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";
 import { COSMIC_RIPPLES } from "../../weapons/standard.js";
@@ -121,120 +121,120 @@ const flareHit = (name: string, mul: () => number, def: object = {}, source: (()
 //     banks Answering Heart, and only these do.
 // PLACEHOLDER FRAMES
 const BA1 = hsinAction("Basic - Answering Form 1", { animFrames: 30, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 16, mv: 27.84, energy: 0.5, concerto: 0.8, offtune: 1600 },
-    { hitFrame: 16, mv: 41.76, energy: 0.75, concerto: 1.2, offtune: 2400, forte1: 7.08 },
+    { hitFrame: 16, mv: 2784, energy: 50, concerto: 80, offtune: 1600 },
+    { hitFrame: 16, mv: 4176, energy: 75, concerto: 120, offtune: 2400, forte1: 708 },
   ]});
 // PLACEHOLDER FRAMES
 const BA2 = hsinAction("Basic - Answering Form 2", { animFrames: 64, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 42, mv: 15.15, energy: 0.2751, concerto: 0.4372, offtune: 870.9449 },
-    { hitFrame: 42, mv: 15.15, energy: 0.2751, concerto: 0.4372, offtune: 870.9449 },
-    { hitFrame: 42, mv: 68.14, energy: 1.2374, concerto: 1.9663, offtune: 3917.2401 },
-    { hitFrame: 42, mv: 53, energy: 0.9624, concerto: 1.5293, offtune: 3046.8701, forte1: 15.4 },
+    { hitFrame: 42, mv: 1515, energy: 28, concerto: 44, offtune: 871 },
+    { hitFrame: 42, mv: 1515, energy: 28, concerto: 44, offtune: 871 },
+    { hitFrame: 42, mv: 6814, energy: 123, concerto: 196, offtune: 3917 },
+    { hitFrame: 42, mv: 5300, energy: 96, concerto: 153, offtune: 3047, forte1: 1540 },
   ]});
 // PLACEHOLDER FRAMES
 const BA3 = hsinAction("Basic - Answering Form 3", { animFrames: 66, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 12, mv: 31.51, energy: 0.57, concerto: 0.48, offtune: 960.0609 },
-    { hitFrame: 12, mv: 31.51, energy: 0.57, concerto: 0.48, offtune: 960.0609 },
-    { hitFrame: 12, mv: 23.63, energy: 0.4275, concerto: 0.36, offtune: 719.9695 },
-    { hitFrame: 12, mv: 23.63, energy: 0.4275, concerto: 0.36, offtune: 719.9695 },
-    { hitFrame: 12, mv: 47.26, energy: 0.855, concerto: 0.72, offtune: 1439.9392, forte1: 8.51 },
+    { hitFrame: 12, mv: 3151, energy: 57, concerto: 48, offtune: 960 },
+    { hitFrame: 12, mv: 3151, energy: 57, concerto: 48, offtune: 960 },
+    { hitFrame: 12, mv: 2363, energy: 43, concerto: 36, offtune: 720 },
+    { hitFrame: 12, mv: 2363, energy: 43, concerto: 36, offtune: 720 },
+    { hitFrame: 12, mv: 4726, energy: 85, concerto: 72, offtune: 1440, forte1: 851 },
   ]});
 // PLACEHOLDER FRAMES
 const BA4 = hsinAction("Basic - Answering Form 4", { animFrames: 89, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 77, mv: 39.72, energy: 0.718, concerto: 1.5701, offtune: 3134.7578 },
-    { hitFrame: 77, mv: 39.72, energy: 0.718, concerto: 1.5701, offtune: 3134.7578 },
-    { hitFrame: 77, mv: 119.15, energy: 2.154, concerto: 4.7098, offtune: 9403.4844, forte1: 27.7 },
+    { hitFrame: 77, mv: 3972, energy: 72, concerto: 157, offtune: 3135 },
+    { hitFrame: 77, mv: 3972, energy: 72, concerto: 157, offtune: 3135 },
+    { hitFrame: 77, mv: 11915, energy: 215, concerto: 471, offtune: 9403, forte1: 2770 },
   ]});
 // PLACEHOLDER FRAMES
 const HA = hsinAction("Heavy - Answering Form", { animFrames: 44, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
-    { hitFrame: 44, commitFrame: 0, mv: 10.28, energy: 0.1861, concerto: 0.3001, offtune: 590.8299 },
-    { hitFrame: 44, commitFrame: 0, mv: 20.55, energy: 0.372, concerto: 0.5999, offtune: 1181.0851 },
-    { hitFrame: 44, commitFrame: 0, mv: 10.28, energy: 0.1861, concerto: 0.3001, offtune: 590.8299 },
-    { hitFrame: 44, commitFrame: 0, mv: 20.55, energy: 0.372, concerto: 0.5999, offtune: 1181.0851 },
-    { hitFrame: 44, commitFrame: 0, mv: 20.55, energy: 0.372, concerto: 0.5999, offtune: 1181.0851 },
-    { hitFrame: 44, commitFrame: 0, mv: 20.55, energy: 0.3718, concerto: 0.6001, offtune: 1181.0849, forte1: 10.46 },
+    { hitFrame: 44, commitFrame: 0, mv: 1028, energy: 19, concerto: 30, offtune: 591 },
+    { hitFrame: 44, commitFrame: 0, mv: 2055, energy: 37, concerto: 60, offtune: 1181 },
+    { hitFrame: 44, commitFrame: 0, mv: 1028, energy: 19, concerto: 30, offtune: 591 },
+    { hitFrame: 44, commitFrame: 0, mv: 2055, energy: 37, concerto: 60, offtune: 1181 },
+    { hitFrame: 44, commitFrame: 0, mv: 2055, energy: 37, concerto: 60, offtune: 1181 },
+    { hitFrame: 44, commitFrame: 0, mv: 2055, energy: 37, concerto: 60, offtune: 1181, forte1: 1046 },
   ]});
-const MA = hsinAction("Mid-air - Answering Form Plunge", { animFrames: 58, bullets: [{ hitFrame: 40, mv: 22.44, energy: 0.41, concerto: 0.65, offtune: 2080, forte1: 2.28 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
+const MA = hsinAction("Mid-air - Answering Form Plunge", { animFrames: 58, bullets: [{ hitFrame: 40, mv: 2244, energy: 41, concerto: 65, offtune: 2080, forte1: 228 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
 // PLACEHOLDER FRAMES
 const ReignHold = hsinAction("Heavy - Answering Form: Reign at Ease (Mid-Air)", { node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
-    { hitFrame: 0, mv: 27.84, energy: 0.5, concerto: 0.8, offtune: 1600 },
-    { hitFrame: 0, mv: 27.84, energy: 0.5, concerto: 0.8, offtune: 1600 },
-    { hitFrame: 0, mv: 27.84, energy: 0.5, concerto: 0.8, offtune: 1600 },
-    { hitFrame: 0, mv: 27.84, energy: 0.5, concerto: 0.8, offtune: 1600 },
-    { hitFrame: 0, mv: 27.84, energy: 0.5, concerto: 0.8, offtune: 1600 },
-    { hitFrame: 0, mv: 27.84, energy: 0.5, concerto: 0.8, offtune: 1600 },
-    { hitFrame: 0, mv: 27.84, energy: 0.5, concerto: 0.8, offtune: 1600 },
-    { hitFrame: 0, mv: 27.84, energy: 0.5, concerto: 0.8, offtune: 1600 },
-    { hitFrame: 0, mv: 27.84, energy: 0.5, concerto: 0.8, offtune: 1600 },
-    { hitFrame: 0, mv: 27.84, energy: 0.5, concerto: 0.8, offtune: 1600 },
-    { hitFrame: 0, mv: 27.84, energy: 0.5, concerto: 0.8, offtune: 1600 },
-    { hitFrame: 0, mv: 27.84, energy: 0.5, concerto: 0.8, offtune: 1600 },
-    { hitFrame: 0, mv: 27.84, energy: 0.5, concerto: 0.8, offtune: 1600 },
-    { hitFrame: 0, mv: 27.84, energy: 0.5, concerto: 0.8, offtune: 1600 },
-    { hitFrame: 0, mv: 27.84, energy: 0.5, concerto: 0.8, offtune: 1600 },
-    { hitFrame: 0, mv: 27.84, energy: 0.5, concerto: 0.8, offtune: 1600 },
-    { hitFrame: 0, mv: 27.84, energy: 0.5, concerto: 0.8, offtune: 1600 },
-    { hitFrame: 0, mv: 27.84, energy: 0.5, concerto: 0.8, offtune: 1600 },
-    { hitFrame: 0, mv: 27.84, energy: 0.5, concerto: 0.8, offtune: 1600 },
-    { hitFrame: 0, mv: 27.84, energy: 0.5, concerto: 0.8, offtune: 1600 },
-    { hitFrame: 0, mv: 27.84, energy: 0.5, concerto: 0.8, offtune: 1600 },
-    { hitFrame: 0, mv: 27.84, energy: 0.5, concerto: 0.8, offtune: 1600 },
-    { hitFrame: 0, mv: 27.84, energy: 0.5, concerto: 0.8, offtune: 1600 },
-    { hitFrame: 0, mv: 27.84, energy: 0.5, concerto: 0.8, offtune: 1600 },
-    { hitFrame: 0, mv: 27.84, energy: 0.5, concerto: 0.8, offtune: 1600, forte1: 76.5 },
+    { hitFrame: 0, mv: 2784, energy: 50, concerto: 80, offtune: 1600 },
+    { hitFrame: 0, mv: 2784, energy: 50, concerto: 80, offtune: 1600 },
+    { hitFrame: 0, mv: 2784, energy: 50, concerto: 80, offtune: 1600 },
+    { hitFrame: 0, mv: 2784, energy: 50, concerto: 80, offtune: 1600 },
+    { hitFrame: 0, mv: 2784, energy: 50, concerto: 80, offtune: 1600 },
+    { hitFrame: 0, mv: 2784, energy: 50, concerto: 80, offtune: 1600 },
+    { hitFrame: 0, mv: 2784, energy: 50, concerto: 80, offtune: 1600 },
+    { hitFrame: 0, mv: 2784, energy: 50, concerto: 80, offtune: 1600 },
+    { hitFrame: 0, mv: 2784, energy: 50, concerto: 80, offtune: 1600 },
+    { hitFrame: 0, mv: 2784, energy: 50, concerto: 80, offtune: 1600 },
+    { hitFrame: 0, mv: 2784, energy: 50, concerto: 80, offtune: 1600 },
+    { hitFrame: 0, mv: 2784, energy: 50, concerto: 80, offtune: 1600 },
+    { hitFrame: 0, mv: 2784, energy: 50, concerto: 80, offtune: 1600 },
+    { hitFrame: 0, mv: 2784, energy: 50, concerto: 80, offtune: 1600 },
+    { hitFrame: 0, mv: 2784, energy: 50, concerto: 80, offtune: 1600 },
+    { hitFrame: 0, mv: 2784, energy: 50, concerto: 80, offtune: 1600 },
+    { hitFrame: 0, mv: 2784, energy: 50, concerto: 80, offtune: 1600 },
+    { hitFrame: 0, mv: 2784, energy: 50, concerto: 80, offtune: 1600 },
+    { hitFrame: 0, mv: 2784, energy: 50, concerto: 80, offtune: 1600 },
+    { hitFrame: 0, mv: 2784, energy: 50, concerto: 80, offtune: 1600 },
+    { hitFrame: 0, mv: 2784, energy: 50, concerto: 80, offtune: 1600 },
+    { hitFrame: 0, mv: 2784, energy: 50, concerto: 80, offtune: 1600 },
+    { hitFrame: 0, mv: 2784, energy: 50, concerto: 80, offtune: 1600 },
+    { hitFrame: 0, mv: 2784, energy: 50, concerto: 80, offtune: 1600 },
+    { hitFrame: 0, mv: 2784, energy: 50, concerto: 80, offtune: 1600, forte1: 7650 },
   ]});
-const ReignPlunge = hsinAction("Mid-air - Answering Form: Reign at Ease Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 22.44, energy: 0.41, concerto: 0.65, offtune: 2080, forte1: 2.28 });
+const ReignPlunge = hsinAction("Mid-air - Answering Form: Reign at Ease Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 2244, energy: 41, concerto: 65, offtune: 2080, forte1: 228 }] });
 // PLACEHOLDER FRAMES
 const DC = hsinAction("Dodge Counter - Answering Form", { animFrames: 61, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
-    { hitFrame: 38, mv: 44.98, energy: 0.812, concerto: 1.296, offtune: 2586 },
-    { hitFrame: 38, mv: 44.98, energy: 0.812, concerto: 1.296, offtune: 2586 },
-    { hitFrame: 38, mv: 67.47, energy: 1.218, concerto: 1.944, offtune: 3879 },
-    { hitFrame: 38, mv: 67.47, energy: 1.218, concerto: 1.944, offtune: 3879, forte1: 22.86 },
-  ], castConcerto: 10});
+    { hitFrame: 38, mv: 4498, energy: 81, concerto: 130, offtune: 2586 },
+    { hitFrame: 38, mv: 4498, energy: 81, concerto: 130, offtune: 2586 },
+    { hitFrame: 38, mv: 6747, energy: 122, concerto: 194, offtune: 3879 },
+    { hitFrame: 38, mv: 6747, energy: 122, concerto: 194, offtune: 3879, forte1: 2286 },
+  ], castConcerto: 1000});
 // PLACEHOLDER FRAMES
 const Skill = hsinAction("Skill - Answering Form", { animFrames: 95, cooldown: 60 * 12, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
-    { hitFrame: 69, mv: 25.06, energy: 0.45, concerto: 0.36, offtune: 1440.0575 },
-    { hitFrame: 69, mv: 25.06, energy: 0.45, concerto: 0.36, offtune: 1440.0575 },
-    { hitFrame: 69, mv: 25.06, energy: 0.45, concerto: 0.36, offtune: 1440.0575 },
-    { hitFrame: 69, mv: 16.71, energy: 0.3001, concerto: 0.2401, offtune: 960.2299 },
-    { hitFrame: 69, mv: 16.71, energy: 0.3001, concerto: 0.2401, offtune: 960.2299 },
-    { hitFrame: 69, mv: 58.46, energy: 1.0498, concerto: 0.8398, offtune: 3359.3677, forte1: 8.52 },
+    { hitFrame: 69, mv: 2506, energy: 45, concerto: 36, offtune: 1440 },
+    { hitFrame: 69, mv: 2506, energy: 45, concerto: 36, offtune: 1440 },
+    { hitFrame: 69, mv: 2506, energy: 45, concerto: 36, offtune: 1440 },
+    { hitFrame: 69, mv: 1671, energy: 30, concerto: 24, offtune: 960 },
+    { hitFrame: 69, mv: 1671, energy: 30, concerto: 24, offtune: 960 },
+    { hitFrame: 69, mv: 5846, energy: 105, concerto: 84, offtune: 3360, forte1: 852 },
   ],
   updateBuffs: () => {
-    if (stacksOfTeam(HEART_OF_THUNDER) > 0) queue(AnsweringThunderHit);
+    if (stacksOfTeam(HEART_OF_THUNDER) > 0) queue(AnsweringThunderHit, Skill.animFrames);
   },
 });
 
 // --- Answering Form: Realm Wanderer at 100 Answering Heart, Realm Protector when Resolution of
 //     Wishes (once per 24s — every visit) is spent on it. Both Skill DMG, both unlock Formshift.
 const REALM = {
-  node: Node.Forte, cast: Cast.Heavy, type: Type.Skill, concerto: 8.64, castForte1: -100,
+  node: Node.Forte, cast: Cast.Heavy, type: Type.Skill, concerto: 864, minForte1: 10000, castForte1: -10000,
   updateBuffs: () => applyCurrent(FORMSHIFT_UNLOCKED, 1),
 };
 // PLACEHOLDER FRAMES
 const RealmWanderer = hsinAction("Forte Heavy - Answering Form: Realm Wanderer", { animFrames: 122, ...REALM, bullets: [
-    { hitFrame: 106, mv: 45.65, energy: 0.4312, concerto: 0.6912, offtune: 1374.172 },
-    { hitFrame: 106, mv: 11.42, energy: 0.1079, concerto: 0.1729, offtune: 343.7688 },
-    { hitFrame: 106, mv: 11.42, energy: 0.1079, concerto: 0.1729, offtune: 343.7688 },
-    { hitFrame: 106, mv: 11.42, energy: 0.1079, concerto: 0.1729, offtune: 343.7688 },
-    { hitFrame: 106, mv: 11.42, energy: 0.1079, concerto: 0.1729, offtune: 343.7688 },
-    { hitFrame: 106, mv: 11.42, energy: 0.1079, concerto: 0.1729, offtune: 343.7688 },
-    { hitFrame: 106, mv: 11.42, energy: 0.1079, concerto: 0.1729, offtune: 343.7688 },
-    { hitFrame: 106, mv: 456.45, energy: 4.3114, concerto: 6.9114, offtune: 13740.2152 },
+    { hitFrame: 106, mv: 4565, energy: 43, concerto: 69, offtune: 1374 },
+    { hitFrame: 106, mv: 1142, energy: 11, concerto: 18, offtune: 344 },
+    { hitFrame: 106, mv: 1142, energy: 11, concerto: 18, offtune: 344 },
+    { hitFrame: 106, mv: 1142, energy: 11, concerto: 18, offtune: 344 },
+    { hitFrame: 106, mv: 1142, energy: 11, concerto: 18, offtune: 344 },
+    { hitFrame: 106, mv: 1142, energy: 11, concerto: 18, offtune: 344 },
+    { hitFrame: 106, mv: 1142, energy: 11, concerto: 18, offtune: 344 },
+    { hitFrame: 106, mv: 45645, energy: 430, concerto: 687, offtune: 13739 },
   ]});
 // PLACEHOLDER FRAMES
 const RealmProtector = hsinAction("Forte Heavy - Answering Form: Realm Protector", {
   animFrames: 122,
   ...REALM, bullets: [
-    { hitFrame: 107, mv: 99.32, energy: 1.0712, concerto: 0.6912, offtune: 5175.8084,
+    { hitFrame: 107, mv: 9932, energy: 107, concerto: 69, offtune: 5176,
       updateDebuffs: () => { if (isHeld(MODE_FLARE)) inflictElectroFlare(1); } },
-    { hitFrame: 107, mv: 24.83, energy: 0.2678, concerto: 0.1728, offtune: 1293.9521 },
-    { hitFrame: 107, mv: 24.83, energy: 0.2678, concerto: 0.1728, offtune: 1293.9521 },
-    { hitFrame: 107, mv: 24.83, energy: 0.2678, concerto: 0.1728, offtune: 1293.9521 },
-    { hitFrame: 107, mv: 24.83, energy: 0.2678, concerto: 0.1728, offtune: 1293.9521 },
-    { hitFrame: 107, mv: 24.83, energy: 0.2678, concerto: 0.1728, offtune: 1293.9521 },
-    { hitFrame: 107, mv: 24.83, energy: 0.2678, concerto: 0.1728, offtune: 1293.9521 },
-    { hitFrame: 107, mv: 993.15, energy: 10.712, concerto: 6.912, offtune: 51755.479 },
+    { hitFrame: 107, mv: 2483, energy: 27, concerto: 18, offtune: 1294 },
+    { hitFrame: 107, mv: 2483, energy: 27, concerto: 18, offtune: 1294 },
+    { hitFrame: 107, mv: 2483, energy: 27, concerto: 18, offtune: 1294 },
+    { hitFrame: 107, mv: 2483, energy: 27, concerto: 18, offtune: 1294 },
+    { hitFrame: 107, mv: 2483, energy: 27, concerto: 18, offtune: 1294 },
+    { hitFrame: 107, mv: 2483, energy: 27, concerto: 18, offtune: 1294 },
+    { hitFrame: 107, mv: 99315, energy: 1070, concerto: 687, offtune: 51755 },
   ],
 });
 
@@ -244,57 +244,57 @@ const collapseHeartlock = (): void => { if (isHeld(HEARTLOCK)) { revokeCurrent(H
 const COLLAPSE = { updateBuffs: collapseHeartlock };
 // PLACEHOLDER FRAMES
 const IBA1 = hsinAction("Basic - Illumining Form 1", { animFrames: 45, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 30, mv: 12.55, energy: 0.228, concerto: 0.366, offtune: 721.8 },
-    { hitFrame: 30, mv: 12.55, energy: 0.228, concerto: 0.366, offtune: 721.8 },
-    { hitFrame: 30, mv: 37.65, energy: 0.684, concerto: 1.098, offtune: 2165.4, forte2: 28.55 },
+    { hitFrame: 4, commitFrame: 0, mv: 1255, energy: 23, concerto: 37, offtune: 722 },
+    { hitFrame: 10, commitFrame: 0, mv: 1255, energy: 23, concerto: 37, offtune: 722 },
+    { hitFrame: 32, commitFrame: 0, mv: 3765, energy: 68, concerto: 109, offtune: 2165, forte2: 2855 },
   ], updateBuffs: () => applyCurrent(HEARTLOCK, 1) });
 // PLACEHOLDER FRAMES
 const IBA2 = hsinAction("Basic - Illumining Form 2", { animFrames: 30, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 18, mv: 34.8, energy: 0.63, concerto: 1, offtune: 2000 },
-    { hitFrame: 18, mv: 34.8, energy: 0.63, concerto: 1, offtune: 2000, forte2: 31.66 },
+    { hitFrame: 18, mv: 3480, energy: 63, concerto: 100, offtune: 2000 },
+    { hitFrame: 18, mv: 3480, energy: 63, concerto: 100, offtune: 2000, forte2: 3166 },
   ], ...COLLAPSE });
 // PLACEHOLDER FRAMES
 const IBA3 = hsinAction("Basic - Illumining Form 3", { animFrames: 98, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 53, mv: 9.11, energy: 0.1671, concerto: 0.2651, offtune: 523.7875 },
-    { hitFrame: 53, mv: 9.11, energy: 0.1671, concerto: 0.2651, offtune: 523.7875 },
-    { hitFrame: 53, mv: 9.11, energy: 0.1671, concerto: 0.2651, offtune: 523.7875 },
-    { hitFrame: 53, mv: 9.11, energy: 0.1671, concerto: 0.2651, offtune: 523.7875 },
-    { hitFrame: 53, mv: 18.21, energy: 0.334, concerto: 0.53, offtune: 1047 },
-    { hitFrame: 53, mv: 18.21, energy: 0.334, concerto: 0.53, offtune: 1047 },
-    { hitFrame: 53, mv: 27.31, energy: 0.5009, concerto: 0.7949, offtune: 1570.2125 },
-    { hitFrame: 53, mv: 27.31, energy: 0.5009, concerto: 0.7949, offtune: 1570.2125 },
-    { hitFrame: 53, mv: 27.31, energy: 0.5009, concerto: 0.7949, offtune: 1570.2125 },
-    { hitFrame: 53, mv: 27.31, energy: 0.5009, concerto: 0.7949, offtune: 1570.2125, forte2: 82.8 },
+    { hitFrame: 53, mv: 911, energy: 17, concerto: 27, offtune: 524 },
+    { hitFrame: 53, mv: 911, energy: 17, concerto: 27, offtune: 524 },
+    { hitFrame: 53, mv: 911, energy: 17, concerto: 27, offtune: 524 },
+    { hitFrame: 53, mv: 911, energy: 17, concerto: 27, offtune: 524 },
+    { hitFrame: 53, mv: 1821, energy: 33, concerto: 53, offtune: 1047 },
+    { hitFrame: 53, mv: 1821, energy: 33, concerto: 53, offtune: 1047 },
+    { hitFrame: 53, mv: 2731, energy: 50, concerto: 79, offtune: 1570 },
+    { hitFrame: 53, mv: 2731, energy: 50, concerto: 79, offtune: 1570 },
+    { hitFrame: 53, mv: 2731, energy: 50, concerto: 79, offtune: 1570 },
+    { hitFrame: 53, mv: 2731, energy: 50, concerto: 79, offtune: 1570, forte2: 8280 },
   ]});
 // PLACEHOLDER FRAMES
 const Heartlock = hsinAction("Basic - Illumining Form: Modular Heartlock", { animFrames: 7, node: Node.Normal, type: Type.Basic, bullets: [
-    { hitFrame: 7, commitFrame: 0, mv: 20.92, energy: 0.38, concerto: 0.61, offtune: 1203 },
-    { hitFrame: 7, commitFrame: 0, mv: 20.92, energy: 0.38, concerto: 0.61, offtune: 1203, forte2: 19.04 },
+    { hitFrame: 7, commitFrame: 0, mv: 2092, energy: 38, concerto: 61, offtune: 1203 },
+    { hitFrame: 7, commitFrame: 0, mv: 2092, energy: 38, concerto: 61, offtune: 1203, forte2: 1904 },
   ]});
 // PLACEHOLDER FRAMES
 const IHA = hsinAction("Heavy - Illumining Form", { animFrames: 43, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
-    { hitFrame: 32, mv: 53.93, energy: 0.97, concerto: 1.55, offtune: 3100 },
-    { hitFrame: 32, mv: 53.93, energy: 0.97, concerto: 1.55, offtune: 3100, forte2: 31.66 },
+    { hitFrame: 32, mv: 5393, energy: 97, concerto: 155, offtune: 3100 },
+    { hitFrame: 32, mv: 5393, energy: 97, concerto: 155, offtune: 3100, forte2: 3166 },
   ], ...COLLAPSE });
 // PLACEHOLDER FRAMES
 const UpwardCut = hsinAction("Basic - Illumining Form: Upward Cut", { animFrames: 38, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 34, mv: 35.03, energy: 0.632, concerto: 1.0121, offtune: 2014.115 },
-    { hitFrame: 34, mv: 52.54, energy: 0.948, concerto: 1.5179, offtune: 3020.885, forte2: 39.84 },
+    { hitFrame: 34, mv: 3503, energy: 63, concerto: 101, offtune: 2014 },
+    { hitFrame: 34, mv: 5254, energy: 95, concerto: 152, offtune: 3021, forte2: 3984 },
   ]});
 // PLACEHOLDER FRAMES
 const IMA = hsinAction("Mid-air - Illumining Form Plunge", { animFrames: 53, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 47, mv: 13.47, energy: 0.252, concerto: 0.39, offtune: 1248 },
-    { hitFrame: 47, mv: 8.98, energy: 0.168, concerto: 0.26, offtune: 832, forte2: 10.22 },
+    { hitFrame: 47, mv: 1347, energy: 25, concerto: 39, offtune: 1248 },
+    { hitFrame: 47, mv: 898, energy: 17, concerto: 26, offtune: 832, forte2: 1022 },
   ]});
 // PLACEHOLDER FRAMES
 const IDC = hsinAction("Dodge Counter - Illumining Form", { animFrames: 43, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
-    { hitFrame: 32, mv: 95.68, energy: 1.72, concerto: 2.75, offtune: 5500 },
-    { hitFrame: 32, mv: 95.68, energy: 1.72, concerto: 2.75, offtune: 5500, forte2: 73.98 },
-  ], castConcerto: 10, ...COLLAPSE });
+    { hitFrame: 32, mv: 9568, energy: 172, concerto: 275, offtune: 5500 },
+    { hitFrame: 32, mv: 9568, energy: 172, concerto: 275, offtune: 5500, forte2: 7398 },
+  ], castConcerto: 1000, ...COLLAPSE });
 
 /** Either form's base Skill detonates the Flare: one Electro Flare DMG instance at 35% of the
- *  target's rung per Heart of Thunder she holds (42% at S1). The stacks are all cleared a moment
- *  after the cast. */
+ *  target's rung per Heart of Thunder she holds (42% at S1), landing where the Skill's whole
+ *  animation would end, cut or not. The stacks are cleared once it lands. */
 const thunderHit = (form: string): Action => flareHit(`Skill - ${form}: Heart of Thunder`,
   () => (isHeld(HS_S1) ? 42 : 35) * stacksOfTeam(HEART_OF_THUNDER) - 100,
   { afterAction: () => revokeTeam(HEART_OF_THUNDER) }, () => HEART_OF_THUNDER);
@@ -305,15 +305,15 @@ const AnsweringThunderHit = thunderHit("Answering Form");
 // PLACEHOLDER FRAMES
 const ISkill = hsinAction("Skill - Illumining Form", { animFrames: 100, cooldown: 60 * 20,
   node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
-    { hitFrame: 90, mv: 11.14, energy: 0.2001, concerto: 0.3201, offtune: 640.2874 },
-    { hitFrame: 90, mv: 11.14, energy: 0.2001, concerto: 0.3201, offtune: 640.2874 },
-    { hitFrame: 90, mv: 11.14, energy: 0.2001, concerto: 0.3201, offtune: 640.2874 },
-    { hitFrame: 90, mv: 11.14, energy: 0.2001, concerto: 0.3201, offtune: 640.2874 },
-    { hitFrame: 90, mv: 178.14, energy: 3.1996, concerto: 5.1196, offtune: 10238.8504, forte2: 114.49 },
+    { hitFrame: 90, mv: 1114, energy: 20, concerto: 32, offtune: 640 },
+    { hitFrame: 90, mv: 1114, energy: 20, concerto: 32, offtune: 640 },
+    { hitFrame: 90, mv: 1114, energy: 20, concerto: 32, offtune: 640 },
+    { hitFrame: 90, mv: 1114, energy: 20, concerto: 32, offtune: 640 },
+    { hitFrame: 90, mv: 17814, energy: 320, concerto: 512, offtune: 10240, forte2: 11449 },
   ],
   updateBuffs: () => {
     collapseHeartlock();
-    if (stacksOfTeam(HEART_OF_THUNDER) > 0) queue(ThunderHit);
+    if (stacksOfTeam(HEART_OF_THUNDER) > 0) queue(ThunderHit, ISkill.animFrames);
   },
 });
 
@@ -332,96 +332,97 @@ const PillarsAligned = hsinAction("Forte Skill - Illumining Form: Pillars Aligne
   cooldown: 60 * 12,
   node: Node.Forte, cast: Cast.Skill, type: Type.Skill, bullets: [
     {
-      hitFrame: 122, mv: 179.43, energy: 1.026, concerto: 2.6339, offtune: 3253.5275,
+      hitFrame: 122, mv: 17943, energy: 102, concerto: 263, offtune: 3253,
       updateDebuffs: () => {
         if (isHeld(MODE_FLARE)) inflictElectroFlare(5);
         pillarFlare();
       },
     },
-    { hitFrame: 122, mv: 179.43, energy: 1.026, concerto: 2.6339, offtune: 3253.5275 },
-    { hitFrame: 122, mv: 179.43, energy: 1.026, concerto: 2.6339, offtune: 3253.5275 },
-    { hitFrame: 122, mv: 179.43, energy: 1.026, concerto: 2.6339, offtune: 3253.5275 },
-    { hitFrame: 122, mv: 17.95, energy: 0.1026, concerto: 0.2635, offtune: 325.4797 },
-    { hitFrame: 122, mv: 35.89, energy: 0.2052, concerto: 0.5268, offtune: 650.778 },
-    { hitFrame: 122, mv: 35.89, energy: 0.2052, concerto: 0.5268, offtune: 650.778 },
-    { hitFrame: 122, mv: 44.86, energy: 0.2565, concerto: 0.6585, offtune: 813.4272 },
-    { hitFrame: 122, mv: 44.86, energy: 0.2565, concerto: 0.6588, offtune: 813.4271 },
+    { hitFrame: 122, mv: 17943, energy: 102, concerto: 263, offtune: 3253 },
+    { hitFrame: 122, mv: 17943, energy: 102, concerto: 263, offtune: 3253 },
+    { hitFrame: 122, mv: 17943, energy: 102, concerto: 263, offtune: 3253 },
+    { hitFrame: 122, mv: 1795, energy: 11, concerto: 27, offtune: 326 },
+    { hitFrame: 122, mv: 3589, energy: 21, concerto: 53, offtune: 651 },
+    { hitFrame: 122, mv: 3589, energy: 21, concerto: 53, offtune: 651 },
+    { hitFrame: 122, mv: 4486, energy: 26, concerto: 66, offtune: 814 },
+    { hitFrame: 122, mv: 4486, energy: 26, concerto: 66, offtune: 814 },
   ],
   // the gauge lands on exactly 300 whatever it stood at
-  resetForte2: true, castForte2: 300,
+  resetForte2: true, castForte2: 30000,
   updateBuffs: () => applyCurrent(MECHANISM_DOMINION, 1),
 });
 // PLACEHOLDER FRAMES
 const FBA1 = hsinAction("Basic - Illumining Form: Pillars Aligned 1", { animFrames: 35, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 12, mv: 28.86, energy: 0.52, concerto: 0.83, offtune: 1659,
+    { hitFrame: 12, mv: 2886, energy: 52, concerto: 83, offtune: 1659,
       ...PILLAR_FLARE },
-    { hitFrame: 12, mv: 28.86, energy: 0.52, concerto: 0.83, offtune: 1659 },
-    { hitFrame: 12, mv: 28.86, energy: 0.52, concerto: 0.83, offtune: 1659 },
-  ], castForte2: -59.16});
+    { hitFrame: 12, mv: 2886, energy: 52, concerto: 83, offtune: 1659 },
+    { hitFrame: 12, mv: 2886, energy: 52, concerto: 83, offtune: 1659 },
+  ], castForte2: -5916});
 // PLACEHOLDER FRAMES
 const FBA2 = hsinAction("Basic - Illumining Form: Pillars Aligned 2", { animFrames: 49, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 15, mv: 38.23, energy: 0.69, concerto: 1.1, offtune: 2198,
+    { hitFrame: 15, mv: 3823, energy: 69, concerto: 110, offtune: 2198,
       ...PILLAR_FLARE },
-    { hitFrame: 15, mv: 38.23, energy: 0.69, concerto: 1.1, offtune: 2198 },
-    { hitFrame: 15, mv: 38.23, energy: 0.69, concerto: 1.1, offtune: 2198 },
-  ], castForte2: -78.36});
+    { hitFrame: 15, mv: 3823, energy: 69, concerto: 110, offtune: 2198 },
+    { hitFrame: 15, mv: 3823, energy: 69, concerto: 110, offtune: 2198 },
+  ], castForte2: -7836});
 // PLACEHOLDER FRAMES
 const FBA3 = hsinAction("Basic - Illumining Form: Pillars Aligned 3", { animFrames: 46, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 39, mv: 21.35, energy: 0.39, concerto: 0.62, offtune: 1228,
+    { hitFrame: 39, mv: 2135, energy: 39, concerto: 62, offtune: 1228,
       ...PILLAR_FLARE },
-    { hitFrame: 39, mv: 21.35, energy: 0.39, concerto: 0.62, offtune: 1228 },
-    { hitFrame: 39, mv: 21.35, energy: 0.39, concerto: 0.62, offtune: 1228 },
-    { hitFrame: 39, mv: 21.35, energy: 0.39, concerto: 0.62, offtune: 1228 },
-    { hitFrame: 39, mv: 21.35, energy: 0.39, concerto: 0.62, offtune: 1228 },
-  ], castForte2: -72.95});
+    { hitFrame: 39, mv: 2135, energy: 39, concerto: 62, offtune: 1228 },
+    { hitFrame: 39, mv: 2135, energy: 39, concerto: 62, offtune: 1228 },
+    { hitFrame: 39, mv: 2135, energy: 39, concerto: 62, offtune: 1228 },
+    { hitFrame: 39, mv: 2135, energy: 39, concerto: 62, offtune: 1228 },
+  ], castForte2: -7295});
 // PLACEHOLDER FRAMES
 const FBA4 = hsinAction("Basic - Illumining Form: Pillars Aligned 4", { animFrames: 90, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 67, mv: 16.64, energy: 0.3, concerto: 0.4801, offtune: 956.1149,
+    { hitFrame: 67, mv: 1664, energy: 30, concerto: 48, offtune: 956,
       ...PILLAR_FLARE },
-    { hitFrame: 67, mv: 16.64, energy: 0.3, concerto: 0.4801, offtune: 956.1149 },
-    { hitFrame: 67, mv: 16.64, energy: 0.3, concerto: 0.4801, offtune: 956.1149 },
-    { hitFrame: 67, mv: 16.64, energy: 0.3, concerto: 0.4801, offtune: 956.1149 },
-    { hitFrame: 67, mv: 16.64, energy: 0.3, concerto: 0.4801, offtune: 956.1149 },
-    { hitFrame: 67, mv: 16.64, energy: 0.3, concerto: 0.4801, offtune: 956.1149 },
-    { hitFrame: 67, mv: 16.64, energy: 0.3, concerto: 0.4801, offtune: 956.1149 },
-    { hitFrame: 67, mv: 49.9, energy: 0.9, concerto: 1.4393, offtune: 2867.1957 },
-  ], castForte2: -113.68});
+    { hitFrame: 67, mv: 1664, energy: 30, concerto: 48, offtune: 956 },
+    { hitFrame: 67, mv: 1664, energy: 30, concerto: 48, offtune: 956 },
+    { hitFrame: 67, mv: 1664, energy: 30, concerto: 48, offtune: 956 },
+    { hitFrame: 67, mv: 1664, energy: 30, concerto: 48, offtune: 956 },
+    { hitFrame: 67, mv: 1664, energy: 30, concerto: 48, offtune: 956 },
+    { hitFrame: 67, mv: 1664, energy: 30, concerto: 48, offtune: 956 },
+    { hitFrame: 67, mv: 4990, energy: 90, concerto: 144, offtune: 2868, forte2: -11368 },
+  ]});
 // PLACEHOLDER FRAMES
 const FADC = hsinAction("Dodge Counter - Illumining Form: Pillars Aligned", { animFrames: 49, node: Node.Forte, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
-    { hitFrame: 15, mv: 66.07, energy: 1.19, concerto: 5.2333, offtune: 3798,
+    { hitFrame: 15, mv: 6607, energy: 119, concerto: 190, offtune: 3798,
       ...PILLAR_FLARE },
-    { hitFrame: 15, mv: 66.07, energy: 1.19, concerto: 5.2333, offtune: 3798 },
-    { hitFrame: 15, mv: 66.07, energy: 1.19, concerto: 5.2334, offtune: 3798 },
-  ]});
+    { hitFrame: 15, mv: 6607, energy: 119, concerto: 190, offtune: 3798 },
+    { hitFrame: 15, mv: 6607, energy: 119, concerto: 190, offtune: 3798 },
+  ], castConcerto: 1000});
 const FBA1234 = new ActionGroup("Basic - Illumining Form: Pillars Aligned 1234", [FBA1, FBA2, FBA3, FBA4]);
 const FBA123 = new ActionGroup("Basic - Illumining Form: Pillars Aligned 123", [FBA1, FBA2, FBA3]);
 const FBA12 = new ActionGroup("Basic - Illumining Form: Pillars Aligned 12", [FBA1, FBA2]);
 const BA1234 = new ActionGroup("Basic - Answering Form 1234", [BA1, BA2, BA3, BA4]);
 
 // --- Illumining Form: Beholding All Horizons once the Heart is spent, Stilling when Law of Heaven
-//     (once per 24s — every visit) is spent on it. Both end Dominion and unlock Pillars Across Heaven.
+//     (once per 24s — every visit) is spent on it. Both need the Heart at 0 or below, clear it,
+//     end Dominion and unlock Pillars Across Heaven.
 const HORIZONS = {
-  node: Node.Forte, cast: Cast.Heavy, type: Type.Skill, resetForte2: true,
+  node: Node.Forte, cast: Cast.Heavy, type: Type.Skill, maxForte2: 0, resetForte2: true,
   updateBuffs: () => { revokeCurrent(MECHANISM_DOMINION); applyCurrent(PILLARS_UNLOCKED, 1); },
 };
 // PLACEHOLDER FRAMES
 const Beholding = hsinAction("Forte Heavy - Illumining Form: Beholding All Horizons", { animFrames: 150, timestop: 150, motionStop: 150, prioFrames: 150, ...HORIZONS, bullets: [
-    { hitFrame: 150, mv: 10.27, energy: 0.0523, offtune: 2.5501 },
-    { hitFrame: 150, mv: 10.27, energy: 0.0523, offtune: 2.5501 },
-    { hitFrame: 150, mv: 10.27, energy: 0.0523, offtune: 2.5501 },
-    { hitFrame: 150, mv: 10.27, energy: 0.0523, offtune: 2.5501 },
-    { hitFrame: 150, mv: 369.7, energy: 1.8808, offtune: 91.7996 },
+    { hitFrame: 150, mv: 1027, energy: 6, offtune: 3 },
+    { hitFrame: 150, mv: 1027, energy: 6, offtune: 3 },
+    { hitFrame: 150, mv: 1027, energy: 6, offtune: 3 },
+    { hitFrame: 150, mv: 1027, energy: 6, offtune: 3 },
+    { hitFrame: 150, mv: 36970, energy: 185, offtune: 90 },
   ]});
 // PLACEHOLDER FRAMES
 const FHA = hsinAction("Forte Heavy - Illumining Form: Stilling All Horizons", {
   animFrames: 150, timestop: 150, motionStop: 150, prioFrames: 150,
   ...HORIZONS, bullets: [
-    { hitFrame: 150, mv: 27.05, energy: 0.3524, offtune: 1188.3405,
+    { hitFrame: 150, mv: 2705, energy: 36, offtune: 1188,
       updateDebuffs: () => { if (isHeld(MODE_FLARE)) inflictElectroFlare(5); } },
-    { hitFrame: 150, mv: 27.05, energy: 0.3524, offtune: 1188.3405 },
-    { hitFrame: 150, mv: 27.05, energy: 0.3524, offtune: 1188.3405 },
-    { hitFrame: 150, mv: 27.05, energy: 0.3524, offtune: 1188.3405 },
-    { hitFrame: 150, mv: 973.49, energy: 12.6804, offtune: 42766.638 },
+    { hitFrame: 150, mv: 2705, energy: 36, offtune: 1188 },
+    { hitFrame: 150, mv: 2705, energy: 36, offtune: 1188 },
+    { hitFrame: 150, mv: 2705, energy: 36, offtune: 1188 },
+    { hitFrame: 150, mv: 97349, energy: 1265, offtune: 42768 },
   ],
 });
 
@@ -429,7 +430,7 @@ const FHA = hsinAction("Forte Heavy - Illumining Form: Stilling All Horizons", {
 const Lib1 = hsinAction("Liberation - Formshift", {
   animFrames: 254, timestop: 254, motionStop: 254, prioFrames: 254,
   cooldown: 60 * 25,
-  node: Node.Liberation, cast: Cast.Liberation, concerto: 20, resetForte2: true,
+  node: Node.Liberation, cast: Cast.Liberation, concerto: 2000, resetForte2: true,
   // Flare mode: the Heart Manifest it opens pins the target's Flare at the cap, and forces it up
   // there the moment it starts — so her own 5 Flare all overflow into Electro Rage and bank as
   // Heart of Thunder through Forms Turn, Heart Abides (MODE_FLARE): 6 Flare, Formshift, 13 Flare
@@ -457,13 +458,13 @@ const Lib1 = hsinAction("Liberation - Formshift", {
 const Lib2 = hsinAction("Liberation - Pillars Across Heaven", {
   animFrames: 305, timestop: 302, motionStop: 302, prioFrames: 302,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Skill, bullets: [
-    { hitFrame: 302, mv: 80.51, concerto: 0.8, offtune: 1958.5578 },
-    { hitFrame: 302, mv: 90.57, concerto: 0.9, offtune: 2203.2864 },
-    { hitFrame: 302, mv: 60.38, concerto: 0.6, offtune: 1468.8576 },
-    { hitFrame: 302, mv: 100.64, concerto: 1.0001, offtune: 2448.2581 },
-    { hitFrame: 302, mv: 70.45, concerto: 0.7001, offtune: 1713.8293 },
-    { hitFrame: 302, mv: 1610.12, concerto: 15.9998, offtune: 39169.2108, updateDebuffs: () => { if (isHeld(HS_S3) && isHeld(MODE_FLARE) && stacksOfEnemy(ELECTRO_FLARE) > 0) queue(PillarsFlare); } },
-  ], resetEnergy: true,
+    { hitFrame: 302, mv: 8051, offtune: 1959 },
+    { hitFrame: 302, mv: 9057, offtune: 2204 },
+    { hitFrame: 302, mv: 6038, offtune: 1469 },
+    { hitFrame: 302, mv: 10064, offtune: 2448 },
+    { hitFrame: 302, mv: 7045, offtune: 1714 },
+    { hitFrame: 302, mv: 161012, offtune: 39168, updateDebuffs: () => { if (isHeld(HS_S3) && isHeld(MODE_FLARE) && stacksOfEnemy(ELECTRO_FLARE) > 0) queue(PillarsFlare); } },
+  ], castConcerto: 2000, resetEnergy: true,
   updateBuffs: () => {
     revokeCurrent(PILLARS_UNLOCKED); revokeCurrent(ILLUMINING_FORM); revokeCurrent(HEART_MANIFEST);
     revokeTeam(THUNDERGLOW); revokeCurrent(PILLAR_CHARGES); revokeEnemy(FLEETING_THUNDER);
@@ -475,7 +476,7 @@ const Lib2 = hsinAction("Liberation - Pillars Across Heaven", {
  *  Resonance Liberation DMG. */
 const SANCTUM = new ActionField("Hsin: Manifold Sanctum");
 const SoaringPillar = hsinAction("Liberation - Soaring Pillar", {
-  tag: ActionTag.Field, type: Type.Liberation, subtype: Subtype.Coordinated, mv: 11.37, field: SANCTUM,
+  tag: ActionTag.Field, type: Type.Liberation, subtype: Subtype.Coordinated, bullets: [{ hitFrame: 0, mv: 1137 }], field: SANCTUM,
 });
 
 // --- intros: the Flare-mode forms, then the Unison mode's own four — its plain pair, and the
@@ -495,13 +496,13 @@ const UIntro = hsinAction("Intro - Answering Form", {
   animFrames: 44, motionStop: 14, prioFrames: 14,
 
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
-    { hitFrame: 44, mv: 10.28, energy: 0.7503, concerto: 0.3001, offtune: 590.8299 },
-    { hitFrame: 44, mv: 20.55, energy: 1.4999, concerto: 0.5999, offtune: 1181.0851 },
-    { hitFrame: 44, mv: 10.28, energy: 0.7503, concerto: 0.3001, offtune: 590.8299 },
-    { hitFrame: 44, mv: 20.55, energy: 1.4999, concerto: 0.5999, offtune: 1181.0851 },
-    { hitFrame: 44, mv: 20.55, energy: 1.4999, concerto: 0.5999, offtune: 1181.0851 },
-    { hitFrame: 44, mv: 20.55, energy: 1.4997, concerto: 0.6001, offtune: 1181.0849, forte1: 68.38 },
-  ], castConcerto: 10,
+    { hitFrame: 44, mv: 1028, energy: 75, concerto: 30, offtune: 591 },
+    { hitFrame: 44, mv: 2055, energy: 150, concerto: 60, offtune: 1181 },
+    { hitFrame: 44, mv: 1028, energy: 75, concerto: 30, offtune: 591 },
+    { hitFrame: 44, mv: 2055, energy: 150, concerto: 60, offtune: 1181 },
+    { hitFrame: 44, mv: 2055, energy: 150, concerto: 60, offtune: 1181 },
+    { hitFrame: 44, mv: 2055, energy: 150, concerto: 60, offtune: 1181, forte1: 6838 },
+  ], castConcerto: 1000,
 });
 // PLACEHOLDER FRAMES
 const ManifoldAnswering = hsinAction("Intro - Answering Form: Manifold Unison", {
@@ -509,29 +510,29 @@ const ManifoldAnswering = hsinAction("Intro - Answering Form: Manifold Unison", 
   animFrames: 44, motionStop: 14, prioFrames: 14,
 
   node: Node.Intro, cast: Cast.Intro, type: Type.Skill, bullets: [
-    { hitFrame: 44, mv: 60.59, energy: 0.75, concerto: 0.3, offtune: 590.6 },
-    { hitFrame: 44, mv: 121.18, energy: 1.5, concerto: 0.6, offtune: 1181.2 },
-    { hitFrame: 44, mv: 60.59, energy: 0.75, concerto: 0.3, offtune: 590.6 },
-    { hitFrame: 44, mv: 121.18, energy: 1.5, concerto: 0.6, offtune: 1181.2 },
-    { hitFrame: 44, mv: 121.18, energy: 1.5, concerto: 0.6, offtune: 1181.2 },
-    { hitFrame: 44, mv: 121.18, energy: 1.5, concerto: 0.6, offtune: 1181.2, forte1: 68.38 },
-  ], castConcerto: 10,
+    { hitFrame: 44, mv: 6059, energy: 75, concerto: 30, offtune: 591 },
+    { hitFrame: 44, mv: 12118, energy: 150, concerto: 60, offtune: 1181 },
+    { hitFrame: 44, mv: 6059, energy: 75, concerto: 30, offtune: 591 },
+    { hitFrame: 44, mv: 12118, energy: 150, concerto: 60, offtune: 1181 },
+    { hitFrame: 44, mv: 12118, energy: 150, concerto: 60, offtune: 1181 },
+    { hitFrame: 44, mv: 12118, energy: 150, concerto: 60, offtune: 1181, forte1: 6838 },
+  ], castConcerto: 1000,
   ...MANIFOLD,
 });
 // PLACEHOLDER FRAMES
 const UIIntro = hsinAction("Intro - Illumining Form", {
   animFrames: 152, timestop: 30, motionStop: 152, prioFrames: 152,
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
-    { hitFrame: 152, mv: 56.59, energy: 1.5019, concerto: 1.6339, offtune: 3253.485 },
-    { hitFrame: 152, mv: 56.59, energy: 1.5019, concerto: 1.6339, offtune: 3253.485 },
-    { hitFrame: 152, mv: 56.59, energy: 1.5019, concerto: 1.6339, offtune: 3253.485 },
-    { hitFrame: 152, mv: 56.59, energy: 1.5019, concerto: 1.6339, offtune: 3253.485 },
-    { hitFrame: 152, mv: 5.66, energy: 0.1502, concerto: 0.1634, offtune: 325.406 },
-    { hitFrame: 152, mv: 11.32, energy: 0.3004, concerto: 0.3268, offtune: 650.812 },
-    { hitFrame: 152, mv: 11.32, energy: 0.3004, concerto: 0.3268, offtune: 650.812 },
-    { hitFrame: 152, mv: 14.15, energy: 0.3756, concerto: 0.4086, offtune: 813.515 },
-    { hitFrame: 152, mv: 14.15, energy: 0.3758, concerto: 0.4088, offtune: 813.515, forte2: 300 },
-  ], castConcerto: 10,
+    { hitFrame: 152, mv: 5659, energy: 150, concerto: 163, offtune: 3253 },
+    { hitFrame: 152, mv: 5659, energy: 150, concerto: 163, offtune: 3253 },
+    { hitFrame: 152, mv: 5659, energy: 150, concerto: 163, offtune: 3253 },
+    { hitFrame: 152, mv: 5659, energy: 150, concerto: 163, offtune: 3253 },
+    { hitFrame: 152, mv: 566, energy: 15, concerto: 17, offtune: 326 },
+    { hitFrame: 152, mv: 1132, energy: 30, concerto: 33, offtune: 651 },
+    { hitFrame: 152, mv: 1132, energy: 30, concerto: 33, offtune: 651 },
+    { hitFrame: 152, mv: 1415, energy: 38, concerto: 41, offtune: 814 },
+    { hitFrame: 152, mv: 1415, energy: 38, concerto: 41, offtune: 814, forte2: 30000 },
+  ], castConcerto: 1000,
   // lands straight in Mechanism Dominion at 300 Illumining Heart
   updateBuffs: () => applyCurrent(MECHANISM_DOMINION, 1),
 });
@@ -539,16 +540,16 @@ const UIIntro = hsinAction("Intro - Illumining Form", {
 const ManifoldIllumining = hsinAction("Intro - Illumining Form: Manifold Unison", {
   animFrames: 152, timestop: 30, motionStop: 152, prioFrames: 152,
   node: Node.Intro, cast: Cast.Intro, type: Type.Skill, bullets: [
-    { hitFrame: 152, mv: 157.22, energy: 1.5019, concerto: 2.6339, offtune: 3253.4758 },
-    { hitFrame: 152, mv: 157.22, energy: 1.5019, concerto: 2.6339, offtune: 3253.4758 },
-    { hitFrame: 152, mv: 157.22, energy: 1.5019, concerto: 2.6339, offtune: 3253.4758 },
-    { hitFrame: 152, mv: 157.22, energy: 1.5019, concerto: 2.6339, offtune: 3253.4758 },
-    { hitFrame: 152, mv: 15.73, energy: 0.1503, concerto: 0.2635, offtune: 325.5131 },
-    { hitFrame: 152, mv: 31.45, energy: 0.3004, concerto: 0.5269, offtune: 650.8193 },
-    { hitFrame: 152, mv: 31.45, energy: 0.3004, concerto: 0.5269, offtune: 650.8193 },
-    { hitFrame: 152, mv: 39.31, energy: 0.3755, concerto: 0.6586, offtune: 813.4724 },
-    { hitFrame: 152, mv: 39.31, energy: 0.3758, concerto: 0.6585, offtune: 813.4727, forte2: 300 },
-  ], castConcerto: 10,
+    { hitFrame: 152, mv: 15722, energy: 150, concerto: 263, offtune: 3253 },
+    { hitFrame: 152, mv: 15722, energy: 150, concerto: 263, offtune: 3253 },
+    { hitFrame: 152, mv: 15722, energy: 150, concerto: 263, offtune: 3253 },
+    { hitFrame: 152, mv: 15722, energy: 150, concerto: 263, offtune: 3253 },
+    { hitFrame: 152, mv: 1573, energy: 15, concerto: 27, offtune: 326 },
+    { hitFrame: 152, mv: 3145, energy: 30, concerto: 53, offtune: 651 },
+    { hitFrame: 152, mv: 3145, energy: 30, concerto: 53, offtune: 651 },
+    { hitFrame: 152, mv: 3931, energy: 38, concerto: 66, offtune: 814 },
+    { hitFrame: 152, mv: 3931, energy: 38, concerto: 66, offtune: 814, forte2: 30000 },
+  ], castConcerto: 1000,
   updateBuffs: () => {
     MANIFOLD.updateBuffs();
     applyCurrent(MECHANISM_DOMINION, 1);
@@ -560,13 +561,13 @@ const FlareIntro = hsinAction("Intro - Answering Form (Flare)", {
   animFrames: 66, motionStop: 39, prioFrames: 39,
 
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
-    { hitFrame: 66, mv: 7.88, energy: 0.5002, concerto: 0.7278, offtune: 453.0225,
+    { hitFrame: 66, mv: 788, energy: 50, concerto: 23, offtune: 453,
       updateDebuffs: () => { if (isHeld(MODE_FLARE)) inflictElectroFlare(1); } },
-    { hitFrame: 66, mv: 7.88, energy: 0.5002, concerto: 0.7278, offtune: 453.0225 },
-    { hitFrame: 66, mv: 7.88, energy: 0.5002, concerto: 0.7278, offtune: 453.0225 },
-    { hitFrame: 66, mv: 7.88, energy: 0.5002, concerto: 0.7278, offtune: 453.0225 },
-    { hitFrame: 66, mv: 126.02, energy: 7.9992, concerto: 11.6388, offtune: 7244.91, forte1: 74.97 },
-  ],
+    { hitFrame: 66, mv: 788, energy: 50, concerto: 23, offtune: 453 },
+    { hitFrame: 66, mv: 788, energy: 50, concerto: 23, offtune: 453 },
+    { hitFrame: 66, mv: 788, energy: 50, concerto: 23, offtune: 453 },
+    { hitFrame: 66, mv: 12602, energy: 800, concerto: 363, offtune: 7245, forte1: 7497 },
+  ], castConcerto: 1000,
 });
 // PLACEHOLDER FRAMES
 const FlareIIntro = hsinAction("Intro - Illumining Form (Flare)", {
@@ -574,22 +575,22 @@ const FlareIIntro = hsinAction("Intro - Illumining Form (Flare)", {
   animFrames: 98, motionStop: 18, prioFrames: 18,
 
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
-    { hitFrame: 98, mv: 11.42, energy: 0.5, concerto: 0.329, offtune: 656.7,
+    { hitFrame: 98, mv: 1142, energy: 50, concerto: 33, offtune: 657,
       updateDebuffs: () => { if (isHeld(MODE_FLARE)) inflictElectroFlare(1); } },
-    { hitFrame: 98, mv: 11.42, energy: 0.5, concerto: 0.329, offtune: 656.7 },
-    { hitFrame: 98, mv: 11.42, energy: 0.5, concerto: 0.329, offtune: 656.7 },
-    { hitFrame: 98, mv: 11.42, energy: 0.5, concerto: 0.329, offtune: 656.7 },
-    { hitFrame: 98, mv: 11.42, energy: 0.5, concerto: 0.329, offtune: 656.7 },
-    { hitFrame: 98, mv: 11.42, energy: 0.5, concerto: 0.329, offtune: 656.7 },
-    { hitFrame: 98, mv: 39.97, energy: 1.75, concerto: 1.1515, offtune: 2298.45 },
-    { hitFrame: 98, mv: 39.97, energy: 1.75, concerto: 1.1515, offtune: 2298.45 },
-    { hitFrame: 98, mv: 39.97, energy: 1.75, concerto: 1.1515, offtune: 2298.45 },
-    { hitFrame: 98, mv: 39.97, energy: 1.75, concerto: 1.1515, offtune: 2298.45, forte2: 51.96 },
-  ], castConcerto: 10,
+    { hitFrame: 98, mv: 1142, energy: 50, concerto: 33, offtune: 657 },
+    { hitFrame: 98, mv: 1142, energy: 50, concerto: 33, offtune: 657 },
+    { hitFrame: 98, mv: 1142, energy: 50, concerto: 33, offtune: 657 },
+    { hitFrame: 98, mv: 1142, energy: 50, concerto: 33, offtune: 657 },
+    { hitFrame: 98, mv: 1142, energy: 50, concerto: 33, offtune: 657 },
+    { hitFrame: 98, mv: 3997, energy: 175, concerto: 115, offtune: 2298 },
+    { hitFrame: 98, mv: 3997, energy: 175, concerto: 115, offtune: 2298 },
+    { hitFrame: 98, mv: 3997, energy: 175, concerto: 115, offtune: 2298 },
+    { hitFrame: 98, mv: 3997, energy: 175, concerto: 115, offtune: 2298, forte2: 5196 },
+  ], castConcerto: 1000,
 });
 const Outro = hsinAction("Outro - Herself a Thousand Lanterns", {
   animFrames: 0,
-  cast: Cast.Outro, type: Type.Outro, mv: 100, castConcerto: -100,
+  cast: Cast.Outro, type: Type.Outro, bullets: [{ hitFrame: 0, mv: 10000 }], minConcerto: 10000, castConcerto: -10000,
   updateBuffs: () => {
     if (!isHeld(NIGHTGLOW)) return;
     revokeCurrent(NIGHTGLOW); 
@@ -641,17 +642,12 @@ const MODE_FLARE = new ResonanceMode({ name: "Resonance Mode - Electro Flare",
   },
 });
 
-/** This kit's own carrier for the Unison Boon payout (shared/unison.ts's `boonPayout`). */
-const HS_BOON_PAYOUT = boonPayout();
-
-/** Resonance Mode - Unison: her own Unison Response hands the team a Unison Boon (once,
- *  refreshed after) and, as a responder, the Boon pays her; a teammate who gains a Unison of
- *  their own takes Shared Light, watched from her slot on every action. */
+/** Resonance Mode - Unison: she is a Unison Boon reactor, and her own Unison Response hands every
+ *  reactor a Unison Boon (once, refreshed after); a teammate who gains a Unison of their own takes
+ *  Shared Light, watched from her slot on every action. */
 const MODE_UNISON = new ResonanceMode({
   name: "Resonance Mode - Unison",
-  // the Boon is a count; the carrier the mode grants is what reads it and pays her for it, so the
-  // loadout hover traces the bonus back here (shared/unison.ts)
-  combatStart: () => { applyCurrent(HS_BOON_PAYOUT, 1); },
+  combatStart: () => { applyCurrent(BOON_REACTOR, 1); },
   updateBuffs: () => {
     if (unisonResponse()) grantBoon(HS_BOON_RESPONSE);
     if (casting(Cast.Intro)) applyCurrent(FORMSHIFT_UNISON, 1);
@@ -696,8 +692,8 @@ const MECHANISM_DOMINION = new Buff({
   name: "Hsin: Mechanism Dominion",
   duration: 60 * 13,
   applyStats: () => {
-    const a = pressed();
-    if (DOMINION_GATED.includes(a)) addStat(Stat.AddForte2, -(a.forte2 - a.castForte[1]!));
+    const a = currentAction();
+    if (DOMINION_GATED.includes(pressed())) addStat(Stat.AddForte2, -(a.forte2 - a.castForte[1]!));
   },
 });
 
@@ -708,7 +704,7 @@ const HEARTLOCK_PRIMED = new Buff({
   name: "Hsin: Formshift Extra Modular Heartlock",
   updateBuffs: () => {
     if (!runningAction(Heartlock)) return;
-    addToCast({ forte2: 150 });
+    addToCast({ forte2: 15000 });
     revokeCurrent(HEARTLOCK_PRIMED);
   },
 });
@@ -847,7 +843,7 @@ const HS_S1 = new Sequence({
     applyTeam(HEART_OF_THUNDER, 50);
   },
   applyStats: () => {
-    if (runningAction(ManifoldAnswering) || runningAction(ManifoldIllumining)) addStat(Stat.MulMv, 15 + 10 * Math.min(4, stacksOfTeam(UNISON_BOON)));
+    if (runningAction(ManifoldAnswering) || runningAction(ManifoldIllumining)) addStat(Stat.MulMv, 15 + 10 * Math.min(4, stacksOf(UNISON_BOON)));
   },
 });
 
@@ -858,7 +854,7 @@ const HS_S1 = new Sequence({
 const HS_S2 = new Sequence({
   name: "Hsin S2: To Wake Is to Wonder What I Am",
   combatStart: () => {
-    addForte1(100);
+    addForte1(10000);
   },
   applyStats: () => {
     if (runningAction(RealmWanderer) || runningAction(RealmProtector) || runningAction(Beholding) || runningAction(FHA)) addStat(Stat.MulMv, 60);
@@ -874,7 +870,7 @@ const HS_S3 = new Sequence({
   applyStats: () => {
     if (!runningAction(Lib2)) return;
     addStat(Stat.MulMv, 70);
-    if (isHeld(MODE_UNISON)) addStat(Stat.CritDmg, 20 + 15 * Math.min(4, stacksOfTeam(UNISON_BOON)));
+    if (isHeld(MODE_UNISON)) addStat(Stat.CritDmg, 20 + 15 * Math.min(4, stacksOf(UNISON_BOON)));
   },
 });
 
@@ -947,7 +943,7 @@ const HSIN_RESONATOR = new Resonator({
   // Answering Heart comes off an Answering Form hit only while she is the active resonator: a hit
   // landing after she has left (a swap-out's) banks none of its own
   applyStats: () => {
-    const a = pressed();
+    const a = currentAction();
     if (!isActive() && runningAnyOf(ANSWERING_HEART_HITS)) addStat(Stat.AddForte1, -(a.forte1 - a.castForte[0]!));
   },
   color: "#f1a49b",
@@ -957,9 +953,10 @@ const HSIN_RESONATOR = new Resonator({
       const manifold = unisonIntro() || isHeld(SOURCE_INTENT);
       return isHeld(ILLUMINING_FORM) ? (manifold ? ManifoldIllumining : UIIntro) : (manifold ? ManifoldAnswering : UIntro);
     } }),
-  maxEnergy: 125,
-  maxForte1: 100,
-  maxForte2: 300,
+  maxEnergy: 12500,
+  forteScale: [0.01, 0.01, 1, 1, 1],
+  maxForte1: 10000,
+  maxForte2: 30000,
 
 
   stats: [[Stat.BaseHp, 10300], [Stat.BaseAtk, 462.5], [Stat.BaseDef, 1112.2202]],
@@ -978,13 +975,19 @@ const BA34 = new ActionGroup("Basic - Answering Form 34", [BA3, BA4]);
 const OutroResolver = new Action("Outro Resolver", { cast: Cast.Outro, resolve: () => (isHeld(UNISON) ? OutroUnison : Outro) });
 
 const HS_ROTATION_FLARE = new Rotation([
-  INTRO, BA4.easyCancel(),
-  RealmProtector.easyCancel(), Lib1, ECHO, 
-  
-  ISkill,IBA12.easyCancel(), 
+  INTRO, BA4.holdCancel(),
+  RealmProtector.mashCancel(), Lib1, ECHO,
+  IBA1.instaCancel(), ISkill.mashCancel(),
   PillarsAligned, 
-  
-  FBA1234.cancel(), FHA,
+  FBA1234.holdCancel(), FHA,
+  Lib2, Skill.instaSwap(), OutroResolver,
+]);
+const HS_ROTATION_FLARE_S2 = new Rotation([
+  INTRO, BA4.holdCancel(), INTRO_OPENER,  
+  RealmProtector.mashCancel(), Lib1, ECHO,
+  IBA1.instaCancel(), ISkill.mashCancel(),
+  PillarsAligned, 
+  FBA1234.holdCancel(), FHA,
   Lib2, Skill.instaSwap(), OutroResolver,
 ]);
 
@@ -996,8 +999,17 @@ const HS_ROTATION_FLARE = new Rotation([
 // Leading, the Intro's 68 Answering Heart and its stages 1-2 are a full chain and then Stage 1-2
 // again, so the section's own Stage 3-4 continue it: 126 Heart into Realm Protector's 100.
 const HS_ROTATION_UNISON = new Rotation([
-  DOUBLE_INTRO, BA34.easyCancel(),
-  RealmProtector.easyCancel(), Lib1, OutroResolver,
+  DOUBLE_INTRO, BA34.holdCancel(),
+  RealmProtector.mashCancel(), Lib1, OutroResolver,
+
+  INTRO, 
+  ECHO, 
+  FBA1234, FHA,
+  Lib2, Skill.instaSwap(), OutroResolver,
+]);
+const HS_ROTATION_UNISON_S2 = new Rotation([
+  DOUBLE_INTRO, BA34.holdCancel(), INTRO_OPENER,  
+  RealmProtector.mashCancel(), Lib1, OutroResolver,
 
   INTRO, 
   ECHO, 
@@ -1016,7 +1028,7 @@ export const HSIN_FLARE = new Loadout({
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
   substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Skill, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
   highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Skill, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
-  rotation: HS_ROTATION_FLARE,
+  rotation: {0: HS_ROTATION_FLARE, 2: HS_ROTATION_FLARE_S2},
   mode: MODE_FLARE,
   sequences: HS_SEQUENCES,
 });
@@ -1028,7 +1040,7 @@ export const HSIN_UNISON = new Loadout({
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
   substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Skill, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
   highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Basic),
-  rotation: HS_ROTATION_UNISON,
+  rotation: {0: HS_ROTATION_UNISON, 2: HS_ROTATION_UNISON_S2},
   mode: MODE_UNISON,
   sequences: HS_SEQUENCES,
 });

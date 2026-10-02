@@ -236,9 +236,21 @@ export const enum BuffTarget { Self, Team, Enemy, Next }
 
 /** Cast identities with no damage type of their own (a Dodge Counter deals whatever `type` says);
  *  kept out of `Type` so they can't be reached for `type`/`subtype` by mistake. */
-/** Frames an animation runs on past the point it was cut: an insta cut's, an easy cancel's and a
- *  plain (dodge, jump, on-hit) cancel's — and the handoff a swap costs the resonator coming in. */
-export const INSTA_DELAY = 6, EASY_DELAY = 6, CANCEL_DELAY = 12, SWAP_DELAY = 15;
+/** Frames an animation runs on past the point it was cut: an insta cut's, a mash cancel's and a
+ *  plain (dodge, jump, on-hit) cancel's — and the handoff a swap costs the resonator coming in.
+ *  `HOLD_DELAY` is the least a hold cancel plays of its press before letting go. */
+export const INSTA_DELAY = 6, MASH_DELAY = 6, HOLD_DELAY = 15, CANCEL_DELAY = 12, SWAP_DELAY = 12;
+
+/** The units every number of these is held in, whole: energy and concerto in hundredths of a point,
+ *  a motion value in hundredths of a percent (10000 a 1x multiplier), off-tune in ten-thousandths.
+ *  A forte gauge's is its Resonator's own `forteScale`. */
+export const ENERGY_UNIT = 100, CONCERTO_UNIT = 100, MV_UNIT = 100;
+/** A full Concerto bar. */
+export const FULL_CONCERTO = 100 * CONCERTO_UNIT;
+/** What a stat's value is divided by to read in points (or percent): the ones held in a resource's
+ *  own units — AddMv, AddEnergy, AddConcerto. 1 for every other. */
+export const statDisplayScale = (stat: Stat | EnemyStat): number =>
+  stat === Stat.AddMv ? MV_UNIT : stat === Stat.AddEnergy ? ENERGY_UNIT : stat === Stat.AddConcerto ? CONCERTO_UNIT : 1;
 
 /** An action's one tag — the one its row carries, and what `cancelCost()` charges. Whether its
  *  owner is on field is the engine's (`State.onField`), not the tag's: a `Field` row reads FIELD
@@ -248,7 +260,8 @@ export enum ActionTag {
   Field = "field",
   Cancel = "cancel",
   
-  EasyCancel = "easy cancel", // cancel with less delay
+  MashCancel = "mash cancel", // the next press mashed in on the cancel frame
+  HoldCancel = "hold cancel", // the next press held through it, coming out once the bars pay for it
   DodgeCancel = "dodge cancel",
   JumpCancel = "jump cancel",
   SwapCancel = "swap cancel",

@@ -28,8 +28,9 @@ import {
   frozenStacks,
   queueOutro,
   queueOn,
+  addToCast,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, NOINTRO, ECHO, START_3, INTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, NOINTRO, ECHO, START_LAST, INTRO } from "../../engine/rotation.js";
 import { TRAGICOMEDY } from "../../weapons/gauntlet.js";
 import { NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
 import { NM_HERON, MIDNIGHT_VEIL_5PC } from "../../echoes/rinascita.js";
@@ -44,57 +45,57 @@ function rocciaAction(id: string, def: object): Action {
 }
 
 // --- basics, mid-air, dodge counter (Pero, Easy)
-const BA1 = rocciaAction("Basic - Pero, Easy 1", { animFrames: 29, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 73.18, energy: 1.09, concerto: 3.47, offtune: 3464, forte1: 19 });
+const BA1 = rocciaAction("Basic - Pero, Easy 1", { animFrames: 29, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 29, mv: 7318, energy: 109, concerto: 347, offtune: 3464, forte1: 19 }] });
 // PLACEHOLDER FRAMES
 const BA2 = rocciaAction("Basic - Pero, Easy 2", { animFrames: 60, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 15, mv: 38.14, energy: 0.57, concerto: 1.81, offtune: 1806 },
-    { hitFrame: 15, mv: 38.14, energy: 0.57, concerto: 1.81, offtune: 1806 },
-    { hitFrame: 15, mv: 38.14, energy: 0.57, concerto: 1.81, offtune: 1806, forte1: 33 },
+    { hitFrame: 15, mv: 3814, energy: 57, concerto: 181, offtune: 1806 },
+    { hitFrame: 15, mv: 3814, energy: 57, concerto: 181, offtune: 1806 },
+    { hitFrame: 15, mv: 3814, energy: 57, concerto: 181, offtune: 1806, forte1: 33 },
   ]});
 // PLACEHOLDER FRAMES
 const BA3 = rocciaAction("Basic - Pero, Easy 3", { animFrames: 60, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 60, mv: 33.8, energy: 0.5, concerto: 1.6, offtune: 1600 },
-    { hitFrame: 60, mv: 33.8, energy: 0.5, concerto: 1.6, offtune: 1600 },
-    { hitFrame: 60, mv: 101.4, energy: 1.5, concerto: 4.8, offtune: 4800, forte1: 49 },
+    { hitFrame: 60, mv: 3380, energy: 50, concerto: 160, offtune: 1600 },
+    { hitFrame: 60, mv: 3380, energy: 50, concerto: 160, offtune: 1600 },
+    { hitFrame: 60, mv: 10140, energy: 150, concerto: 480, offtune: 4800, forte1: 49 },
   ]});
 // PLACEHOLDER FRAMES
 const BA4 = rocciaAction("Basic - Pero, Easy 4", { animFrames: 76, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 39, mv: 104.19, energy: 1.55, concerto: 4.94, offtune: 4932 },
-    { hitFrame: 39, mv: 104.19, energy: 1.55, concerto: 4.94, offtune: 4932, forte1: 100 },
+    { hitFrame: 39, mv: 10419, energy: 155, concerto: 494, offtune: 4932 },
+    { hitFrame: 39, mv: 10419, energy: 155, concerto: 494, offtune: 4932, forte1: 100 },
   ]});
-const MA = rocciaAction("Mid-air - Pero, Easy Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 104.78, energy: 1.55, concerto: 4.96, offtune: 4960, forte1: 38 });
+const MA = rocciaAction("Mid-air - Pero, Easy Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 10478, energy: 155, concerto: 496, offtune: 4960, forte1: 38 }] });
 // PLACEHOLDER FRAMES
 const DC = rocciaAction("Dodge Counter - Pero, Easy", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
-    { hitFrame: 0, mv: 68.9, energy: 0.52, concerto: 1.67, offtune: 1662 },
-    { hitFrame: 0, mv: 68.9, energy: 0.52, concerto: 1.67, offtune: 1662 },
-    { hitFrame: 0, mv: 68.9, energy: 0.52, concerto: 1.67, offtune: 1662 },
-  ], castConcerto: 10});
+    { hitFrame: 0, mv: 6890, energy: 52, concerto: 167, offtune: 1662 },
+    { hitFrame: 0, mv: 6890, energy: 52, concerto: 167, offtune: 1662 },
+    { hitFrame: 0, mv: 6890, energy: 52, concerto: 167, offtune: 1662 },
+  ], castConcerto: 1000});
 
 // hitting with 100+ Imagination also launches Beyond Imagination — a second way in besides Skill
-const HA = rocciaAction("Heavy - Pero, Easy", { animFrames: 152, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, mv: 168.99, energy: 2.50, concerto: 8, offtune: 8000, forte1: 100 });
+const HA = rocciaAction("Heavy - Pero, Easy", { animFrames: 152, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 152, mv: 16899, energy: 250, concerto: 800, offtune: 8000, forte1: 100 }] });
 
 // pulls in targets and always launches Beyond Imagination
 // PLACEHOLDER FRAMES
 const Skill = rocciaAction("Skill - Acrobatic Trick", { animFrames: 90, cooldown: 60 * 10, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
-    { hitFrame: 66, mv: 61.47, energy: 1.75, offtune: 1374 },
-    { hitFrame: 66, mv: 61.47, energy: 1.75, offtune: 1374 },
-    { hitFrame: 66, mv: 61.47, energy: 1.75, offtune: 1374 },
-    { hitFrame: 66, mv: 61.47, energy: 1.75, offtune: 1374 },
-    { hitFrame: 66, mv: 61.47, energy: 1.75, offtune: 1374 },
-    { hitFrame: 66, mv: 61.47, energy: 1.75, offtune: 1374 },
-    { hitFrame: 66, mv: 61.47, energy: 1.75, offtune: 1374 },
-    { hitFrame: 66, mv: 61.47, energy: 1.75, offtune: 1374, forte1: 100 },
-  ], castConcerto: 20});
+    { hitFrame: 66, mv: 6147, energy: 175, offtune: 1374 },
+    { hitFrame: 66, mv: 6147, energy: 175, offtune: 1374 },
+    { hitFrame: 66, mv: 6147, energy: 175, offtune: 1374 },
+    { hitFrame: 66, mv: 6147, energy: 175, offtune: 1374 },
+    { hitFrame: 66, mv: 6147, energy: 175, offtune: 1374 },
+    { hitFrame: 66, mv: 6147, energy: 175, offtune: 1374 },
+    { hitFrame: 66, mv: 6147, energy: 175, offtune: 1374 },
+    { hitFrame: 66, mv: 6147, energy: 175, offtune: 1374, forte1: 100 },
+  ], castConcerto: 2000});
 
 // Real Fantasy: 100 Imagination is spent once, on the first hit, not a per-stage cost
-const FBA1 = rocciaAction("Forte Basic - Real Fantasy 1", { animFrames: 51, node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, mv: 322.08, energy: 8, castConcerto: 10, offtune: 7200, castForte1: -100});
-const FBA2 = rocciaAction("Forte Basic - Real Fantasy 2", { animFrames: 62, node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, mv: 339.97, energy: 8, castConcerto: 16, offtune: 7600, castForte1: -100});
-const FBA3 = rocciaAction("Forte Basic - Real Fantasy 3", { animFrames: 42, node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, mv: 357.86, energy: 8, concerto: 25, offtune: 8000, castForte1: -100});
+const FBA1 = rocciaAction("Forte Basic - Real Fantasy 1", { animFrames: 51, node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, bullets: [{ hitFrame: 51, mv: 32208, energy: 800, offtune: 7200 }], castConcerto: 1000, castForte1: -100});
+const FBA2 = rocciaAction("Forte Basic - Real Fantasy 2", { animFrames: 62, node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, bullets: [{ hitFrame: 62, mv: 33997, energy: 800, offtune: 7600 }], castConcerto: 1600, castForte1: -100});
+const FBA3 = rocciaAction("Forte Basic - Real Fantasy 3", { animFrames: 42, node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, bullets: [{ hitFrame: 42, mv: 35786, energy: 800, concerto: 2500, offtune: 8000 }], castForte1: -100});
 
 /** S6: the Basic in Beyond Imagination after Stage 3 lands within 12s of the Liberation — 100% of
  *  Stage 3's DMG, Heavy DMG, its own nanoka row (357.86%, energy 1.2, off-tune 8000; no Concerto
  *  Regen row, so none), no Imagination spent — she relaunches off every landing. */
-const RealityRecreation = rocciaAction("Basic - Reality Recreation (S6)", { animFrames: 42, node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, mv: 357.86, energy: 1.2, offtune: 8000 });
+const RealityRecreation = rocciaAction("Basic - Reality Recreation (S6)", { animFrames: 42, node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, bullets: [{ hitFrame: 42, mv: 35786, energy: 120, offtune: 8000 }] });
 
 // Resonance Cost 125 (maxEnergy below) is nanoka's own declared cost, not the migrated sheet's 0
 // PLACEHOLDER FRAMES
@@ -102,23 +103,23 @@ const Liberation = rocciaAction("Liberation - Commedia Improvviso!", {
   animFrames: 60, timestop: 60, motionStop: 60, prioFrames: 60,
   cooldown: 60 * 20,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Heavy, bullets: [
-    { hitFrame: 60, mv: 278.34, offtune: 32000 },
-    { hitFrame: 60, mv: 278.34, offtune: 32000 },
-    { hitFrame: 60, mv: 278.34, offtune: 32000 },
-  ], castConcerto: 20, resetEnergy: true,
+    { hitFrame: 60, mv: 27834, offtune: 32000 },
+    { hitFrame: 60, mv: 27834, offtune: 32000 },
+    { hitFrame: 60, mv: 27834, offtune: 32000 },
+  ], castConcerto: 2000, resetEnergy: true,
   updateBuffs: () => applyTeam(COMMEDIA_TEAM_ATK),
 });
 
-const Intro = rocciaAction("Intro - Pero, Help", { animFrames: 56, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 168.99, energy: 10, concerto: 10, offtune: 10824, forte1: 100 });
+const Intro = rocciaAction("Intro - Pero, Help", { animFrames: 56, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 56, mv: 16899, energy: 1000, offtune: 10824, forte1: 100 }], castConcerto: 1000 });
 const Outro = rocciaAction("Outro - Applause, Please!", {
-  cast: Cast.Outro, castConcerto: -100,
+  cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000,
   updateBuffs: () => queueOutro(APPLAUSE_HANDOFF),
 });
 
 /** 100 flat Havoc DMG, Utility damage type, DMG-bonus-immune (Scaling.Fixed reads no stat/buff).
  *  Queued once by ROCCIA_RESONATOR's own kit on the recipient's own next Intro — see updateGlobal() below. */
 const MAGIC_BOX = rocciaAction("Utility - Super Attractive Magic Box", {
-  cast: Cast.Echo, type: Type.Utility, scaling: Scaling.Fixed, mv: 100,
+  cast: Cast.Echo, type: Type.Utility, scaling: Scaling.Fixed, bullets: [{ hitFrame: 0, mv: 10000 }],
 });
 
 /* ------------------------------------------------------------------------------------ buffs */
@@ -183,7 +184,7 @@ const ROCCIA_RESONATOR = new Resonator({
   weapon: WeaponType.Gauntlets,
   color: "#9634b2",
   intro: Intro,
-  maxEnergy: 125,
+  maxEnergy: 12500,
   maxForte1: 300,
 
   stats: [[Stat.BaseHp, 12250], [Stat.BaseAtk, 375], [Stat.BaseDef, 1197.7756]],
@@ -197,7 +198,9 @@ function realFantasy(): boolean { return runningAction(FBA1) || runningAction(FB
  *  in this line (Intro + Stage 4 + Skill already fill the 300); the Concerto counts. */
 const RC_S1 = new Sequence({
   name: "Roccia S1: When Shadows Engulf the Hull",
-  applyStats: () => { if (runningAction(Skill)) { addStat(Stat.AddForte1, 100); addStat(Stat.AddConcerto, 10); } },
+  updateBuffs: () => {
+    if (runningAction(Skill)) addToCast({ forte1: 100, concerto: 1000 });
+  },
 });
 
 /** S2: +10% Havoc DMG Bonus to the team a Real Fantasy cast, three stacks, and 10% more at the
@@ -315,6 +318,7 @@ const ROCCIA_MATRIX_TEAM = new Buff({
 });
 
 export const ROCCIA = new Loadout({
+  minCritRate: 70,
   resonator: ROCCIA_RESONATOR,
   weapons: [TRAGICOMEDY, NEW_STD_GAUNTLET, ABYSS_SURGES],
   echoLoadouts: [
@@ -330,6 +334,7 @@ export const ROCCIA = new Loadout({
 });
 
 export const ROCCIA_MDPS = new Loadout({
+  minCritRate: 70,
   resonator: ROCCIA_RESONATOR,
   weapons: [TRAGICOMEDY, NEW_STD_GAUNTLET, ABYSS_SURGES],
   echoLoadouts: [

@@ -29,6 +29,7 @@ import {
   queue,
   onCast,
   isHeld,
+  addToCast,
 } from "../../engine/context.js";
 import { ActionGroup, Action, ActionField, Cooldown, Rotation, NOINTRO, ECHO, INTRO } from "../../engine/rotation.js";
 import { tuneBreak } from "../../shared/tunebreak.js";
@@ -49,80 +50,80 @@ function ciacconaAction(id: string, def: object): Action {
 
 // --- basics, heavy/aimed, mid-air, dodge counter. Stage 4 is the one that matters: it banks a
 //     segment of Musical Essence (forte1), inflicts Aero Erosion, and opens the Solo Concert.
-const BA1 = ciacconaAction("Basic - Quadruple Time Steps 1", { animFrames: 18, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 10, mv: 57.06, energy: 0.88, concerto: 2.8, offtune: 2800 }]});
+const BA1 = ciacconaAction("Basic - Quadruple Time Steps 1", { animFrames: 18, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 10, mv: 5706, energy: 88, concerto: 280, offtune: 2800 }]});
 const BA2 = ciacconaAction("Basic - Quadruple Time Steps 2", { animFrames: 63, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 19, mv: 48.91, energy: 0.75, concerto: 2.4, offtune: 2400 },
-    { hitFrame: 41, mv: 24.46, energy: 0.38, concerto: 1.2, offtune: 1200 },
-    { hitFrame: 47, mv: 24.46, energy: 0.38, concerto: 1.2, offtune: 1200 },
-    { hitFrame: 56, mv: 65.21, energy: 1, concerto: 3.2, offtune: 3200 },
+    { hitFrame: 19, mv: 4891, energy: 75, concerto: 240, offtune: 2400 },
+    { hitFrame: 41, mv: 2446, energy: 38, concerto: 120, offtune: 1200 },
+    { hitFrame: 47, mv: 2446, energy: 38, concerto: 120, offtune: 1200 },
+    { hitFrame: 56, mv: 6521, energy: 100, concerto: 320, offtune: 3200 },
   ]});
 const BA3 = ciacconaAction("Basic - Quadruple Time Steps 3", { animFrames: 42, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 14, mv: 33.02, energy: 0.51, concerto: 1.62, offtune: 1620 },
-    { hitFrame: 28, mv: 33.02, energy: 0.51, concerto: 1.62, offtune: 1620 },
-    { hitFrame: 34, commitFrame: 30, mv: 33.02, energy: 0.51, concerto: 1.62, offtune: 1620 },
-    { hitFrame: 36, commitFrame: 30, mv: 33.02, energy: 0.51, concerto: 1.62, offtune: 1620 },
+    { hitFrame: 14, mv: 3302, energy: 51, concerto: 162, offtune: 1620 },
+    { hitFrame: 28, mv: 3302, energy: 51, concerto: 162, offtune: 1620 },
+    { hitFrame: 34, commitFrame: 30, mv: 3302, energy: 51, concerto: 162, offtune: 1620 },
+    { hitFrame: 36, commitFrame: 30, mv: 3302, energy: 51, concerto: 162, offtune: 1620 },
   ]});
 // Stage 4, Harmonic Allegro, Quadruple Downbeat and the Intro each lay one Aero Erosion
 const EROSION = { updateDebuffs: () => applyEnemy(AERO_EROSION, 1) };
 const BA4 = ciacconaAction("Basic - Quadruple Time Steps 4", {
   animFrames: 90,
   node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 18, commitFrame: 0, mv: 61.14, energy: 0.15, concerto: 3, offtune: 3000,
+    { hitFrame: 18, commitFrame: 0, mv: 6114, energy: 94, concerto: 300, offtune: 3000,
       ...EROSION },
-    { hitFrame: 26, commitFrame: 0, mv: 61.14, energy: 0.15, concerto: 3, offtune: 3000 },
-    { hitFrame: 34, commitFrame: 0, mv: 61.14, energy: 0.15, concerto: 3, offtune: 3000 },
-    { hitFrame: 67, commitFrame: 0, mv: 61.14, energy: 0.15, concerto: 3, offtune: 3000 },
-  ], castEnergy: 3.16, castForte1: 1,
+    { hitFrame: 26, commitFrame: 0, mv: 6114, energy: 94, concerto: 300, offtune: 3000 },
+    { hitFrame: 34, commitFrame: 0, mv: 6114, energy: 94, concerto: 300, offtune: 3000 },
+    { hitFrame: 67, commitFrame: 0, mv: 6114, energy: 94, concerto: 300, offtune: 3000 },
+  ], castForte1: 1,
   updateBuffs: () => applyTeam(SOLO_CONCERT, 1),
 });
 
 /** S6: one 220% hit as the Solo Concert opens, counted as Resonance Liberation DMG — not a row on
  *  the kit page, so it banks no energy, concerto or off-tune. */
-const SoloConcertS6 = ciacconaAction("Basic - Solo Concert (S6)", { node: Node.Normal, type: Type.Liberation, mv: 220 });
+const SoloConcertS6 = ciacconaAction("Basic - Solo Concert (S6)", { node: Node.Normal, type: Type.Liberation, bullets: [{ hitFrame: 0, mv: 22000 }] });
 
-const HA = ciacconaAction("Heavy - Attack", { node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, mv: 107.60, energy: 1.65, concerto: 5.28, offtune: 5280 });
-const AimedShot = ciacconaAction("Heavy - Aimed Shot", { node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, mv: 32.61, energy: 0.5, concerto: 1.6, offtune: 1600 });
-const ChargedShot = ciacconaAction("Heavy - Fully Charged Aimed Shot", { node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, mv: 73.37, energy: 1.13, concerto: 3.6, offtune: 3600 });
-const MA1 = ciacconaAction("Mid-air - Attack 1", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 110.86, energy: 1.7, concerto: 5.44, offtune: 5440 });
-const MA2 = ciacconaAction("Mid-air - Attack 2", { animFrames: 60, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 97.84, energy: 1.52, concerto: 4.8, offtune: 4800 });
+const HA = ciacconaAction("Heavy - Attack", { node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 10760, energy: 165, concerto: 528, offtune: 5280 }] });
+const AimedShot = ciacconaAction("Heavy - Aimed Shot", { node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 3261, energy: 50, concerto: 160, offtune: 1600 }] });
+const ChargedShot = ciacconaAction("Heavy - Fully Charged Aimed Shot", { node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 7337, energy: 113, concerto: 360, offtune: 3600 }] });
+const MA1 = ciacconaAction("Mid-air - Attack 1", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 11086, energy: 170, concerto: 544, offtune: 5440 }] });
+const MA2 = ciacconaAction("Mid-air - Attack 2", { animFrames: 60, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 60, mv: 9784, energy: 152, concerto: 480, offtune: 4800 }] });
 const DC = ciacconaAction("Dodge Counter - Quadruple Time Steps", { animFrames: 42, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
-    { hitFrame: 14, mv: 57.17, energy: 0.51, concerto: 4.12, offtune: 1620 },
-    { hitFrame: 28, mv: 57.17, energy: 0.51, concerto: 4.12, offtune: 1620 },
-    { hitFrame: 28, mv: 57.17, energy: 0.51, concerto: 4.12, offtune: 1620 },
-    { hitFrame: 30, mv: 57.17, energy: 0.51, concerto: 4.12, offtune: 1620 },
-  ]});
+    { hitFrame: 14, mv: 5717, energy: 51, concerto: 162, offtune: 1620 },
+    { hitFrame: 28, mv: 5717, energy: 51, concerto: 162, offtune: 1620 },
+    { hitFrame: 28, mv: 5717, energy: 51, concerto: 162, offtune: 1620 },
+    { hitFrame: 30, mv: 5717, energy: 51, concerto: 162, offtune: 1620 },
+  ], castConcerto: 1000});
 
 // S3 "gains 1 more charge" on the 10s cooldown
 const SKILL_CD = new Cooldown({ frames: 60 * 10, charges: () => (isHeld(CI_S3) ? 2 : 1) });
 const Skill = ciacconaAction("Skill - Harmonic Allegro", { animFrames: 39, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
-    { hitFrame: 12, mv: 40.39, energy: 2.4, offtune: 1250,
+    { hitFrame: 12, mv: 4039, energy: 240, offtune: 1250,
       ...EROSION },
-    { hitFrame: 12, mv: 40.39, energy: 2.4, offtune: 1250 },
-    { hitFrame: 24, mv: 40.39, energy: 2.4, offtune: 1250 },
-    { hitFrame: 36, mv: 40.39, energy: 2.4, offtune: 1250 },
-  ], castConcerto: 15});
+    { hitFrame: 12, mv: 4039, energy: 240, offtune: 1250 },
+    { hitFrame: 24, mv: 4039, energy: 240, offtune: 1250 },
+    { hitFrame: 36, mv: 4039, energy: 240, offtune: 1250 },
+  ], castConcerto: 1500});
 
 /** Forte Circuit: replaces the Heavy Attack at 3 segments and spends all of them. */
-const Downbeat = ciacconaAction("Forte Heavy - Quadruple Downbeat", { animFrames: 75, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
-    { hitFrame: 45, mv: 31.41, energy: 0.75, offtune: 468,
+const Downbeat = ciacconaAction("Forte Heavy - Quadruple Downbeat", { minForte1: 3, animFrames: 75, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+    { hitFrame: 45, mv: 3141, energy: 75, offtune: 468,
       ...EROSION },
-    { hitFrame: 57, commitFrame: 45, mv: 31.41, energy: 0.75, offtune: 468 },
-    { hitFrame: 69, commitFrame: 45, mv: 31.41, energy: 0.75, offtune: 468 },
-    { hitFrame: 81, commitFrame: 45, mv: 31.41, energy: 0.75, offtune: 468 },
-    { hitFrame: 93, commitFrame: 45, mv: 31.41, energy: 0.75, offtune: 468 },
-    { hitFrame: 105, commitFrame: 45, mv: 31.41, energy: 0.75, offtune: 468 },
-    { hitFrame: 117, commitFrame: 45, mv: 31.41, energy: 0.75, offtune: 468 },
-    { hitFrame: 129, commitFrame: 45, mv: 31.41, energy: 0.75, offtune: 468 },
-    { hitFrame: 141, commitFrame: 45, mv: 31.41, energy: 0.75, offtune: 468 },
-    { hitFrame: 153, commitFrame: 45, mv: 31.41, energy: 0.75, offtune: 468 },
-    { hitFrame: 165, commitFrame: 45, mv: 314.03, energy: 7.47, offtune: 4680 },
-  ], castConcerto: 25, castForte1: -3});
+    { hitFrame: 57, commitFrame: 45, mv: 3141, energy: 75, offtune: 468 },
+    { hitFrame: 69, commitFrame: 45, mv: 3141, energy: 75, offtune: 468 },
+    { hitFrame: 81, commitFrame: 45, mv: 3141, energy: 75, offtune: 468 },
+    { hitFrame: 93, commitFrame: 45, mv: 3141, energy: 75, offtune: 468 },
+    { hitFrame: 105, commitFrame: 45, mv: 3141, energy: 75, offtune: 468 },
+    { hitFrame: 117, commitFrame: 45, mv: 3141, energy: 75, offtune: 468 },
+    { hitFrame: 129, commitFrame: 45, mv: 3141, energy: 75, offtune: 468 },
+    { hitFrame: 141, commitFrame: 45, mv: 3141, energy: 75, offtune: 468 },
+    { hitFrame: 153, commitFrame: 45, mv: 3141, energy: 75, offtune: 468 },
+    { hitFrame: 165, commitFrame: 45, mv: 31403, energy: 747, offtune: 4680 },
+  ], castConcerto: 2500, castForte1: -3});
 
 // --- liberation / intro / outro. The Liberation opens Recital (see file header); a fresh cast
 //     starts it over, and switching her back in ends it.
 const Liberation = ciacconaAction("Liberation - Singer's Triple Cadenza", {
   cooldown: 60 * 20,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, mv: 1100.42, concerto: 20, offtune: 48000, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 0, mv: 110042, offtune: 48000 }], castConcerto: 2000, resetEnergy: true,
   updateDebuffs: () => gainShield(), // Interlude Tune
   updateBuffs: () => { revokeTeam(RECITAL); applyTeam(RECITAL, RECITAL.maxStacks); },
 });
@@ -130,16 +131,16 @@ const Liberation = ciacconaAction("Liberation - Singer's Triple Cadenza", {
  *  is on field. Off-tune is the row's 43640 split the same way. */
 const RECITAL_FIELD = new ActionField("Ciaccona: Recital");
 const GreenTonic = ciacconaAction("Liberation - Symphonic Poem: Tonic (green)", {
-  node: Node.Liberation, type: Type.Liberation, mv: 6.12, offtune: 2182, field: RECITAL_FIELD, ...EROSION,
+  node: Node.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 0, mv: 612, offtune: 2182 }], field: RECITAL_FIELD, ...EROSION,
 });
 const Intro = ciacconaAction("Intro - Roaming with the Wind", {
   animFrames: 54, prioFrames: 54, motionStop: 39,
-  node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 40, mv: 189.11, energy: 10, offtune: 9280 }], castConcerto: 10, castForte1: 1, ...EROSION,
+  node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 40, mv: 18911, energy: 1000, offtune: 9280 }], castConcerto: 1000, castForte1: 1, ...EROSION,
   updateBuffs: () => revokeTeam(RECITAL), // switching back in exits Recital
 });
 const Outro = ciacconaAction("Outro - Windcalling Tune", {
   animFrames: 0,
-  cast: Cast.Outro, castConcerto: -100,
+  cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000,
   updateBuffs: () => applyTeam(WINDCALLING_TUNE, 1),
 });
 
@@ -203,8 +204,8 @@ const CIACCONA_RESONATOR = new Resonator({
   weapon: WeaponType.Pistols,
   color: "#5ac46b",
   intro: Intro,
-  tuneBreak: tuneBreak(97, 97, 70, [[72, 1600]]),
-  maxEnergy: 125,
+  tuneBreak: tuneBreak(97, 97, 70, [[72, 160000]]),
+  maxEnergy: 12500,
   maxForte1: 3,
 
   stats: [[Stat.BaseHp, 12237.5], [Stat.BaseAtk, 375], [Stat.BaseDef, 1197.7756]],
@@ -261,7 +262,9 @@ const CI_S2 = new Sequence({ name: "Ciaccona S2: Song of the Four Seasons" });
  *  charge — which is the extra Skill the S3 rotation casts. */
 const CI_S3 = new Sequence({
   name: "Ciaccona S3: Starlit Improv",
-  applyStats: () => { if (runningAction(BA4)) addStat(Stat.AddForte1, 1); },
+  updateBuffs: () => {
+    if (runningAction(BA4)) addToCast({ forte1: 1 });
+  },
 });
 
 /** S4: 45% of the target's DEF ignored on Quadruple Downbeat and on every Resonance Liberation hit.

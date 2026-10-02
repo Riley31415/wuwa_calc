@@ -55,77 +55,77 @@ const RUNE_TRUST = { updateDebuffs: () => gainRune(1) };
 const RUNE_ANSWER = { updateDebuffs: () => gainRune(2) };
 
 // --- basics, mid-air, dodge counter (One, Two, Three) — Stage 4 opens Decipher
-const BA1 = sigrikaAction("Basic - One, Two, Three 1", { animFrames: 22, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 14, mv: 52.97, energy: 0.84, concerto: 1.67, offtune: 2664 }]});
+const BA1 = sigrikaAction("Basic - One, Two, Three 1", { animFrames: 22, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 14, mv: 5297, energy: 84, concerto: 167, offtune: 2664 }]});
 const BA2 = sigrikaAction("Basic - One, Two, Three 2", { animFrames: 41, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 18, mv: 50.34, energy: 0.8, concerto: 1.59, offtune: 2532 },
-    { hitFrame: 30, mv: 50.34, energy: 0.8, concerto: 1.59, offtune: 2532 },
+    { hitFrame: 18, mv: 5034, energy: 80, concerto: 159, offtune: 2532 },
+    { hitFrame: 30, mv: 5034, energy: 80, concerto: 159, offtune: 2532 },
   ]});
 const BA3 = sigrikaAction("Basic - One, Two, Three 3", { animFrames: 44, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 8, mv: 33.41, energy: 0.53, concerto: 1.05, offtune: 1680 },
-    { hitFrame: 16, mv: 33.41, energy: 0.53, concerto: 1.05, offtune: 1680 },
-    { hitFrame: 34, mv: 44.54, energy: 0.7, concerto: 1.4, offtune: 2240 },
+    { hitFrame: 8, mv: 3341, energy: 53, concerto: 105, offtune: 1680 },
+    { hitFrame: 16, mv: 3341, energy: 53, concerto: 105, offtune: 1680 },
+    { hitFrame: 34, mv: 4454, energy: 70, concerto: 140, offtune: 2240 },
   ]});
 const BA4 = sigrikaAction("Basic - One, Two, Three 4", {
   animFrames: 78,
   node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 22, mv: 41.36, energy: 0.65, concerto: 1.3, offtune: 2080 },
-    { hitFrame: 28, mv: 51.7, energy: 0.82, concerto: 1.63, offtune: 2600 },
-    { hitFrame: 46, mv: 51.7, energy: 0.82, concerto: 1.63, offtune: 2600 },
-    { hitFrame: 72, commitFrame: 60, mv: 62.03, energy: 0.98, concerto: 1.95, offtune: 3120 },
+    { hitFrame: 22, mv: 4136, energy: 65, concerto: 130, offtune: 2080 },
+    { hitFrame: 28, mv: 5170, energy: 82, concerto: 163, offtune: 2600 },
+    { hitFrame: 46, mv: 5170, energy: 82, concerto: 163, offtune: 2600 },
+    { hitFrame: 72, commitFrame: 60, mv: 6203, energy: 98, concerto: 195, offtune: 3120 },
   ],
   updateBuffs: () => applyCurrent(DECIPHER, 1),
 });
-const MA = sigrikaAction("Mid-air - One, Two, Three Plunge", { animFrames: 44, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 38, mv: 104.78, energy: 1.55, concerto: 3.1, offtune: 4960 }]});
-const MDC = sigrikaAction("Dodge Counter - One, Two, Three (Mid-Air)", { animFrames: 44, bullets: [{ hitFrame: 38, mv: 206.17, energy: 3.05, concerto: 16.1, offtune: 9920 }], node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic});
+const MA = sigrikaAction("Mid-air - One, Two, Three Plunge", { animFrames: 44, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 38, mv: 10478, energy: 155, concerto: 310, offtune: 4960 }]});
+const MDC = sigrikaAction("Dodge Counter - One, Two, Three (Mid-Air)", { animFrames: 44, bullets: [{ hitFrame: 38, mv: 20617, energy: 305, concerto: 610, offtune: 9920 }], node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, castConcerto: 1000});
 const DC = sigrikaAction("Dodge Counter - One, Two, Three", { animFrames: 42, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
-    { hitFrame: 8, mv: 65.91, energy: 0.98, concerto: 4.95, offtune: 3008 },
-    { hitFrame: 16, mv: 65.91, energy: 0.98, concerto: 4.95, offtune: 3008 },
-    { hitFrame: 34, mv: 87.88, energy: 1.3, concerto: 6.6, offtune: 4010 },
-  ]});
+    { hitFrame: 8, mv: 6591, energy: 98, concerto: 195, offtune: 3008 },
+    { hitFrame: 16, mv: 6591, energy: 98, concerto: 195, offtune: 3008 },
+    { hitFrame: 34, mv: 8788, energy: 130, concerto: 260, offtune: 4010 },
+  ], castConcerto: 1000});
 const HA = sigrikaAction("Heavy - One, Two, Three", { animFrames: 42, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
-    { hitFrame: 32, mv: 58.14, energy: 0.92, concerto: 1.83, offtune: 2924 },
-    { hitFrame: 32, mv: 58.14, energy: 0.92, concerto: 1.83, offtune: 2924 },
+    { hitFrame: 32, mv: 5814, energy: 92, concerto: 183, offtune: 2924 },
+    { hitFrame: 32, mv: 5814, energy: 92, concerto: 183, offtune: 2924 },
   ]});
 
 // --- Decipher-gated finishers: both grant a Rune: Trust and exit Decipher, both Echo Skill DMG
 //     (the migrated sheet only carries one row for the pair — same numbers used for both here)
 const EBA = sigrikaAction("Basic - Elucidated", { animFrames: 66, node: Node.Normal, cast: Cast.Basic, type: Type.Echo, bullets: [
-    { hitFrame: 8, mv: 61.56, energy: 0.52, concerto: 1.04, offtune: 1652,
+    { hitFrame: 8, mv: 6156, energy: 52, concerto: 104, offtune: 1652,
       ...RUNE_TRUST },
-    { hitFrame: 16, mv: 61.56, energy: 0.52, concerto: 1.04, offtune: 1652 },
-    { hitFrame: 24, mv: 61.56, energy: 0.52, concerto: 1.04, offtune: 1652 },
-    { hitFrame: 66, commitFrame: 26, mv: 123.11, energy: 1.04, concerto: 2.07, offtune: 3303 },
+    { hitFrame: 16, mv: 6156, energy: 52, concerto: 104, offtune: 1652 },
+    { hitFrame: 24, mv: 6156, energy: 52, concerto: 104, offtune: 1652 },
+    { hitFrame: 66, commitFrame: 26, mv: 12311, energy: 104, concerto: 207, offtune: 3303 },
   ]});
 const EDC = sigrikaAction("Dodge Counter - Decipher", { animFrames: 66, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Echo, bullets: [
-    { hitFrame: 8, mv: 61.56, energy: 0.52, concerto: 3.0439, offtune: 1652,
+    { hitFrame: 8, mv: 6156, energy: 52, concerto: 104, offtune: 1652,
       ...RUNE_TRUST },
-    { hitFrame: 16, mv: 61.56, energy: 0.52, concerto: 3.0439, offtune: 1652 },
-    { hitFrame: 24, mv: 61.56, energy: 0.52, concerto: 3.0439, offtune: 1652 },
-    { hitFrame: 66, commitFrame: 26, mv: 123.11, energy: 1.04, concerto: 6.0583, offtune: 3303 },
-  ]});
+    { hitFrame: 16, mv: 6156, energy: 52, concerto: 104, offtune: 1652 },
+    { hitFrame: 24, mv: 6156, energy: 52, concerto: 104, offtune: 1652 },
+    { hitFrame: 66, commitFrame: 26, mv: 12311, energy: 104, concerto: 207, offtune: 3303 },
+  ], castConcerto: 1000});
 
 // --- resonance skill: BOOMY BOOM! (base), or — while in Decipher — BIG BOOMY BOOM! / Soliskin to
 //     the Aid (the latter needs 50 Full Stop held, spends none), both banking a Rune: Answer
 const Skill = sigrikaAction("Skill - BOOMY BOOM!", { animFrames: 56, cooldown: 60 * 10, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
-    { hitFrame: 10, mv: 28.63, energy: 0.45, concerto: 0.9, offtune: 1440 },
-    { hitFrame: 16, mv: 28.63, energy: 0.45, concerto: 0.9, offtune: 1440 },
-    { hitFrame: 36, mv: 28.63, energy: 0.45, concerto: 0.9, offtune: 1440 },
-    { hitFrame: 48, mv: 57.26, energy: 0.9, concerto: 1.8, offtune: 2880 },
+    { hitFrame: 10, mv: 2863, energy: 45, concerto: 90, offtune: 1440 },
+    { hitFrame: 16, mv: 2863, energy: 45, concerto: 90, offtune: 1440 },
+    { hitFrame: 36, mv: 2863, energy: 45, concerto: 90, offtune: 1440 },
+    { hitFrame: 48, mv: 5726, energy: 90, concerto: 180, offtune: 2880 },
   ]});
 const ESkill = sigrikaAction("Skill - BIG BOOMY BOOM!", { animFrames: 56, node: Node.Skill, cast: Cast.Skill, type: Type.Echo, bullets: [
-    { hitFrame: 6, mv: 28.81, energy: 0.25, concerto: 0.49, offtune: 773,
+    { hitFrame: 6, mv: 2881, energy: 25, concerto: 49, offtune: 773,
       ...RUNE_ANSWER },
-    { hitFrame: 18, mv: 28.81, energy: 0.25, concerto: 0.49, offtune: 773 },
-    { hitFrame: 30, mv: 28.81, energy: 0.25, concerto: 0.49, offtune: 773 },
-    { hitFrame: 42, mv: 28.81, energy: 0.25, concerto: 0.49, offtune: 773 },
-    { hitFrame: 54, mv: 172.85, energy: 1.45, concerto: 2.9, offtune: 4637 },
+    { hitFrame: 18, mv: 2881, energy: 25, concerto: 49, offtune: 773 },
+    { hitFrame: 30, mv: 2881, energy: 25, concerto: 49, offtune: 773 },
+    { hitFrame: 42, mv: 2881, energy: 25, concerto: 49, offtune: 773 },
+    { hitFrame: 54, mv: 17285, energy: 145, concerto: 290, offtune: 4637 },
   ]});
 const ESkill50 = sigrikaAction("Skill - Soliskin to the Aid", { animFrames: 54, node: Node.Skill, cast: Cast.Skill, type: Type.Echo, bullets: [
-    { hitFrame: 6, mv: 30.2098, energy: 0.261, concerto: 0.5103, offtune: 810.861,
+    { hitFrame: 6, mv: 2783, energy: 24, concerto: 47, offtune: 747,
       ...RUNE_ANSWER },
-    { hitFrame: 16, mv: 30.2098, energy: 0.261, concerto: 0.5103, offtune: 810.861 },
-    { hitFrame: 24, mv: 30.2098, energy: 0.261, concerto: 0.5103, offtune: 810.861 },
-    { hitFrame: 50, mv: 187.6306, energy: 1.577, concerto: 3.1491, offtune: 5033.417 },
+    { hitFrame: 16, mv: 2783, energy: 24, concerto: 47, offtune: 747 },
+    { hitFrame: 24, mv: 2783, energy: 24, concerto: 47, offtune: 747 },
+    { hitFrame: 50, mv: 19477, energy: 164, concerto: 327, offtune: 5225 },
   ]});
 
 // --- forte circuit: Schemata of Runes lands its own hit and banks 50 Full Stop, spends the two
@@ -134,33 +134,33 @@ const ESkill50 = sigrikaAction("Skill - Soliskin to the Aid", { animFrames: 54, 
 // only the time until its own hit, none of the fight's
 const RunicOutburst = sigrikaAction("Forte - Runic Outburst", { tag: ActionTag.Field, animFrames: 68,
    node: Node.Forte, type: Type.Echo, bullets: [
-     { hitFrame: 20, mv: 117.67, energy: 2, concerto: 1.4, offtune: 4960 },
-     { hitFrame: 36, mv: 205.92, energy: 3.5, concerto: 2.45, offtune: 8680 },
-     { hitFrame: 68, mv: 264.75, energy: 4.5, concerto: 3.15, offtune: 11160 },
+     { hitFrame: 20, mv: 11767, energy: 200, concerto: 140, offtune: 4960 },
+     { hitFrame: 36, mv: 20592, energy: 350, concerto: 245, offtune: 8680 },
+     { hitFrame: 68, mv: 26475, energy: 450, concerto: 315, offtune: 11160 },
    ]});
 const RunicChainWhip = sigrikaAction("Forte - Runic Chain Whip", { tag: ActionTag.Field, animFrames: 66,
   node: Node.Forte, type: Type.Echo, bullets: [
-    { hitFrame: 6, mv: 49.7, energy: 1.25, concerto: 0.88, offtune: 3100 },
-    { hitFrame: 12, mv: 49.7, energy: 1.25, concerto: 0.88, offtune: 3100 },
-    { hitFrame: 18, mv: 49.7, energy: 1.25, concerto: 0.88, offtune: 3100 },
-    { hitFrame: 24, mv: 49.7, energy: 1.25, concerto: 0.88, offtune: 3100 },
-    { hitFrame: 54, mv: 66.26, energy: 1.67, concerto: 1.17, offtune: 4134 },
-    { hitFrame: 60, mv: 66.26, energy: 1.67, concerto: 1.17, offtune: 4134 },
-    { hitFrame: 66, mv: 66.26, energy: 1.67, concerto: 1.17, offtune: 4134 },
+    { hitFrame: 6, mv: 4970, energy: 125, concerto: 88, offtune: 3100 },
+    { hitFrame: 12, mv: 4970, energy: 125, concerto: 88, offtune: 3100 },
+    { hitFrame: 18, mv: 4970, energy: 125, concerto: 88, offtune: 3100 },
+    { hitFrame: 24, mv: 4970, energy: 125, concerto: 88, offtune: 3100 },
+    { hitFrame: 54, mv: 6626, energy: 167, concerto: 117, offtune: 4134 },
+    { hitFrame: 60, mv: 6626, energy: 167, concerto: 117, offtune: 4134 },
+    { hitFrame: 66, mv: 6626, energy: 167, concerto: 117, offtune: 4134 },
   ]});
 const RunicSoliskin = sigrikaAction("Forte - Runic Soliskin", { tag: ActionTag.Field, animFrames: 78,
    node: Node.Forte, type: Type.Echo, bullets: [
-     { hitFrame: 18, mv: 39.76, energy: 1, concerto: 0.7, offtune: 2480 },
-     { hitFrame: 36, mv: 59.63, energy: 1.5, concerto: 1.05, offtune: 3720 },
-     { hitFrame: 45, mv: 59.63, energy: 1.5, concerto: 1.05, offtune: 3720 },
-     { hitFrame: 54, mv: 59.63, energy: 1.5, concerto: 1.05, offtune: 3720 },
-     { hitFrame: 63, mv: 59.63, energy: 1.5, concerto: 1.05, offtune: 3720 },
-     { hitFrame: 78, mv: 119.26, energy: 3, concerto: 2.1, offtune: 7440 },
+     { hitFrame: 18, mv: 3976, energy: 100, concerto: 70, offtune: 2480 },
+     { hitFrame: 36, mv: 5963, energy: 150, concerto: 105, offtune: 3720 },
+     { hitFrame: 45, mv: 5963, energy: 150, concerto: 105, offtune: 3720 },
+     { hitFrame: 54, mv: 5963, energy: 150, concerto: 105, offtune: 3720 },
+     { hitFrame: 63, mv: 5963, energy: 150, concerto: 105, offtune: 3720 },
+     { hitFrame: 78, mv: 11926, energy: 300, concerto: 210, offtune: 7440 },
    ]});
 
-const FHA = sigrikaAction("Forte Heavy - Schemata of Runes", {
+const FHA = sigrikaAction("Forte Heavy - Schemata of Runes", { minForte1: 2,
   animFrames: 76,
-  node: Node.Forte, cast: Cast.Heavy, type: Type.Echo, bullets: [{ hitFrame: 12, mv: 132.51, energy: 3.34, concerto: 0.5, offtune: 2664, forte2: 50 }], castForte1: -2,
+  node: Node.Forte, cast: Cast.Heavy, type: Type.Echo, bullets: [{ hitFrame: 12, mv: 13251, energy: 334, concerto: 50, offtune: 2664, forte2: 50 }], castForte1: -2,
   // on hit: the spend and the follow-up it plays
   updateDebuffs: spendRunes,
 });
@@ -176,23 +176,23 @@ function spendRunes(): void {
 }
 
 /** Learn My True Name: at 100 Full Stop, spends it all. */
-const FSkill = sigrikaAction("Forte Skill - Learn My True Name", {
+const FSkill = sigrikaAction("Forte Skill - Learn My True Name", { minForte2: 100,
    animFrames: 138, cooldown: 60 * 25,
    node: Node.Forte, cast: Cast.Skill, type: Type.Echo, bullets: [
-     { hitFrame: 86, mv: 302.87, energy: 1.36, concerto: 5, offtune: 25334 },
-     { hitFrame: 130, commitFrame: 86, mv: 908.61, energy: 4.07, concerto: 15, offtune: 76002 },
-   ], castConcerto: 10, castForte2: -100
+     { hitFrame: 86, mv: 30287, energy: 136, concerto: 500, offtune: 25334 },
+     { hitFrame: 130, commitFrame: 86, mv: 90861, energy: 407, concerto: 1500, offtune: 76002 },
+   ], castConcerto: 1000, castForte2: -100
 });
 
 const Liberation = sigrikaAction("Liberation - Where Trust Leads Me!", {
   animFrames: 228, timestop: 228, motionStop: 228, cooldown: 60 * 25,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Echo, bullets: [{ hitFrame: 176, mv: 861.43, offtune: 50400 }], castConcerto: 20, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Echo, bullets: [{ hitFrame: 176, mv: 86143, offtune: 50400 }], castConcerto: 2000, resetEnergy: true,
   updateBuffs: () => applyCurrent(DIVERGENT),
 });
 
-const Intro = sigrikaAction("Intro - Solsworn Etymology", { animFrames: 58, prioFrames: 58, motionStop: 38, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 46, mv: 163.42, energy: 10, offtune: 7736 }], castConcerto: 10});
+const Intro = sigrikaAction("Intro - Solsworn Etymology", { animFrames: 58, prioFrames: 58, motionStop: 38, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 46, mv: 16342, energy: 1000, offtune: 7736 }], castConcerto: 1000});
 /** In This Very Moment carries no team buff on her own page (unlike most other kits' outros). */
-const Outro = sigrikaAction("Outro - In This Very Moment", { animFrames: 48, cast: Cast.Outro, type: Type.Outro, bullets: [{ hitFrame: 18, mv: 795 }], castConcerto: -100});
+const Outro = sigrikaAction("Outro - In This Very Moment", { animFrames: 48, cast: Cast.Outro, type: Type.Outro, bullets: [{ hitFrame: 18, mv: 79500 }], minConcerto: 10000, castConcerto: -10000});
 
 /* ------------------------------------------------------------------------------------ buffs */
 
@@ -355,7 +355,7 @@ const SIGRIKA_RESONATOR = new Resonator({
   weapon: WeaponType.Gauntlets,
   color: "#e0aa7e",
   intro: Intro,
-  maxEnergy: 125,
+  maxEnergy: 12500,
   maxForte1: 4,
   maxForte2: 100,
 

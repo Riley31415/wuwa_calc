@@ -10,7 +10,7 @@
  * — that one scope is the whole of what a status's own damage scales with.
  */
 import type { Action } from "./rotation.js";
-import { Stat, EnemyStat, Scaling } from "./stats.js";
+import { Stat, EnemyStat, Scaling, MV_UNIT } from "./stats.js";
 import type { StatRow } from "./state.js";
 
 /** A resolved action snapshot, from `State.resolve()` — everything the formula reads off it. */
@@ -76,7 +76,7 @@ const resFactorFrom = (finalRes: number): number =>
   (finalRes < 0 ? 1 - finalRes / 2
     : finalRes < 0.8 ? 1 - finalRes
     : 1 / (1 + 5 * finalRes));
-const OWN_DEF = 800 + RESONATOR_LEVEL * 8;
+export const OWN_DEF = 800 + RESONATOR_LEVEL * 8;
 const defFactorFrom = (finalDef: number): number => OWN_DEF / (OWN_DEF + finalDef);
 
 /**
@@ -150,10 +150,10 @@ export function damageFactors(snapshot: Snapshot): DamageFactors {
   // factor is reported as a neutral 1 so the table still has something to show per term.
   if (scaling === Scaling.Fixed) {
     return {
-      scaling, finalMv: action.mv, finalStat: 100,
+      scaling, finalMv: action.mv / MV_UNIT, finalStat: 100,
       ampFactor: 1, bonusFactor: 1, tbbFactor: 1, resFactor: 1, defFactor: 1, dealtFactor: 1, takenFactor: 1,
       critFactor: 1, critMult: 1,
-      noCrit: Math.floor(action.mv), crit: Math.floor(action.mv), avg: Math.floor(action.mv),
+      noCrit: Math.floor(action.mv / MV_UNIT), crit: Math.floor(action.mv / MV_UNIT), avg: Math.floor(action.mv / MV_UNIT),
     };
   }
 
@@ -169,8 +169,8 @@ export function damageFactors(snapshot: Snapshot): DamageFactors {
     : NaN
   );
 
-  // motion values are authored in percent, so 307.34 is a 3.0734x multiplier
-  const finalMv = mvPercent(snapshot) / 100;
+  // motion values are held in hundredths of a percent, so 30734 is a 3.0734x multiplier
+  const finalMv = mvPercent(snapshot) / (100 * MV_UNIT);
 
   // Amplification is the one thing a dot hit does read (the migrated sheet's own `specialAmp`
   // column) — but only the part scoped to the Negative Status it is, never plain or element-scoped
@@ -237,7 +237,7 @@ export function damageAvgOf(
 ): number {
   const { scaling } = action;
   if (scaling === null) return 0;
-  if (scaling === Scaling.Fixed) return Math.floor(action.mv);
+  if (scaling === Scaling.Fixed) return Math.floor(action.mv / MV_UNIT);
   const notDot = scaling !== Scaling.Dot ? 1 : 0;
   const notTune = scaling !== Scaling.Tune ? 1 : 0;
   const finalStat = Math.floor(
@@ -248,7 +248,7 @@ export function damageAvgOf(
     : scaling === Scaling.Tune ? LEVEL_90_TUNE
     : NaN
   );
-  const finalMv = (action.mv + stats[Stat.AddMv]!) * (1 + stats[Stat.MulMv]! / 100) / 100;
+  const finalMv = (action.mv + stats[Stat.AddMv]!) * (1 + stats[Stat.MulMv]! / 100) / (100 * MV_UNIT);
   const ampFactor = 1 + ((notDot ? amp : subtypeAmp) / 100) * notTune;
   const bonusFactor = 1 + (dmgBonus / 100) * notDot * notTune;
   const tbbFactor = 1 + (stats[Stat.Tbb]! / 100) * (1 - notTune);

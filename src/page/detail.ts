@@ -2,7 +2,7 @@
  * The detail page: the DPR and energy tables, the action log grid, and the log's draggable
  * column order (kept in localStorage) with its pointer handlers.
  */
-import { Stat, Cast, SCALING_NAME, ActionTag } from "../engine/stats.js";
+import { Stat, Cast, SCALING_NAME, ActionTag, statLabel } from "../engine/stats.js";
 import type { Gear } from "../engine/gear.js";
 import { menuStats } from "../engine/context.js";
 import { TUNE_BREAK_ENEMY } from "../shared/tunebreak.js";
@@ -36,8 +36,25 @@ function cell(col: Column, { cls = [], html = "", pop = "", style = "", attr = "
 /** Which colour a cut's tag box wears (index.css `.ctag-*`). */
 const TAG_KIND: Partial<Record<ActionTag, string>> = {
   [ActionTag.InstaCancel]: "insta", [ActionTag.InstaDodge]: "insta", [ActionTag.InstaJump]: "insta", [ActionTag.InstaSwap]: "insta",
-  [ActionTag.SwapCancel]: "swap", [ActionTag.EasyCancel]: "easy", [ActionTag.Field]: "field",
-  [ActionTag.DodgeCancel]: "dash", [ActionTag.JumpCancel]: "jump", [ActionTag.Cancel]: "cancel", [ActionTag.HitCancel]: "hit", [ActionTag.DodgeOnHit]: "dash", [ActionTag.JumpOnHit]: "jump",
+  [ActionTag.SwapCancel]: "swap", [ActionTag.MashCancel]: "easy", [ActionTag.HoldCancel]: "easy", [ActionTag.Field]: "field",
+  [ActionTag.DodgeCancel]: "dash", [ActionTag.JumpCancel]: "jump", [ActionTag.Cancel]: "cancel", [ActionTag.HitCancel]: "hit", [ActionTag.DodgeOnHit]: "hit", [ActionTag.JumpOnHit]: "hit",
+};
+
+/** How each cut is played, for its tag box's panel. */
+const TAG_NOTE: Partial<Record<ActionTag, string>> = {
+  [ActionTag.InstaCancel]: "After casting, input the next action instantly",
+  [ActionTag.InstaDodge]: "After casting, dodge instantly",
+  [ActionTag.InstaJump]: "After casting, jump instantly",
+  [ActionTag.InstaSwap]: "After casting, swap instantly",
+  [ActionTag.Cancel]: "After the final hit, input the next action",
+  [ActionTag.DodgeCancel]: "After the final hit, dodge",
+  [ActionTag.JumpCancel]: "After the final hit, jump",
+  [ActionTag.SwapCancel]: "After the final hit, swap",
+  [ActionTag.MashCancel]: "After casting, mash the next input to cancel on the final hit",
+  [ActionTag.HoldCancel]: "After casting, hold the next input to cancel upon receiving forte",
+  [ActionTag.HitCancel]: "After the first hit, input the next action",
+  [ActionTag.DodgeOnHit]: "After the first hit, dodge",
+  [ActionTag.JumpOnHit]: "After the first hit, jump",
 };
 
 /** One row of the log. A running column is blank where the row left it exactly as it came in
@@ -52,15 +69,14 @@ function stepRow(
     const sources = row.sources[col.key];
     // a resource cell carries its balance and the one the row was entered on, blank or not, for
     // the block a press runs down the column to read the gain over (`blockPanel`) — except where
-    // the balance is the row's own spend rather than a step in the run: an Outro wipes concerto
-    // and energy, the Tune Break takes the whole off-tune bar, and a block read across either
-    // would say so
+    // the balance is the row's own spend rather than a step in the run: an Outro spends concerto,
+    // the Tune Break takes the whole off-tune bar, and a block read across either would say so
     let attr = "";
     if (isRunning(col.key)) {
       if ("line" in row && row.line.aggregate) return cell(col);
       const cast = ("line" in row ? row.line.snap : row.snap).action.cast;
       const spend = col.key === "offtune" ? cast === Cast.TuneBreak
-        : (col.key === "concerto" || col.key === "energy") && cast === Cast.Outro;
+        : col.key === "concerto" && cast === Cast.Outro;
       const before = Number(row.raw[`before:${col.key}`]) || 0;
       if (!spend) attr = ` data-val="${Number(v) || 0}" data-before="${before}"`;
       const fed = (sources ?? []).some((r) => r.section !== OFFTUNE_RATE && r.section !== ENERGY_RATE);
@@ -74,7 +90,7 @@ function stepRow(
     // a gauge this cast wipes before its own delta lands — the panel carries the CLEAR row that
     // says so (display.ts), and the underline is what points at it
     if (col.key.startsWith("gauge:") && Number(row.raw[`clear:${col.key}`])) cls.push("buffed");
-    if (col.key === "concerto" && Number(row.raw["short:concerto"])) cls.push("underspent");
+    if ((col.key === "concerto" || col.key === "energy") && Number(row.raw[`short:${col.key}`])) cls.push("underspent");
     if (col.key.startsWith("gauge:") && Number(row.raw[`short:${col.key}`])) cls.push("negative");
 
     const text = esc(fmt(v, digitsOf(row.raw, col), PAD_DIGITS_COLUMNS.has(col.key), GROUPED_COLUMNS.has(col.key)))
@@ -85,11 +101,12 @@ function stepRow(
     }
     const tag = col.key === "action" ? String(row.raw["tag:action"] ?? "") : "";
     // the tag's own box, coloured by what cut the press — an insta anything red (insta swap too), a
-    // swap cancel yellow, an easy cancel green, then a dash, a jump, and a plain cancel — or gray
+    // swap cancel yellow, a mash or hold cancel green, then a dash, a jump, and a plain cancel — or gray
     // for a press beside the fight
     if (tag) {
-      const kind = TAG_KIND[tag as ActionTag] ?? "cancel";
-      html = `<span class="ctag ctag-${kind}">${esc(tag.toUpperCase())}</span>${html}`;
+      const kind = TAG_KIND[tag as ActionTag] ?? "cancel", note = TAG_NOTE[tag as ActionTag];
+      const tagPop = note ? lazyPop(`<span class="pop note">${esc(note)}</span>`) : "";
+      html = `<span class="ctag ctag-${kind}"${tagPop}>${esc(tag.toUpperCase())}</span>${html}`;
     }
     const suffix = col.key === "mv" && row.scaling !== null ? ` ${SCALING_NAME[row.scaling]}` : "";
     let pop = "";
@@ -109,7 +126,8 @@ function stepRow(
       pop = popover(col, sources, row.raw[`moved:${col.key}`] ?? v, slotHue, suffix, String(row.raw[`empty:${col.key}`] ?? ""));
     }
 
-    const mem = slotHue.get(String(v)) ?? FALLBACK_HUE;
+    // the name wears the row's hue: the enemy's gray on a Tune Break, though it names who was on field
+    const mem = col.key === "member" ? rowHue("line" in row ? row.line.snap : row.snap, slotHue) : slotHue.get(String(v)) ?? FALLBACK_HUE;
     const style = col.key === "member" ? `--mem:${mem};color:${mem}`
       : col.key === "avg" ? `--mem:${slotHue.get(String(row.raw["member"] ?? "")) ?? FALLBACK_HUE}` : "";
     // the figure itself, unformatted, for the run a press down the column adds up (`blockPanel`)
@@ -126,13 +144,18 @@ function stepRow(
   }).join("");
 }
 
+/** The hue a log row wears: its member's, but the enemy's gray on a Tune Break — nobody's damage,
+ *  though it still names whoever was on field. */
+const rowHue = (snap: ResolvedSnapshot, slotHue: Map<string, string>): string =>
+  snap.slot === TUNE_BREAK_ENEMY.name ? TUNE_BREAK_ENEMY.color : slotHue.get(snap.member) ?? FALLBACK_HUE;
+
 /** An opened group's rows, each in its *own* member's hue (a follow-up can land on anybody). */
 function partRows(
   columns: Column[], parts: ReportPart[], slotHue: Map<string, string>, gearByMember: Map<string, Gear[]>,
   fieldOf: Map<ResolvedSnapshot, number>,
 ): string {
   return parts.map((p) => {
-    const hue = slotHue.get(String(p.raw.member)) ?? FALLBACK_HUE;
+    const hue = rowHue(p.snap, slotHue);
     const field = fieldOf.get(p.snap);
     const mark = field === undefined ? "" : ` data-fh="${field}"`;
     return `<div class="r${p.short ? " short" : ""}" style="--m:${hue}"${mark}>`
@@ -170,7 +193,7 @@ function rotationTable(report: Report, slotHue: Map<string, string>, gearByMembe
     const loop = starts.get(i);
     if (loop !== undefined) { closeBlock(); out.push(`<div class="loopline"><span>loop ${loop}</span></div>`); }
     const snap = row.line.snap;
-    const hue = slotHue.get(snap.member) ?? FALLBACK_HUE;
+    const hue = rowHue(snap, slotHue);
     const style = ` style="--m:${hue}"`;
     const cells = stepRow(columns, row, slotHue, gearByMember);
     const shortCls = row.short ? " short" : "";
@@ -257,7 +280,7 @@ function erRequirement(flat: ChainGroup[], resetIdx: number, member: string, max
       const s = snaps[k]!;
       if (s.member !== member) continue;
       if (s.action.resetEnergy) break walk;
-      if (s.energyWiped) continue;
+      if (s.endsLoop) continue;
       const gain = (s.action.energy + s.stat(Stat.AddEnergy) + (s.castGain?.[0] ?? 0)) * (1 + s.stat(Stat.EnergyRegenMult) / 100);
       buffed += gain * (s.stat(Stat.Er) - constant);
     }
@@ -270,12 +293,14 @@ function erRequirement(flat: ChainGroup[], resetIdx: number, member: string, max
  * the Energy Regen menu stat carries in its own label. Its colour says whether what the build wears
  * covers it.
  */
-function energyRequirements(run: TeamRun, lines: ChainGroup[][]): Map<string, string> {
+function energyRequirements(run: TeamRun, lines: ChainGroup[][]): Map<string, Map<string, string>> {
   const flat = lines.flat();
   const erOf = erRollsFor(run.teamKey, run.members, run.combo);
 
-  const cells = new Map<string, string>();
+  const cells = new Map<string, Map<string, string>>();
   run.members.forEach((m, idx) => {
+    const own = new Map<string, string>();
+    cells.set(m.name, own);
     const maxEnergy = m.loadout.resonator.maxEnergy;
     const combo = run.combo[idx]!;
     const constantSources = menuStats(m.loadout.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs, erOf[idx]!))
@@ -285,24 +310,33 @@ function energyRequirements(run: TeamRun, lines: ChainGroup[][]): Map<string, st
     // the fight's very first Liberation runs on the bar `combatStart` hands over, so it asks nothing
     const casts = resetIndices(flat, 0, flat.length, m.name).slice(1);
     const asked = casts.map((i) => erRequirement(flat, i, m.name, maxEnergy, constant)).filter((v): v is number => v != null);
-    const req = asked.length ? Math.max(...asked) : null;
-    // met or missed, said in colour: green where the build's own constant ER covers the figure,
-    // red where it falls short even of the slack the run is granted (`ER_TOLERANCE`) — the page
-    // would otherwise call a build short that the engine just let cast. Amber between the two:
-    // the bar fills on slack rather than on ER, and without the tolerance this build would have
-    // been pushed up a roll.
-    const met = req == null ? ""
-      : req > constant + ER_TOLERANCE ? " er-under"
-      : req > constant ? " er-slack"
-      : " er-met";
-    // only the figure itself is coloured — "(need" and the bracket stay the label's own tone
-    if (req != null) {
-      // what the figure is, for anyone reading the row for the first time, and the colour said in
-      // words: the build's own ER covers it, misses it by no more than the run's slack, or misses
-      const verdict = met === " er-met" ? "Met" : met === " er-slack" ? "Barely Not Met" : "Not Met";
-      const tip = lazyPop(`<span class="pop tip">Unbuffed Energy Regen Requirement (${verdict})</span>`);
-      cells.set(m.name, `<span class="erneed has"${tip}>`
-        + `> <span class="erreq${met}">${fmt(req, 1, true)}%</span></span>`);
+    const bar = asked.length ? Math.max(...asked) : null;
+    const name = m.loadout.resonator.name;
+    // One hover line per requirement, its figure green where the build's character screen covers it
+    // and red where it falls short; the label carries the higher of them.
+    const line = (what: string, need: number, held: number): { html: string; met: boolean } => {
+      const met = need <= held + ER_TOLERANCE;
+      return { met, html: `<div>${what}: <span class="${met ? "need-met" : "need-miss"}">${fmt(need, 1, true)}%</span> (${met ? "Met" : "Not Met"})</div>` };
+    };
+    const tag = (need: number, met: boolean, lines: string[]): string => {
+      const tip = lazyPop(`<span class="pop tip">${lines.join("")}</span>`);
+      return `<span class="erneed has"${tip}>> <span class="erreq ${met ? "er-met" : "er-under"}">${fmt(need, 1, true)}%</span></span>`;
+    };
+    const minEr = m.loadout.minEr;
+    if (bar != null || minEr) {
+      const lines: { html: string; met: boolean }[] = [];
+      if (bar != null) lines.push(line("Energy Regen requirement", bar, constant));
+      if (minEr) lines.push(line("Energy Regen requirement for kit", minEr, constant));
+      const need = Math.max(bar ?? 0, minEr);
+      own.set(statLabel(Stat.Er), tag(need, need <= constant + ER_TOLERANCE, lines.map((l) => l.html)));
+    }
+    // and the kit's own Crit Rate minimum, against what the character screen shows
+    const minCr = m.loadout.minCritRate;
+    if (minCr) {
+      const cr = menuStats(m.loadout.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs, erOf[idx]!))
+        .reduce((n, e) => n + (e.stat === Stat.CritRate ? e.value : 0), 0);
+      const kit = line("Kit Crit Rate Requirement", minCr, cr);
+      own.set(statLabel(Stat.CritRate), tag(minCr, kit.met, [kit.html]));
     }
   });
 
@@ -482,14 +516,16 @@ function doubled(row: HTMLElement, held: Set<HTMLElement>): boolean {
  *  time: the avg cells' total, the time its rows spent, and — off-tune being the one bar the whole team fills — what the
  *  block gained of it: each row's balance less the one it was entered on, added up, so the run
  *  reads from the balance standing before the block (0 at the top of the run) and the Tune Break
- *  that takes the whole bar drops out rather than reading as a loss across it. A member's own
- *  concerto, energy and forte are left to their columns; nothing else in the block earns a line,
+ *  that takes the whole bar drops out rather than reading as a loss across it. Energy generated
+ *  adds up the same way. A member's own concerto and forte are left to their columns; nothing else
+ *  in the block earns a line,
  *  and a block with no line at all has no panel. An opened group's own row is left out where the
  *  block holds the rows it opened onto (`doubled`). */
 function blockPanel(sel: CellSel): string {
   let dmg = 0, dmgCells = 0;
   let frames = 0, timeCells = 0;
   let gained = 0, tuneCells = 0, tuneDigits = 2;
+  let energy = 0, energyCells = 0, energyDigits = 2;
   const held = new Set(sel.rows.slice(sel.r0, sel.r1 + 1));
   const rows = blockCells(sel);
   for (let i = 0; i < rows.length; i++) {
@@ -507,6 +543,13 @@ function blockPanel(sel: CellSel): string {
       }
       if (c.dataset.val === undefined) continue;
       const col = logColumns[[...c.parentElement!.children].indexOf(c)]!;
+      // energy counts up all fight, each row on its own member's bar: the gains add up as they are
+      if (col.key === "energy") {
+        energy += (Number(c.dataset.val) || 0) - (Number(c.dataset.before) || 0);
+        energyDigits = col.digits ?? 2;
+        energyCells++;
+        continue;
+      }
       if (col.key !== "offtune") continue;
       gained += (Number(c.dataset.val) || 0) - (Number(c.dataset.before) || 0);
       tuneDigits = col.digits ?? 2;
@@ -515,6 +558,7 @@ function blockPanel(sel: CellSel): string {
   }
   const lines: [string, string][] = dmgCells > 1 ? [["Total Dmg", fmt(dmg, 0)]] : [];
   if (timeCells > 1) lines.push(["Total Time", `${(frames / 60).toFixed(2)}s`]);
+  if (energyCells) lines.push(["Total Energy", fmt(energy, energyDigits, true, false)]);
   if (tuneCells) lines.push(["Total Offtune", fmt(gained, tuneDigits, true, false)]);
   if (!lines.length) return "";
   return `<span class="pop stat"><table>`
@@ -743,6 +787,9 @@ function wireCellSelect(root: HTMLElement): void {
   grid.addEventListener("pointerdown", (e) => {
     const cell = (e.target as HTMLElement).closest<HTMLElement>(".r:not(.head) > .c");
     if (e.button !== 0 || holding || arming || !cell) return;
+    // a cut's tag box is a panel of its own, not the start of a block: left uncaptured, its click
+    // lands on the tag rather than the cell
+    if ((e.target as HTMLElement).closest(".ctag")) return;
     const g = rect(grid);
     const cols = [...grid.querySelectorAll<HTMLElement>(":scope > .r.head > .c[data-col]")]
       .map((h, nth) => {

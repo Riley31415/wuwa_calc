@@ -50,29 +50,29 @@ function jianxinAction(id: string, def: object): Action {
 
 // --- Fengyiquan. forte1 is the Chi each cast's hits bank. The dodge counter carries the hidden
 //     +10 Concerto every dodge counter gets (CLAUDE.md).
-const BA1 = jianxinAction("Basic - Fengyiquan 1", { animFrames: 26, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 69.46, energy: 1.02, concerto: 3.28, offtune: 3280, forte1: 6 });
+const BA1 = jianxinAction("Basic - Fengyiquan 1", { animFrames: 26, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 26, mv: 6946, energy: 102, concerto: 328, offtune: 3280, forte1: 6 }] });
 // PLACEHOLDER FRAMES
 const BA2 = jianxinAction("Basic - Fengyiquan 2", { animFrames: 60, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 32, mv: 26.64, energy: 0.3941, concerto: 1.2602, offtune: 1264.1898 },
-    { hitFrame: 32, mv: 26.64, energy: 0.3941, concerto: 1.2602, offtune: 1264.1898 },
-    { hitFrame: 32, mv: 79.9, energy: 1.1818, concerto: 3.7796, offtune: 3791.6204, forte1: 10 },
+    { hitFrame: 32, mv: 2664, energy: 40, concerto: 126, offtune: 1264 },
+    { hitFrame: 32, mv: 2664, energy: 40, concerto: 126, offtune: 1264 },
+    { hitFrame: 32, mv: 7990, energy: 117, concerto: 378, offtune: 3792, forte1: 10 },
   ]});
 // PLACEHOLDER FRAMES
 const BA3 = jianxinAction("Basic - Fengyiquan 3", { animFrames: 60, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 60, mv: 41.75, energy: 0.62, concerto: 1.98, offtune: 1980 },
-    { hitFrame: 60, mv: 41.75, energy: 0.62, concerto: 1.98, offtune: 1980 },
-    { hitFrame: 60, mv: 41.75, energy: 0.62, concerto: 1.98, offtune: 1980 },
-    { hitFrame: 60, mv: 41.75, energy: 0.62, concerto: 1.98, offtune: 1980, forte1: 12 },
+    { hitFrame: 60, mv: 4175, energy: 62, concerto: 198, offtune: 1980 },
+    { hitFrame: 60, mv: 4175, energy: 62, concerto: 198, offtune: 1980 },
+    { hitFrame: 60, mv: 4175, energy: 62, concerto: 198, offtune: 1980 },
+    { hitFrame: 60, mv: 4175, energy: 62, concerto: 198, offtune: 1980, forte1: 12 },
   ]});
-const BA4 = jianxinAction("Basic - Fengyiquan 4", { animFrames: 60, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 113.4, energy: 1.68, concerto: 5.37, offtune: 5360, forte1: 12 });
-const HA = jianxinAction("Heavy - Fengyiquan", { node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, mv: 126.07, energy: 1.87, concerto: 5.96, offtune: 6000, forte1: 9 });
-const MA = jianxinAction("Mid-air - Fengyiquan Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 123.27, energy: 0.52, concerto: 1, offtune: 4960, forte1: 6 });
+const BA4 = jianxinAction("Basic - Fengyiquan 4", { animFrames: 60, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 60, mv: 11340, energy: 168, concerto: 537, offtune: 5360, forte1: 12 }] });
+const HA = jianxinAction("Heavy - Fengyiquan", { node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 12607, energy: 187, concerto: 596, offtune: 6000, forte1: 9 }] });
+const MA = jianxinAction("Mid-air - Fengyiquan Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 12327, energy: 52, concerto: 100, offtune: 4960, forte1: 6 }] });
 // PLACEHOLDER FRAMES
 const DC = jianxinAction("Dodge Counter - Fengyiquan", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
-    { hitFrame: 0, mv: 40.83, energy: 0.5167, concerto: 2.7803, offtune: 2190.7683 },
-    { hitFrame: 0, mv: 40.83, energy: 0.5167, concerto: 2.7803, offtune: 2190.7683 },
-    { hitFrame: 0, mv: 163.28, energy: 2.0666, concerto: 11.1194, offtune: 8761.4634, forte1: 17 },
-  ]});
+    { hitFrame: 0, mv: 4083, energy: 52, concerto: 162, offtune: 3286 },
+    { hitFrame: 0, mv: 4083, energy: 52, concerto: 162, offtune: 3286 },
+    { hitFrame: 0, mv: 16328, energy: 206, concerto: 344, offtune: 6571, forte1: 17 },
+  ], castConcerto: 1000});
 const BA1234 = new ActionGroup("Basic - Fengyiquan 1234", [BA1, BA2, BA3, BA4]);
 const BA12 = new ActionGroup("Basic - Fengyiquan 12", [BA1, BA2]);
 // --- Calming Air: the Parry Stance (8 Concerto on the cast) ends either as Chi Parry (released)
@@ -80,16 +80,16 @@ const BA12 = new ActionGroup("Basic - Fengyiquan 12", [BA1, BA2]);
 //     press of the skill, so each carries the stance's own 8 plus its own 14.
 // both endings are one press of Calming Air: one 12s cooldown, a second charge at S2
 const CALMING_AIR_CD = new Cooldown({ frames: 60 * 12, charges: () => (isHeld(S2) ? 2 : 1) });
-const ChiParry = jianxinAction("Skill - Calming Air: Chi Parry", { animFrames: 70, cooldown: CALMING_AIR_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 258.73, energy: 4, castConcerto: 22, offtune: 12240, forte1: 15+25 }); // assume 25 on cast?
-const ChiCounter = jianxinAction("Skill - Calming Air: Chi Counter", { cooldown: CALMING_AIR_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 334.6, energy: 4, castConcerto: 22, offtune: 5200, forte1: 15+25 }); // assume 25 on cast?
+const ChiParry = jianxinAction("Skill - Calming Air: Chi Parry", { animFrames: 70, cooldown: CALMING_AIR_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [{ hitFrame: 70, mv: 25873, energy: 400, offtune: 12240, forte1: 15+25 }], castConcerto: 2200 }); // assume 25 on cast?
+const ChiCounter = jianxinAction("Skill - Calming Air: Chi Counter", { cooldown: CALMING_AIR_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [{ hitFrame: 0, mv: 33460, energy: 400, offtune: 5200, forte1: 15+25 }], castConcerto: 2200 }); // assume 25 on cast?
 
 // --- Purification Force Field: the 3.12s field's 29.83% ticks (15 — see the file header) and the
 //     636.20% explosion as it collapses, as one cast. Spends the Energy bar (150).
 const Liberation = jianxinAction("Liberation - Purification Force Field", {
   animFrames: 185, timestop: 157, motionStop: 185, prioFrames: 185,
   cooldown: 60 * 20,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, mv: 636.2 + 29.83 * 15, concerto: 20,
-  offtune: 48000 + 3200 * 15, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 185, mv: 63620 + 2983 * 15, concerto: 2000, offtune: 48000 + 3200 * 15 }], 
+  resetEnergy: true,
 });
 
 // --- Primordial Chi Spiral: the hold at 120 Chi that starts Zhoutian Progress, spending every
@@ -97,25 +97,24 @@ const Liberation = jianxinAction("Liberation - Purification Force Field", {
 //     progress is its own casts: Chi Strikes (two ahead of each Shock — see the file header) and
 //     the Minor, Major Inner and Major Outer Shocks; the last leaves the Zhoutian 3 shield, the
 //     marker every shield-reading gear watches, and its 6s heal the healing one.
-const FHA = jianxinAction("Forte Heavy - Primordial Chi Spiral", {
+const FHA = jianxinAction("Forte Heavy - Primordial Chi Spiral", { minForte1: 120,
   animFrames: 60,
   node: Node.Forte, cast: Cast.Heavy, castForte1: -120,
 });
 const ChiStrike = jianxinAction("Forte Heavy - Zhoutian: Chi Strike", { 
   node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, 
-  mv: 24.86, energy: 0.3, offtune: 2000 
-});
+  bullets: [{ hitFrame: 0, mv: 2486, energy: 30, offtune: 2000 }] });
 const MinorShock = jianxinAction("Forte Heavy - Minor Zhoutian: Shock", { 
   node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, 
-  mv: 139.17, energy: 2, castConcerto: 5, offtune: 3920 
+  bullets: [{ hitFrame: 0, mv: 13917, energy: 200, offtune: 3920 }], castConcerto: 500 
 });
 const InnerShock = jianxinAction("Forte Heavy - Major Zhoutian (Inner): Shock", {
   animFrames: 132,
   node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy,
-   mv: 377.74, energy: 8, castConcerto: 18, offtune: 5120
+   bullets: [{ hitFrame: 132, mv: 37774, energy: 800, offtune: 5120 }], castConcerto: 1800
   });
 const OuterShock = jianxinAction("Forte Heavy - Major Zhoutian (Outer): Shock", {
-  node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, mv: 516.91, energy: 15.61, castConcerto: 23, offtune: 7360,
+  node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 51691, energy: 1561, offtune: 7360 }], castConcerto: 2300, 
   updateDebuffs: () => {
     gainShield();
     applyCurrent(HEALS, 1);
@@ -127,14 +126,14 @@ const OuterShock = jianxinAction("Forte Heavy - Major Zhoutian (Outer): Shock", 
  *  reached (the same marker, and the same 6s heal). */
 const PushingPunch = jianxinAction("Forte Heavy - Pushing Punch", {
   animFrames: 60,
-  node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, mv: 248.52, energy: 8, castConcerto: 10, offtune: 5280,
+  node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 60, mv: 24852, energy: 800, offtune: 5280 }], castConcerto: 1000, 
   updateDebuffs: () => {
     gainShield();
     applyCurrent(HEALS, 1);
   },
 });
 const YieldingPull = jianxinAction("Forte Heavy - Yielding Pull", {
-  node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, mv: 218.7, energy: 3, castConcerto: 7, offtune: 7200,
+  node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 21870, energy: 300, offtune: 7200 }], castConcerto: 700, 
   updateDebuffs: () => {
     gainShield();
     applyCurrent(HEALS, 1);
@@ -160,13 +159,13 @@ const ZHOUTIAN_4 = new ActionGroup("Forte Heavy - Primordial Chi Spiral (Zhoutia
 
 // PLACEHOLDER FRAMES
 const Intro = jianxinAction("Intro - Essence of Tao", { animFrames: 60, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
-    { hitFrame: 60, mv: 33.8, energy: 2, offtune: 1920.2 },
-    { hitFrame: 60, mv: 33.8, energy: 2, offtune: 1920.2 },
-    { hitFrame: 60, mv: 33.8, energy: 2, offtune: 1920.2 },
-    { hitFrame: 60, mv: 67.6, energy: 4, offtune: 3840.4, forte1: 40 },
-  ], castConcerto: 10});
+    { hitFrame: 60, mv: 3380, energy: 200, offtune: 2667 },
+    { hitFrame: 60, mv: 3380, energy: 200, offtune: 2667 },
+    { hitFrame: 60, mv: 3380, energy: 200, offtune: 2667 },
+    { hitFrame: 60, mv: 6760, energy: 400, offtune: 1600, forte1: 40 },
+  ], castConcerto: 1000});
 const Outro = jianxinAction("Outro - Transcendence", {
-  cast: Cast.Outro, castConcerto: -100,
+  cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000,
   updateBuffs: () => queueOutro(TRANSCENDENCE),
 });
 
@@ -188,7 +187,7 @@ const TRANSCENDENCE = new Buff({
 const S1_BRANCHLET = new Buff({
   name: "Jianxin S1: Verdant Branchlet",
   duration: 60 * 10,
-  applyStats: () => { if (casting(Cast.Basic)) addStat(Stat.AddForte1, pressed().forte1 - pressed().castForte[0]!); },
+  applyStats: () => { if (casting(Cast.Basic)) addStat(Stat.AddForte1, currentAction().forte1 - currentAction().castForte[0]!); },
 });
 const S1 = new Sequence({
   name: "Jianxin S1: Verdant Branchlet",
@@ -213,7 +212,7 @@ const S5 = new Sequence({ name: "Jianxin S5" });
  *  Pushing Punch, with a Zhoutian Progress 4 shield. Energy, Concerto and off-tune are Chi
  *  Counter's own — the page lists none for it. */
 const SpecialChiCounter = jianxinAction("Skill - Special Chi Counter", {
-  node: Node.Skill, cast: Cast.Skill, type: Type.Heavy, mv: 556.67, energy: 4, concerto: 14, offtune: 5200,
+  node: Node.Skill, cast: Cast.Skill, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 55667, energy: 400, concerto: 1400, offtune: 5200 }], 
   updateDebuffs: () => gainShield(),
 });
 const S6 = new Sequence({ name: "Jianxin S6" });
@@ -244,7 +243,7 @@ const JIANXIN_RESONATOR = new Resonator({
   weapon: WeaponType.Gauntlets,
   color: "#9fe0c8",
   intro: Intro,
-  maxEnergy: 150,
+  maxEnergy: 15000,
   maxForte1: 120,
 
   stats: [
@@ -267,7 +266,7 @@ const JX_ROTATION_S2 = new Rotation([
 
 export const JIANXIN = new Loadout({
   resonator: JIANXIN_RESONATOR,
-  weapons: [MARCATO], 
+  weapons: [MARCATO[4]!],
   echoLoadouts: [new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.Aero3, Mainstat.ATK3, Mainstat.ATK1),
   substat: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Skill),

@@ -175,8 +175,9 @@ const COST_HELP = [
 export const MATRIX_HELP = "Enables matrix exclusive buffs for older characters, scaled down to a neutral environment. Lucy also activates 1 stack of her boss kill inherent.";
 const README = [
   "All beta calculations are subject to change!",
-  "Enemy lv100, 20% res, Resonator lv 90, Nodes lv10",
   "If you find any bug or issue ping me on discord @rileyy._.",
+  "Enemy lv100, 20% res, Resonator lv 90, Nodes lv10",
+  "Update: Added timer, cancels, and accurate buff timings"
 ];
 
 /** Which boxes show their description; survives redraws. The README starts open. */

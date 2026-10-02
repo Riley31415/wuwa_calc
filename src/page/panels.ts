@@ -2,7 +2,7 @@
  * Hover panels: the markup every popover is built from (stat traces, action info, held buffs,
  * damage breakdowns, loadouts, the DPR table) and `wireSourcePanels`, which opens them.
  */
-import { Stat, Attribute, Type, Subtype, scopedStat, splitStat, isPercent, statLabel, TAG_NAME, NODE_NAME } from "../engine/stats.js";
+import { Stat, Attribute, Type, Subtype, scopedStat, splitStat, isPercent, statLabel, TAG_NAME, NODE_NAME, statDisplayScale } from "../engine/stats.js";
 import type { StatKey, Tag } from "../engine/stats.js";
 import type { StatEntry } from "../engine/state.js";
 import { Sonata } from "../engine/gear.js";
@@ -146,30 +146,40 @@ export function framesPopover(snaps: ResolvedSnapshot[]): string {
   for (const s of snaps) {
     // an off-field press is on nobody's clock: it lists nothing
     if (!s.active) continue;
-    // a split press's row shows its cast, which played none of the hit's frames
-    const cost = (s.hitAt !== undefined ? s.action.castPart() : s.action).cost(s.tag);
+    // a split press's row shows its cast, which played none of the hit's frames; a hold cancel's
+    // frames are where it let go
+    const press = s.hitAt !== undefined ? s.action.castPart() : s.action;
+    const hold = s.tag === ActionTag.HoldCancel && s.holdPaid >= 0;
+    const cost = hold ? press.holdCost(s.action.letGo(s.holdPaid)) : press.cost(s.tag);
     total += cost.total - s.timestopBanked;
     const insta = s.tag === ActionTag.InstaCancel || s.tag === ActionTag.InstaDodge || s.tag === ActionTag.InstaJump || s.tag === ActionTag.InstaSwap;
-    const fast = s.tag === ActionTag.EasyCancel;
+    const fast = s.tag === ActionTag.MashCancel;
     // every press is listed at the frames it played but an insta cut, which lists only what it cost;
     // "(c)" where it played to its cancel frame rather than its whole length
     const cut = s.tag === ActionTag.Cancel
-    || s.tag === ActionTag.EasyCancel
+    || s.tag === ActionTag.MashCancel
+    || s.tag === ActionTag.HoldCancel
     || s.tag === ActionTag.DodgeCancel
     || s.tag === ActionTag.JumpCancel
     || s.tag === ActionTag.SwapCancel
     || s.tag === ActionTag.HitCancel
     || s.tag === ActionTag.DodgeOnHit
     || s.tag === ActionTag.JumpOnHit
-    if (!insta) rows.push(line(`${s.action.name}${cut ? " (c)" : ""}`, cost.action));
+    // a hold cancel plays to the hit that paid for the next press, or through its own priority if
+    // that is later, then holds out what is left of its minimum
+    if (hold) {
+      const own = Math.min(Math.max(s.holdPaid, s.action.prioFrames), cost.action);
+      if (own) rows.push(line(`${s.action.name} (c)`, own));
+      if (cost.action > own) rows.push(line("Hold Input", cost.action - own));
+    } else if (!insta) rows.push(line(`${s.action.name}${cut ? " (c)" : ""}`, cost.action));
     // the world stood still for part of it: the clock takes it back off
     if (cost.timestop) rows.push(line("Timestop", -cost.timestop));
     // the cut it paid, right under it
-    if (cost.global) rows.push(line(insta ? "Input Delay" : (fast ? "Mash/Hold delay" : "Cancel Timing"), cost.global));
+    if (cost.global) rows.push(line(insta ? "Input Delay" : (fast ? "Mash delay" : "Cancel Timing"), cost.global));
     // ...all of it played inside an earlier press's time stop, as far as that still stood
     if (s.timestopBanked) rows.push(line("Banked Timestop", -s.timestopBanked));
     // the next resonator coming in, charged to the row that handed the field over
-    if (s.swapFrames) rows.push(line("Swap", s.swapFrames));
+    if (s.swapFrames) rows.push(line("Swap Delay", s.swapFrames));
     total += s.swapFrames ?? 0;
     banks += Math.max(0, s.action.timestop - cost.timestop);
   }
@@ -378,7 +388,7 @@ const statRow = (e: PanelRow, owner: string, slotHue: Map<string, string>, noSta
   // a sonata two of them wear reads as whoever equipped it last
   return `<tr class="stat${e.dim ? " one" : ""}"><td class="s" style="--own:${slotHue.get(owner) ?? FALLBACK_HUE}">${esc(e.source)}</td>`
     + (noStat ? "" : `<td class="k">${esc(statLabel(e.stat))}</td>`)
-    + `<td class="v">${fmt(e.value, percent ? 1 : resource ? 2 : 0)}${percent ? "%" : ""}</td></tr>`;
+    + `<td class="v">${fmt(e.value / statDisplayScale(stat), percent ? 1 : resource ? 2 : 0)}${percent ? "%" : ""}</td></tr>`;
 };
 
 /** A loadout cell's hover: what the pieces grant the character screen (`menuStats()`), and under
@@ -437,7 +447,7 @@ function statsPanel(stats: PanelRow[], buffs: PanelRow[], owner: string, slotHue
  * neither. The menu stats are a footer row that opens one member's whole list at a time — a
  * dozen rows of their own crowded out the pieces, and three builds rarely show the same ones.
  */
-export function loadoutTable(run: TeamRun, erReq?: Map<string, string>): string {
+export function loadoutTable(run: TeamRun, needs?: Map<string, Map<string, string>>): string {
   const erRolls = erRollsFor(run.teamKey, run.members, run.combo);
   const builds = run.members.map((m, i) => ({ member: m, combo: run.combo[i]!, erRolls: erRolls[i]! }));
   const slotHue = new Map([...run.members.map((m): [string, string] => [m.name, m.color]),
@@ -515,12 +525,13 @@ export function loadoutTable(run: TeamRun, erReq?: Map<string, string>): string 
   }
   // the menu stats are the row, not a hover off it: one member's whole list per cell
   rows.push(row("Menu Stats", builds.map((b) => {
-    // Energy Regen says in its own label what the rotation asked of it — detail.ts renders that
-    // figure, since the requirement is the run's and not the build's
-    const req = erReq?.get(b.member.name);
+    // Energy Regen and Crit Rate say in their own labels what is asked of them — detail.ts renders
+    // those figures, since the ER requirement is the run's and not the build's
+    const req = needs?.get(b.member.name);
     const stats = menuStatRows(b.member, b.combo, b.erRolls)
       .map((r) => {
-        const label = r.label === statLabel(Stat.Er) && req ? `${esc(r.label)} ${req}` : esc(r.label);
+        const need = req?.get(r.label);
+        const label = need ? `${esc(r.label)} ${need}` : esc(r.label);
         return `<tr><td class="k">${label}</td><td class="v">${esc(r.value)}</td></tr>`;
       }).join("");
     return `<div class="c menustats"><table>${stats}</table></div>`;

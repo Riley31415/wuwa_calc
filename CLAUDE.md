@@ -14,6 +14,11 @@
   `hits[*].forte_N`. **forte there is raw points**, while `motion_value`/`energy`/`concerto` are ×100 and
   `off_tune` is already engine units — check one field against a number the kit text states before
   trusting the rest. it also resolves rows nanoka's own damage entries don't sum to
+- wuwalab's per-hit energy/concerto/off-tune/forte win over the kit's, but only where its hits' MV
+  totals the kit's: it lists a repeated hit once (Lucy's Stage 1 is `12.15%*6+48.59%`, wuwalab shows
+  two hits) and leaves out folded-in hits (Shorekeeper's Illation butterflies). a mismatch keeps the
+  kit's values. an all-zero resource there is missing, not zero; a Liberation's negative cast energy
+  and an Outro's -100 concerto are the engine's own spends
 - forte deltas go on the action (`forte1`..`forte5`), never via manual set calls; they can go negative when
   spent, so there is no floor. the *ceiling* is `maxForte1`..`maxForte5` on the Resonator (48 of 50 kits
   declare theirs) and only bites when a cast spends — the spend starts from the cap, not from the overrun
@@ -25,6 +30,13 @@
   as a negative delta (`forte1: -200`) and clamp to that cap in the cast's own `updateBuffs`
   (`if (forte1() > 200) setForte1(200)`) so the delta lands exactly at 0. never a bare `setForteN(0)`
 - forte/concerto/energy a kit lists elsewhere for a cast go directly on that action
+- a cast's *condition* is its own field, never read off what it spends: `minEnergy`/`maxEnergy`,
+  `minConcerto`/`maxConcerto`, `minForte1`..`minForte5`/`maxForte1`..`maxForte5` on the action, from
+  text that gates the cast ("when X is full, Heavy Attack is replaced with...", "requires full Concerto",
+  "with 4 Meta Vectors") — "consumes all X" alone is a spend, no condition. Iuno's Absolute Fullness is
+  `minConcerto: 100` and spends none; Hsin's Stilling All Horizons is `maxForte2: 0, resetForte2: true`;
+  every non-Unison Outro is `minConcerto: 100`. a row cast outside its condition reads red, and a hold
+  cancel holds until the next press's condition is met
 - an inherent that applies only to specific actions = a buff added and removed on just those actions
 - flat, unconditional equipment stats go in `stats: [[Stat.X, n, tag?], ...]` (a Buff's `stats` pay while held; `perStack`, `when`, `duration`, `lostOnSwap: true`); a trigger that grants a buff is `grants: [{ on: onCast(...) | onType(...) | onInflict(...) | onApplied(...), buff, stacks?, to?: BuffTarget.Team | BuffTarget.Enemy | BuffTarget.Next }]`; anything the form doesn't fit stays a closure (`applyStats`, `updateBuffs`, ...)
 - `ResonanceMode` on a loadout's `mode` is only for a stance a build *commits to* with no cast entering it
@@ -37,9 +49,9 @@
   (`INTRO, ..., Outro`). The Resonator names the Intro INTRO resolves to as `intro:` — the Intro, or
   an `IntroResolver` (`new Action("Intro Resolver", { cast: Cast.Intro, resolve })`) for a kit with
   more than one; a kit with more than one Outro declares an `OutroResolver` and writes that. A
-  double-Intro section opens on `DOUBLE_INTRO`; `DOUBLE_INTRO` / `FIRST_INTRO` / `INTRO_n` cast INTRO on
-  their own, cut by cutting the marker (`INTRO_2.cancel()`) or by writing the cut one right after
-  them (`INTRO_2, INTRO.cancel()`)
+  double-Intro section opens on `DOUBLE_INTRO`; `DOUBLE_INTRO` / `INTRO_OPENER` / `INTRO_FIRST` / `INTRO_LAST` cast INTRO on
+  their own, cut by cutting the marker (`INTRO_LAST.cancel()`) or by writing the cut one right after
+  them (`INTRO_LAST, INTRO.cancel()`)
 - a loadout's `weapons` list its best signature first and its best standard weapon second — with the weapons box closed the solver runs only that one
 
 # cast and hit
@@ -47,21 +59,23 @@ every press is a cast plus its `bullets` — each `{ hitFrame, commitFrame?, mv,
 forteN, element?, type?, subtype?, updateDebuffs?, hitGlobal? }`, landing at its `hitFrame` — plus an end
 where the press runs out. a bullet's `commitFrame` (default `hitFrame`) is where it is guaranteed: a cut
 after it can't stop it. the action itself has no element/type/subtype: a def's own are only what its
-bullets share. no `bullets` = a cast alone that deals as nothing (a plain `mv` is one bullet at
-`animFrames`)
-- cuts: `cancel`/`dodgeCancel`/`jump`/`easyCancel`/`swapCancel` cut at `cutFrame` — the last bullet's
-  commit, or `prioFrames` where that is later — then the animation runs on past the cut:
-  `CANCEL_DELAY` (12), `EASY_DELAY` (6), none for a swap, whose `SWAP_DELAY` (15) is the incoming
-  resonator's. a cut that runs longer than the whole press, or cuts inside `INSTA_DELAY` (6), throws.
-  an insta cut keeps the bullets committed by `INSTA_DELAY`; `.hitCancel()` (CANCEL ON HIT),
+bullets share. no `bullets` = a cast alone that deals as nothing. an action has no `mv` of its own:
+every motion value is a bullet's
+- cuts: `cancel`/`dodgeCancel`/`jump`/`mashCancel`/`holdCancel`/`swapCancel` cut at `cutFrame` — the
+  last bullet's commit, or `prioFrames` where that is later — then the animation runs on past the cut:
+  `CANCEL_DELAY` (12), `MASH_DELAY` (6), none for a swap, whose `SWAP_DELAY` (15) is the incoming
+  resonator's. a `holdCancel` instead lets go the moment the bars meet the next press's cast condition
+  (`minConcerto`, `maxForte2`, ...) — on its cast or on a bullet — never before `HOLD_DELAY` (15) or its own `prioFrames`, at its last bullet if they never do, and the
+  next press starts right there: bullets not committed by then are lost. a cut that runs longer than the whole press, or cuts inside `INSTA_DELAY` (6), throws.
+  an insta cut keeps the bullets committed by `INSTA_DELAY`; `.cancelOnHit()` (CANCEL ON HIT),
   `.dodgeOnHit()` and `.jumpOnHit()` cut `CANCEL_DELAY` after the first bullet hits, keeping the
-  bullets committed by then; each throws on a press whose bullets hit on one frame
+  bullets committed by the end of that delay — bullets keep firing until the next press truly starts; each throws on a press whose bullets hit on one frame
 - an Intro's `qteFrames` (default 0, Intros only) is where the Outro buffs queued for it land, their
   durations starting there
 - cast: `updateGlobal` (every slot's gear), then `updateBuffs` and plain `grants`. `casting()` grants,
   stance switches, spends on cast, Outro handoffs (`queueOutro` — an Outro's bullets land after the next
   Intro), `respondToUnison`. a cast has no type: never ask `isType()`/`onType` there. what a cast
-  itself restores or spends beyond its declared `castEnergy`/`castConcerto`/`castForteN` goes through
+  itself restores or spends beyond its declared `castEnergy`/`castConcerto`/`castOfftune`/`castForteN` goes through
   `addToCast({ energy, concerto, forteN })` from a cast hook — never a stat
 - every hit: the action's own and the hit's own `updateDebuffs`, every held Gear's, then the same for
   `hitGlobal`, the grants reading inflictions (`onInflict`/`onApplied`/`inflicting(...)`), the stat
@@ -73,13 +87,22 @@ bullets share. no `bullets` = a cast alone that deals as nothing (a plain `mv` i
 - stats only ever apply on hits, and the stat hooks (`applyStats`, `convertStats`, `lateConvertStats`,
   `constantStats`) only write stats: no buff, debuff, gauge, queue or `lostOnSwap()` changes there
   (the engine throws). a buff the press consumes pays in applyStats and is revoked in a guarded
-  `afterAction`. a buff's per-press adds (`AddMv`, `AddEnergy`/`Concerto`/`Offtune`, `AddForteN`) are
-  shared across the hits by mv; a stat hook re-adding the press's own gain reads `pressed()`, not the hit
+  `afterAction`. nothing is split across a press's hits: each hit has its own resource values and a
+  stat hook's adds pay on every hit in full. a gain the press makes once ("+30 Concerto on cast") is
+  `addToCast()` from a cast hook, never `AddConcerto`/`AddEnergy`/`AddForteN`; a stat hook re-adding a
+  hit's own gain reads `currentAction()` (that hit), not `pressed()`
 - a gauge a cast converts ("consumes every crystal") is spent in `updateBuffs`, off what the cast
   found — a stat hook re-reads it on every hit
-- off-field time: a press's motion stop pauses every inactive resonator's queued hits and clocks
-  (a `coordinatedBuff`'s owner's, a member's own gear's, `skipMotionStop` always); time stop it
-  doesn't cover lets them run on while the clock stands still. both outlast their press as banks
+- two timers: the real timer (`State.real`) runs every animation, bullet and queued hit, time stop
+  or not; the game timer (`State.frame`) is it less every frozen frame, and is what buffs, cooldowns,
+  tick clocks (Denia's Erosion Field pulls, Maestro's note timer) and the table run on. a press's time
+  stop freezes the game timer from its cast: over its own animation it is shared with every press
+  playing then (Jiyan's Prelude and Finale freeze 60, not 120), and what outlasts the animation is
+  banked, stacking behind everything already frozen (Xiangli Yao's 79 survive a Tune Break's own 90). never subtract time stop by hand — `gameOf()`/`realOf()` convert
+- off-field time: a press's motion stop holds every inactive resonator's queued hits and clocks
+  (a `coordinatedBuff`'s owner's, a member's own gear's, `skipMotionStop` always) on the real timer,
+  for as long as it lasts, stacked the same way. a cooldown's wait runs on the game timer; an animation hold (Hecate) on the
+  real one. a queued `afterPlay` cast (the auto Tune Break) waits for the press playing to end
 - the row sums its hits' damage/mv/gauges and shows the last hit's stats; `applied()` and friends
   see only the part being run
 
@@ -100,8 +123,22 @@ bullets share. no `bullets` = a cast alone that deals as nothing (a plain `mv` i
 - extras after the name go in parentheses: `(Charged)`, `(Hold)`, `(Follow-Up)`, `(S6 Blast)`; sub-moves after a colon: `Thrum: Aero Plunge`. A `.swap()` form keeps its cast's name: the SWAP tag marks it
 - actions with no cast (coordinated hits, ticks, fields, responses) carry the source they belong to instead: `Liberation - Marcato`, `Tune Rupture Response - Starburst`
 
+# units
+every gauge value is a whole number: energy and concerto ×100 (`ENERGY_UNIT`, `CONCERTO_UNIT`, a full
+bar 10000), MV ×100 of its percent (`MV_UNIT`, 22.06% = 2206), off-tune ×10000, and forte in its
+Resonator's `forteScale` units (1 by default, 0.01 for a gauge held in hundredths, 0.0001 for Lupa's
+Wolflame). a value that needs decimals means the gauge needs a finer scale, never a fraction
+- a bullet carries only its own hit's gains. a flat "Concerto Regen" row and a dodge counter's hidden
+  +10 go on `castConcerto`, never spread over the bullets
+- a cast hook reading the press's gauge (`RING_CONSUMED`'s spend) reads `pressed()`: `currentAction()`
+  there is the cast half, which holds only `castForteN`
+
 # nanoka data
-the damage table is client-rendered — read the CDN json, not the html:
+the CDN json below 404s now (ww.nanoka.cc is a client app). encore.moe carries the same game data:
+`https://api-v2.encore.moe/api/en/character/<id>`, `Skills[*].DamageList[*]` = one hit (`RateLv[9]`
+level-10 MV, `Energy` ×100, `ElementPower` = concerto ×100, `WeaknessLvl` ×10000 = off-tune) and
+`Skills[*].SkillAttributes` = the rows ("Stage 1 DMG: 12.15%*6+48.59%", "Concerto Regen: 7").
+the old CDN notes, for when it returns — the damage table is client-rendered, read the json, not the html:
 `https://static.nanoka.cc/ww/<ver>/en/character/<id>.json`, `<ver>` from a page's `data-url` —
 **a page carries more than one, so take the highest** (3.7.3 on the page now, beside a stale 3.6 — though the CDN already serves 3.7.4, so probe one version up), and the CDN
 keeps old directories that are earlier betas rather than earlier patches. `<id>` 1101-1610 (404s on

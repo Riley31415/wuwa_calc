@@ -27,13 +27,14 @@ const STATES: Record<string, Partial<Filters>> = Object.fromEntries(TEAM_COSTS.m
 
 const filtersFor = (state: string): Filters => ({ ...defaultFilters(), ...STATES[state] });
 
-interface Task { key: string; state: string }
-interface Done extends Task { solved: Solved }
+/** One team's states, solved back to back on one worker so they share its runs (`solveTeam`'s cache). */
+interface Task { key: string; states: string[] }
+interface Done { key: string; solved: [string, Solved][] }
 
 if (!isMainThread) {
-  parentPort!.on("message", ({ key, state }: Task) => {
-    const solved = solveTeam(key, teamFromKey(key), filtersFor(state), null);
-    parentPort!.postMessage({ key, state, solved });
+  parentPort!.on("message", ({ key, states }: Task) => {
+    const solved = states.map((state): [string, Solved] => [state, solveTeam(key, teamFromKey(key), filtersFor(state), null)]);
+    parentPort!.postMessage({ key, solved });
   });
 } else {
   const bundle = new URL("../bundle/", import.meta.url);
@@ -50,7 +51,7 @@ if (!isMainThread) {
   // which state solves each key, and so which files a state has to be sent to
   const owner = new Map<string, string>();
   const needs = new Map<string, Set<string>>();
-  const tasks: Task[] = [];
+  const tasks = new Map<string, Task>();
   for (const state of Object.keys(STATES)) {
     const f = filtersFor(state);
     const files = new Set<string>();
@@ -64,33 +65,45 @@ if (!isMainThread) {
         owner.set(k, state);
         files.add(state);
       }
-      if (owner.get(bestKey(key, members, f)) === state) tasks.push({ key, state });
+      if (owner.get(bestKey(key, members, f)) !== state) continue;
+      const task = tasks.get(key);
+      if (task) task.states.push(state);
+      else tasks.set(key, { key, states: [state] });
     }
     needs.set(state, files);
   }
-  const repeats = keys.length * Object.keys(STATES).length - tasks.length;
+  const queue = [...tasks.values()];
+  const count = queue.reduce((n, t) => n + t.states.length, 0);
+  const repeats = keys.length * Object.keys(STATES).length - count;
 
   const started = Date.now();
   let next = 0, done = 0;
-  const threads = Math.max(1, Math.min(8, cpus().length - 1, tasks.length));
+  // past the cores, a few more threads still pay (12 of 16 measured best)
+  const threads = Math.max(1, Math.min(12, cpus().length - 1, queue.length));
   const workers = Array.from({ length: threads }, () => new Worker(fileURLToPath(import.meta.url)));
 
   await new Promise<void>((resolve) => {
     let live = workers.length;
     const pump = (w: Worker): void => {
-      if (next >= tasks.length) { void w.terminate(); if (--live === 0) resolve(); return; }
-      w.postMessage(tasks[next++]);
+      if (next >= queue.length) {
+        void w.terminate();
+        if (--live === 0) resolve();
+        return;
+      }
+      w.postMessage(queue[next++]);
     };
     for (const w of workers) {
-      w.on("message", ({ key, state, solved }: Done) => {
+      w.on("message", ({ key, solved: all }: Done) => {
         const members = membersOf.get(key)!;
-        const f = filtersFor(state);
-        solves.get(state)!.set(bestKey(key, members, f), solved);
-        const pk = picksKey(key, members, f);
-        if (owner.get(pk) === state) picks.get(state)!.set(pk, solved.picks);
-        rows[state] = (rows[state] ?? 0) + solved.rows.length;
-        if (++done % 100 === 0 || done === tasks.length) {
-          process.stdout.write(`\r${done}/${tasks.length} solves  ${((Date.now() - started) / 1000).toFixed(0)}s   `);
+        for (const [state, solved] of all) {
+          const f = filtersFor(state);
+          solves.get(state)!.set(bestKey(key, members, f), solved);
+          const pk = picksKey(key, members, f);
+          if (owner.get(pk) === state) picks.get(state)!.set(pk, solved.picks);
+          rows[state] = (rows[state] ?? 0) + solved.rows.length;
+          if (++done % 100 === 0 || done === count) {
+            process.stdout.write(`\r${done}/${count} solves  ${((Date.now() - started) / 1000).toFixed(0)}s   `);
+          }
         }
         pump(w);
       });

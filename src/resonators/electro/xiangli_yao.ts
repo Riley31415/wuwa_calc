@@ -54,112 +54,112 @@ function xlyAction(id: string, def: object): Action {
 // --- basics, heavy, mid-air, dodge counter (Probe) — every hit feeds Capacity
 // PLACEHOLDER FRAMES
 const BA1 = xlyAction("Basic - Probe 1", { animFrames: 20, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 20, mv: 33.11, energy: 0.42, concerto: 0.84, offtune: 1332 },
-    { hitFrame: 20, mv: 33.11, energy: 0.42, concerto: 0.84, offtune: 1332, forte1: 8 },
+    { hitFrame: 20, mv: 3311, energy: 42, concerto: 84, offtune: 1332 },
+    { hitFrame: 20, mv: 3311, energy: 42, concerto: 84, offtune: 1332, forte1: 8 },
   ]});
-const BA2 = xlyAction("Basic - Probe 2", { animFrames: 20, bullets: [{ hitFrame: 15, mv: 99.61, energy: 1.26, concerto: 2.51, offtune: 4008, forte1: 14 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
+const BA2 = xlyAction("Basic - Probe 2", { animFrames: 20, bullets: [{ hitFrame: 15, mv: 9961, energy: 126, concerto: 251, offtune: 4008, forte1: 14 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
 // PLACEHOLDER FRAMES
 const BA3 = xlyAction("Basic - Probe 3", { animFrames: 48, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 40, mv: 39.76, energy: 0.5, concerto: 1, offtune: 1600 },
-    { hitFrame: 40, mv: 39.76, energy: 0.5, concerto: 1, offtune: 1600 },
-    { hitFrame: 40, mv: 39.76, energy: 0.5, concerto: 1, offtune: 1600, forte1: 15 },
+    { hitFrame: 40, mv: 3976, energy: 50, concerto: 100, offtune: 1600 },
+    { hitFrame: 40, mv: 3976, energy: 50, concerto: 100, offtune: 1600 },
+    { hitFrame: 40, mv: 3976, energy: 50, concerto: 100, offtune: 1600, forte1: 15 },
   ]});
 // PLACEHOLDER FRAMES
 const BA4 = xlyAction("Basic - Probe 4", { animFrames: 48, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 32, mv: 53.05, energy: 0.672, concerto: 1.3399, offtune: 2135.1195 },
-    { hitFrame: 32, mv: 53.05, energy: 0.672, concerto: 1.3399, offtune: 2135.1195 },
-    { hitFrame: 32, mv: 26.53, energy: 0.336, concerto: 0.6702, offtune: 1067.761, forte1: 18 },
+    { hitFrame: 32, mv: 5305, energy: 67, concerto: 134, offtune: 2135 },
+    { hitFrame: 32, mv: 5305, energy: 67, concerto: 134, offtune: 2135 },
+    { hitFrame: 32, mv: 2653, energy: 34, concerto: 67, offtune: 1068, forte1: 18 },
   ]});
-const BA5 = xlyAction("Basic - Probe 5", { animFrames: 64, bullets: [{ hitFrame: 33, mv: 198.81, energy: 2.50, concerto: 5.00, offtune: 8000, forte1: 20 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
+const BA5 = xlyAction("Basic - Probe 5", { animFrames: 64, bullets: [{ hitFrame: 33, mv: 19881, energy: 250, concerto: 500, offtune: 8000, forte1: 20 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
 
 // PLACEHOLDER FRAMES
 const HA = xlyAction("Heavy - Probe", { animFrames: 58, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
-    { hitFrame: 58, mv: 82.81, energy: 1.05, concerto: 2.09, offtune: 3332 },
-    { hitFrame: 58, mv: 82.81, energy: 1.05, concerto: 2.09, offtune: 3332, forte1: 18 },
+    { hitFrame: 58, mv: 8281, energy: 105, concerto: 209, offtune: 3332 },
+    { hitFrame: 58, mv: 8281, energy: 105, concerto: 209, offtune: 3332, forte1: 18 },
   ]});
-const MA = xlyAction("Mid-air - Probe Plunge", { animFrames: 60, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 123.27, energy: 0.52, concerto: 1.00, offtune: 4960, forte1: 13 });
-const DC = xlyAction("Dodge Counter - Probe", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, mv: 238.58, energy: 2.75, concerto: 2.5, castConcerto: 10, offtune: 4000, forte1: 26 });
+const MA = xlyAction("Mid-air - Probe Plunge", { animFrames: 60, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 60, mv: 12327, energy: 52, concerto: 100, offtune: 4960, forte1: 13 }] });
+const DC = xlyAction("Dodge Counter - Probe", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 23858, energy: 275, concerto: 250, offtune: 4000, forte1: 26 }], castConcerto: 1000 });
 
 // PLACEHOLDER FRAMES
 const Skill = xlyAction("Skill - Deduction", { animFrames: 41, cooldown: 60 * 5, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
-    { hitFrame: 15, mv: 99.41, energy: 3.125, concerto: 3.5, offtune: 2000 },
-    { hitFrame: 15, mv: 99.4, energy: 3.125, concerto: 3.5, offtune: 2000, forte1: 40 },
-  ]});
+    { hitFrame: 15, mv: 9941, energy: 313, offtune: 2000 },
+    { hitFrame: 15, mv: 9940, energy: 312, offtune: 2000, forte1: 40 },
+  ], castConcerto: 700});
 /** Decipher: spends the full 100 Capacity, considered Resonance Liberation DMG. */
-const FSkill = xlyAction("Forte Skill - Decipher", { animFrames: 45, node: Node.Forte, cast: Cast.Skill, type: Type.Liberation, mv: 397.82, energy: 1.67, castConcerto: 7, offtune: 5336, castForte1: -100});
+const FSkill = xlyAction("Forte Skill - Decipher", { minForte1: 100, animFrames: 45, node: Node.Forte, cast: Cast.Skill, type: Type.Liberation, bullets: [{ hitFrame: 45, mv: 39782, energy: 167, offtune: 5336 }], castConcerto: 700, castForte1: -100});
 
-const Liberation = xlyAction("Liberation - Cogitation Model", { animFrames: 191, timestop: 270, motionStop: 191, prioFrames: 191, cooldown: 60 * 25, node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, mv: 1466.06, castConcerto: 20, offtune: 67200, resetEnergy: true });
+const Liberation = xlyAction("Liberation - Cogitation Model", { animFrames: 191, timestop: 270, motionStop: 191, prioFrames: 191, cooldown: 60 * 25, node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 191, mv: 146606, offtune: 67200 }], castConcerto: 2000, resetEnergy: true });
 
 // Intuition's own moveset — Pivot - Impale basics, Divergence, Unfathomed; Performance Capacity
 // (forte2) deltas are the kit text's own numbers
-const UBA1 = xlyAction("Basic - Pivot: Impale 1", { animFrames: 60, node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, mv: 119.67, energy: 1.31, concerto: 2.62, offtune: 4192, forte2: 1 });
+const UBA1 = xlyAction("Basic - Pivot: Impale 1", { animFrames: 60, node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 60, mv: 11967, energy: 131, concerto: 262, offtune: 4192, forte2: 1 }] });
 // PLACEHOLDER FRAMES
 const UBA2 = xlyAction("Basic - Pivot: Impale 2", { animFrames: 60, node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 60, mv: 60.92, energy: 0.67, concerto: 1.34, offtune: 2134 },
-    { hitFrame: 60, mv: 60.92, energy: 0.67, concerto: 1.34, offtune: 2134 },
-    { hitFrame: 60, mv: 60.92, energy: 0.67, concerto: 1.34, offtune: 2134 },
-    { hitFrame: 60, mv: 60.92, energy: 0.67, concerto: 1.34, offtune: 2134, forte2: 2 },
+    { hitFrame: 60, mv: 6092, energy: 67, concerto: 134, offtune: 2134 },
+    { hitFrame: 60, mv: 6092, energy: 67, concerto: 134, offtune: 2134 },
+    { hitFrame: 60, mv: 6092, energy: 67, concerto: 134, offtune: 2134 },
+    { hitFrame: 60, mv: 6092, energy: 67, concerto: 134, offtune: 2134, forte2: 2 },
   ]});
 // PLACEHOLDER FRAMES
 const UBA3 = xlyAction("Basic - Pivot: Impale 3", { animFrames: 60, node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 60, mv: 133.25, energy: 1.46, concerto: 2.92, offtune: 4668 },
-    { hitFrame: 60, mv: 133.25, energy: 1.46, concerto: 2.92, offtune: 4668, forte2: 2 },
+    { hitFrame: 60, mv: 13325, energy: 146, concerto: 292, offtune: 4668 },
+    { hitFrame: 60, mv: 13325, energy: 146, concerto: 292, offtune: 4668, forte2: 2 },
   ]});
 // PLACEHOLDER FRAMES
 const USkill = xlyAction("Skill - Divergence", { animFrames: 85, cooldown: 60 * 7, node: Node.Liberation, cast: Cast.Skill, type: Type.Skill, bullets: [
-    { hitFrame: 85, mv: 49.59, energy: 0.9941, concerto: 0.5, offtune: 931.6564 },
-    { hitFrame: 85, mv: 49.59, energy: 0.9941, concerto: 0.5, offtune: 931.6564 },
-    { hitFrame: 85, mv: 49.59, energy: 0.9941, concerto: 0.5, offtune: 931.6564 },
-    { hitFrame: 85, mv: 173.55, energy: 3.4789, concerto: 1.75, offtune: 3260.5155 },
-    { hitFrame: 85, mv: 173.55, energy: 3.4788, concerto: 1.75, offtune: 3260.5153, forte2: 2 },
-  ], castConcerto: 10});
+    { hitFrame: 85, mv: 4959, energy: 100, concerto: 50, offtune: 932 },
+    { hitFrame: 85, mv: 4959, energy: 100, concerto: 50, offtune: 932 },
+    { hitFrame: 85, mv: 4959, energy: 100, concerto: 50, offtune: 932 },
+    { hitFrame: 85, mv: 17355, energy: 347, concerto: 175, offtune: 3260 },
+    { hitFrame: 85, mv: 17355, energy: 347, concerto: 175, offtune: 3260, forte2: 2 },
+  ], castConcerto: 1000});
 // PLACEHOLDER FRAMES
 const UDC = xlyAction("Dodge Counter - Unfathomed", { node: Node.Liberation, cast: Cast.DodgeCounter, type: Type.Liberation, bullets: [
-    { hitFrame: 0, mv: 38.83, energy: 0.4001, concerto: 0.5001, offtune: 800.1236 },
-    { hitFrame: 0, mv: 38.83, energy: 0.4001, concerto: 0.5001, offtune: 800.1236 },
-    { hitFrame: 0, mv: 310.58, energy: 3.1998, concerto: 3.9998, offtune: 6399.7528, forte2: 2 },
-  ], castConcerto: 10});
+    { hitFrame: 0, mv: 3883, energy: 40, concerto: 50, offtune: 800 },
+    { hitFrame: 0, mv: 3883, energy: 40, concerto: 50, offtune: 800 },
+    { hitFrame: 0, mv: 31058, energy: 320, concerto: 400, offtune: 6400, forte2: 2 },
+  ], castConcerto: 1000});
 
 /** Law of Reigns: 5 Performance Capacity and a Hypercube a cast, considered Liberation DMG. */
 // PLACEHOLDER FRAMES
-const UForte = xlyAction("Forte Skill - Law of Reigns", { animFrames: 93, node: Node.Forte, cast: Cast.Skill, type: Type.Liberation, bullets: [
-    { hitFrame: 85, mv: 95.73, energy: 0.717, offtune: 6840 },
-    { hitFrame: 85, mv: 95.73, energy: 0.717, offtune: 6840 },
-    { hitFrame: 85, mv: 95.73, energy: 0.717, offtune: 6840 },
-    { hitFrame: 85, mv: 95.73, energy: 0.717, offtune: 6840 },
-    { hitFrame: 85, mv: 255.28, energy: 1.912, offtune: 18240 },
-  ], castConcerto: 10, castForte2: -5});
+const UForte = xlyAction("Forte Skill - Law of Reigns", { minForte2: 5, animFrames: 93, node: Node.Forte, cast: Cast.Skill, type: Type.Liberation, bullets: [
+    { hitFrame: 85, mv: 9573, energy: 72, offtune: 6840 },
+    { hitFrame: 85, mv: 9573, energy: 72, offtune: 6840 },
+    { hitFrame: 85, mv: 9573, energy: 72, offtune: 6840 },
+    { hitFrame: 85, mv: 9573, energy: 72, offtune: 6840 },
+    { hitFrame: 85, mv: 25528, energy: 190, offtune: 18240 },
+  ], castConcerto: 1000, castForte2: -5});
 /** Revamp, the mid-air follow-up to Decipher/Divergence — considered Liberation DMG. */
 // PLACEHOLDER FRAMES
 const FBA = xlyAction("Mid-air - Revamp", { animFrames: 95, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, bullets: [
-    { hitFrame: 67, mv: 21.87, energy: 0.278, offtune: 880 },
-    { hitFrame: 67, mv: 21.87, energy: 0.278, offtune: 880 },
-    { hitFrame: 67, mv: 21.87, energy: 0.278, offtune: 880 },
-    { hitFrame: 67, mv: 21.87, energy: 0.278, offtune: 880 },
-    { hitFrame: 67, mv: 65.61, energy: 0.834, offtune: 2640 },
-    { hitFrame: 67, mv: 65.61, energy: 0.834, offtune: 2640, forte2: 3 },
-  ], castConcerto: 5});
+    { hitFrame: 67, mv: 2187, energy: 28, offtune: 880 },
+    { hitFrame: 67, mv: 2187, energy: 28, offtune: 880 },
+    { hitFrame: 67, mv: 2187, energy: 28, offtune: 880 },
+    { hitFrame: 67, mv: 2187, energy: 28, offtune: 880 },
+    { hitFrame: 67, mv: 6561, energy: 83, offtune: 2640 },
+    { hitFrame: 67, mv: 6561, energy: 83, offtune: 2640, forte2: 3 },
+  ], castConcerto: 500});
 
 /** S1's Convolution Matrices: six more instances off every Law of Reigns, each worth 8% of that
  *  skill's own multiplier — 51.06% apiece, and 89.86% once S6 raises the skill (nanoka's own rows,
  *  which carry no energy, concerto or off-tune of their own). */
-const ConvolutionMatrices = xlyAction("Forte Skill - Convolution Matrices (S1)", { node: Node.Forte, type: Type.Liberation, mv: 51.06 * 6 });
+const ConvolutionMatrices = xlyAction("Forte Skill - Convolution Matrices (S1)", { node: Node.Forte, type: Type.Liberation, bullets: [{ hitFrame: 0, mv: 5106 * 6 }] });
 
 // PLACEHOLDER FRAMES
 const Intro = xlyAction("Intro - Principle", { animFrames: 84, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
-    { hitFrame: 60, mv: 99.41, energy: 5, concerto: 5, offtune: 5600 },
-    { hitFrame: 60, mv: 99.41, energy: 5, concerto: 5, offtune: 5600 },
-  ]});
+    { hitFrame: 60, mv: 9941, energy: 500, offtune: 5600 },
+    { hitFrame: 60, mv: 9941, energy: 500, offtune: 5600 },
+  ], castConcerto: 1000});
 /** Chain Rule: no damage of its own, just the handoff — its lasers are ACTION_OUTRO_COORD. */
 const Outro = xlyAction("Outro - Chain Rule", {
-  cast: Cast.Outro, castConcerto: -100,
+  cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000,
   // queued three times so the adopter picks the buff up at all three charges
   updateBuffs: () => { queueOutro(XLY_OUTRO); queueOutro(XLY_OUTRO); queueOutro(XLY_OUTRO); },
 });
 /** One laser beam — queued onto his own slot by XLY_OUTRO below, once per stack the incoming
  *  resonator's Basic casts consume. */
 const CHAIN_RULE_FIELD = new ActionField("Xiangli Yao: Chain Rule");
-const ACTION_OUTRO_COORD = xlyAction("Outro - Chain Rule (Laser)", { type: Type.Outro, mv: 237.63, field: CHAIN_RULE_FIELD });
+const ACTION_OUTRO_COORD = xlyAction("Outro - Chain Rule (Laser)", { type: Type.Outro, bullets: [{ hitFrame: 0, mv: 23763 }], field: CHAIN_RULE_FIELD });
 
 /* ------------------------------------------------------------------------------------ buffs */
 
@@ -204,7 +204,7 @@ const XIANGLI_YAO_RESONATOR = new Resonator({
   weapon: WeaponType.Gauntlets,
   color: "#6b74e8",
   intro: Intro,
-  maxEnergy: 125,
+  maxEnergy: 12500,
   maxForte1: 100,
   maxForte2: 5,
 

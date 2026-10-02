@@ -45,7 +45,7 @@ export const ctx: {
   dryRun: boolean;
   /** Set while a `snapshotFight()` is live — from the one taken ahead of the real build's stat
    *  phases until the last variant is restored — so every in-place structure a snapshot only holds
-   *  by reference (a Pool's `at`, a member's `globalHooks`) is copied before its first write, by
+   *  by reference (a Pool's `at`, a member's `castHooks`/`hitHooks`) is copied before its first write, by
    *  the real build's own hooks as much as by a dry run's. Everything else a snapshot holds is
    *  copy-on-write already, or a plain number. */
   guarded: boolean;
@@ -57,6 +57,10 @@ export const ctx: {
   /** Set while a stat hook (applyStats, convertStats, lateConvertStats, constantStats) runs: none may
    *  change a buff, a gauge or the queue, only write stats. */
   inStats: boolean;
+  /** Set while a marker resolves (an Intro Resolver, ECHO): it picks a cast and may only read. */
+  inResolve: boolean;
+  /** Set while a handoff plans the visit it opens, ahead of its Outro: what that Outro moves hasn't. */
+  handoffPending: boolean;
   /** Set while a cast's hooks run — where `addToCast()` may add to what it banks. */
   inCast: boolean;
   /** What cast hooks added to this press's cast (`addToCast()`): energy, concerto, forte 1-5. */
@@ -95,11 +99,28 @@ export const ctx: {
   offFieldShift: number;
   /** The frame that press was cast (`castFrame()`), set with `pressFrames`. */
   pressStart: number;
+  /** The real frames the press being evaluated plays: its animation to its cut, and the cut's delay. */
+  actReal: number;
+  /** The tag the press being evaluated was cut short by (`ActionTag`, "" for none, "field" for a
+   *  press beside the fight) — its cast's, and carried to its end (`pressWasCut()`). */
+  pressCut: string;
+  /** The step after the press being run, as written (a dash marker, say) — `nextIsPlainDodge()` (rotation.ts). */
+  nextStep: Action | null;
+  /** Set by `replaceNextDash()`: the cut the press is relabelled as, its dodge dropped; "" for none. */
+  dashReplaced: string;
+  /** The press a hold cancel holds into, set by `run()` for evaluate() to read where it lets go. */
+  holdNext: Action | null;
+  /** Where the hold cancel just evaluated let go, in animation frames; -1 for any other press. */
+  holdCut: number;
   /** Bumped at the top of every `evaluate()`: what stamps this action's grant records (`applied`,
    *  `consumed`) as current, so neither is ever cleared. */
   actionStamp: number;
   tracing: boolean;
   insideGroup: boolean;
+  /** Set while a dry variant re-runs one convert hook: every index it writes is marked in `moved`. */
+  trackWrites: boolean;
+  /** Bumped whenever any pool's roster or counts are replaced, so a capture of unchanged pools is kept. */
+  poolVersion: number;
 } = {
   state: null,
   slot: null,
@@ -114,6 +135,8 @@ export const ctx: {
   guarded: false,
   mutHash: 0,
   inStats: false,
+  inResolve: false,
+  handoffPending: false,
   inCast: false,
   castGain: [0, 0, 0, 0, 0, 0, 0],
   castAdds: [],
@@ -127,11 +150,19 @@ export const ctx: {
   swapLosses: new Set(),
   droppedCast: null,
   pressFrames: 0,
+  actReal: 0,
+  pressCut: "",
+  nextStep: null,
+  dashReplaced: "",
+  holdNext: null,
+  holdCut: -1,
   offFieldShift: 0,
   pressStart: 0,
   actionStamp: 0,
   tracing: false,
   insideGroup: false,
+  trackWrites: false,
+  poolVersion: 0,
 };
 
 export const tagWord = (element: Attribute | null, type: Type | null, subtype: Subtype | null): number =>
@@ -145,7 +176,7 @@ export const tagWordOf = (action: Action): number => {
   return word;
 };
 
-/** What a dry run wrote in place — a Pool's `at` or a member's `globalHooks`, the Gear, and what
+/** What a dry run wrote in place — a Pool's `at` or a member's `castHooks`/`hitHooks`, the Gear, and what
  *  that key held before — as flat triples, for `undoDry()` to reverse before a snapshot is put
  *  back. A journal rather than a copy because a variant writes two or three entries and the copy
  *  was the whole map, once per variant per action. */
@@ -182,7 +213,13 @@ export const reads = { stamp: new Int32Array(64), phases: new Int32Array(64) };
 export const recordRead = (index: number): void => {
   if (reads.stamp[index] !== ctx.readStamp) { reads.stamp[index] = ctx.readStamp; reads.phases[index] = ctx.readPhase; }
   else reads.phases[index] = reads.phases[index]! | ctx.readPhase;
+  if (ctx.readPhase === READ_CONVERT) hookReads.index[hookReads.length++] = index;
 };
+/** Every read the conversions made, in order — each logged hook call owns a stretch (evaluate.ts's
+ *  `hookLog`), so a dry variant re-runs only the hooks that read an index it moved. */
+export const hookReads = { index: [] as number[], length: 0 };
+/** The indices a dry variant's row differs from the real build's at so far, as stamps equal to `key`. */
+export const moved = { at: new Int32Array(64), key: 0 };
 /** Whether any of `indices` was read in one of `phases` during the current varied action. */
 export const readAny = (indices: number[], phases: number): boolean => {
   for (let d = 0; d < indices.length; d++) {
@@ -193,6 +230,7 @@ export const readAny = (indices: number[], phases: number): boolean => {
 };
 
 export const noteMutation = (id: number, n: number): void => {
+  if (ctx.inResolve) throw new Error(`${ctx.act?.name ?? "a marker"}: a resolver changed the fight — it only picks the cast; the cast it picks does the rest`);
   if (ctx.inStats) throw new Error(`${ctx.buff?.name ?? "?"}: a stat hook changed the fight (${ctx.act?.name ?? "?"}) — buffs, gauges and queues move outside applyStats/convertStats`);
   ctx.mutHash = (Math.imul(ctx.mutHash ^ id, 0x9e3779b1) + n) | 0;
 };
@@ -273,3 +311,14 @@ export const recordConsumed = (gear: Gear, n: number): void => {
 };
 
 export const pendingQueue: { action: Action; slot: number; by: HeldBuff | null; event: boolean }[] = [];
+
+/** Resolve a marker under `ctx.inResolve`. */
+export function resolving<T>(f: () => T): T {
+  const was = ctx.inResolve;
+  ctx.inResolve = true;
+  try {
+    return f();
+  } finally {
+    ctx.inResolve = was;
+  }
+}

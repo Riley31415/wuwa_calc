@@ -53,6 +53,7 @@ import {
   runningAction,
   setForte2,
   stacksOfEnemy,
+  addToCast,
 } from "../../engine/context.js";
 import { Action, ActionGroup, Rotation, ECHO, NOINTRO, ActionTag, INTRO } from "../../engine/rotation.js";
 import { FRAZZLE_SLOWED, SPECTRO_FRAZZLE } from "../../shared/status.js";
@@ -71,65 +72,65 @@ function phoebeAction(id: string, def: object): Action {
 }
 
 // --- O Come Divine Light: her chain outside the Ring of Mirrors.
-const BA1 = phoebeAction("Basic - O Come Divine Light 1", { animFrames: 26, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 16, mv: 29.53, energy: 1, concerto: 1.99, offtune: 3184 }]});
+const BA1 = phoebeAction("Basic - O Come Divine Light 1", { animFrames: 26, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 16, mv: 2953, energy: 100, concerto: 199, offtune: 3184 }]});
 const BA2 = phoebeAction("Basic - O Come Divine Light 2", { animFrames: 33, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 16, mv: 22.37, energy: 0.6, concerto: 1.2, offtune: 1920 },
-    { hitFrame: 26, mv: 27.34, energy: 0.74, concerto: 1.47, offtune: 2347 },
+    { hitFrame: 16, mv: 2237, energy: 60, concerto: 120, offtune: 1920 },
+    { hitFrame: 26, mv: 2734, energy: 74, concerto: 147, offtune: 2347 },
   ]});
 const BA3 = phoebeAction("Basic - O Come Divine Light 3", { animFrames: 60, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 36, mv: 14.24, energy: 0.37, concerto: 0.73, offtune: 1164 },
-    { hitFrame: 42, commitFrame: 36, mv: 14.24, energy: 0.37, concerto: 0.73, offtune: 1164 },
-    { hitFrame: 48, commitFrame: 36, mv: 14.24, energy: 0.37, concerto: 0.73, offtune: 1164 },
-    { hitFrame: 54, commitFrame: 36, mv: 14.24, energy: 0.37, concerto: 0.73, offtune: 1164 },
-    { hitFrame: 60, commitFrame: 36, mv: 14.24, energy: 0.37, concerto: 0.73, offtune: 1164 },
-    { hitFrame: 66, commitFrame: 36, mv: 14.24, energy: 0.37, concerto: 0.73, offtune: 1164 },
-    { hitFrame: 72, commitFrame: 36, mv: 14.24, energy: 0.37, concerto: 0.73, offtune: 1164 },
-    { hitFrame: 78, commitFrame: 36, mv: 14.24, energy: 0.37, concerto: 0.73, offtune: 1164 },
+    { hitFrame: 36, mv: 1424, energy: 37, concerto: 73, offtune: 1164 },
+    { hitFrame: 42, commitFrame: 36, mv: 1424, energy: 37, concerto: 73, offtune: 1164 },
+    { hitFrame: 48, commitFrame: 36, mv: 1424, energy: 37, concerto: 73, offtune: 1164 },
+    { hitFrame: 54, commitFrame: 36, mv: 1424, energy: 37, concerto: 73, offtune: 1164 },
+    { hitFrame: 60, commitFrame: 36, mv: 1424, energy: 37, concerto: 73, offtune: 1164 },
+    { hitFrame: 66, commitFrame: 36, mv: 1424, energy: 37, concerto: 73, offtune: 1164 },
+    { hitFrame: 72, commitFrame: 36, mv: 1424, energy: 37, concerto: 73, offtune: 1164 },
+    { hitFrame: 78, commitFrame: 36, mv: 1424, energy: 37, concerto: 73, offtune: 1164 },
   ]});
 const DC = phoebeAction("Dodge Counter - O Come Divine Light", { animFrames: 60, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
-    { hitFrame: 36, mv: 21.58, energy: 0.56, concerto: 2.36, offtune: 1764 },
-    { hitFrame: 42, commitFrame: 36, mv: 21.58, energy: 0.56, concerto: 2.36, offtune: 1764 },
-    { hitFrame: 48, commitFrame: 36, mv: 21.58, energy: 0.56, concerto: 2.36, offtune: 1764 },
-    { hitFrame: 54, commitFrame: 36, mv: 21.58, energy: 0.56, concerto: 2.36, offtune: 1764 },
-    { hitFrame: 60, commitFrame: 36, mv: 21.58, energy: 0.56, concerto: 2.36, offtune: 1764 },
-    { hitFrame: 66, commitFrame: 36, mv: 21.58, energy: 0.56, concerto: 2.36, offtune: 1764 },
-    { hitFrame: 72, commitFrame: 36, mv: 21.58, energy: 0.56, concerto: 2.36, offtune: 1764 },
-    { hitFrame: 78, commitFrame: 36, mv: 21.58, energy: 0.56, concerto: 2.36, offtune: 1764 },
-  ]});
+    { hitFrame: 36, mv: 2158, energy: 56, concerto: 111, offtune: 1764 },
+    { hitFrame: 42, commitFrame: 36, mv: 2158, energy: 56, concerto: 111, offtune: 1764 },
+    { hitFrame: 48, commitFrame: 36, mv: 2158, energy: 56, concerto: 111, offtune: 1764 },
+    { hitFrame: 54, commitFrame: 36, mv: 2158, energy: 56, concerto: 111, offtune: 1764 },
+    { hitFrame: 60, commitFrame: 36, mv: 2158, energy: 56, concerto: 111, offtune: 1764 },
+    { hitFrame: 66, commitFrame: 36, mv: 2158, energy: 56, concerto: 111, offtune: 1764 },
+    { hitFrame: 72, commitFrame: 36, mv: 2158, energy: 56, concerto: 111, offtune: 1764 },
+    { hitFrame: 78, commitFrame: 36, mv: 2158, energy: 56, concerto: 111, offtune: 1764 },
+  ], castConcerto: 1000});
 const MA = phoebeAction("Mid-air - O Come Divine Light", { animFrames: 78, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 2, mv: 46.23, energy: 1.5, concerto: 3, offtune: 4800 },
-    { hitFrame: 27, mv: 46.23, energy: 1.5, concerto: 3, offtune: 4800 },
+    { hitFrame: 2, mv: 4623, energy: 150, concerto: 300, offtune: 4800 },
+    { hitFrame: 27, mv: 4623, energy: 150, concerto: 300, offtune: 4800 },
   ]});
 const HA = phoebeAction("Heavy - O Come Divine Light", { animFrames: 61, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
-    { hitFrame: 40, mv: 41.35, energy: 0.7, concerto: 1.39, offtune: 2218 },
-    { hitFrame: 49, commitFrame: 40, mv: 41.35, energy: 0.7, concerto: 1.39, offtune: 2218 },
-    { hitFrame: 58, commitFrame: 40, mv: 41.35, energy: 0.7, concerto: 1.39, offtune: 2218 },
-    { hitFrame: 67, commitFrame: 40, mv: 41.35, energy: 0.7, concerto: 1.39, offtune: 2218 },
+    { hitFrame: 40, mv: 4135, energy: 70, concerto: 139, offtune: 2218 },
+    { hitFrame: 49, commitFrame: 40, mv: 4135, energy: 70, concerto: 139, offtune: 2218 },
+    { hitFrame: 58, commitFrame: 40, mv: 4135, energy: 70, concerto: 139, offtune: 2218 },
+    { hitFrame: 67, commitFrame: 40, mv: 4135, energy: 70, concerto: 139, offtune: 2218 },
   ]});
 
 // --- Chamuel's Star: the same chain while she stands inside the Ring of Mirrors. Basic Attack
 //     DMG, and the presses a rotation names after summoning the ring.
-const CBA1 = phoebeAction("Basic - Chamuel's Star 1", { animFrames: 22, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 18, mv: 59.35, energy: 1, concerto: 1.99, offtune: 3184 }]});
+const CBA1 = phoebeAction("Basic - Chamuel's Star 1", { animFrames: 22, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 18, mv: 5935, energy: 100, concerto: 199, offtune: 3184 }]});
 const CBA2 = phoebeAction("Basic - Chamuel's Star 2", { animFrames: 32, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 12, commitFrame: 0, mv: 39.77, energy: 0.67, concerto: 1.34, offtune: 2134 },
-    { hitFrame: 120, commitFrame: 0, mv: 39.77, energy: 0.67, concerto: 1.34, offtune: 2134 },
+    { hitFrame: 12, commitFrame: 0, mv: 3977, energy: 67, concerto: 134, offtune: 2134 },
+    { hitFrame: 120, commitFrame: 0, mv: 3977, energy: 67, concerto: 134, offtune: 2134 },
   ]});
 const CBA3 = phoebeAction("Basic - Chamuel's Star 3", { animFrames: 61, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 36, commitFrame: 0, mv: 28.93, energy: 0.49, concerto: 0.97, offtune: 1552 },
-    { hitFrame: 42, commitFrame: 0, mv: 28.93, energy: 0.49, concerto: 0.97, offtune: 1552 },
-    { hitFrame: 48, commitFrame: 0, mv: 28.93, energy: 0.49, concerto: 0.97, offtune: 1552 },
-    { hitFrame: 54, commitFrame: 0, mv: 28.93, energy: 0.49, concerto: 0.97, offtune: 1552 },
-    { hitFrame: 60, commitFrame: 0, mv: 28.93, energy: 0.49, concerto: 0.97, offtune: 1552 },
-    { hitFrame: 66, commitFrame: 0, mv: 28.93, energy: 0.49, concerto: 0.97, offtune: 1552 },
+    { hitFrame: 36, commitFrame: 0, mv: 2893, energy: 49, concerto: 97, offtune: 1552 },
+    { hitFrame: 42, commitFrame: 0, mv: 2893, energy: 49, concerto: 97, offtune: 1552 },
+    { hitFrame: 48, commitFrame: 0, mv: 2893, energy: 49, concerto: 97, offtune: 1552 },
+    { hitFrame: 54, commitFrame: 0, mv: 2893, energy: 49, concerto: 97, offtune: 1552 },
+    { hitFrame: 60, commitFrame: 0, mv: 2893, energy: 49, concerto: 97, offtune: 1552 },
+    { hitFrame: 66, commitFrame: 0, mv: 2893, energy: 49, concerto: 97, offtune: 1552 },
   ]});
 const CDC = phoebeAction("Dodge Counter - Chamuel's Star", { animFrames: 60, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
-    { hitFrame: 36, commitFrame: 0, mv: 43.84, energy: 0.74, concerto: 3.1367, offtune: 2352 },
-    { hitFrame: 42, commitFrame: 0, mv: 43.84, energy: 0.74, concerto: 3.1367, offtune: 2352 },
-    { hitFrame: 48, commitFrame: 0, mv: 43.84, energy: 0.74, concerto: 3.1367, offtune: 2352 },
-    { hitFrame: 54, commitFrame: 0, mv: 43.84, energy: 0.74, concerto: 3.1367, offtune: 2352 },
-    { hitFrame: 60, commitFrame: 0, mv: 43.84, energy: 0.74, concerto: 3.1367, offtune: 2352 },
-    { hitFrame: 66, commitFrame: 0, mv: 43.84, energy: 0.74, concerto: 3.1365, offtune: 2352 },
-  ]});
+    { hitFrame: 36, commitFrame: 0, mv: 4384, energy: 74, concerto: 147, offtune: 2352 },
+    { hitFrame: 42, commitFrame: 0, mv: 4384, energy: 74, concerto: 147, offtune: 2352 },
+    { hitFrame: 48, commitFrame: 0, mv: 4384, energy: 74, concerto: 147, offtune: 2352 },
+    { hitFrame: 54, commitFrame: 0, mv: 4384, energy: 74, concerto: 147, offtune: 2352 },
+    { hitFrame: 60, commitFrame: 0, mv: 4384, energy: 74, concerto: 147, offtune: 2352 },
+    { hitFrame: 66, commitFrame: 0, mv: 4384, energy: 74, concerto: 147, offtune: 2352 },
+  ], castConcerto: 1000});
 const CBA123 = new ActionGroup("Basic - Chamuel's Star 123", [CBA1, CBA2, CBA3]);
 
 // --- To Where Light Shines: the ring itself, the re-press that teleports her to it, and the
@@ -138,27 +139,27 @@ const Skill = phoebeAction("Skill - To Where Light Shines", {
   animFrames: 70,
   cooldown: 60 * 12,
   node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
-    { hitFrame: 37, commitFrame: 0, mv: 62.63, energy: 0.57, concerto: 1.14, offtune: 3360 },
-    { hitFrame: 44, commitFrame: 0, mv: 62.63, energy: 0.57, concerto: 1.14, offtune: 3360 },
+    { hitFrame: 37, commitFrame: 0, mv: 6263, energy: 57, concerto: 114, offtune: 3360 },
+    { hitFrame: 44, commitFrame: 0, mv: 6263, energy: 57, concerto: 114, offtune: 3360 },
   ],
 });
 const SkillTeleport = phoebeAction("Skill - To Where Light Shines (Teleport)", {
   cooldown: 42,
   animFrames: 91,
   node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
-    { hitFrame: 53, mv: 62.63, energy: 0.57, concerto: 1.14, offtune: 3360 },
-    { hitFrame: 59, commitFrame: 53, mv: 62.63, energy: 0.57, concerto: 1.14, offtune: 3360 },
+    { hitFrame: 53, mv: 6263, energy: 57, concerto: 114, offtune: 3360 },
+    { hitFrame: 59, commitFrame: 53, mv: 6263, energy: 57, concerto: 114, offtune: 3360 },
   ],
 });
 const Refracted = phoebeAction("Skill - Ring of Mirrors: Refracted Holy Light", {
   animFrames: 18,
-  node: Node.Skill, type: Type.Basic, bullets: [{ hitFrame: 6, mv: 14.92 }, { hitFrame: 18, mv: 14.92 }],
+  node: Node.Skill, type: Type.Basic, bullets: [{ hitFrame: 6, mv: 1492 }, { hitFrame: 18, mv: 1492 }],
 });
 
 // --- Radiant Invocation: the two stance casts, and the Starflash that spends what they restore.
 const HeavyAbs = phoebeAction("Forte Heavy - Absolution Litany", {
   animFrames: 66,
-  node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 48, commitFrame: 0, mv: 638.19, energy: 10, offtune: 32872 }], castConcerto: 10,
+  node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 48, commitFrame: 0, mv: 63819, energy: 1000, offtune: 32872 }], castConcerto: 1000,
   castForte2: 60,
   updateDebuffs: () => applyEnemy(SPECTRO_FRAZZLE, 1),
   updateBuffs: () => {
@@ -168,7 +169,7 @@ const HeavyAbs = phoebeAction("Forte Heavy - Absolution Litany", {
 });
 const SkillConf = phoebeAction("Forte Skill - Utter Confession", {
   animFrames: 66,
-  node: Node.Forte, cast: Cast.Skill, type: Type.Skill, bullets: [{ hitFrame: 48, commitFrame: 0, mv: 187.88, energy: 18, offtune: 24720 }], castConcerto: 40,
+  node: Node.Forte, cast: Cast.Skill, type: Type.Skill, bullets: [{ hitFrame: 48, commitFrame: 0, mv: 18788, energy: 1800, offtune: 24720 }], castConcerto: 4000,
   castForte2: 60,
   updateDebuffs: () => applyEnemy(SPECTRO_FRAZZLE, 1),
   updateBuffs: () => {
@@ -183,10 +184,10 @@ const SkillConf = phoebeAction("Forte Skill - Utter Confession", {
 const FHA = phoebeAction("Forte Heavy - Starflash", {
   animFrames: 55,
   node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
-    { hitFrame: 28, mv: 82.69, energy: 1.53, concerto: 1.38, offtune: 6467,
+    { hitFrame: 28, mv: 8269, energy: 153, concerto: 138, offtune: 6467,
       updateDebuffs: () => { if (isHeld(CONFESSION)) applyEnemy(SPECTRO_FRAZZLE, 5); } },
-    { hitFrame: 34, commitFrame: 28, mv: 82.69, energy: 1.53, concerto: 1.38, offtune: 6467 },
-    { hitFrame: 40, commitFrame: 28, mv: 82.69, energy: 1.53, concerto: 1.38, offtune: 6467 },
+    { hitFrame: 34, commitFrame: 28, mv: 8269, energy: 153, concerto: 138, offtune: 6467 },
+    { hitFrame: 40, commitFrame: 28, mv: 8269, energy: 153, concerto: 138, offtune: 6467 },
   ],
   castForte2: -30,
 });
@@ -200,7 +201,7 @@ const Liberation = phoebeAction("Liberation - Dawn of Enlightenment", {
   animFrames: 220, timestop: 220, motionStop: 218,
   cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, 
-  bullets: [{ hitFrame: 186, mv: 401.6, offtune: 48000 }], castConcerto: 20, resetEnergy: true,
+  bullets: [{ hitFrame: 186, mv: 40160, offtune: 48000 }], castConcerto: 2000, resetEnergy: true,
   updateDebuffs: () => {
     if (!isHeld(CONFESSION)) return;
     // S1 puts on the most the target can hold instead of the flat eight
@@ -214,7 +215,7 @@ const Liberation = phoebeAction("Liberation - Dawn of Enlightenment", {
 
 const Intro = phoebeAction("Intro - Golden Grace", {
   animFrames: 98, prioFrames: 69, motionStop: 43,
-  node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 45, mv: 198.81, energy: 10, offtune: 8000 }], castConcerto: 10,
+  node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 45, mv: 19881, energy: 1000, offtune: 8000 }], castConcerto: 1000,
 });
 
 /** Attentive Heart: 528.41% of ATK, x3.55 in Absolution, and in Confession Silent Prayer onto the
@@ -222,15 +223,15 @@ const Intro = phoebeAction("Intro - Golden Grace", {
 const Outro = phoebeAction("Outro - Attentive Heart", {
   animFrames: 180,
   cast: Cast.Outro, type: Type.Outro, bullets: [
-    { hitFrame: 30, mv: 66.06 },
-    { hitFrame: 45, mv: 66.06 },
-    { hitFrame: 60, mv: 66.06 },
-    { hitFrame: 75, mv: 66.06 },
-    { hitFrame: 90, mv: 66.06 },
-    { hitFrame: 105, mv: 66.06 },
-    { hitFrame: 120, mv: 66.06 },
-    { hitFrame: 135, mv: 66.06 },
-  ], castConcerto: -100,
+    { hitFrame: 30, mv: 6606 },
+    { hitFrame: 45, mv: 6606 },
+    { hitFrame: 60, mv: 6606 },
+    { hitFrame: 75, mv: 6606 },
+    { hitFrame: 90, mv: 6606 },
+    { hitFrame: 105, mv: 6606 },
+    { hitFrame: 120, mv: 6606 },
+    { hitFrame: 135, mv: 6606 },
+  ], minConcerto: 10000, castConcerto: -10000,
   applyStats: () => {
     if (isHeld(ABSOLUTION)) addStat(Stat.MulMv, 255);
     if (isHeld(PHOEBE_S2) && isHeld(ABSOLUTION) && stacksOfEnemy(SPECTRO_FRAZZLE) > 0) addStat(Stat.Amp, 120);
@@ -257,8 +258,10 @@ const Outro = phoebeAction("Outro - Attentive Heart", {
  *  and its 256% against a Frazzled target. */
 const ABSOLUTION = new Buff({
   name: "Phoebe: Absolution",
+  updateBuffs: () => {
+    if (runningAction(FHA)) addToCast({ forte2: 15 });
+  },
   applyStats: () => {
-    if (runningAction(FHA)) addStat(Stat.AddForte2, 15);
     const starflash = runningAction(FHA) || runningAction(StarflashFree);
     if (starflash && stacksOfEnemy(SPECTRO_FRAZZLE) > 0) addStat(Stat.Amp, 256);
   },
@@ -374,7 +377,7 @@ const PHOEBE_RESONATOR = new Resonator({
   weapon: WeaponType.Rectifier,
   color: "#f2e5c0",
   intro: Intro,
-  maxEnergy: 125,
+  maxEnergy: 12500,
   maxForte2: 60,
 
   stats: [[Stat.BaseHp, 10825], [Stat.BaseAtk, 412.5], [Stat.BaseDef, 1258.8866]],

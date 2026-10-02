@@ -26,7 +26,7 @@
  */
 import { AXES, scopedKey } from "../solver.js";
 import { searchChoice } from "./filterbar.js";
-import { echoFilters, filters, refineFilters, resonatorFilters, sequenceFilters, weaponFilters } from "./model.js";
+import { echoFilters, filters, refineFilters, resonatorFilters, sequenceFilters, weaponFilters, TEAMS, visibleRows } from "./model.js";
 import { rect, CLICKING, CLICK } from "./panels.js";
 import { rowElementAt } from "./table.js";
 
@@ -467,26 +467,31 @@ export function hideTutorial(): void {
   mark(null);
 }
 
-// A press on the search bar at the stage that asks for one types the start of a name into it — the
-// top-right member of the table, three letters at a tenth of a second each, so the list has
-// something to offer and the reader has something to take.
+// A press on the search bar at the stage that asks for one types a whole name into it, a letter
+// every 50ms, so the list has something to offer and the reader has something to take: a resonator
+// in none of the teams on screen, else the table's top-right member or the first one shown that
+// isn't a filter already.
 let typing: ReturnType<typeof setTimeout> | undefined;
 document.addEventListener("click", (e) => {
   if (!layer || layer.hidden || stage !== 2 || typing !== undefined) return;
   if (!(e.target as Element).closest?.("#optionSearch")) return;
   const input = document.querySelector<HTMLInputElement>("#optionSearch");
   const cells = [...rowElementAt(0)?.querySelectorAll<HTMLElement>(".c.name.res") ?? []];
-  const name = (cells[2] ?? cells[cells.length - 1])?.dataset.resonator;
+  const top = (cells[2] ?? cells[cells.length - 1])?.dataset.resonator;
+  const shown = [top, ...[...document.querySelectorAll<HTMLElement>(".c.name.res")].map((c) => c.dataset.resonator)];
+  const onScreen = new Set(visibleRows.flatMap((row) => row.members.map((m) => m.name)));
+  const unseen = Object.values(TEAMS).flat().map((m) => m.name).find((n) => !onScreen.has(n) && !resonatorFilters.has(n));
+  const name = unseen ?? shown.find((n) => n && !resonatorFilters.has(n)) ?? top;
   if (!input || input.value || !name) return;
-  const text = name.slice(0, 3);
+  const text = name;
   let at = 0;
   const key = (): void => {
     input.value = text.slice(0, ++at);
     // the bar's own handler is what draws the list, and it listens for this
     input.dispatchEvent(new Event("input", { bubbles: true }));
-    typing = at < text.length ? setTimeout(key, 100) : undefined;
+    typing = at < text.length ? setTimeout(key, 50) : undefined;
   };
-  typing = setTimeout(key, 100);
+  typing = setTimeout(key, 50);
 }, true);
 
 // A chip off the search bar is what the third stage asks for, taken by press or by Enter.

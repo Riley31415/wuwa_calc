@@ -1,24 +1,24 @@
-
+#
+jingran ba4/skill2 cancel
 
 #
+implement priorities to all actions
+enforce cancelling after priority etc
+
+#
+import bullet commit frames from anto when it updates
 add echo frames
-make echo actions individual resolvers that play only if their mainslot echo is equipped
-mainslot no longer points to echo
-delete the current ECHO placeholder action and related logic.
 
 #
-check shield application
-check status application bullets
+make echo actions resolvers that play only if their mainslot echo is equipped (create a template one for all echo actions to use)
+mainslot no longer points to echo, the echo action points to the required mainslot
+delete the current ECHO placeholder action and related logic, replace them with every mainslot that character may have.
 
 #
 better wait Xs visual
-update the hover naming for swap/cancel delays
 
 #
-fix rebecca rotation time
-
-#
-add minimum ER/crit for qy, roccia, sk, mornye
+get mornye field buff time (and for other fields/buff starts)
 
 # standard 5 star/4 star
 calcharo

@@ -155,7 +155,7 @@ export const SK_SIG = refinements((r, rank) => {
     name: `Stellar Symphony: Astral Evolvement${rank}`,
     updateBuffs: () => {
       if (!casting(Cast.Liberation)) return;
-      addToCast({ concerto: [8, 10, 12, 14, 16][r]! });
+      addToCast({ concerto: [800, 1000, 1200, 1400, 1600][r]! });
       revokeCurrent(SK_SIG_CHARGE);
     },
   });
@@ -238,7 +238,7 @@ export const FIRSTLIGHTS_HERALD = refinements((r, rank) => {
     name: `Firstlight's Herald: Spring Wreath${rank}`,
     updateBuffs: () => {
       if (!casting(Cast.Liberation)) return;
-      addToCast({ concerto: [8, 10, 12, 14, 16][r]! });
+      addToCast({ concerto: [800, 1000, 1200, 1400, 1600][r]! });
       revokeCurrent(SPRING_WREATH);
     },
   });

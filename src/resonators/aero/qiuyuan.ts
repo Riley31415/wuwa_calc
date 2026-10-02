@@ -32,8 +32,10 @@ import {
   isHeld,
   queue,
   currentTeam,
+  addToCast,
+  runningBullet,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, START_3, NOINTRO, ECHO, INTRO_2, INTRO_3, INTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, START_LAST, NOINTRO, ECHO, INTRO_LAST, INTRO } from "../../engine/rotation.js";
 import { EMERALD_SENTENCE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { REJUV_2PC, HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC, SIERRA_GALE_2PC, BELL_BORNE_GEOCHELONE } from "../../echoes/jinzhou.js";
@@ -48,68 +50,79 @@ function qiuyuanAction(id: string, def: object): Action {
   return new Action(id, { element: Attribute.Aero, scaling: Scaling.Atk, ...def });
 }
 
-const BA1 = qiuyuanAction("Basic - Inkwash 1", { animFrames: 19, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 14, mv: 41.76, energy: 0.75, concerto: 2.4, offtune: 2400 }]});
+const BA1 = qiuyuanAction("Basic - Inkwash 1", { animFrames: 19, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 14, mv: 4176, energy: 75, concerto: 240, offtune: 2400 }]});
 const BA2 = qiuyuanAction("Basic - Inkwash 2", { animFrames: 33, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 10, mv: 34.8, energy: 0.63, concerto: 2, offtune: 2000 },
-    { hitFrame: 29, mv: 34.8, energy: 0.63, concerto: 2, offtune: 2000 },
+    { hitFrame: 10, mv: 3480, energy: 63, concerto: 200, offtune: 2000 },
+    { hitFrame: 29, mv: 3480, energy: 63, concerto: 200, offtune: 2000 },
   ]});
 const BA3 = qiuyuanAction("Basic - Inkwash 3", { animFrames: 64, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 24, commitFrame: 18, mv: 24.64, energy: 0.45, concerto: 1.42, offtune: 1416 },
-    { hitFrame: 34, commitFrame: 18, mv: 24.64, energy: 0.45, concerto: 1.42, offtune: 1416 },
-    { hitFrame: 40, commitFrame: 18, mv: 24.64, energy: 0.45, concerto: 1.42, offtune: 1416 },
-    { hitFrame: 49, commitFrame: 18, mv: 24.64, energy: 0.45, concerto: 1.42, offtune: 1416 },
-    { hitFrame: 58, commitFrame: 18, mv: 65.69, energy: 1.18, concerto: 3.78, offtune: 3776 },
+    { hitFrame: 24, commitFrame: 18, mv: 2464, energy: 45, concerto: 142, offtune: 1416 },
+    { hitFrame: 34, commitFrame: 18, mv: 2464, energy: 45, concerto: 142, offtune: 1416 },
+    { hitFrame: 40, commitFrame: 18, mv: 2464, energy: 45, concerto: 142, offtune: 1416 },
+    { hitFrame: 49, commitFrame: 18, mv: 2464, energy: 45, concerto: 142, offtune: 1416 },
+    { hitFrame: 58, commitFrame: 18, mv: 6569, energy: 118, concerto: 378, offtune: 3776 },
   ], castForte1: 100});
 
 // grants no Soliloquy of its own; it exists to chain straight into Inkwash Stage 4
-const HA = qiuyuanAction("Heavy - Inkwash", { animFrames: 51, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 20, mv: 165.61, energy: 2.09, concerto: 6.67, offtune: 6664 }]});
+const HA = qiuyuanAction("Heavy - Inkwash", { animFrames: 51, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 20, mv: 16561, energy: 209, concerto: 667, offtune: 6664 }]});
 
 const EBA1 = qiuyuanAction("Basic - Thus Spoke the Blade: Inkwash 1", { animFrames: 39, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
-    { hitFrame: 10, mv: 59.65, energy: 0.75, concerto: 2.4, offtune: 2400 },
-    { hitFrame: 21, mv: 59.65, energy: 0.75, concerto: 2.4, offtune: 2400 },
+    { hitFrame: 10, mv: 5965, energy: 75, concerto: 240, offtune: 2400 },
+    { hitFrame: 21, mv: 5965, energy: 75, concerto: 240, offtune: 2400 },
   ], castForte1: 100});
 const EBA2 = qiuyuanAction("Basic - Thus Spoke the Blade: Inkwash 2", { animFrames: 60, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
-    { hitFrame: 18, mv: 55.65, energy: 0.7, concerto: 2.24, offtune: 2239 },
-    { hitFrame: 27, mv: 55.65, energy: 0.7, concerto: 2.24, offtune: 2239 },
-    { hitFrame: 47, mv: 74.2, energy: 0.94, concerto: 2.99, offtune: 2986 },
+    { hitFrame: 18, mv: 5565, energy: 70, concerto: 224, offtune: 2239 },
+    { hitFrame: 27, mv: 5565, energy: 70, concerto: 224, offtune: 2239 },
+    { hitFrame: 47, mv: 7420, energy: 94, concerto: 299, offtune: 2986 },
   ], castForte1: 100});
 const EBA3 = qiuyuanAction("Basic - Thus Spoke the Blade: Inkwash 3", { animFrames: 45, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
-    { hitFrame: 20, mv: 14.58, energy: 0.37, concerto: 0.71, offtune: 586 },
-    { hitFrame: 56, commitFrame: 20, mv: 14.58, energy: 0.37, concerto: 0.71, offtune: 586 },
-    { hitFrame: 56, commitFrame: 20, mv: 14.58, energy: 0.37, concerto: 0.71, offtune: 586 },
-    { hitFrame: 74, commitFrame: 20, mv: 14.58, energy: 0.37, concerto: 0.71, offtune: 586 },
-    { hitFrame: 92, commitFrame: 20, mv: 14.58, energy: 0.37, concerto: 0.71, offtune: 586 },
-    { hitFrame: 110, commitFrame: 20, mv: 72.87, energy: 1.84, concerto: 3.52, offtune: 2932 },
+    { hitFrame: 20, mv: 1458, energy: 37, concerto: 71, offtune: 586 },
+    { hitFrame: 56, commitFrame: 20, mv: 1458, energy: 37, concerto: 71, offtune: 586 },
+    { hitFrame: 56, commitFrame: 20, mv: 1458, energy: 37, concerto: 71, offtune: 586 },
+    { hitFrame: 74, commitFrame: 20, mv: 1458, energy: 37, concerto: 71, offtune: 586 },
+    { hitFrame: 92, commitFrame: 20, mv: 1458, energy: 37, concerto: 71, offtune: 586 },
+    { hitFrame: 110, commitFrame: 20, mv: 7287, energy: 184, concerto: 352, offtune: 2932 },
   ], castForte1: 100});
-const EBA4 = qiuyuanAction("Basic - Thus Spoke the Blade: Inkwash 4", { animFrames: 53, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [{ hitFrame: 6, mv: 172.37, energy: 4.34, concerto: 8.33, offtune: 6936 }], castForte1: 100});
+const EBA4 = qiuyuanAction("Basic - Thus Spoke the Blade: Inkwash 4", { animFrames: 53, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [{ hitFrame: 6, mv: 17237, energy: 434, concerto: 833, offtune: 6936 }], castForte1: 100});
 
-const Skill = qiuyuanAction("Skill - Through the Groves", { animFrames: 81, cooldown: 60 * 14, node: Node.Skill, cast: Cast.Skill, type: Type.Echo, bullets: [
-    { hitFrame: 34, mv: 71.84, energy: 5.03, offtune: 2891 },
-    { hitFrame: 49, mv: 71.84, energy: 5.03, offtune: 2891 },
-    { hitFrame: 64, mv: 71.84, energy: 5.03, offtune: 2891 },
-  ], castConcerto: 10});
+/** Through the Groves and Undaunted Wayfarer are one button, pressed or held: one 14s cooldown. */
+const SKILL_CD = new Cooldown({ frames: 60 * 14 });
+const Skill = qiuyuanAction("Skill - Through the Groves", { animFrames: 81, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Echo, bullets: [
+    { hitFrame: 34, mv: 7184, energy: 503, offtune: 2891 },
+    { hitFrame: 49, mv: 7184, energy: 503, offtune: 2891 },
+    { hitFrame: 64, mv: 7184, energy: 503, offtune: 2891 },
+  ], castConcerto: 1000});
+/** Undaunted Wayfarer: the held Skill's dash onto a target, considered as Echo Skill DMG (nanoka
+ *  32.33%+32.33%*3+86.21%, wuwalab's frames) — the dash ends at 44, its hits landing on after. */
+const SkillHold = qiuyuanAction("Skill - Undaunted Wayfarer (Hold)", { animFrames: 44, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Echo, bullets: [
+    { hitFrame: 17, mv: 3233, energy: 231, offtune: 641 },
+    { hitFrame: 25, commitFrame: 17, mv: 3233, energy: 231, offtune: 641 },
+    { hitFrame: 46, commitFrame: 17, mv: 3233, energy: 231, offtune: 641 },
+    { hitFrame: 67, commitFrame: 17, mv: 3233, energy: 231, offtune: 641 },
+    { hitFrame: 85, commitFrame: 17, mv: 8621, energy: 614, offtune: 1709 },
+  ], castConcerto: 1000});
 
 const Liberation = qiuyuanAction("Liberation - Sundering Strike", {
   animFrames: 230, timestop: 230, motionStop: 230, cooldown: 60 * 25,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Echo, bullets: [{ hitFrame: 210, mv: 795.24, offtune: 96000 }], castConcerto: 20, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Echo, bullets: [{ hitFrame: 210, mv: 79524, offtune: 96000 }], castConcerto: 2000, resetEnergy: true,
   updateBuffs: () => applyTeam(SUNDERING_STRIKE, 1),
 });
 
 const Intro = qiuyuanAction("Intro - Attack the Must-Defend", {
   animFrames: 74, prioFrames: 74, motionStop: 49,
   node: Node.Intro, cast: Cast.Intro, type: Type.Heavy, bullets: [
-    { hitFrame: 68, mv: 143.15, energy: 6, offtune: 5760 },
-    { hitFrame: 73, mv: 9.55, energy: 0.4, offtune: 384 },
-    { hitFrame: 86, commitFrame: 74, mv: 9.55, energy: 0.4, offtune: 384 },
-    { hitFrame: 98, commitFrame: 74, mv: 9.55, energy: 0.4, offtune: 384 },
-    { hitFrame: 111, commitFrame: 74, mv: 9.55, energy: 0.4, offtune: 384 },
-    { hitFrame: 124, commitFrame: 74, mv: 9.55, energy: 0.4, offtune: 384 },
-    { hitFrame: 133, commitFrame: 74, mv: 47.72, energy: 2, offtune: 1920 },
-  ], castConcerto: 10, castForte1: 400,
+    { hitFrame: 68, mv: 14315, energy: 600, offtune: 5760 },
+    { hitFrame: 73, mv: 955, energy: 40, offtune: 384 },
+    { hitFrame: 86, commitFrame: 74, mv: 955, energy: 40, offtune: 384 },
+    { hitFrame: 98, commitFrame: 74, mv: 955, energy: 40, offtune: 384 },
+    { hitFrame: 111, commitFrame: 74, mv: 955, energy: 40, offtune: 384 },
+    { hitFrame: 124, commitFrame: 74, mv: 955, energy: 40, offtune: 384 },
+    { hitFrame: 133, commitFrame: 74, mv: 4772, energy: 200, offtune: 1920 },
+  ], castConcerto: 1000, castForte1: 400,
 });
 const Outro = qiuyuanAction("Outro - Strike Before Ready", {
   animFrames: 65,
-  cast: Cast.Outro, type: Type.Echo, bullets: [{ hitFrame: 82, commitFrame: 40, mv: 100 }], castConcerto: -100,
+  cast: Cast.Outro, type: Type.Echo, bullets: [{ hitFrame: 82, commitFrame: 40, mv: 10000 }], minConcerto: 10000, castConcerto: -10000,
   updateBuffs: () => queueOutro(QIUYUAN_OUTRO),
 });
 
@@ -120,24 +133,24 @@ const Outro = qiuyuanAction("Outro - Strike Before Ready", {
 const StrawCape = qiuyuanAction("Skill - Straw Cape in Drizzly Rain (S3)", {
   animFrames: 44, cooldown: 60 * 20,
   node: Node.Skill, cast: Cast.Skill, type: Type.Echo, bullets: [
-    { hitFrame: 16, mv: 75, energy: 2.31, offtune: 641 },
-    { hitFrame: 25, commitFrame: 16, mv: 75, energy: 2.31, offtune: 641 },
-    { hitFrame: 46, commitFrame: 16, mv: 75, energy: 2.31, offtune: 641 },
-    { hitFrame: 67, commitFrame: 16, mv: 75, energy: 2.31, offtune: 641 },
-    { hitFrame: 85, commitFrame: 16, mv: 200, energy: 6.14, offtune: 1709 },
-  ], castConcerto: -60, castForte1: 400,
+    { hitFrame: 16, mv: 7500, energy: 231, offtune: 641 },
+    { hitFrame: 25, commitFrame: 16, mv: 7500, energy: 231, offtune: 641 },
+    { hitFrame: 46, commitFrame: 16, mv: 7500, energy: 231, offtune: 641 },
+    { hitFrame: 67, commitFrame: 16, mv: 7500, energy: 231, offtune: 641 },
+    { hitFrame: 85, commitFrame: 16, mv: 20000, energy: 614, offtune: 1709 },
+  ], minConcerto: 10000, castConcerto: -6000, castForte1: 400,
   updateBuffs: () => { revokeCurrent(QUIETUDE_WITHIN); applyCurrent(STRAW_CAPE, 1); },
 });
 /** The Outro Straw Cape leaves him: 500% as Echo Skill DMG (its own chain row) in place of Strike
  *  Before Ready's 100%, the handoff unchanged. */
 const OutroS3 = qiuyuanAction("Outro - Sheath Fallen, New Shoots Revealed (S3)", {
   animFrames: 65,
-  cast: Cast.Outro, type: Type.Echo, bullets: [{ hitFrame: 82, commitFrame: 40, mv: 500 }], castConcerto: -100,
+  cast: Cast.Outro, type: Type.Echo, bullets: [{ hitFrame: 82, commitFrame: 40, mv: 50000 }], minConcerto: 10000, castConcerto: -10000,
   updateBuffs: () => { queueOutro(QIUYUAN_OUTRO); revokeCurrent(STRAW_CAPE); },
 });
 /** S6: 600% as Echo Skill DMG (its own chain row) as Inksplash of Mind ends under him — To
  *  Sacrifice spends the last of the Soliloquy, so it fires off that. */
-const InksplashExit = qiuyuanAction("Forte - Inksplash of Mind (S6)", { node: Node.Forte, type: Type.Echo, mv: 600 });
+const InksplashExit = qiuyuanAction("Forte - Inksplash of Mind (S6)", { node: Node.Forte, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 60000 }] });
 
 /** The Echo Skill half of Thus Spoke the Blade, spent once a visit (see BLADE_ECHO_SPENT): dropped
  *  on the cast here and on every hit by QIUYUAN_RESONATOR's updateDebuffs. */
@@ -148,22 +161,22 @@ const BLADE_ECHO = {
 };
 
 // cast: HEAVY (real heavy-attack identity) plus subcast: ECHO ("considered as performing Echo Skill")
-const FHA1 = qiuyuanAction("Forte Heavy - Thus Spoke the Blade: To Teach", { animFrames: 99, node: Node.Forte, cast: Cast.Heavy, subcast: Cast.Echo, type: Type.Heavy, bullets: [
-    { hitFrame: 38, mv: 91.44, energy: 0.756, concerto: 2.95, offtune: 2453 },
-    { hitFrame: 46, mv: 91.44, energy: 0.756, concerto: 2.95, offtune: 2453 },
-    { hitFrame: 56, mv: 91.44, energy: 0.756, concerto: 2.95, offtune: 2453 },
-    { hitFrame: 68, mv: 91.44, energy: 0.756, concerto: 2.95, offtune: 2453 },
-    { hitFrame: 86, mv: 91.44, energy: 0.756, concerto: 2.95, offtune: 2453 },
-  ], castEnergy: 3.92, castForte1: -200, ...BLADE_ECHO });
+const FHA1 = qiuyuanAction("Forte Heavy - Thus Spoke the Blade: To Teach", { minForte1: 200, animFrames: 99, node: Node.Forte, cast: Cast.Heavy, subcast: Cast.Echo, type: Type.Heavy, bullets: [
+    { hitFrame: 38, mv: 9144, energy: 154, concerto: 295, offtune: 2453 },
+    { hitFrame: 46, mv: 9144, energy: 154, concerto: 295, offtune: 2453 },
+    { hitFrame: 56, mv: 9144, energy: 154, concerto: 295, offtune: 2453 },
+    { hitFrame: 68, mv: 9144, energy: 154, concerto: 295, offtune: 2453 },
+    { hitFrame: 86, mv: 9144, energy: 154, concerto: 295, offtune: 2453 },
+  ], castEnergy: 800, castForte1: -200, ...BLADE_ECHO });
 const FHA2 = qiuyuanAction("Forte Heavy - Thus Spoke the Blade: To Save", { animFrames: 57, node: Node.Forte, cast: Cast.Heavy, subcast: Cast.Echo, type: Type.Heavy, bullets: [
-    { hitFrame: 40, mv: 38.44, energy: 0.2001, concerto: 1.24, offtune: 1031 },
-    { hitFrame: 40, mv: 38.44, energy: 0.2001, concerto: 1.24, offtune: 1031 },
-    { hitFrame: 46, mv: 31.45, energy: 0.1632, concerto: 1.02, offtune: 844 },
-    { hitFrame: 58, commitFrame: 57, mv: 31.45, energy: 0.1632, concerto: 1.02, offtune: 844 },
-    { hitFrame: 64, commitFrame: 57, mv: 38.44, energy: 0.2001, concerto: 1.24, offtune: 1031 },
-    { hitFrame: 70, commitFrame: 57, mv: 31.45, energy: 0.1633, concerto: 1.02, offtune: 844 },
-  ], castEnergy: 2.45, castForte1: -200, ...BLADE_ECHO });
-const FHA3 = qiuyuanAction("Forte Heavy - Thus Spoke the Blade: To Sacrifice", { animFrames: 47, node: Node.Forte, cast: Cast.Heavy, subcast: Cast.Echo, type: Type.Heavy, bullets: [{ hitFrame: 32, mv: 217.7, energy: 1.14, concerto: 7.01, offtune: 5840 }], castEnergy: 2.51, castForte1: -200, ...BLADE_ECHO });
+    { hitFrame: 40, mv: 3844, energy: 65, concerto: 124, offtune: 1031 },
+    { hitFrame: 40, mv: 3844, energy: 65, concerto: 124, offtune: 1031 },
+    { hitFrame: 46, mv: 3145, energy: 53, concerto: 102, offtune: 844 },
+    { hitFrame: 58, commitFrame: 57, mv: 3145, energy: 53, concerto: 102, offtune: 844 },
+    { hitFrame: 64, commitFrame: 57, mv: 3844, energy: 65, concerto: 124, offtune: 1031 },
+    { hitFrame: 70, commitFrame: 57, mv: 3145, energy: 53, concerto: 102, offtune: 844 },
+  ], castEnergy: 800, castForte1: -200, ...BLADE_ECHO });
+const FHA3 = qiuyuanAction("Forte Heavy - Thus Spoke the Blade: To Sacrifice", { animFrames: 47, node: Node.Forte, cast: Cast.Heavy, subcast: Cast.Echo, type: Type.Heavy, bullets: [{ hitFrame: 32, mv: 21770, energy: 365, concerto: 701, offtune: 5840 }], castEnergy: 800, castForte1: -200, ...BLADE_ECHO });
 
 /** Thus Spoke the Blade counts as an Echo Skill the first time it is pressed each visit and not
  *  again: a second FHA123 in the same rotation is a plain Heavy chain, so nothing that pays out on
@@ -198,11 +211,13 @@ const QUIETUDE_WITHIN = new Buff({
   name: "Inherent: Quietude Within", duration: 60 * 10,
   display: () => "Inherent: Quietude Within",
   lostOnSwap: true,
+  // "Thus Spoke the Blade: To Sacrifice additionally restores 30 of Concerto Energy on hit" —
+  // in the skill's own text, not in nanoka's attribute table (see CLAUDE.md).
+  updateBuffs: () => {
+    if (runningAction(FHA3)) addToCast({ concerto: 3000 });
+  },
   applyStats: () => {
     if (runningAction(FHA1) || runningAction(FHA2) || runningAction(FHA3)) addStat(Stat.TotalDmg, 50);
-    // "Thus Spoke the Blade: To Sacrifice additionally restores 30 of Concerto Energy on hit" —
-    // in the skill's own text, not in nanoka's attribute table (see CLAUDE.md).
-    if (runningAction(FHA3)) addStat(Stat.AddConcerto, 30);
   },
 });
 
@@ -251,7 +266,7 @@ const QIUYUAN_RESONATOR = new Resonator({
   weapon: WeaponType.Sword,
   color: "#4fae6b",
   intro: Intro,
-  maxEnergy: 125,
+  maxEnergy: 12500,
   maxForte1: 600,
   // a spent Thus Spoke the Blade is no Echo Skill on any of its hits (see BLADE_ECHO)
   updateDebuffs: () => {
@@ -281,15 +296,18 @@ const QY_S2 = new Sequence({ name: "Qiuyuan S2: O Blade, I, Who Teach No More" }
  *  91.44% — and 30 Concerto apiece on hit, in place of the Quietude Within they no longer get. */
 const STRAW_CAPE = new Buff({
   name: "Qiuyuan S3: Straw Cape in Drizzly Rain",
+  updateBuffs: () => {
+    if (runningAction(FHA1) || runningAction(FHA2) || runningAction(FHA3)) addToCast({ concerto: 3000 });
+  },
   applyStats: () => {
-    if (runningAction(FHA1) || runningAction(FHA2) || runningAction(FHA3)) { addStat(Stat.AddMv, 600); addStat(Stat.AddConcerto, 30); }
+    if (runningBullet(FHA1, -1) || runningBullet(FHA2, -1) || runningBullet(FHA3, -1)) addStat(Stat.AddMv, 60000);
   },
 });
 /** S3: Sundering Strike gains 500% of ATK — additive too, its S3 row being 1295.24% against
  *  795.24% — and Straw Cape in Drizzly Rain, which the S3 rotation casts once a loop. */
 const QY_S3 = new Sequence({
   name: "Qiuyuan S3: O Blade, I, Who Save No More",
-  applyStats: () => { if (runningAction(Liberation)) addStat(Stat.AddMv, 500); },
+  applyStats: () => { if (runningAction(Liberation)) addStat(Stat.AddMv, 50000); },
 });
 
 /** S4: +20% ATK. */
@@ -332,21 +350,14 @@ const OutroResolver = new Action("Outro Resolver", { cast: Cast.Outro, resolve: 
 const QY_ROTATION = new Rotation([
 
   NOINTRO,
-  HA, EBA4.instaCancel(), HA, EBA4.instaCancel(), 
-  ECHO.instaDodge(), Liberation,
-  EBA12.instaDodge(), EBA12.instaCancel(), 
+  HA, EBA4.instaCancel(), ECHO.instaDodge(), Liberation, HA, EBA4.instaDodge(), 
+  EBA12.instaDodge(), EBA12.holdCancel(), 
   FHA123.swapCancel(), 
   OutroResolver,
 
-  INTRO_2, EBA34.instaCancel(), 
-  ECHO.instaDodge(), Liberation,
+  INTRO, SkillHold.cancel(), ECHO.instaDodge(), Liberation,
+  EBA12.holdCancel(),
   FHA123.swapCancel(), 
-  OutroResolver,
-
-  INTRO_3, EBA34.instaCancel(), 
-  ECHO.instaDodge(),
-  FHA123.cancel(), 
-  Liberation,
   OutroResolver,
 ]);
 
@@ -355,20 +366,19 @@ const QY_ROTATION = new Rotation([
  *  Outro that follows is Sheath Fallen. The opener has no full bar before its first Outro, so it
  *  stays as it is. */
 const QY_ROTATION_MDPS = new Rotation([
-  INTRO, EBA34.instaCancel(), 
-  ECHO.instaDodge(),
+  INTRO, EBA34.holdCancel(), 
+  ECHO,
   FHA123, 
-  HA, EBA4, HA, EBA4.instaCancel(), Liberation, 
-  EBA12.dodgeCancel(), EBA12, 
+  HA, EBA4, Liberation, HA, EBA4.instaDodge(), 
+  EBA12.instaDodge(), EBA12, 
   FHA123.swapCancel(), 
   OutroResolver,
 ]);
 
 const QY_ROTATION_MDPS_S3 = new Rotation([
-  START_3, Liberation, Skill.instaSwap(),
+  START_LAST, Liberation, Skill.instaSwap(),
 
-  INTRO, EBA34.instaCancel(), 
-  ECHO.instaDodge(),
+  INTRO, EBA34.holdCancel(), 
   FHA123, 
   StrawCape, EBA34.instaCancel(), FHA123.cancel(), 
   Liberation, OutroResolver,
@@ -380,6 +390,7 @@ const QY_ROTATION_MDPS_S3 = new Rotation([
 // Fenrico/Law of Harmony+Sierra Gale, Heron/Law of Harmony+Moonlit, Fallacy/Law of Harmony+Rejuv,
 // or Heron/full Moonlit Clouds — all automatically iterated (see gear.ts's own EchoLoadout)
 export const QIUYUAN = new Loadout({
+  minCritRate: 65,
   resonator: QIUYUAN_RESONATOR,
   weapons: [EMERALD_SENTENCE, EMERALD_OF_GENESIS],
   echoLoadouts: [
@@ -402,6 +413,7 @@ export const QIUYUAN = new Loadout({
 });
 
 export const QIUYUAN_MDPS = new Loadout({
+  minCritRate: 65,
   resonator: QIUYUAN_RESONATOR,
   weapons: [EMERALD_SENTENCE, EMERALD_OF_GENESIS],
   echoLoadouts: [

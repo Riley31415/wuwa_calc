@@ -75,13 +75,15 @@ import {
   stacksOfEnemy,
   forte1,
   forte3,
+  addToCast,
   forte2,
   isActive,
   isHeld,
   currentMember,
   runningAnyOf,
+  runningBullet,
 } from "../../engine/context.js";
-import { ActionGroup, Action, ActionField, Cooldown, Rotation, FIRST_INTRO, ECHO, NOINTRO, NOINTRO_FIRST, INTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, ActionField, Cooldown, Rotation, ECHO, NOINTRO, NOINTRO_OPENER, INTRO, DODGE, INTRO_OPENER } from "../../engine/rotation.js";
 import { GLACIO_CHAFE, GLACIO_CHAFE_ACTIONS, HAVOC_BANE, HEALS, OWN_CHAFE_RUNGS } from "../../shared/status.js";
 import { FROSTBURN } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
@@ -132,29 +134,29 @@ const FROSTBIND = {
 
 // --- Present Self: the chain she opens from, and the only ordinary Basic Attack DMG she has.
 const BA1 = hiyukiAction("Basic - Present Self 1", { animFrames: 32, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 10, mv: 37.72, energy: 0.64, concerto: 1.22, offtune: 2168 },
-    { hitFrame: 25, mv: 37.72, energy: 0.64, concerto: 1.22, offtune: 2168 },
+    { hitFrame: 10, mv: 3772, energy: 64, concerto: 122, offtune: 2168 },
+    { hitFrame: 25, mv: 3772, energy: 64, concerto: 122, offtune: 2168 },
   ]});
-const BA2 = hiyukiAction("Basic - Present Self 2", { animFrames: 38, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 20, mv: 90.25, energy: 1.53, concerto: 2.92, offtune: 5188 }]});
+const BA2 = hiyukiAction("Basic - Present Self 2", { animFrames: 38, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 20, mv: 9025, energy: 153, concerto: 292, offtune: 5188 }]});
 const BA3 = hiyukiAction("Basic - Present Self 3", { animFrames: 53, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 9, mv: 4.92, energy: 0.09, concerto: 0.16, offtune: 283,
+    { hitFrame: 9, mv: 492, energy: 9, concerto: 16, offtune: 283,
       ...CHAFE },
-    { hitFrame: 15, mv: 4.92, energy: 0.09, concerto: 0.16, offtune: 283 },
-    { hitFrame: 21, mv: 4.92, energy: 0.09, concerto: 0.16, offtune: 283 },
-    { hitFrame: 27, mv: 4.92, energy: 0.09, concerto: 0.16, offtune: 283 },
-    { hitFrame: 33, mv: 4.92, energy: 0.09, concerto: 0.16, offtune: 283 },
-    { hitFrame: 40, mv: 98.37, energy: 1.67, concerto: 3.19, offtune: 5655 },
+    { hitFrame: 15, mv: 492, energy: 9, concerto: 16, offtune: 283 },
+    { hitFrame: 21, mv: 492, energy: 9, concerto: 16, offtune: 283 },
+    { hitFrame: 27, mv: 492, energy: 9, concerto: 16, offtune: 283 },
+    { hitFrame: 33, mv: 492, energy: 9, concerto: 16, offtune: 283 },
+    { hitFrame: 40, mv: 9837, energy: 167, concerto: 319, offtune: 5655 },
   ], castForte1: 100});
-const MA = hiyukiAction("Mid-air - Present Self Plunge", { animFrames: 52, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 37, mv: 128.18, energy: 2.17, concerto: 4.15, offtune: 7368 }]});
-const DC = hiyukiAction("Dodge Counter - Present Self 2", { animFrames: 38, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 20, mv: 173.75, energy: 2.94, concerto: 15.62, offtune: 9988 }]});
+const MA = hiyukiAction("Mid-air - Present Self Plunge", { animFrames: 52, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 37, mv: 12818, energy: 217, concerto: 415, offtune: 7368 }]});
+const DC = hiyukiAction("Dodge Counter - Present Self 2", { animFrames: 38, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 20, mv: 17375, energy: 294, concerto: 562, offtune: 9988 }], castConcerto: 1000});
 /** Three arrows, considered Resonance Liberation DMG, and what opens Inward Vision. */
-const FrostSplinter = hiyukiAction("Heavy - Frost Splinter: Present Self", {
+const FrostSplinter = hiyukiAction("Heavy - Frost Splinter: Present Self", { minForte1: 300,
   animFrames: 132,
   node: Node.Normal, cast: Cast.Heavy, type: Type.Liberation, bullets: [
-    { hitFrame: 28, mv: 79.31, energy: 1.31, concerto: 2.5, offtune: 4432,
+    { hitFrame: 28, mv: 7931, energy: 131, concerto: 250, offtune: 4432,
       ...CHAFE },
-    { hitFrame: 44, mv: 79.31, energy: 1.31, concerto: 2.5, offtune: 4432 },
-    { hitFrame: 105, mv: 158.61, energy: 2.61, concerto: 4.99, offtune: 8864 },
+    { hitFrame: 44, mv: 7931, energy: 131, concerto: 250, offtune: 4432 },
+    { hitFrame: 105, mv: 15861, energy: 261, concerto: 499, offtune: 8864 },
   ],
   // only fires at 300 Dedication, and the last arrow spends the whole bar: maxForte1 (300 below)
   // clamps an overrun back to the cap before this lands exactly on 0
@@ -163,66 +165,66 @@ const FrostSplinter = hiyukiAction("Heavy - Frost Splinter: Present Self", {
 
 // --- Foreclaimed Self: the same buttons, five stages instead of three, all Resonance Liberation
 //     DMG, and every hit but Bitterfrost refills Frostheart.
-const FBA1 = hiyukiAction("Basic - Foreclaimed Self 1", { animFrames: 22, node: Node.Normal, cast: Cast.Basic, type: Type.Liberation, bullets: [{ hitFrame: 10, mv: 49.27, energy: 0.84, concerto: 1.6, offtune: 2832, forte2: 10, updateDebuffs: () => { if (isHeld(SPRINGLESS)) applyEnemy(GLACIO_CHAFE, 1); } }]});
-const FBA2 = hiyukiAction("Basic - Foreclaimed Self 2", { animFrames: 35, node: Node.Normal, cast: Cast.Basic, type: Type.Liberation, bullets: [
-    { hitFrame: 14, mv: 40.02, energy: 0.68, concerto: 1.3, offtune: 2300, forte2: 8, updateDebuffs: () => { if (isHeld(SPRINGLESS)) applyEnemy(GLACIO_CHAFE, 1); } },
-    { hitFrame: 29, mv: 40.02, energy: 0.68, concerto: 1.3, offtune: 2300, forte2: 7 },
+const UBA1 = hiyukiAction("Basic - Foreclaimed Self 1", { animFrames: 22, node: Node.Normal, cast: Cast.Basic, type: Type.Liberation, bullets: [{ hitFrame: 10, mv: 4927, energy: 84, concerto: 160, offtune: 2832, forte2: 10, updateDebuffs: () => { if (isHeld(SPRINGLESS)) applyEnemy(GLACIO_CHAFE, 1); } }]});
+const UBA2 = hiyukiAction("Basic - Foreclaimed Self 2", { animFrames: 35, node: Node.Normal, cast: Cast.Basic, type: Type.Liberation, bullets: [
+    { hitFrame: 14, mv: 4002, energy: 68, concerto: 130, offtune: 2300, forte2: 8, updateDebuffs: () => { if (isHeld(SPRINGLESS)) applyEnemy(GLACIO_CHAFE, 1); } },
+    { hitFrame: 29, mv: 4002, energy: 68, concerto: 130, offtune: 2300, forte2: 7 },
   ]});
-const FBA3 = hiyukiAction("Basic - Foreclaimed Self 3", { animFrames: 74, node: Node.Normal, cast: Cast.Basic, type: Type.Liberation, bullets: [
-    { hitFrame: 10, mv: 25.16, energy: 0.43, concerto: 0.82, offtune: 1446, forte2: 5,
+const UBA3 = hiyukiAction("Basic - Foreclaimed Self 3", { animFrames: 74, node: Node.Normal, cast: Cast.Basic, type: Type.Liberation, bullets: [
+    { hitFrame: 10, mv: 2516, energy: 43, concerto: 82, offtune: 1446, forte2: 5,
       ...CHAFE },
-    { hitFrame: 16, commitFrame: 10, mv: 25.16, energy: 0.43, concerto: 0.82, offtune: 1446, forte2: 5 },
-    { hitFrame: 22, commitFrame: 10, mv: 25.16, energy: 0.43, concerto: 0.82, offtune: 1446, forte2: 5 },
-    { hitFrame: 28, commitFrame: 10, mv: 25.16, energy: 0.43, concerto: 0.82, offtune: 1446, forte2: 5 },
-    { hitFrame: 58, commitFrame: 10, mv: 67.08, energy: 1.14, concerto: 2.17, offtune: 3856, forte2: 12 },
+    { hitFrame: 16, commitFrame: 10, mv: 2516, energy: 43, concerto: 82, offtune: 1446, forte2: 5 },
+    { hitFrame: 22, commitFrame: 10, mv: 2516, energy: 43, concerto: 82, offtune: 1446, forte2: 5 },
+    { hitFrame: 28, commitFrame: 10, mv: 2516, energy: 43, concerto: 82, offtune: 1446, forte2: 5 },
+    { hitFrame: 58, commitFrame: 10, mv: 6708, energy: 114, concerto: 217, offtune: 3856, forte2: 12 },
   ]});
 const FBA4 = hiyukiAction("Basic - Foreclaimed Self 4", { animFrames: 65, node: Node.Normal, cast: Cast.Basic, type: Type.Liberation, bullets: [
-    { hitFrame: 8, mv: 29.93, energy: 0.51, concerto: 0.97, offtune: 1720, forte2: 6,
+    { hitFrame: 8, mv: 2993, energy: 51, concerto: 97, offtune: 1720, forte2: 6,
       ...CHAFE },
-    { hitFrame: 16, mv: 29.93, energy: 0.51, concerto: 0.97, offtune: 1720, forte2: 6 },
-    { hitFrame: 28, mv: 29.93, energy: 0.51, concerto: 0.97, offtune: 1720, forte2: 6 },
-    { hitFrame: 36, mv: 29.93, energy: 0.51, concerto: 0.97, offtune: 1720, forte2: 6 },
-    { hitFrame: 44, mv: 29.93, energy: 0.51, concerto: 0.97, offtune: 1720, forte2: 6 },
+    { hitFrame: 16, mv: 2993, energy: 51, concerto: 97, offtune: 1720, forte2: 6 },
+    { hitFrame: 28, mv: 2993, energy: 51, concerto: 97, offtune: 1720, forte2: 6 },
+    { hitFrame: 36, mv: 2993, energy: 51, concerto: 97, offtune: 1720, forte2: 6 },
+    { hitFrame: 44, mv: 2993, energy: 51, concerto: 97, offtune: 1720, forte2: 6 },
   ]});
 const FBA5 = hiyukiAction("Basic - Foreclaimed Self 5", { animFrames: 82, node: Node.Normal, cast: Cast.Basic, type: Type.Liberation, bullets: [
-    { hitFrame: 17, mv: 12.17, energy: 0.21, concerto: 0.4, offtune: 700, forte2: 24,
+    { hitFrame: 17, mv: 1217, energy: 21, concerto: 40, offtune: 700, forte2: 24,
       ...CHAFE },
-    { hitFrame: 70, commitFrame: 23, mv: 109.47, energy: 1.85, concerto: 3.54, offtune: 6293 },
+    { hitFrame: 70, commitFrame: 23, mv: 10947, energy: 185, concerto: 354, offtune: 6293 },
   ]});
 const FDC = hiyukiAction("Dodge Counter - Foreclaimed Self 2", { animFrames: 34, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Liberation, bullets: [
-    { hitFrame: 10, mv: 81.77, energy: 1.39, concerto: 7.65, offtune: 4700, forte2: 16 },
-    { hitFrame: 25, mv: 81.77, energy: 1.39, concerto: 7.65, offtune: 4700, forte2: 16 },
-  ]});
+    { hitFrame: 10, mv: 8177, energy: 139, concerto: 265, offtune: 4700, forte2: 16 },
+    { hitFrame: 25, mv: 8177, energy: 139, concerto: 265, offtune: 4700, forte2: 16 },
+  ], castConcerto: 1000});
 const FMA1 = hiyukiAction("Mid-air - Foreclaimed Self 1", { animFrames: 46, node: Node.Normal, cast: Cast.Basic, type: Type.Liberation, bullets: [
-    { hitFrame: 20, mv: 28.83, energy: 0.49, concerto: 0.94, offtune: 1657, forte2: 6 },
-    { hitFrame: 30, mv: 28.83, energy: 0.49, concerto: 0.94, offtune: 1657, forte2: 6 },
-    { hitFrame: 38, mv: 38.43, energy: 0.65, concerto: 1.25, offtune: 2209, forte2: 7 },
+    { hitFrame: 20, mv: 2883, energy: 49, concerto: 94, offtune: 1657, forte2: 6 },
+    { hitFrame: 30, mv: 2883, energy: 49, concerto: 94, offtune: 1657, forte2: 6 },
+    { hitFrame: 38, mv: 3843, energy: 65, concerto: 125, offtune: 2209, forte2: 7 },
   ]});
 const FMA2 = hiyukiAction("Mid-air - Foreclaimed Self 2", { animFrames: 50, node: Node.Normal, cast: Cast.Basic, type: Type.Liberation, bullets: [
-    { hitFrame: 4, mv: 26.09, energy: 0.45, concerto: 0.85, offtune: 1500, forte2: 5,
+    { hitFrame: 4, mv: 2609, energy: 45, concerto: 85, offtune: 1500, forte2: 5,
       ...CHAFE },
-    { hitFrame: 17, mv: 26.09, energy: 0.45, concerto: 0.85, offtune: 1500, forte2: 5 },
-    { hitFrame: 32, mv: 26.09, energy: 0.45, concerto: 0.85, offtune: 1500, forte2: 5 },
-    { hitFrame: 42, mv: 26.09, energy: 0.45, concerto: 0.85, offtune: 1500, forte2: 5 },
+    { hitFrame: 17, mv: 2609, energy: 45, concerto: 85, offtune: 1500, forte2: 5 },
+    { hitFrame: 32, mv: 2609, energy: 45, concerto: 85, offtune: 1500, forte2: 5 },
+    { hitFrame: 42, mv: 2609, energy: 45, concerto: 85, offtune: 1500, forte2: 5 },
   ]});
-const FMA3 = hiyukiAction("Mid-air - Foreclaimed Self 3", { animFrames: 50, node: Node.Normal, cast: Cast.Basic, type: Type.Liberation, bullets: [{ hitFrame: 35, mv: 111.6, energy: 1.89, concerto: 3.61, offtune: 6416, forte2: 22 }], ...CHAFE });
+const FMA3 = hiyukiAction("Mid-air - Foreclaimed Self 3", { animFrames: 50, node: Node.Normal, cast: Cast.Basic, type: Type.Liberation, bullets: [{ hitFrame: 35, mv: 11160, energy: 189, concerto: 361, offtune: 6416, forte2: 22 }], ...CHAFE });
 /** Hold Breath into the thrust — the Heavy she has before Whiteout Bitterfrost fills. */
-const UHA = hiyukiAction("Heavy - Foreclaimed Self", { animFrames: 47, node: Node.Normal, cast: Cast.Heavy, type: Type.Liberation, bullets: [{ hitFrame: 34, mv: 107.16, energy: 1.81, concerto: 3.47, offtune: 6160, forte2: 21 }]});
+const UHA = hiyukiAction("Heavy - Foreclaimed Self", { animFrames: 47, node: Node.Normal, cast: Cast.Heavy, type: Type.Liberation, bullets: [{ hitFrame: 34, mv: 10716, energy: 181, concerto: 347, offtune: 6160, forte2: 21 }]});
 /** Bitterfrost: trades all 3 Whiteout for a Snowforged Blade. Restores no Frostheart — the kit
  *  text excludes it by name from the Foreclaimed Self attacks that do. */
-const FHA = hiyukiAction("Heavy - Bitterfrost: Foreclaimed Self", { animFrames: 150, timestop: 150, motionStop: 150, 
+const FHA = hiyukiAction("Heavy - Bitterfrost: Foreclaimed Self", { minForte3: 3, animFrames: 150, timestop: 150, motionStop: 150, 
   node: Node.Normal, cast: Cast.Heavy, type: Type.Liberation, bullets: [
-    { hitFrame: 10, mv: 15.41, energy: 0.2, offtune: 2100,
+    { hitFrame: 10, mv: 1541, energy: 20, offtune: 2100,
       ...CHAFE },
-    { hitFrame: 17, mv: 15.41, energy: 0.2, offtune: 2100 },
-    { hitFrame: 24, mv: 15.41, energy: 0.2, offtune: 2100 },
-    { hitFrame: 32, mv: 15.41, energy: 0.2, offtune: 2100 },
-    { hitFrame: 39, mv: 15.41, energy: 0.2, offtune: 2100 },
-    { hitFrame: 46, mv: 15.41, energy: 0.2, offtune: 2100 },
-    { hitFrame: 53, mv: 15.41, energy: 0.2, offtune: 2100 },
-    { hitFrame: 60, mv: 15.41, energy: 0.2, offtune: 2100 },
-    { hitFrame: 132, mv: 493.05, energy: 6.4, offtune: 67200 },
-  ], castConcerto: 10,
+    { hitFrame: 17, mv: 1541, energy: 20, offtune: 2100 },
+    { hitFrame: 24, mv: 1541, energy: 20, offtune: 2100 },
+    { hitFrame: 32, mv: 1541, energy: 20, offtune: 2100 },
+    { hitFrame: 39, mv: 1541, energy: 20, offtune: 2100 },
+    { hitFrame: 46, mv: 1541, energy: 20, offtune: 2100 },
+    { hitFrame: 53, mv: 1541, energy: 20, offtune: 2100 },
+    { hitFrame: 60, mv: 1541, energy: 20, offtune: 2100 },
+    { hitFrame: 132, mv: 49305, energy: 640, offtune: 67200 },
+  ], castConcerto: 1000,
   castForte3: -3,
   updateBuffs: () => applyCurrent(SNOWFORGED_BLADE, 1),
 });
@@ -232,27 +234,27 @@ const FHA = hiyukiAction("Heavy - Bitterfrost: Foreclaimed Self", { animFrames: 
 const Skill = hiyukiAction("Skill - Frostblight: Present Self", {
   animFrames: 85, cooldown: 60 * 20,
   node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
-    { hitFrame: 12, mv: 24.5, energy: 0.42, concerto: 0.8, offtune: 1408 },
-    { hitFrame: 16, mv: 24.5, energy: 0.42, concerto: 0.8, offtune: 1408 },
-    { hitFrame: 20, mv: 24.5, energy: 0.42, concerto: 0.8, offtune: 1408 },
-    { hitFrame: 25, mv: 24.5, energy: 0.42, concerto: 0.8, offtune: 1408 },
-    { hitFrame: 61, mv: 97.98, energy: 1.66, concerto: 3.17, offtune: 5632 },
+    { hitFrame: 12, mv: 2450, energy: 42, concerto: 80, offtune: 1408 },
+    { hitFrame: 16, mv: 2450, energy: 42, concerto: 80, offtune: 1408 },
+    { hitFrame: 20, mv: 2450, energy: 42, concerto: 80, offtune: 1408 },
+    { hitFrame: 25, mv: 2450, energy: 42, concerto: 80, offtune: 1408 },
+    { hitFrame: 61, mv: 9798, energy: 166, concerto: 317, offtune: 5632 },
   ],
   updateBuffs: () => applyCurrent(FROSTBLIGHT_ENHANCED, 1),
 });
 const USKILL_CD = new Cooldown({ frames: 60 * 12, charges: 2 });
 const USkill1 = hiyukiAction("Skill - Frostblight: Jade Cleave", { animFrames: 39, cooldown: USKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
-    { hitFrame: 18, mv: 66.01, energy: 2.5, concerto: 0.75, offtune: 1328, forte2: 75 },
-    { hitFrame: 23, mv: 66.01, energy: 2.5, concerto: 0.75, offtune: 1328 },
-    { hitFrame: 29, mv: 66.01, energy: 2.5, concerto: 0.75, offtune: 1328 },
-    { hitFrame: 34, mv: 66.01, energy: 2.5, concerto: 0.75, offtune: 1328 },
+    { hitFrame: 18, mv: 6601, energy: 250, concerto: 75, offtune: 1328, forte2: 75 },
+    { hitFrame: 23, mv: 6601, energy: 250, concerto: 75, offtune: 1328 },
+    { hitFrame: 29, mv: 6601, energy: 250, concerto: 75, offtune: 1328 },
+    { hitFrame: 34, mv: 6601, energy: 250, concerto: 75, offtune: 1328 },
   ]});
 const USkill2 = hiyukiAction("Skill - Frostblight: Petalfall", { animFrames: 55, cooldown: USKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
-    { hitFrame: 16, mv: 64.02, energy: 2.06, concerto: 0.73, offtune: 1288, forte2: 75 },
-    { hitFrame: 20, mv: 64.02, energy: 2.06, concerto: 0.73, offtune: 1288 },
-    { hitFrame: 26, mv: 64.02, energy: 2.06, concerto: 0.73, offtune: 1288 },
-    { hitFrame: 29, mv: 64.02, energy: 2.06, concerto: 0.73, offtune: 1288 },
-    { hitFrame: 34, mv: 64.02, energy: 2.06, concerto: 0.73, offtune: 1288 },
+    { hitFrame: 16, mv: 6402, energy: 206, concerto: 73, offtune: 1288, forte2: 75 },
+    { hitFrame: 20, mv: 6402, energy: 206, concerto: 73, offtune: 1288 },
+    { hitFrame: 26, mv: 6402, energy: 206, concerto: 73, offtune: 1288 },
+    { hitFrame: 29, mv: 6402, energy: 206, concerto: 73, offtune: 1288 },
+    { hitFrame: 34, mv: 6402, energy: 206, concerto: 73, offtune: 1288 },
   ]});
 
 // --- Foreclaiming, both halves.
@@ -261,7 +263,7 @@ const USkill2 = hiyukiAction("Skill - Frostblight: Petalfall", { animFrames: 55,
  *  of its own declared +50. */
 const Lib1 = hiyukiAction("Liberation - Foreclaiming: Inward Vision", {
   animFrames: 240, timestop: 240, motionStop: 240, cooldown: 60 * 25,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 210, mv: 397.62, offtune: 84000 }], castConcerto: 20,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 210, mv: 39762, offtune: 84000 }], castConcerto: 2000,
   castForte2: 50, resetForte1: true, resetForte2: true,
   updateBuffs: () => applyCurrent(FROSTHARDEN_IAI, 3),
   // its own four stacks, then Frostbind's spend — the same phase, so spread by hand rather than
@@ -269,24 +271,24 @@ const Lib1 = hiyukiAction("Liberation - Foreclaiming: Inward Vision", {
   updateDebuffs: () => {
     applyEnemy(GLACIO_CHAFE, 4);
     FROSTBIND.updateDebuffs();
-  },
+  }, resetForte3: true
 });
 /** Held rather than tapped (see the file header), so it spends whatever Snowforged Blade is
  *  banked, at +795.24% on its own multiplier apiece. Tap and hold are one press, one cooldown. */
 const LIB2_CD = new Cooldown({ frames: 60 * 25 });
 const Lib2Tap = hiyukiAction("Liberation - Foreclaiming: Blade Liberation", {
   animFrames: 360, timestop: 360, motionStop: 360, cooldown: LIB2_CD,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 216, mv: 198.81 }, { hitFrame: 270, mv: 795.24 }], castConcerto: 20, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 216, mv: 19881 }, { hitFrame: 270, mv: 79524 }], castConcerto: 2000, resetEnergy: true,
   // everything it ends the form by removing: Dedication, Frostheart, and every Snowforged Blade
   // the multiplier above just cashed
-  resetForte1: true, resetForte2: true,
+  resetForte1: true, resetForte2: true, resetForte3: true
 });
 const Lib2Hold = hiyukiAction("Liberation - Foreclaiming: Blade Liberation", {
   animFrames: 360, timestop: 360, motionStop: 360, cooldown: LIB2_CD,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 216, mv: 198.81 }, { hitFrame: 270, mv: 795.24 }], castConcerto: 20, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 216, mv: 19881 }, { hitFrame: 270, mv: 79524 }], castConcerto: 2000, resetEnergy: true,
   // everything it ends the form by removing: Dedication, Frostheart, and every Snowforged Blade
   // the multiplier above just cashed
-  resetForte1: true, resetForte2: true,
+  resetForte1: true, resetForte2: true, resetForte3: true
 });
 
 /** Iai: 100 Frostheart a cast. With a point of Frostharden left it also spends that for 3 stacks
@@ -294,11 +296,11 @@ const Lib2Hold = hiyukiAction("Liberation - Foreclaiming: Blade Liberation", {
 const Iai = hiyukiAction("Forte Basic - Iai", {
   animFrames: 41,
   node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, bullets: [
-    { hitFrame: 2, commitFrame: 0, mv: 283.82, energy: 1.12, concerto: 2.15, offtune: 3807, updateDebuffs: () => { if (isHeld(FROSTHARDEN_IAI)) applyEnemy(GLACIO_CHAFE, 3); } },
-    { hitFrame: 15, commitFrame: 0, mv: 47.31, energy: 0.19, concerto: 0.36, offtune: 635 },
-    { hitFrame: 20, commitFrame: 0, mv: 47.31, energy: 0.19, concerto: 0.36, offtune: 635 },
-    { hitFrame: 26, commitFrame: 0, mv: 47.31, energy: 0.19, concerto: 0.36, offtune: 635 },
-    { hitFrame: 31, commitFrame: 0, mv: 47.31, energy: 0.19, concerto: 0.36, offtune: 635 },
+    { hitFrame: 2, commitFrame: 0, mv: 28382, energy: 112, concerto: 215, offtune: 3807, updateDebuffs: () => { if (isHeld(FROSTHARDEN_IAI)) applyEnemy(GLACIO_CHAFE, 3); } },
+    { hitFrame: 15, commitFrame: 0, mv: 4731, energy: 19, concerto: 36, offtune: 635 },
+    { hitFrame: 20, commitFrame: 0, mv: 4731, energy: 19, concerto: 36, offtune: 635 },
+    { hitFrame: 26, commitFrame: 0, mv: 4731, energy: 19, concerto: 36, offtune: 635 },
+    { hitFrame: 31, commitFrame: 0, mv: 4731, energy: 19, concerto: 36, offtune: 635 },
   ],
   castForte2: -100,
   ...FROSTBIND,
@@ -306,7 +308,7 @@ const Iai = hiyukiAction("Forte Basic - Iai", {
 
 const Intro = hiyukiAction("Intro - Frostedge", {
   animFrames: 64, prioFrames: 64, motionStop: 33,
-  node: Node.Intro, cast: Cast.Intro, type: Type.Liberation, bullets: [{ hitFrame: 42, mv: 156.15, energy: 10, offtune: 8976 }], castConcerto: 10,
+  node: Node.Intro, cast: Cast.Intro, type: Type.Liberation, bullets: [{ hitFrame: 42, mv: 15615, energy: 1000, offtune: 8976 }], castConcerto: 1000,
   castForte1: 200,
   updateDebuffs: () => applyEnemy(GLACIO_CHAFE, 1),
   // Snowlight Blessing is a 20s team buff, so CLAUDE.md's own wording rule ends it here rather
@@ -319,7 +321,7 @@ const Intro = hiyukiAction("Intro - Frostedge", {
 });
 const Outro = hiyukiAction("Outro - Snowlight Blessing", {
   animFrames: 0,
-  cast: Cast.Outro, castConcerto: -100,
+  cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000,
   updateBuffs: () => applyTeam(SNOWLIGHT_BLESSING, 1)
 });
 
@@ -329,7 +331,7 @@ const Outro = hiyukiAction("Outro - Snowlight Blessing", {
  *  reading only Negative-Status-scoped amplification. */
 const FineSnowBite = new Action("Glacio Bite - Fine Snow", {
   element: Attribute.Glacio, type: Type.Status, subtype: Subtype.GlacioChafe, scaling: Scaling.Dot,
-  mv: 102, field: FINE_SNOW,
+  bullets: [{ hitFrame: 0, mv: 10200 }], field: FINE_SNOW,
 });
 
 /* ------------------------------------------------------------------------------------- buffs */
@@ -341,16 +343,18 @@ const FineSnowBite = new Action("Glacio Bite - Fine Snow", {
  *  Snowforged is banked one per Bitterfrost — plus the one Ephemeral Realm has her walk into the
  *  fight holding — and spent all at once by Blade Liberation. */
 const FROSTHARDEN_IAI = new Buff({ name: "Hiyuki: Frostharden Iai", maxStacks: 3 ,
-  // a point of Frostharden buys the 3 Chafe stacks and the Whiteout; all three phases read the
-  // count untouched, and the spend itself lands at the press's end so none of them races it
-  applyStats: () => { if (runningAction(Iai)) addStat(Stat.AddForte3, 1); },
+  // a point of Frostharden buys the 3 Chafe stacks and the Whiteout, banked whole on the cast; the
+  // spend itself lands at the press's end so the hits still read the count untouched
+  updateBuffs: () => {
+    if (runningAction(Iai)) addToCast({ forte3: 1 });
+  },
   afterAction: () => { if (runningAction(Iai)) removeStack(FROSTHARDEN_IAI, 1); },
 });
 
 
 const SNOWFORGED_BLADE = new Buff({ name: "Hiyuki: Snowforged Blade", maxStacks: 3 ,
   applyStats: () => {
-    if (runningAction(Lib2Hold) || (runningAction(Lib2Tap) && frozenStacks() >= 3)) addStat(Stat.AddMv, 795.24 * frozenStacks());
+    if (runningBullet(Lib2Hold, -1) || (runningBullet(Lib2Tap, -1) && frozenStacks() >= 3)) addStat(Stat.AddMv, 79524 * frozenStacks());
   },
   // the blades the multiplier above cashed are spent once the press is over
   afterAction: () => {
@@ -364,7 +368,9 @@ const SNOWFORGED_BLADE = new Buff({ name: "Hiyuki: Snowforged Blade", maxStacks:
 const FROSTBLIGHT_ENHANCED = new Buff({
   name: "Hiyuki: Present Self",
   lostOnSwap: true,
-  applyStats: () => { if (runningAction(BA3)) addStat(Stat.AddForte1, 100); },
+  updateBuffs: () => {
+    if (runningAction(BA3)) addToCast({ forte1: 100 });
+  },
   afterAction: () => { if (runningAction(BA3)) revokeCurrent(FROSTBLIGHT_ENHANCED); },
 });
 
@@ -498,7 +504,7 @@ const LATE_BITE = new Debuff({
 /** Iai Stance: with 100 Frostheart, a dodge out of a Foreclaimed Self attack (Bitterfrost aside), a
  *  Frostblight skill, an Iai or her Intro flashes her into the stance — no hit of its own. */
 const IaiFlash = hiyukiAction("Dodge - Iai Stance", { animFrames: 30});
-const IAI_ENTRY = new Set<Action>([FBA1, FBA2, FBA3, FBA4, FBA5, FMA1, FMA2, FMA3, UHA, FDC, USkill1, USkill2, Iai, Intro]);
+const IAI_ENTRY = new Set<Action>([UBA1, UBA2, UBA3, FBA4, FBA5, FMA1, FMA2, FMA3, UHA, FDC, USkill1, USkill2, Iai, Intro]);
 
 export const HIYUKI_RESONATOR = new Resonator({
   name: "Hiyuki",
@@ -508,10 +514,10 @@ export const HIYUKI_RESONATOR = new Resonator({
   inherent2: HY_INHERENT_2,
   element: Attribute.Glacio,
   weapon: WeaponType.Sword,
-  dodge: (after) => (IAI_ENTRY.has(after) && forte2() >= 100 ? IaiFlash : null),
+  dodge: (after) => (forte2() >= 100 ? IaiFlash : null),
   color: "#87e6e6",
   intro: Intro,
-  maxEnergy: 125,
+  maxEnergy: 12500,
   maxForte1: 300,
   maxForte2: 300,
   maxForte3: 3,
@@ -560,13 +566,6 @@ export const HIYUKI_RESONATOR = new Resonator({
     for (let i = 0; i < inflicted; i++) queueOn(applier, rung);
   },
 
-
-  // the Stage 3 a Tune Break of hers rolls into — `queueEvent`, not `queue`, so it lands as a
-  // press of her own rather than a follow-up pinned to the break (evaluate.ts's own `triggered`)
-  afterAction: () => {
-    if (!runningAction(TUNE_BREAK)) return;
-    if (forte3() > 0 || forte2() > 0) queueEvent(FBA3);
-  }
 });
 
 /* --------------------------------------------------------------------------------- sequences */
@@ -575,11 +574,11 @@ export const HIYUKI_RESONATOR = new Resonator({
  *  (108.39% against 49.27% on Stage 1, 235.75% against 107.16% on the Heavy) — and Inward Vision
  *  leaves the next Stage 1 and 2 inflicting a stack of Chafe apiece. Bitterfrost is S3's, not this
  *  one's: the node names the plain Heavy Attack - Foreclaimed Self. */
-const FORECLAIMED_HITS = new Set<Action>([FBA1, FBA2, FBA3, FBA4, FBA5, UHA, FMA1, FMA2, FMA3, FDC]);
+const FORECLAIMED_HITS = new Set<Action>([UBA1, UBA2, UBA3, FBA4, FBA5, UHA, FMA1, FMA2, FMA3, FDC]);
 /** What Inward Vision leaves on the next Stage 1 and 2 — spent on Stage 2, the later of the two. */
 const SPRINGLESS = new Buff({
   name: "Hiyuki S1: Springless",
-  afterAction: () => { if (runningAction(FBA2)) revokeCurrent(SPRINGLESS); },
+  afterAction: () => { if (runningAction(UBA2)) revokeCurrent(SPRINGLESS); },
 });
 const HY_S1 = new Sequence({
   name: "Hiyuki S1: Springless",
@@ -591,7 +590,9 @@ const HY_S1 = new Sequence({
  *  Foreclaimed Self form hand back another 50 Frostheart apiece. */
 const FROSTHEART_SURGE = new Buff({
   name: "Hiyuki S2: To Burn Cold in Silence", maxStacks: 2,
-  applyStats: () => { if (runningAction(USkill1) || runningAction(USkill2)) addStat(Stat.AddForte2, 50); },
+  updateBuffs: () => {
+    if (runningAction(USkill1) || runningAction(USkill2)) addToCast({ forte2: 50 });
+  },
   afterAction: () => { if (runningAction(USkill1) || runningAction(USkill2)) removeStack(FROSTHEART_SURGE, 1); },
 });
 /** S2: the Iai at x2.25 — multiplicative, its own second rows (638.59%+106.44%x4 against
@@ -658,21 +659,22 @@ const HY_SEQUENCES = [HY_S1, HY_S2, HY_S3, HY_S4, HY_S5, HY_S6];
  *  exactly the 3 Whiteout Bitterfrost spends. Echo, then the held Blade Liberation cashes the
  *  Snowforged Blade and ends the form, leaving her back in Present Self for the next Intro. She is
  *  always the team's main DPS, so this covers the loop and there is no opener chain to write. */
-const FBA123 = new ActionGroup("Basic - Foreclaimed Self 123", [FBA1, FBA2, FBA3]);
+const UBA123 = new ActionGroup("Basic - Foreclaimed Self 123", [UBA1, UBA2, UBA3]);
+const UHAUBA23 = new ActionGroup("Heavy - Foreclaimed Self + Basic 23", [UHA, UBA2, UBA3]);
 const BA123 = new ActionGroup("Basic - Present Self 123", [BA1, BA2, BA3]);
 
 const HY_ROTATION = new Rotation([
-  NOINTRO_FIRST, BA123.cancel(), Skill, BA3.easyCancel(), FrostSplinter.easyCancel(), Lib1,
-  FBA123.dodgeCancel(), FBA123.dodgeCancel(), Iai.instaJump(), USkill2.dodgeCancel(), Iai.instaJump(), USkill2.dodgeCancel(), Iai.instaDodge(),
+  NOINTRO_OPENER, BA123.instaCancel(), Skill, BA3, FrostSplinter.mashCancel(), Lib1,
+  UBA123.dodgeCancel(), UBA123.dodgeCancel(), Iai.instaJump(), USkill2.dodgeCancel(), Iai.instaJump(), USkill2.dodgeCancel(), Iai.instaDodge(),
   ECHO, FHA, Lib2Tap, Outro,
 
-  FIRST_INTRO, BA3.easyCancel(), FrostSplinter.easyCancel(), Lib1,
-  FBA123.dodgeCancel(), FBA123.dodgeCancel(), Iai.instaJump(), USkill2.dodgeCancel(), Iai.instaJump(), USkill2.dodgeCancel(), Iai.instaDodge(),
+  INTRO_OPENER, BA3, FrostSplinter.mashCancel(), Lib1,
+  UBA123.dodgeCancel(), UBA123.dodgeCancel(), Iai.instaJump(), USkill2.dodgeCancel(), Iai.instaJump(), USkill2.dodgeCancel(), Iai.instaDodge(),
   ECHO, FHA, Lib2Tap, Skill.instaSwap(), Outro,
 
-  NOINTRO, BA123.cancel(), Skill,
-  INTRO, BA3.easyCancel(), FrostSplinter.easyCancel(), Lib1,
-  FBA123.dodgeCancel(), FBA123.dodgeCancel(), Iai.instaJump(), USkill2.dodgeCancel(), Iai.instaJump(), USkill2.dodgeCancel(), Iai.instaDodge(),
+  NOINTRO, BA123.instaCancel(), Skill,
+  INTRO, BA3, FrostSplinter.mashCancel(), Lib1,
+  UBA123.dodgeCancel(), UBA123.dodgeCancel(), Iai.instaJump(), USkill2.dodgeCancel(), Iai.instaJump(), USkill2.dodgeCancel(), Iai.instaDodge(),
   ECHO, FHA, Lib2Hold, Skill.instaSwap(), Outro,
 ]);
 
@@ -681,19 +683,19 @@ const HY_ROTATION = new Rotation([
  *  Bitterfrost, and carries no Frostharden of its own — the three Inward Vision granted are spent
  *  by then, so it is the bare hit. Every later visit runs the ordinary line. */
 const HY_ROTATION_S2 = new Rotation([
-  NOINTRO_FIRST, BA123.cancel(), Skill, BA3.easyCancel(), FrostSplinter.easyCancel(), Lib1,
-  FBA123.dodgeCancel(), FBA123.dodgeCancel(), Iai.instaJump(), USkill2.dodgeCancel(), Iai.instaJump(), USkill2.dodgeCancel(), Iai,
+  NOINTRO_OPENER, BA123.instaCancel(), Skill, BA3, FrostSplinter.mashCancel(), Lib1,
+  UBA123.dodgeCancel(), UBA123.dodgeCancel(), Iai.instaJump(), USkill2.dodgeCancel(), Iai.instaJump(), USkill2.dodgeCancel(), Iai,
   Iai.instaDodge(), // extra from s2
   ECHO, FHA, Lib2Tap, Outro,
 
-  FIRST_INTRO, BA3.easyCancel(), FrostSplinter.easyCancel(), Lib1,
-  FBA123.dodgeCancel(), FBA123.dodgeCancel(), Iai.instaJump(), USkill2.dodgeCancel(), Iai.instaJump(), USkill2.dodgeCancel(), Iai,
+  INTRO_OPENER, BA3, FrostSplinter.mashCancel(), Lib1,
+  UBA123.dodgeCancel(), UBA123.dodgeCancel(), Iai.instaJump(), USkill2.dodgeCancel(), Iai.instaJump(), USkill2.dodgeCancel(), Iai,
   Iai.instaDodge(), // extra from s2
   ECHO, FHA, Lib2Tap, Skill.instaSwap(), Outro,
 
-  NOINTRO, BA123.cancel(), Skill,
-  INTRO, BA3.easyCancel(), FrostSplinter.easyCancel(), Lib1,
-  FBA123.dodgeCancel(), FBA123.dodgeCancel(), Iai.instaJump(), USkill2.dodgeCancel(), Iai.instaJump(), USkill2.dodgeCancel(), Iai.instaDodge(),
+  NOINTRO, BA123.instaCancel(), Skill,
+  INTRO, BA3, FrostSplinter.mashCancel(), Lib1,
+  UBA123.dodgeCancel(), UBA123.dodgeCancel(), Iai.instaJump(), USkill2.dodgeCancel(), Iai.instaJump(), USkill2.dodgeCancel(), Iai.instaDodge(),
   ECHO, FHA, Lib2Hold, Skill.instaSwap(), Outro,
 ]);
 

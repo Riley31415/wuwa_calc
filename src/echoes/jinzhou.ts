@@ -21,8 +21,8 @@ import { HEALS, SHIELD, gainShield } from "../shared/status.js";
  *  pays nothing here). Its other end — "disappears after the current character is hit 3 times" —
  *  is nothing this engine can see, so the 15s is the whole of what bounds it. */
 export const ACTION_BELL_BORNE = new Action("Echo - Bell-Borne Geochelone", {
-  cooldown: 60 * 20, animFrames: 5,
-  cast: Cast.Echo, element: Attribute.Glacio, scaling: Scaling.Def, type: Type.Echo, mv: 145.92, energy: 4.55,
+  cooldown: 60 * 20, animFrames: 16,
+  cast: Cast.Echo, element: Attribute.Glacio, scaling: Scaling.Def, type: Type.Echo, bullets: [{ hitFrame: 5, mv: 14592, energy: 455 }], 
   updateBuffs: () => applyTeam(BELL_BORNE_SHIELD),
 });
 
@@ -42,7 +42,7 @@ export const BELL_BORNE_SHIELD = new Buff({
 export const ACTION_HERON = new Action("Echo - Impermanence Heron", {
   // 4.85 off the hit itself, plus the flat 10 its own skill text hands back ("the current
   // character regains 10 Resonance Energy" once the smack-down lands)
-  animFrames: 60, bullets: [{ hitFrame: 46, mv: 310.56, energy: 4.85 + 10 }],
+  animFrames: 60, bullets: [{ hitFrame: 46, mv: 31056, energy: 485 + 1000 }],
   cooldown: 60 * 20,
   cast: Cast.Echo, element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo,
   updateBuffs: () => queueOutro(HERON_HANDOFF),
@@ -66,7 +66,7 @@ export const HERON_HANDOFF = handoff("Impermanence Heron: Outro", () => addStat(
  *  teammate's kit pays out for it. The shield's own damage absorption is not modelled — nothing in
  *  this calculator takes damage. */
 export const ACTION_STONEWALL_BRACER = new Action("Echo - Stonewall Bracer", {
-  animFrames: 60, bullets: [{ hitFrame: 46, mv: 281.60, energy: 4.40 }],
+  animFrames: 60, bullets: [{ hitFrame: 46, mv: 28160, energy: 440 }],
   cooldown: 60 * 15,
   cast: Cast.Echo, element: Attribute.Physical, scaling: Scaling.Atk, type: Type.Echo,
   updateDebuffs: () => gainShield(),
@@ -118,7 +118,7 @@ export const MOLTEN_RIFT_BUFF = new Buff({
 /** Nightmare: Inferno Rider, Changli's own mainslot echo — her Skill DMG is Fusion. Flat
  *  Fusion/Skill DMG Bonus for whoever wears it, no trigger. */
 export const ACTION_NM_INFERNO_RIDER = new Action("Echo - Nightmare: Inferno Rider", {
-  animFrames: 60, bullets: [{ hitFrame: 46, mv: 405, energy: 5.62 }],
+  animFrames: 60, bullets: [{ hitFrame: 46, mv: 40500, energy: 562 }],
   cooldown: 60 * 25,
   cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo,
 });
@@ -132,7 +132,7 @@ export const NM_INFERNO_RIDER = new Mainslot({
 
 /** Inferno Rider (plain, not "Nightmare:") — Encore's own mainslot echo. No permanent passive:
  *  casting it grants a temporary +12%/+12% Fusion/Basic Attack DMG Bonus window. */
-export const ACTION_INFERNO_RIDER = new Action("Echo - Inferno Rider", { animFrames: 60, bullets: [{ hitFrame: 46, mv: 242.4 + 282.8 * 2, energy: 3.78 + 4.41 * 2 }], cooldown: 60 * 20,
+export const ACTION_INFERNO_RIDER = new Action("Echo - Inferno Rider", { animFrames: 60, bullets: [{ hitFrame: 46, mv: 24240 + 28280 * 2, energy: 378 + 441 * 2 }], cooldown: 60 * 20,
   // the three slashes of the chain, 242.40% / 282.80% / 282.80%
   cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo,
   afterAction: () => applyCurrent(INFERNO_RIDER_WINDOW, 1),
@@ -153,7 +153,7 @@ export const INFERNO_RIDER = new Mainslot({
 /** Nightmare: Crownless, the shared Havoc mainslot echo for Camellya and Havoc Rover. Flat
  *  Havoc/Basic Attack DMG Bonus, no trigger. */
 // TODO 20% dmg bonus to echo on consecutive hits
-export const ACTION_NM_CROWNLESS = new Action("Echo - Nightmare: Crownless", { animFrames: 60, bullets: [{ hitFrame: 46, mv: 264.6, energy: 3.67 }], cooldown: new Cooldown({ frames: 60 * 12, charges: 3 }),
+export const ACTION_NM_CROWNLESS = new Action("Echo - Nightmare: Crownless", { animFrames: 60, bullets: [{ hitFrame: 46, mv: 26460, energy: 367 }], cooldown: new Cooldown({ frames: 60 * 12, charges: 3 }),
   cast: Cast.Echo, element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo,
 });
 export const NM_CROWNLESS = new Mainslot({
@@ -166,7 +166,7 @@ export const NM_CROWNLESS = new Mainslot({
  *  +12%/+12% Havoc/Resonance Skill window. Its chain runs to four attacks, but only the first is
  *  pressed: the transform is left the moment the window is banked. */
 export const ACTION_CROWNLESS = new Action("Echo - Crownless", {
-  animFrames: 60, bullets: [{ hitFrame: 46, mv: 134.08, energy: 2.09 }],
+  animFrames: 60, bullets: [{ hitFrame: 46, mv: 13408, energy: 209 }],
   cooldown: 60 * 20,
   cast: Cast.Echo, element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo,
   updateBuffs: () => applyCurrent(CROWNLESS_WINDOW, 1),
@@ -200,7 +200,7 @@ export const HAVOC_ECLIPSE_STACKS = new Buff({
  *  passive — its cast's 3 hits grant a stacking +4% Glacio / +4% Resonance Skill DMG Bonus for
  *  15s, up to 3 stacks. Not owned by any resonator implemented yet — exported standalone. */
 export const ACTION_LAMPYLUMEN_MYRIAD = new Action("Echo - Lampylumen Myriad", {
-  animFrames: 60, bullets: [{ hitFrame: 46, mv: 667.20, energy: 3.12 * 2 + 4.17 }],
+  animFrames: 60, bullets: [{ hitFrame: 46, mv: 66720, energy: 312 * 2 + 417 }],
   cooldown: 60 * 20,
   cast: Cast.Echo, element: Attribute.Glacio, scaling: Scaling.Atk, type: Type.Echo, // 200.16%+200.16%+266.88%
   updateDebuffs: () => applyCurrent(LAMPYLUMEN_MYRIAD_STACKS, 3),
@@ -229,9 +229,9 @@ export const FREEZING_FROST_STACKS = new Buff({
 
 /** Nightmare: Feilian Beringal — Sierra Gale's own real matching mainslot echo (Iuno just
  *  happens to reuse it). Flat Aero/Heavy Attack DMG Bonus, no trigger. */
-export const ACTION_NM_FEILIAN_BERINGAL = new Action("Echo - Nightmare: Feilian Beringal", {
+export const ACTION_NM_FEILIAN_BERINGAL = new Action("Echo - Nightmare: Feilian Beringal", { animFrames: 8,
   cooldown: 60 * 20,
-  cast: Cast.Echo, element: Attribute.Aero, scaling: Scaling.Atk, type: Type.Echo, mv: 273.56, energy: 2.28 + 0.3 * 5, // 164.16%+21.88%x5
+  cast: Cast.Echo, element: Attribute.Aero, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 27356, energy: 228 + 30 * 5 }], // 164.16%+21.88%x5
 });
 export const NM_FEILIAN_BERINGAL = new Mainslot({
   name: "Nightmare: Feilian Beringal",
@@ -261,10 +261,10 @@ export const SIERRA_GALE_INTRO = new Buff({
  *  it about once a loop, so the bonus is live for the burst it was pressed for and gone after.
  *  A tick is an active row: it is the wearer's own hit, not a swap, so none of their "lost on
  *  switching out" buffs (an outro handoff they just adopted) should drop on it. */
-export const ACTION_JUE = new Action("Echo - Jué", {
+export const ACTION_JUE = new Action("Echo - Jué", { animFrames: 8,
   cooldown: 60 * 20,
   // the soar, five thunderbolts, then the two hits of the spiral down: three 48.64% hits, not two
-  cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type.Echo, mv: 48.64 * 3 + 19.46 * 5, energy: 0.76 * 3 + 0.3 * 5,
+  cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 4864 * 3 + 1946 * 5, energy: 76 * 3 + 30 * 5 }], 
   updateBuffs: () => applyCurrent(JUE_BLESSING, 15),
 });
 /** Blessing of Time's own summon — the field it fires from, named for the report (rotation.ts's
@@ -272,7 +272,7 @@ export const ACTION_JUE = new Action("Echo - Jué", {
 const JUE_FIELD = new ActionField("Jué: Blessing of Time");
 // no energy: the tick has a damage row of its own and it pays nothing
 export const ACTION_JUE_TICK = new Action("Echo - Jué: Blessing of Time", {
-  element: Attribute.Spectro, scaling: Scaling.Atk, type: Type.Skill, mv: 16, field: JUE_FIELD,
+  element: Attribute.Spectro, scaling: Scaling.Atk, type: Type.Skill, bullets: [{ hitFrame: 0, mv: 1600 }], field: JUE_FIELD,
 });
 export const JUE_BLESSING = coordinatedBuff("Jué: Blessing of Time", 15, null, ACTION_JUE_TICK, {
   applyStats: () => addStat(Stat.DmgBonus, 16, Type.Skill),
@@ -302,7 +302,7 @@ export const CELESTIAL_LIGHT_INTRO = new Buff({
  *  the initial strike). Mech Waste's damage "equals the Resonator's Outro Skill DMG" — just a
  *  stat scope (`Type.Outro`), not a live lookup. */
 export const ACTION_MECH_ABOMINATION = new Action("Echo - Mech Abomination", {
-  animFrames: 60, bullets: [{ hitFrame: 46, mv: 48.64, energy: 0.76 }],
+  animFrames: 60, bullets: [{ hitFrame: 46, mv: 4864, energy: 76 }],
   cooldown: 60 * 20,
   cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
   // the strike's: on the hit, so Mech Waste lands after it
@@ -312,7 +312,7 @@ export const ACTION_MECH_ABOMINATION = new Action("Echo - Mech Abomination", {
   },
 });
 export const ACTION_MECH_WASTE = new Action("Echo - Mech Abomination: Mech Waste", {
-  cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Outro, mv: 480, energy: 1.52,
+  cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Outro, bullets: [{ hitFrame: 0, mv: 48000, energy: 152 }], 
 });
 export const MECH_ABOMINATION_ATK = new Buff({
   name: "Mech Abomination",
@@ -352,7 +352,7 @@ export const LINGERING_TUNES_STACKS = new Buff({
 /** Nightmare: Thundering Mephis — Void Thunder's own Overlord-class mainslot echo (Xiangli Yao's
  *  pick). Flat Electro/Liberation DMG Bonus, no trigger. */
 export const ACTION_NM_MEPHIS = new Action("Echo - Nightmare: Thundering Mephis", {
-  animFrames: 60, bullets: [{ hitFrame: 46, mv: 405, energy: 5.62 }],
+  animFrames: 60, bullets: [{ hitFrame: 46, mv: 40500, energy: 562 }],
   cooldown: 60 * 25,
   cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
 });
@@ -365,7 +365,7 @@ export const NM_MEPHIS = new Mainslot({
 /** Nightmare: Tempest Mephis — the other Overlord-class Mephis (Yinlin's pick, carries Empyrean
  *  Anthem too). Flat Electro/Resonance Skill DMG Bonus, no trigger. */
 export const ACTION_NM_TEMPEST_MEPHIS = new Action("Echo - Nightmare: Tempest Mephis", {
-  animFrames: 60, bullets: [{ hitFrame: 46, mv: 405, energy: 5.62 }],
+  animFrames: 60, bullets: [{ hitFrame: 46, mv: 40500, energy: 562 }],
   cooldown: 60 * 25,
   cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
 });
@@ -394,9 +394,9 @@ export const VOID_THUNDER_5PC = new Sonata({
  *  gone the moment its own wearer casts an Intro. The wearer's own +10% ER reads that same
  *  buff's own uptime rather than firing only on the cast. The revoke lives on `FALLACY` (local,
  *  so it only ever sees its own wearer's turn), not on the global `FALLACY_TEAM` itself. */
-export const ACTION_FALLACY = new Action("Echo - Fallacy of No Return", {
+export const ACTION_FALLACY = new Action("Echo - Fallacy of No Return", { animFrames: 8,
   cooldown: 60 * 20,
-  cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Hp, type: Type.Echo, mv: 15.85, energy: 3.04,
+  cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Hp, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 1585, energy: 304 }], 
   afterAction: () => applyTeam(FALLACY_TEAM, 1),
 });
 

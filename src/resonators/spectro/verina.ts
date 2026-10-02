@@ -29,6 +29,7 @@ import {
   addStat,
   queue,
   applyCurrent,
+  addToCast,
 } from "../../engine/context.js";
 import { Action, Rotation, NOINTRO, ECHO, ActionField, ActionGroup, INTRO } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";
@@ -47,32 +48,32 @@ function verinaAction(id: string, def: object): Action {
 
 // energy/concerto/offtune come off nanoka's own Damage Data table; BA3/MA3 are each multiple
 // repeated hits folded into one action, same as their own mv already was.
-const BA1 = verinaAction("Basic - Cultivation 1", { animFrames: 29, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 14, mv: 37.86, energy: 0.95, concerto: 3.04, offtune: 7600 }]});
-const BA2 = verinaAction("Basic - Cultivation 2", { animFrames: 35, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 20, mv: 51.16, energy: 1.28, concerto: 4.11, offtune: 10200 }]});
+const BA1 = verinaAction("Basic - Cultivation 1", { animFrames: 29, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 14, mv: 3786, energy: 95, concerto: 304, offtune: 7600 }]});
+const BA2 = verinaAction("Basic - Cultivation 2", { animFrames: 35, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 20, mv: 5116, energy: 128, concerto: 411, offtune: 10200 }]});
 const BA3 = verinaAction("Basic - Cultivation 3", { animFrames: 43, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 20, mv: 25.58, energy: 0.64, concerto: 2.05, offtune: 5100 },
-    { hitFrame: 24, commitFrame: 20, mv: 25.58, energy: 0.64, concerto: 2.06, offtune: 5100 },
+    { hitFrame: 20, mv: 2558, energy: 64, concerto: 205, offtune: 5100 },
+    { hitFrame: 24, commitFrame: 20, mv: 2558, energy: 64, concerto: 205, offtune: 5100 },
   ]});
-const BA4 = verinaAction("Basic - Cultivation 4", { animFrames: 43, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 10, mv: 67.32, energy: 1.69, concerto: 5.41, offtune: 13600 }]});
-const BA5 = verinaAction("Basic - Cultivation 5", { animFrames: 58, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 10, mv: 71.62, energy: 1.8, concerto: 5.76, offtune: 14400, forte1: 1 }]});
-const HA = verinaAction("Heavy - Cultivation", { animFrames: 48, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 9, mv: 99.41, energy: 2.5, concerto: 8, offtune: 20000 }]});
-const MA1 = verinaAction("Mid-air - Cultivation 1", { animFrames: 21, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 15, mv: 56.37, energy: 1.41, concerto: 4.53, offtune: 11340 }]});
-const MA2 = verinaAction("Mid-air - Cultivation 2", { animFrames: 18, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 12, mv: 53.19, energy: 1.33, concerto: 4.28, offtune: 10700 }]});
+const BA4 = verinaAction("Basic - Cultivation 4", { animFrames: 43, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 10, mv: 6732, energy: 169, concerto: 541, offtune: 13600 }]});
+const BA5 = verinaAction("Basic - Cultivation 5", { animFrames: 58, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 10, mv: 7162, energy: 180, concerto: 576, offtune: 14400, forte1: 1 }]});
+const HA = verinaAction("Heavy - Cultivation", { animFrames: 48, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 9, mv: 9941, energy: 250, concerto: 800, offtune: 20000 }]});
+const MA1 = verinaAction("Mid-air - Cultivation 1", { animFrames: 21, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 15, mv: 5637, energy: 141, concerto: 453, offtune: 11340 }]});
+const MA2 = verinaAction("Mid-air - Cultivation 2", { animFrames: 18, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 12, mv: 5319, energy: 133, concerto: 428, offtune: 10700 }]});
 const MA3 = verinaAction("Mid-air - Cultivation 3", { animFrames: 33, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 24, mv: 25.42, energy: 0.63, concerto: 2.04, offtune: 5114 },
-    { hitFrame: 28, commitFrame: 24, mv: 25.42, energy: 0.63, concerto: 2.04, offtune: 5114 },
-    { hitFrame: 32, commitFrame: 24, mv: 25.42, energy: 0.63, concerto: 2.04, offtune: 5114 },
+    { hitFrame: 24, mv: 2542, energy: 63, concerto: 204, offtune: 5114 },
+    { hitFrame: 28, commitFrame: 24, mv: 2542, energy: 63, concerto: 204, offtune: 5114 },
+    { hitFrame: 32, commitFrame: 24, mv: 2542, energy: 63, concerto: 204, offtune: 5114 },
   ]});
-const MHA = verinaAction("Heavy - Cultivation (Mid-air)", { animFrames: 36, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 28, mv: 61.64, energy: 0.51, concerto: 1, offtune: 12400 }]});
-const DC = verinaAction("Dodge Counter - Cultivation", { animFrames: 20, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 14, mv: 129.23, energy: 3.25, concerto: 15.6, offtune: 14000 }]});
+const MHA = verinaAction("Heavy - Cultivation (Mid-air)", { animFrames: 36, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 28, mv: 6164, energy: 51, concerto: 100, offtune: 12400 }]});
+const DC = verinaAction("Dodge Counter - Cultivation", { animFrames: 20, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 14, mv: 12923, energy: 325, concerto: 560, offtune: 14000 }], castConcerto: 1000});
 
 // base gain only — S2's own extra Photosynthesis Energy/Energy is traced separately (VERINA_S2)
 const Skill = verinaAction("Skill - Botany Experiment", { animFrames: 65, cooldown: 60 * 12, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
-    { hitFrame: 24, mv: 35.79, energy: 3, offtune: 5320 },
-    { hitFrame: 27, commitFrame: 24, mv: 35.79, energy: 3, offtune: 5320 },
-    { hitFrame: 30, commitFrame: 24, mv: 35.79, energy: 3, offtune: 5320 },
-    { hitFrame: 45, commitFrame: 24, mv: 71.58, energy: 6, offtune: 10640 },
-  ], castConcerto: 30, castForte1: 1});
+    { hitFrame: 24, mv: 3579, energy: 300, offtune: 5320 },
+    { hitFrame: 27, commitFrame: 24, mv: 3579, energy: 300, offtune: 5320 },
+    { hitFrame: 30, commitFrame: 24, mv: 3579, energy: 300, offtune: 5320 },
+    { hitFrame: 45, commitFrame: 24, mv: 7158, energy: 600, offtune: 10640 },
+  ], castConcerto: 3000, castForte1: 1});
 
 /** Starflower Blooms spends a Photosynthesis Energy stack "to recover Concerto Energy" — the
  *  Forte Circuit's own `"Photosynthesis Energy" Concerto Regen = 12` row, which has no damage row
@@ -80,34 +81,34 @@ const Skill = verinaAction("Skill - Botany Experiment", { animFrames: 65, cooldo
  *  not once per mid-air stage: the gauge is spent once for the whole combo (see the actions'
  *  own note), so only the Heavy and the mid-air's own stage 1 pay out. */
 const STARFLOWER_CONCERTO = { updateDebuffs: () => {
-  addStat(Stat.AddConcerto, 12);
+  addStat(Stat.AddConcerto, 1200);
   applyCurrent(HEALS, 1);
 }};
 
 // Starflower Blooms spends 1 Photosynthesis Energy either way, heals
-const StarflowerHeavy = verinaAction("Forte Heavy - Starflower Blooms", { animFrames: 48, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
-    { hitFrame: 9, mv: 64.95, energy: 1.16, concerto: 1.86, offtune: 5840,
+const StarflowerHeavy = verinaAction("Forte Heavy - Starflower Blooms", { minForte1: 1, animFrames: 48, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+    { hitFrame: 9, mv: 6495, energy: 116, concerto: 186, offtune: 5840,
       ...STARFLOWER_CONCERTO },
-    { hitFrame: 20, mv: 97.42, energy: 1.75, concerto: 2.8, offtune: 8760 },
+    { hitFrame: 20, mv: 9742, energy: 175, concerto: 280, offtune: 8760 },
   ], castForte1: -1});
 // Mid-air Starflower Blooms is its own 3-stage combo (same shape as the MA1-3 chain it replaces);
 // only stage 1 banks the forte spend/heal, since the Forte Gauge is spent once for the whole combo.
 const ForteMidair1 = verinaAction("Forte Mid-air - Starflower Blooms 1",
-    { animFrames: 21, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 15, mv: 67.64, energy: 1.41, concerto: 4.53, offtune: 11340 }], castForte1: -1, ...STARFLOWER_CONCERTO });
+    { minForte1: 1, animFrames: 21, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 15, mv: 6764, energy: 141, concerto: 453, offtune: 11340 }], castForte1: -1, ...STARFLOWER_CONCERTO });
 const ForteMidair2 = verinaAction("Forte Mid-air - Starflower Blooms 2",
-    { animFrames: 18, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 12, mv: 63.82, energy: 1.33, concerto: 4.28, offtune: 10700 }], castForte1: -1, ...STARFLOWER_CONCERTO });
+    { animFrames: 18, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 12, mv: 6382, energy: 133, concerto: 428, offtune: 10700 }], castForte1: -1, ...STARFLOWER_CONCERTO });
 const ForteMidair3 = verinaAction("Forte Mid-air - Starflower Blooms 3",
     { animFrames: 33, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 24, mv: 30.5, energy: 0.63, concerto: 2.04, offtune: 5114,
+    { hitFrame: 24, mv: 3050, energy: 63, concerto: 204, offtune: 5114,
       ...STARFLOWER_CONCERTO },
-    { hitFrame: 28, commitFrame: 24, mv: 30.5, energy: 0.63, concerto: 2.04, offtune: 5114 },
-    { hitFrame: 32, commitFrame: 24, mv: 30.5, energy: 0.63, concerto: 2.04, offtune: 5114 },
+    { hitFrame: 28, commitFrame: 24, mv: 3050, energy: 63, concerto: 204, offtune: 5114 },
+    { hitFrame: 32, commitFrame: 24, mv: 3050, energy: 63, concerto: 204, offtune: 5114 },
   ], castForte1: -1});
 
 // Arboreal Flourish places Photosynthesis Mark on the enemy (see file header), heals
 const Liberation = verinaAction("Liberation - Arboreal Flourish", {
   animFrames: 150, timestop: 106, motionStop: 59, cooldown: 60 * 25,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 58, mv: 198.81 }], castConcerto: 20, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 58, mv: 19881 }], castConcerto: 2000, resetEnergy: true,
   updateBuffs: () => applyEnemy(PHOTOSYNTHESIS_MARK, 12),
 });
 /** One Coordinated Attack tick — the mark's own per-action proc, and S6's single-hit reuse. It
@@ -116,18 +117,18 @@ const Liberation = verinaAction("Liberation - Arboreal Flourish", {
  *  and are dropped, not divided up. Each tick heals: VERINA_RESONATOR's own HEALS list names it. */
 const PHOTOSYNTHESIS_FIELD = new ActionField("Verina: Photosynthesis Mark");
 const PhotosynthesisTick = verinaAction("Liberation - Photosynthesis Mark", {
-  node: Node.Liberation, type: Type.Basic, subtype: Subtype.Coordinated, bullets: [{ hitFrame: 22, mv: 9.95 }], field: PHOTOSYNTHESIS_FIELD,
+  node: Node.Liberation, type: Type.Basic, subtype: Subtype.Coordinated, bullets: [{ hitFrame: 22, mv: 995 }], field: PHOTOSYNTHESIS_FIELD,
 });
 /** S6's one-off reuse of the same hit — her own follow-up off her own combo, not the mark's, so
  *  this copy names no field and stays out of the report's field row. */
 const S6Tick = PhotosynthesisTick.variant("Liberation - Photosynthesis Mark", { field: null });
 
-const Intro = verinaAction("Intro - Verdant Growth", { animFrames: 98, prioFrames: 52, motionStop: 51, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 62, mv: 99.41, energy: 10, concerto: 4.44, offtune: 11230 }], castConcerto: 5.56, castForte1: 1});
+const Intro = verinaAction("Intro - Verdant Growth", { animFrames: 98, prioFrames: 52, motionStop: 51, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 62, mv: 9941, energy: 1000, offtune: 11230 }], castConcerto: 1000, castForte1: 1});
 /** Blossom: no damage of its own, just the outro handoff, the Gift of Nature/S4 trigger and
  *  (skipped) healing. */
 const Outro = verinaAction("Outro - Blossom", {
   animFrames: 0,
-  cast: Cast.Outro, castConcerto: -100,
+  cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000,
   updateBuffs: () => applyTeam(VERINA_OUTRO, 1),
 });
 
@@ -171,7 +172,9 @@ const PHOTOSYNTHESIS_MARK = coordinatedBuff("Verina: Photosynthesis Mark", 12, (
  *  of its base gain. */
 const VERINA_S2 = new Sequence({
   name: "Verina S2: Sprouting Reflections",
-  applyStats: () => { if (runningAction(Skill)) { addStat(Stat.AddForte1, 1); addStat(Stat.AddConcerto, 10); } },
+  updateBuffs: () => {
+    if (runningAction(Skill)) addToCast({ forte1: 1, concerto: 1000 });
+  },
 });
 
 /** S4 Blossoming Embrace: the trigger lives here; the payout is `S4_TEAM` (permanent uptime once
@@ -225,7 +228,7 @@ const VERINA_RESONATOR = new Resonator({
   weapon: WeaponType.Rectifier,
   color: "#cfee7a",
   intro: Intro,
-  maxEnergy: 175, // her own real 175%, not the generic 125% default — matches Shorekeeper's own
+  maxEnergy: 17500, // her own real 175%, not the generic 125% default — matches Shorekeeper's own
   maxForte1: 4,
 
   tier: Tier.Standard,
@@ -242,21 +245,21 @@ const BA345 = new ActionGroup("Basic - Cultivation 345", [BA3, BA4, BA5]);
 
 const VR_LOOP = new Rotation([
   NOINTRO, BA345.cancel(), Liberation, 
-  Skill.jump(), ForteMidair1, ForteMidair2,
+  Skill.jumpCancel(), ForteMidair1, ForteMidair2,
   ECHO.instaSwap(), Outro,
 
   INTRO, Liberation,
-  Skill.jump(), ForteMidair1, ForteMidair2,
+  Skill.jumpCancel(), ForteMidair1, ForteMidair2,
   ECHO.instaSwap(), Outro,
 ]);
 
 const VR_S2 = new Rotation([
   NOINTRO, Liberation, 
-  Skill.jump(), ForteMidair1, ForteMidair2,
+  Skill.jumpCancel(), ForteMidair1, ForteMidair2,
   ECHO.instaSwap(), Outro,
 
   INTRO, Liberation,
-  Skill.jump(), ForteMidair1, ForteMidair2,
+  Skill.jumpCancel(), ForteMidair1, ForteMidair2,
   ECHO.instaSwap(), Outro,
 ]);
 

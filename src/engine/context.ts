@@ -6,10 +6,10 @@
 import { Stat, EnemyStat, Attribute, Type, Subtype, Cast, scopedStat, tagBand, SUBTYPE_BITS } from "./stats.js";
 import type { Tag } from "./stats.js";
 import type { Action, Cooldown } from "./rotation.js";
-import { ctx, noteMutation, recordConsumed, pendingQueue, tagWord, recordWrite, recordRead, applied as appliedRecord, consumed as consumedRecord } from "./runtime.js";
+import { ctx, noteMutation, recordConsumed, pendingQueue, tagWord, recordWrite, recordRead, moved, applied as appliedRecord, consumed as consumedRecord } from "./runtime.js";
 import { Gear, Buff, Debuff, Resonator, Mainslot } from "./gear.js";
 import type { Trigger } from "./gear.js";
-import { State, TeamMember, StatEntry, HeldBuff, SUBTYPE_AMP_INDEX, SUBTYPE_CRIT_RATE_INDEX, SUBTYPE_CRIT_DMG_INDEX, SUBTYPE_TOTAL_DMG_INDEX, SUBTYPE_DAMAGE_TAKEN_INDEX, BASIC_DMG_BONUS_INDEX } from "./state.js";
+import { State, TeamMember, StatEntry, HeldBuff, insertByDue, timedEntry, SUBTYPE_AMP_INDEX, SUBTYPE_CRIT_RATE_INDEX, SUBTYPE_CRIT_DMG_INDEX, SUBTYPE_TOTAL_DMG_INDEX, SUBTYPE_DAMAGE_TAKEN_INDEX, BASIC_DMG_BONUS_INDEX } from "./state.js";
 import type { StatRow } from "./state.js";
 
 /** The three pools a phase reads — the acting slot's own, then team-wide, then enemy — as the
@@ -44,11 +44,22 @@ export const midActionGroup = (): boolean => ctx.insideGroup;
  *  or event, a summon echo's own hit, or an outro handoff. The same answer the snapshot reports
  *  (`ResolvedSnapshot.triggered`), readable mid-action by gear that must not fire off one. */
 export const triggeredAction = (): boolean => ctx.triggered;
+/** The tag the press being evaluated was cut short by (`ActionTag`), "" where it played out. */
+export const pressCut = (): string => ctx.pressCut;
+/** Drop that dodge, and relabel the press it cut as `cut` instead — what takes the dodge's place
+ *  (an auto Tune Break) is queued by the caller. */
+export function replaceNextDash(cut: string): void {
+  if (!ctx.dryRun) ctx.dashReplaced = cut;
+}
 export const currentTeam = (): State => ctx.state!;
 /** Whichever member the engine is mid-call for — the acting slot in every ordinary phase, and the
  *  gear's *own holder* inside updateGlobal() (see `evaluate()`). What a rotation marker's own
  *  `resolve()` reads to find the resonator/mainslot it stands in for. */
 export const currentMember = (): TeamMember => ctx.slot!;
+
+/** A resolver read while a handoff plans the visit it opens, its Outro not cast yet — state that
+ *  Outro moves (Shorekeeper's realm) still reads as before it. */
+export const handoffPending = (): boolean => ctx.handoffPending;
 
 /** Is the action being evaluated this cast type — checks both `cast` and `subcast`. */
 export function casting(cast: Cast): boolean {
@@ -82,6 +93,16 @@ export function runningAction(action: Action): boolean {
   return false;
 }
 
+/** Is the hit being evaluated `action`'s bullet `index` (from the end where negative: -1 is its
+ *  final one)? What a flat addition to one hit of a press reads. A press evaluated whole, rather
+ *  than hit by hit, is every one of its bullets at once. */
+export function runningBullet(action: Action, index: number): boolean {
+  if (!runningAction(action)) return false;
+  const a = ctx.act!;
+  if (a.half !== "hit") return true;
+  return a.hitIndex === (index < 0 ? action.bullets.length + index : index);
+}
+
 /** `runningAction()` over a set: is the acting press any of `actions`, cut or swapped out or not? */
 export function runningAnyOf(actions: ReadonlySet<Action>): boolean {
   for (let a: Action | null = ctx.act!; a; a = a.cancelOf ?? a.formOf) if (actions.has(a)) return true;
@@ -106,7 +127,7 @@ export const elapsed = (): number => (ctx.act!.half === "hit" || ctx.act!.half =
 export const currentFrame = (): number => ctx.state!.frame;
 /** The frame the press being evaluated was cast — its own start, or on a queued hit its cast's:
  *  what a count spread over the press's frames (`elapsed()`) is laid from. */
-export const castFrame = (): number => (ctx.act!.half === "hit" || ctx.act!.half === "end" ? ctx.pressStart : ctx.state!.frame);
+export const castFrame = (): number => (ctx.act!.half === "hit" || ctx.act!.half === "end" ? ctx.pressStart : ctx.state!.real);
 
 const cooldownOf = (of: Action | Cooldown): Cooldown | null => ("wait" in of ? of : of.cooldown);
 
@@ -322,6 +343,7 @@ function write(effective: StatRow, index: number, value: number): void {
   effective[index] = effective[index]! + value;
   ctx.wrote++;
   if (ctx.recording) recordWrite(index, value);
+  if (ctx.trackWrites) moved.at[index] = moved.key;
 }
 
 function pushStat(stat: Stat | EnemyStat, tag: Tag | undefined, value: number): void {
@@ -754,11 +776,20 @@ const queuedBy = (): HeldBuff | null => {
   if (!gear?.name) return null;
   return { name: gear.name, source: ctx.state!.sourceOf.get(gear) ?? ctx.slot!.name, left: 0 };
 };
-export function queue(action: Action): void {
+/** `delay` frames on puts it on the clock instead, cast that many frames into this press's own
+ *  animation — its time stop standing still for it, as for the press's own bullets — or after the
+ *  tick queuing it. It lands behind the press's own hits on that frame. */
+export function queue(action: Action, delay = 0): void {
   inheritPiece(action);
   noteMutation(action.id, 4e6);
   if (ctx.dryRun) return;
-  queueOnSlot(ctx.state!.slots.indexOf(ctx.slot!), action);
+  const slot = ctx.state!.slots.indexOf(ctx.slot!);
+  if (!delay) {
+    queueOnSlot(slot, action);
+    return;
+  }
+  // animation frames on the real timer, which no time stop holds
+  insertByDue(ctx.state!.timed, timedEntry((ctx.tickAt ?? castFrame()) + delay, action, slot, queuedBy(), false, undefined, undefined, undefined, undefined, undefined));
 }
 
 /** Behind the action being evaluated — or, queued from a tick, at the tick's own frame. */
@@ -767,9 +798,7 @@ function queueOnSlot(slot: number, action: Action): void {
     pendingQueue.push({ action, slot, by: queuedBy(), event: false });
     return;
   }
-  const timed = ctx.state!.timed;
-  timed.push({ due: ctx.tickAt, action, slot, into: null, by: queuedBy(), away: false });
-  timed.sort((p, q) => p.due - q.due);
+  insertByDue(ctx.state!.timed, timedEntry(ctx.tickAt, action, slot, queuedBy(), false, undefined, undefined, undefined, undefined, undefined));
 }
 
 /** Queue an action behind the *next Intro anyone casts* rather than behind this action — for a
@@ -811,6 +840,17 @@ export function queueOn(resonator: Resonator, action: Action): void {
   queueOnSlot(ctx.state!.slots.indexOf(ctx.state!.memberOf(resonator)), action);
 }
 
+/** Queue `action` on `resonator`'s slot behind the next rotation press anyone casts: on this very
+ *  frame, but cast — and listed — after that press, whether or not it is an Intro (the Hecate
+ *  attack Phrolova's own swap-out sets going plays behind whoever comes in). */
+export function queueOnBehindNext(resonator: Resonator, action: Action): void {
+  inheritPiece(action);
+  noteMutation(action.id, 9e6);
+  if (ctx.dryRun) return;
+  const state = ctx.state!;
+  state.behindNext.push({ action, slot: state.slots.indexOf(state.memberOf(resonator)), by: queuedBy(), at: ctx.tickAt ?? castFrame(), stamp: ctx.actionStamp });
+}
+
 /** Run `fn` on `resonator`'s slot (the current one for null) — now, or, from a tick, at the tick's
  *  own frame (`State.timed`), with no press of its own: a heal window's heal. */
 export function applyOn(resonator: Resonator | null, fn: () => void): void {
@@ -822,9 +862,7 @@ export function applyOn(resonator: Resonator | null, fn: () => void): void {
     try { fn(); } finally { ctx.slot = prev; }
     return;
   }
-  const timed = ctx.state!.timed;
-  timed.push({ due: ctx.tickAt, action: null, slot, into: null, by: queuedBy(), apply: fn });
-  timed.sort((p, q) => p.due - q.due);
+  insertByDue(ctx.state!.timed, timedEntry(ctx.tickAt, null, slot, queuedBy(), undefined, fn, undefined, undefined, undefined, undefined));
 }
 
 /** The frame the last press in `presses` still playing ends on (its queued end), or null if none is. */

@@ -39,7 +39,7 @@ import { EMERALD_OF_GENESIS, NEW_STD_SWORD, BLOODPACTS_PLEDGE } from "../../weap
 import { DRAGON_OF_DIRGE, TIDEBREAKING_5PC } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
-import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
+import { HERON, MOONLIT_CLOUDS_5PC, NM_INFERNO_RIDER, MOLTEN_RIFT_5PC } from "../../echoes/jinzhou.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -60,29 +60,29 @@ function brantAction(id: string, def: object): Action {
 const Intro = brantAction("Intro - Applaud for Me!", {
   animFrames: 106,
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
-    { hitFrame: 106, mv: 202.79, offtune: 9599.9053, updateDebuffs: () => applyCurrent(HEALS, 1) },
-    { hitFrame: 106, mv: 50.7, offtune: 2400.0947, forte1: 25 },
-  ], castConcerto: 10,
+    { hitFrame: 106, mv: 20279, offtune: 9600, updateDebuffs: () => applyCurrent(HEALS, 1) },
+    { hitFrame: 106, mv: 5070, offtune: 2400, forte1: 2500 },
+  ], castConcerto: 1000,
 });
-const Outro = brantAction("Outro - The Course is Set!", { cast: Cast.Outro, castConcerto: -100, updateBuffs: () => queueOutro(BRANT_OUTRO) });
+const Outro = brantAction("Outro - The Course is Set!", { cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000, updateBuffs: () => queueOutro(BRANT_OUTRO) });
 
 // --- resonance skill: Anchors Aweigh!, and liberation: To the Horizon (opens Aflame)
 // PLACEHOLDER FRAMES
 const Skill = brantAction("Skill - Anchors Aweigh!", { animFrames: 46, cooldown: 60 * 4, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
-    { hitFrame: 21, mv: 200.35, energy: 4.308, offtune: 6095.9391 },
-    { hitFrame: 21, mv: 133.57, energy: 2.872, offtune: 4064.0609, forte1: 7.88 },
-  ], castConcerto: 10});
+    { hitFrame: 21, mv: 20035, energy: 431, offtune: 6096 },
+    { hitFrame: 21, mv: 13357, energy: 287, offtune: 4064, forte1: 788 },
+  ], castConcerto: 1000});
 // PLACEHOLDER FRAMES
 const Liberation = brantAction("Liberation - To the Horizon", {
   animFrames: 247, timestop: 247, motionStop: 247, prioFrames: 247,
   cooldown: 60 * 24,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [
-    { hitFrame: 247, mv: 85.06, offtune: 6000.2645 },
-    { hitFrame: 247, mv: 85.06, offtune: 6000.2645 },
-    { hitFrame: 247, mv: 85.06, offtune: 6000.2645 },
-    { hitFrame: 247, mv: 85.06, offtune: 6000.2645 },
-    { hitFrame: 247, mv: 340.21, offtune: 23998.942 },
-  ], castConcerto: 20, resetEnergy: true,
+    { hitFrame: 247, mv: 8506, offtune: 6000 },
+    { hitFrame: 247, mv: 8506, offtune: 6000 },
+    { hitFrame: 247, mv: 8506, offtune: 6000 },
+    { hitFrame: 247, mv: 8506, offtune: 6000 },
+    { hitFrame: 247, mv: 34021, offtune: 24000 },
+  ], castConcerto: 2000, resetEnergy: true,
   // Aflame swaps his conversion up to its "My" Moment rate for as long as it lasts
   updateBuffs: () => { applyCurrent(AFLAME, 1); revokeCurrent(THEATRICAL_MOMENT); applyCurrent(MY_MOMENT, 1); },
 });
@@ -92,23 +92,23 @@ const Liberation = brantAction("Liberation - To the Horizon", {
  *  overshot Bravo back to exactly 100 so its own declared `forte1: -100` lands exactly on 0;
  *  under 100, left alone (matches Galbrena's own Purging Flame). */
 // PLACEHOLDER FRAMES
-const FSkill = brantAction("Forte Skill - Returned from Ashes", {
+const FSkill = brantAction("Forte Skill - Returned from Ashes", { minForte1: 10000,
   animFrames: 139,
   node: Node.Forte, cast: Cast.Skill, type: Type.Basic, bullets: [
     {
-      hitFrame: 109, mv: 47.22, energy: 0.75, concerto: 0.75, offtune: 1580.0753,
+      hitFrame: 109, mv: 4722, energy: 75, concerto: 75, offtune: 1580,
       updateDebuffs: () => {
         gainShield();
         if (isHeld(BR_S4)) applyCurrent(HEALS, 1);
         if (isHeld(BR_S6)) queue(AshesBlast);
       },
     },
-    { hitFrame: 109, mv: 47.22, energy: 0.75, concerto: 0.75, offtune: 1580.0753 },
-    { hitFrame: 109, mv: 94.44, energy: 1.5001, concerto: 1.5001, offtune: 3160.1506 },
-    { hitFrame: 109, mv: 188.87, energy: 3, concerto: 3, offtune: 6319.9665 },
-    { hitFrame: 109, mv: 188.87, energy: 3, concerto: 3, offtune: 6319.9665 },
-    { hitFrame: 109, mv: 1322.09, energy: 20.9999, concerto: 20.9999, offtune: 44239.7658 },
-  ], castConcerto: 20, castForte1: -100,
+    { hitFrame: 109, mv: 4722, energy: 75, concerto: 75, offtune: 1580 },
+    { hitFrame: 109, mv: 9444, energy: 150, concerto: 150, offtune: 3160 },
+    { hitFrame: 109, mv: 18887, energy: 300, concerto: 300, offtune: 6320 },
+    { hitFrame: 109, mv: 18887, energy: 300, concerto: 300, offtune: 6320 },
+    { hitFrame: 109, mv: 132209, energy: 2100, concerto: 2100, offtune: 44240 },
+  ], castConcerto: 2000, castForte1: -10000,
 });
 
 
@@ -116,40 +116,40 @@ const FSkill = brantAction("Forte Skill - Returned from Ashes", {
 // --- ground Captain's Rhapsody: the 4-stage Basic chain, both Heavy Attacks (the table's only
 //     type=1 rows), Dodge Counter (hidden +10 concerto, per the standing rule) and the Plunging
 //     Attack the Skill tree carries as a type=0 (Basic) row. None sit in a rotation.
-const BA1 = brantAction("Basic - Captain's Rhapsody 1", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 50.53, energy: 0.75, concerto: 1.5, offtune: 2392, forte1: 1.3 });
+const BA1 = brantAction("Basic - Captain's Rhapsody 1", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 5053, energy: 75, concerto: 150, offtune: 2392, forte1: 130 }] });
 // PLACEHOLDER FRAMES
 const BA2 = brantAction("Basic - Captain's Rhapsody 2", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 0, mv: 50.7, energy: 0.75, concerto: 1.5, offtune: 2400 },
-    { hitFrame: 0, mv: 50.7, energy: 0.75, concerto: 1.5, offtune: 2400, forte1: 2.62 },
+    { hitFrame: 0, mv: 5070, energy: 75, concerto: 150, offtune: 2400 },
+    { hitFrame: 0, mv: 5070, energy: 75, concerto: 150, offtune: 2400, forte1: 262 },
   ]}); // 50.70%x2
 // PLACEHOLDER FRAMES
 const BA3 = brantAction("Basic - Captain's Rhapsody 3", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 0, mv: 22.06, energy: 0.3284, concerto: 0.6568, offtune: 1044.1578 },
-    { hitFrame: 0, mv: 22.06, energy: 0.3284, concerto: 0.6568, offtune: 1044.1578 },
-    { hitFrame: 0, mv: 22.06, energy: 0.3284, concerto: 0.6568, offtune: 1044.1578 },
-    { hitFrame: 0, mv: 33.08, energy: 0.4924, concerto: 0.9849, offtune: 1565.7633 },
-    { hitFrame: 0, mv: 33.08, energy: 0.4924, concerto: 0.9847, offtune: 1565.7633, forte1: 3.41 },
+    { hitFrame: 0, mv: 2206, energy: 33, concerto: 66, offtune: 1044 },
+    { hitFrame: 0, mv: 2206, energy: 33, concerto: 66, offtune: 1044 },
+    { hitFrame: 0, mv: 2206, energy: 33, concerto: 66, offtune: 1044 },
+    { hitFrame: 0, mv: 3308, energy: 49, concerto: 98, offtune: 1566 },
+    { hitFrame: 0, mv: 3308, energy: 49, concerto: 98, offtune: 1566, forte1: 341 },
   ]}); // 22.06%x3+33.08%x2
 // PLACEHOLDER FRAMES
 const BA4 = brantAction("Basic - Captain's Rhapsody 4", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 0, mv: 28.02, energy: 0.4239, concerto: 0.8359, offtune: 1326.0107 },
-    { hitFrame: 0, mv: 22.42, energy: 0.3392, concerto: 0.6688, offtune: 1060.9979 },
-    { hitFrame: 0, mv: 22.42, energy: 0.3392, concerto: 0.6688, offtune: 1060.9979 },
-    { hitFrame: 0, mv: 22.42, energy: 0.3392, concerto: 0.6688, offtune: 1060.9979 },
-    { hitFrame: 0, mv: 22.42, energy: 0.3392, concerto: 0.6688, offtune: 1060.9979 },
-    { hitFrame: 0, mv: 22.42, energy: 0.3393, concerto: 0.6689, offtune: 1060.9977, forte1: 3.62 },
+    { hitFrame: 0, mv: 2802, energy: 42, concerto: 83, offtune: 1326 },
+    { hitFrame: 0, mv: 2242, energy: 34, concerto: 67, offtune: 1061 },
+    { hitFrame: 0, mv: 2242, energy: 34, concerto: 67, offtune: 1061 },
+    { hitFrame: 0, mv: 2242, energy: 34, concerto: 67, offtune: 1061 },
+    { hitFrame: 0, mv: 2242, energy: 34, concerto: 67, offtune: 1061 },
+    { hitFrame: 0, mv: 2242, energy: 34, concerto: 67, offtune: 1061, forte1: 362 },
   ]}); // 28.02%+22.42%x5
-const HA = brantAction("Heavy - Captain's Rhapsody", { node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, mv: 197.55, energy: 2.93, concerto: 5.85, offtune: 9352, forte1: 7.25 });
-const HARiff = brantAction("Heavy - Rhapsodic Riff", { node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, mv: 168.99, energy: 2.5, concerto: 5, offtune: 8000, forte1: 6.2 });
+const HA = brantAction("Heavy - Captain's Rhapsody", { node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 19755, energy: 293, concerto: 585, offtune: 9352, forte1: 725 }] });
+const HARiff = brantAction("Heavy - Rhapsodic Riff", { node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 16899, energy: 250, concerto: 500, offtune: 8000, forte1: 620 }] });
 // PLACEHOLDER FRAMES
 const DC = brantAction("Dodge Counter - Captain's Rhapsody", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
-    { hitFrame: 0, mv: 38.03, energy: 0.5684, concerto: 1.1284, offtune: 1800.0789 },
-    { hitFrame: 0, mv: 38.03, energy: 0.5684, concerto: 1.1284, offtune: 1800.0789 },
-    { hitFrame: 0, mv: 38.03, energy: 0.5684, concerto: 1.1284, offtune: 1800.0789 },
-    { hitFrame: 0, mv: 57.04, energy: 0.8525, concerto: 1.6924, offtune: 2699.8817 },
-    { hitFrame: 0, mv: 57.04, energy: 0.8523, concerto: 1.6924, offtune: 2699.8816 },
-  ], castConcerto: 10}); // 38.03%x3+57.04%x2
-const Plunge = brantAction("Mid-air - Plunging Attack", { animFrames: 55, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 104.78, energy: 1.55, concerto: 3.1, offtune: 4960, forte1: 3.83 });
+    { hitFrame: 0, mv: 3803, energy: 57, concerto: 113, offtune: 1800 },
+    { hitFrame: 0, mv: 3803, energy: 57, concerto: 113, offtune: 1800 },
+    { hitFrame: 0, mv: 3803, energy: 57, concerto: 113, offtune: 1800 },
+    { hitFrame: 0, mv: 5704, energy: 85, concerto: 169, offtune: 2700 },
+    { hitFrame: 0, mv: 5704, energy: 85, concerto: 169, offtune: 2700 },
+  ], castConcerto: 1000}); // 38.03%x3+57.04%x2
+const Plunge = brantAction("Mid-air - Plunging Attack", { animFrames: 55, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 55, mv: 10478, energy: 155, concerto: 310, offtune: 4960, forte1: 383 }] });
 
 // --- mid-air Captain's Rhapsody, one action per hit family off the table: each stage's own hit,
 //     its Charged Attack insert, the automatic backward Flip (identical rows on stages 1-3) and
@@ -158,59 +158,59 @@ const Plunge = brantAction("Mid-air - Plunging Attack", { animFrames: 55, node: 
 //     stages 1-2 (the MA1/MA2 variants below), the hold finishers, and stage 3's automatic one —
 //     stage 4 has none. forte1 is the base (un-doubled) Bravo gain, AFLAME doubles it live. The
 //     Slash has no recorded Bravo value, so it declares none.
-const MA1 = brantAction("Mid-air - Captain's Rhapsody 1", { animFrames: 48, bullets: [{ hitFrame: 34, mv: 122.86, energy: 1.82, concerto: 3.64, offtune: 5816, forte1: 4.51 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
+const MA1 = brantAction("Mid-air - Captain's Rhapsody 1", { animFrames: 48, bullets: [{ hitFrame: 34, mv: 12286, energy: 182, concerto: 364, offtune: 5816, forte1: 451 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
 // PLACEHOLDER FRAMES
 const MA1C = brantAction("Mid-air - Captain's Rhapsody 1 (Charged)", { animFrames: 181-48, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 133, mv: 33.25, energy: 0.496, concerto: 0.9851, offtune: 1573.6947 },
-    { hitFrame: 133, mv: 49.87, energy: 0.744, concerto: 1.4774, offtune: 2360.3053 },
-    { hitFrame: 133, mv: 41.56, energy: 0.62, concerto: 1.2312, offtune: 1967 },
-    { hitFrame: 133, mv: 41.56, energy: 0.62, concerto: 1.2312, offtune: 1967 },
-    { hitFrame: 133, mv: 41.56, energy: 0.62, concerto: 1.2312, offtune: 1967 },
-    { hitFrame: 133, mv: 41.56, energy: 0.62, concerto: 1.2312, offtune: 1967 },
-    { hitFrame: 133, mv: 41.56, energy: 0.62, concerto: 1.2312, offtune: 1967 },
-    { hitFrame: 133, mv: 41.56, energy: 0.62, concerto: 1.2315, offtune: 1967, forte1: 12.23 },
+    { hitFrame: 133, mv: 3325, energy: 50, concerto: 99, offtune: 1574 },
+    { hitFrame: 133, mv: 4987, energy: 74, concerto: 148, offtune: 2360 },
+    { hitFrame: 133, mv: 4156, energy: 62, concerto: 123, offtune: 1967 },
+    { hitFrame: 133, mv: 4156, energy: 62, concerto: 123, offtune: 1967 },
+    { hitFrame: 133, mv: 4156, energy: 62, concerto: 123, offtune: 1967 },
+    { hitFrame: 133, mv: 4156, energy: 62, concerto: 123, offtune: 1967 },
+    { hitFrame: 133, mv: 4156, energy: 62, concerto: 123, offtune: 1967 },
+    { hitFrame: 133, mv: 4156, energy: 62, concerto: 123, offtune: 1967, forte1: 1223 },
   ]}); // 33.25%+49.87%+41.56%x6
 // PLACEHOLDER FRAMES
 const MA2 = brantAction("Mid-air - Captain's Rhapsody 2", { animFrames: 88, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 74, mv: 84.92, energy: 1.26, concerto: 2.52, offtune: 4020 },
-    { hitFrame: 74, mv: 84.92, energy: 1.26, concerto: 2.52, offtune: 4020, forte1: 6.24 },
+    { hitFrame: 74, mv: 8492, energy: 126, concerto: 252, offtune: 4020 },
+    { hitFrame: 74, mv: 8492, energy: 126, concerto: 252, offtune: 4020, forte1: 624 },
   ]}); // 84.92%x2
 // PLACEHOLDER FRAMES
 const MA2C = brantAction("Mid-air - Captain's Rhapsody 2 (Charged)", { animFrames: 154-88, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 66, mv: 32.87, energy: 0.49, concerto: 0.98, offtune: 1556 },
-    { hitFrame: 66, mv: 32.87, energy: 0.49, concerto: 0.98, offtune: 1556 },
-    { hitFrame: 66, mv: 32.87, energy: 0.49, concerto: 0.98, offtune: 1556 },
-    { hitFrame: 66, mv: 32.87, energy: 0.49, concerto: 0.98, offtune: 1556 },
-    { hitFrame: 66, mv: 32.87, energy: 0.49, concerto: 0.98, offtune: 1556 },
-    { hitFrame: 66, mv: 32.87, energy: 0.49, concerto: 0.98, offtune: 1556, forte1: 12.66 },
+    { hitFrame: 66, mv: 3287, energy: 49, concerto: 98, offtune: 1556 },
+    { hitFrame: 66, mv: 3287, energy: 49, concerto: 98, offtune: 1556 },
+    { hitFrame: 66, mv: 3287, energy: 49, concerto: 98, offtune: 1556 },
+    { hitFrame: 66, mv: 3287, energy: 49, concerto: 98, offtune: 1556 },
+    { hitFrame: 66, mv: 3287, energy: 49, concerto: 98, offtune: 1556 },
+    { hitFrame: 66, mv: 3287, energy: 49, concerto: 98, offtune: 1556, forte1: 1266 },
   ]}); // 32.87%x6
 // PLACEHOLDER FRAMES
 const MA3 = brantAction("Mid-air - Captain's Rhapsody 3", { animFrames: 95, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 56, mv: 28.17, energy: 0.42, concerto: 0.84, offtune: 1333 },
-    { hitFrame: 56, mv: 28.17, energy: 0.42, concerto: 0.84, offtune: 1333 },
-    { hitFrame: 56, mv: 28.17, energy: 0.42, concerto: 0.84, offtune: 1333 },
-    { hitFrame: 56, mv: 28.17, energy: 0.42, concerto: 0.84, offtune: 1333 },
-    { hitFrame: 56, mv: 28.17, energy: 0.42, concerto: 0.84, offtune: 1333 },
-    { hitFrame: 56, mv: 28.17, energy: 0.42, concerto: 0.84, offtune: 1333, forte1: 9.3 },
+    { hitFrame: 56, mv: 2817, energy: 42, concerto: 84, offtune: 1333 },
+    { hitFrame: 56, mv: 2817, energy: 42, concerto: 84, offtune: 1333 },
+    { hitFrame: 56, mv: 2817, energy: 42, concerto: 84, offtune: 1333 },
+    { hitFrame: 56, mv: 2817, energy: 42, concerto: 84, offtune: 1333 },
+    { hitFrame: 56, mv: 2817, energy: 42, concerto: 84, offtune: 1333 },
+    { hitFrame: 56, mv: 2817, energy: 42, concerto: 84, offtune: 1333, forte1: 930 },
   ]}); // 28.17%x6
 // PLACEHOLDER FRAMES
 const MAFlip = brantAction("Mid-air - Captain's Rhapsody Flip", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 0, mv: 33.8, energy: 0.5018, concerto: 1, offtune: 1600 },
-    { hitFrame: 0, mv: 59.15, energy: 0.8782, concerto: 1.75, offtune: 2800, forte1: 5.12 },
+    { hitFrame: 0, mv: 3380, energy: 50, concerto: 100, offtune: 1600 },
+    { hitFrame: 0, mv: 5915, energy: 88, concerto: 175, offtune: 2800, forte1: 512 },
   ]}); // 33.80%+59.15%
 // PLACEHOLDER FRAMES
 const MASlash = brantAction("Mid-air - Captain's Rhapsody 1 Slash", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 0, mv: 28.17, energy: 0.42, concerto: 0.84, offtune: 1333 },
-    { hitFrame: 0, mv: 28.17, energy: 0.42, concerto: 0.84, offtune: 1333 },
-    { hitFrame: 0, mv: 28.17, energy: 0.42, concerto: 0.84, offtune: 1333 },
+    { hitFrame: 0, mv: 2817, energy: 42, concerto: 84, offtune: 1333 },
+    { hitFrame: 0, mv: 2817, energy: 42, concerto: 84, offtune: 1333 },
+    { hitFrame: 0, mv: 2817, energy: 42, concerto: 84, offtune: 1333 },
   ]}); // 28.17%x3
 // PLACEHOLDER FRAMES
 const MA4 = brantAction("Mid-air - Captain's Rhapsody 4", { animFrames: 73, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 44, mv: 101.53, energy: 1.5119, concerto: 3.0197, offtune: 4806.3266 },
-    { hitFrame: 44, mv: 25.39, energy: 0.3781, concerto: 0.7551, offtune: 1201.9367 },
-    { hitFrame: 44, mv: 25.39, energy: 0.3781, concerto: 0.7551, offtune: 1201.9367 },
-    { hitFrame: 44, mv: 25.39, energy: 0.3781, concerto: 0.7551, offtune: 1201.9367 },
-    { hitFrame: 44, mv: 76.15, energy: 1.1338, concerto: 2.265, offtune: 3604.8633, forte1: 9.35 },
+    { hitFrame: 44, mv: 10153, energy: 151, concerto: 301, offtune: 4806 },
+    { hitFrame: 44, mv: 2539, energy: 38, concerto: 76, offtune: 1202 },
+    { hitFrame: 44, mv: 2539, energy: 38, concerto: 76, offtune: 1202 },
+    { hitFrame: 44, mv: 2539, energy: 38, concerto: 76, offtune: 1202 },
+    { hitFrame: 44, mv: 7615, energy: 113, concerto: 226, offtune: 3605, forte1: 935 },
   ]}); // 101.53%+25.39%x3+76.15%
 
 /** Every press the kit calls a Mid-air Attack: the eight of them, plus the flip-queuing variants
@@ -227,7 +227,7 @@ const midAir = (): boolean => runningAction(MA1) || runningAction(MA1C) || runni
 const AFLAME = new Buff({
   name: "Brant: Aflame", duration: 60 * 12,
   applyStats: () => {
-    const a = pressed();
+    const a = currentAction();
     if (a.node === Node.Normal || a.node === Node.Skill) addStat(Stat.AddForte1, a.forte1 - a.castForte[0]!);
   },
   // ...and hands the conversion back down once that press runs out, so every hit of it still
@@ -289,7 +289,7 @@ const BR_S1 = new Sequence({
  *  Skill hits blast the target for 440% of Brant's ATK (Basic Attack DMG), once a second, twice at
  *  most. Handed to the incoming resonator like the outro itself — queued twice, one stack a blast
  *  — and fired onto Brant's own slot off their active Skill casts. */
-const CourseBlast = brantAction("Outro - The Course is Set! (S2 Blast)", { node: Node.Normal, type: Type.Basic, mv: 440 });
+const CourseBlast = brantAction("Outro - The Course is Set! (S2 Blast)", { node: Node.Normal, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 44000 }] });
 const COURSE_BLAST = new Buff({
   name: "Brant S2: The Course is Set!", maxStacks: 2, duration: 60 * 20,
   updateBuffs: () => {
@@ -332,7 +332,7 @@ const BR_S5 = new Sequence({
 /** S6: mid-air attacks' multiplier +30%, and Returned from Ashes fires a secondary blast worth 30%
  *  of its own hit — a second Basic Attack DMG hit at 30% of its MV queued behind it, lifted by S3
  *  the same way. No gauge/energy/concerto of its own. */
-const AshesBlast = brantAction("Forte - Returned from Ashes (S6 Blast)", { node: Node.Forte, type: Type.Basic, mv: 1888.71 * 0.3 });
+const AshesBlast = brantAction("Forte - Returned from Ashes (S6 Blast)", { node: Node.Forte, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 56661 }] });
 const BR_S6 = new Sequence({
   name: "Brant S6: All the World's a Captain's Carnevale",
   applyStats: () => { if (midAir()) addStat(Stat.MulMv, 30); },
@@ -354,8 +354,9 @@ const BRANT_RESONATOR = new Resonator({
   weapon: WeaponType.Sword,
   color: "#d1257f",
   intro: Intro,
-  maxEnergy: 175,
-  maxForte1: 100,
+  maxEnergy: 17500,
+  forteScale: [0.01, 1, 1, 1, 1],
+  maxForte1: 10000,
 
   combatStart: () => applyCurrent(THEATRICAL_MOMENT, 1),
 
@@ -386,6 +387,7 @@ export const BRANT = new Loadout({
   weapons: [UNFLICKERING_VALOR, EMERALD_OF_GENESIS, NEW_STD_SWORD, BLOODPACTS_PLEDGE[4]!], // the craftable at its real R5
   echoLoadouts: [
     new EchoLoadout(DRAGON_OF_DIRGE, TIDEBREAKING_5PC),
+    new EchoLoadout(NM_INFERNO_RIDER, MOLTEN_RIFT_5PC),
     //new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC), cant heron midair
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.Fusion3, Mainstat.ATK1),
@@ -405,6 +407,7 @@ export const BRANT_MDPS = new Loadout({
   weapons: [UNFLICKERING_VALOR, EMERALD_OF_GENESIS, NEW_STD_SWORD, BLOODPACTS_PLEDGE[4]!], // the craftable at its real R5
   echoLoadouts: [
     new EchoLoadout(DRAGON_OF_DIRGE, TIDEBREAKING_5PC),
+    new EchoLoadout(NM_INFERNO_RIDER, MOLTEN_RIFT_5PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.Fusion3, Mainstat.ATK1),
   substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Er, Substat.Basic, Substat.AtkPct, Substat.FlatAtk),

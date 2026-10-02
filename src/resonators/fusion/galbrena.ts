@@ -59,49 +59,49 @@ function galbrenaAction(id: string, def: object): Action {
 // sheet's own per-hit costs — they sum to ~97.56 of the 100 Ascent of Malice converts in,
 // confirming they're the real spend. Ravage has no forte2 row at all, so it's left bare (0 cost).
 // --- Threshold State basics: Slayer's Trigger. Stages 1-3 Heavy Attack DMG, Stage 4 Echo Skill.
-const BA1 = galbrenaAction("Basic - Slayer's Trigger 1", { animFrames: 20, bullets: [{ hitFrame: 12, mv: 59.18, energy: 0.83, concerto: 1.16, offtune: 2646, forte1: 2 }], node: Node.Normal, cast: Cast.Basic, type: Type.Heavy});
+const BA1 = galbrenaAction("Basic - Slayer's Trigger 1", { animFrames: 20, bullets: [{ hitFrame: 12, mv: 5918, energy: 83, concerto: 116, offtune: 2646, forte1: 2 }], node: Node.Normal, cast: Cast.Basic, type: Type.Heavy});
 // PLACEHOLDER FRAMES
 const BA2 = galbrenaAction("Basic - Slayer's Trigger 2", { animFrames: 41, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
-    { hitFrame: 32, mv: 26.31, energy: 0.3701, concerto: 0.5181, offtune: 1176.1788 },
-    { hitFrame: 32, mv: 26.31, energy: 0.3701, concerto: 0.5181, offtune: 1176.1788 },
-    { hitFrame: 32, mv: 78.91, energy: 1.1098, concerto: 1.5538, offtune: 3527.6424, forte1: 5 },
+    { hitFrame: 32, mv: 2631, energy: 37, concerto: 52, offtune: 1176 },
+    { hitFrame: 32, mv: 2631, energy: 37, concerto: 52, offtune: 1176 },
+    { hitFrame: 32, mv: 7891, energy: 111, concerto: 155, offtune: 3528, forte1: 5 },
   ]});
 // PLACEHOLDER FRAMES
 const BA3 = galbrenaAction("Basic - Slayer's Trigger 3", { animFrames: 47, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
-    { hitFrame: 41, mv: 28.6, energy: 0.4001, concerto: 0.5601, offtune: 1278.9789 },
-    { hitFrame: 41, mv: 28.6, energy: 0.4001, concerto: 0.5601, offtune: 1278.9789 },
-    { hitFrame: 41, mv: 42.89, energy: 0.5999, concerto: 0.8399, offtune: 1918.0211 },
-    { hitFrame: 41, mv: 42.89, energy: 0.5999, concerto: 0.8399, offtune: 1918.0211, forte1: 5 },
+    { hitFrame: 41, mv: 2860, energy: 40, concerto: 56, offtune: 1279 },
+    { hitFrame: 41, mv: 2860, energy: 40, concerto: 56, offtune: 1279 },
+    { hitFrame: 41, mv: 4289, energy: 60, concerto: 84, offtune: 1918 },
+    { hitFrame: 41, mv: 4289, energy: 60, concerto: 84, offtune: 1918, forte1: 5 },
   ]});
-const BA4 = galbrenaAction("Basic - Slayer's Trigger 4", { animFrames: 62, bullets: [{ hitFrame: 36, mv: 177.86, energy: 2.49, concerto: 3.48, offtune: 7952, forte1: 4 }], node: Node.Normal, cast: Cast.Basic, type: Type.Echo});
+const BA4 = galbrenaAction("Basic - Slayer's Trigger 4", { animFrames: 62, bullets: [{ hitFrame: 36, mv: 17786, energy: 249, concerto: 348, offtune: 7952, forte1: 4 }], node: Node.Normal, cast: Cast.Basic, type: Type.Echo});
 
 // PLACEHOLDER FRAMES
 const DC = galbrenaAction("Dodge Counter - Blood for Blood", { animFrames: 47, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Heavy, bullets: [
-    { hitFrame: 41, mv: 41.05, energy: 0.4, concerto: 0.56, offtune: 1278.8623 },
-    { hitFrame: 41, mv: 41.05, energy: 0.4, concerto: 0.56, offtune: 1278.8623 },
-    { hitFrame: 41, mv: 61.57, energy: 0.6, concerto: 0.84, offtune: 1918.1377 },
-    { hitFrame: 41, mv: 61.57, energy: 0.6, concerto: 0.84, offtune: 1918.1377 },
-  ], castConcerto: 10});
-const MA = galbrenaAction("Mid-air - Ashfall Barrage (Plunge)", { node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, mv: 143.15, energy: 2.00, concerto: 2.80, offtune: 6400 });
-const MASustained = galbrenaAction("Mid-air - Ashfall Barrage (Sustained Fire)", { node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, mv: 26.84, energy: 0.38, concerto: 0.53, offtune: 1200 });
+    { hitFrame: 41, mv: 4105, energy: 40, concerto: 56, offtune: 1279 },
+    { hitFrame: 41, mv: 4105, energy: 40, concerto: 56, offtune: 1279 },
+    { hitFrame: 41, mv: 6157, energy: 60, concerto: 84, offtune: 1918 },
+    { hitFrame: 41, mv: 6157, energy: 60, concerto: 84, offtune: 1918 },
+  ], castConcerto: 1000});
+const MA = galbrenaAction("Mid-air - Ashfall Barrage (Plunge)", { node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 14315, energy: 200, concerto: 280, offtune: 6400 }] });
+const MASustained = galbrenaAction("Mid-air - Ashfall Barrage (Sustained Fire)", { node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 2684, energy: 38, concerto: 53, offtune: 1200 }] });
 
 // Threshold State heavy: Volley of Death, 3 held stages
 // PLACEHOLDER FRAMES
 const HA1 = galbrenaAction("Heavy - Volley of Death 1", { animFrames: 36, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
-    { hitFrame: 27, mv: 53.3, energy: 0.75, concerto: 1.05, offtune: 2383 },
-    { hitFrame: 27, mv: 53.3, energy: 0.75, concerto: 1.05, offtune: 2383, forte1: 2 },
+    { hitFrame: 27, mv: 5330, energy: 75, concerto: 105, offtune: 2383 },
+    { hitFrame: 27, mv: 5330, energy: 75, concerto: 105, offtune: 2383, forte1: 2 },
   ]});
 // PLACEHOLDER FRAMES
 const HA2 = galbrenaAction("Heavy - Volley of Death 2", { animFrames: 26, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
-    { hitFrame: 22, mv: 34.59, energy: 0.49, concerto: 0.68, offtune: 1547 },
-    { hitFrame: 22, mv: 34.59, energy: 0.49, concerto: 0.68, offtune: 1547, forte1: 7 },
+    { hitFrame: 22, mv: 3459, energy: 49, concerto: 68, offtune: 1547 },
+    { hitFrame: 22, mv: 3459, energy: 49, concerto: 68, offtune: 1547, forte1: 7 },
   ]});
 // PLACEHOLDER FRAMES
 const HA3 = galbrenaAction("Heavy - Volley of Death 3", { animFrames: 73, node: Node.Normal, cast: Cast.Heavy, type: Type.Echo, bullets: [
-    { hitFrame: 34, mv: 16.77, energy: 0.237, concerto: 0.329, offtune: 749.9 },
-    { hitFrame: 34, mv: 16.77, energy: 0.237, concerto: 0.329, offtune: 749.9 },
-    { hitFrame: 34, mv: 16.77, energy: 0.237, concerto: 0.329, offtune: 749.9 },
-    { hitFrame: 34, mv: 117.39, energy: 1.659, concerto: 2.303, offtune: 5249.3, forte1: 5 },
+    { hitFrame: 34, mv: 1677, energy: 24, concerto: 33, offtune: 750 },
+    { hitFrame: 34, mv: 1677, energy: 24, concerto: 33, offtune: 750 },
+    { hitFrame: 34, mv: 1677, energy: 24, concerto: 33, offtune: 750 },
+    { hitFrame: 34, mv: 11739, energy: 165, concerto: 230, offtune: 5249, forte1: 5 },
   ]});
 
 // Threshold State resonance skill: Encroach (base), Ascent of Malice (27 Sinflame, opens Demon
@@ -112,20 +112,20 @@ const DRIVE = { updateBuffs: () => applyCurrent(BURNING_DRIVE, 1) };
 const ENCROACH_CD = new Cooldown({ frames: 60 * 5 });
 // PLACEHOLDER FRAMES
 const Encroach = galbrenaAction("Skill - Encroach", { animFrames: 39, cooldown: ENCROACH_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Heavy, bullets: [
-    { hitFrame: 39, mv: 10.74, energy: 1.9781, concerto: 0.6664, offtune: 1512.545 },
-    { hitFrame: 39, mv: 25.04, energy: 4.6119, concerto: 1.5536, offtune: 3526.455, forte1: 5 },
+    { hitFrame: 39, mv: 1074, energy: 198, concerto: 67, offtune: 1512 },
+    { hitFrame: 39, mv: 2504, energy: 461, concerto: 155, offtune: 3527, forte1: 5 },
   ], ...DRIVE });
 /** Converts Sinflame into Purging Flame — declared as real deltas (forte1: -27, forte2:
  *  +100) so they show in the hover trace, but GALBRENA_RESONATOR's own updateBuffs() below first normalizes
  *  each gauge to what these deltas expect to land on 0/100 from (forte gauges have no floor or
  *  ceiling, so a bare relative delta could land short). */
 // PLACEHOLDER FRAMES
-const AscentOfMalice = galbrenaAction("Skill - Ascent of Malice", {
+const AscentOfMalice = galbrenaAction("Skill - Ascent of Malice", { minForte1: 27,
   animFrames: 42, cooldown: 60 * 13,
   node: Node.Skill, cast: Cast.Skill, type: Type.Heavy, bullets: [
-    { hitFrame: 30, mv: 51.57, energy: 7.38, concerto: 5, offtune: 2794 },
-    { hitFrame: 30, mv: 51.57, energy: 7.38, concerto: 5, offtune: 2794, forte2: 100 },
-  ], castForte1: -27,
+    { hitFrame: 30, mv: 5157, energy: 738, offtune: 2794 },
+    { hitFrame: 30, mv: 5157, energy: 738, offtune: 2794, forte2: 10000 },
+  ], castConcerto: 1000, castForte1: -27,
   // the conversion is a top-off, not a top-up: Purging Flame is emptied ahead of the +100 above,
   // so it lands on exactly 100 from wherever the enhanced chain left it
   resetForte2: true,
@@ -139,57 +139,57 @@ const AscentOfMalice = galbrenaAction("Skill - Ascent of Malice", {
 // Mid-air/Dodge Counter enhanced forms aren't placed in the rotation below, kept for
 // completeness. Burning Drive is Seraphic Execution's own Stage 4 specifically, not Threshold
 // State's Slayer's Trigger Stage 4.
-const SeraphicExecution1 = galbrenaAction("Forte Basic - Seraphic Execution 1", { animFrames: 24, bullets: [{ hitFrame: 20, mv: 58.99, energy: 1.00, concerto: 5.54, offtune: 2374 }], node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, castForte2: -4.88});
+const SeraphicExecution1 = galbrenaAction("Forte Basic - Seraphic Execution 1", { animFrames: 24, bullets: [{ hitFrame: 20, mv: 5899, energy: 100, concerto: 554, offtune: 2374, forte2: -488 }], node: Node.Forte, cast: Cast.Basic, type: Type.Heavy});
 // PLACEHOLDER FRAMES
 const SeraphicExecution2 = galbrenaAction("Forte Basic - Seraphic Execution 2", { animFrames: 47, node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, bullets: [
-    { hitFrame: 37, mv: 27.84, energy: 0.4, concerto: 1.3901, offtune: 1120.0805 },
-    { hitFrame: 37, mv: 27.84, energy: 0.4, concerto: 1.3901, offtune: 1120.0805 },
-    { hitFrame: 37, mv: 83.51, energy: 1.2, concerto: 4.1698, offtune: 3359.839 },
-  ], castForte2: -9.76});
+    { hitFrame: 37, mv: 2784, energy: 40, concerto: 139, offtune: 1120 },
+    { hitFrame: 37, mv: 2784, energy: 40, concerto: 139, offtune: 1120 },
+    { hitFrame: 37, mv: 8351, energy: 120, concerto: 417, offtune: 3360, forte2: -976 },
+  ]});
 // PLACEHOLDER FRAMES
 const SeraphicExecution3 = galbrenaAction("Forte Basic - Seraphic Execution 3", { animFrames: 69, node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, bullets: [
-    { hitFrame: 40, mv: 24.32, energy: 0.334, concerto: 0.8791, offtune: 978.7207 },
-    { hitFrame: 40, mv: 24.32, energy: 0.334, concerto: 0.8791, offtune: 978.7207 },
-    { hitFrame: 40, mv: 24.32, energy: 0.334, concerto: 0.8791, offtune: 978.7207 },
-    { hitFrame: 40, mv: 170.21, energy: 2.338, concerto: 6.1527, offtune: 6849.8379 },
-  ], castForte2: -18.29});
+    { hitFrame: 40, mv: 2432, energy: 34, concerto: 88, offtune: 979 },
+    { hitFrame: 40, mv: 2432, energy: 34, concerto: 88, offtune: 979 },
+    { hitFrame: 40, mv: 2432, energy: 34, concerto: 88, offtune: 979 },
+    { hitFrame: 40, mv: 17021, energy: 232, concerto: 615, offtune: 6849, forte2: -1829 },
+  ]});
 // PLACEHOLDER FRAMES
 const SeraphicExecution4 = galbrenaAction("Forte Basic - Seraphic Execution 4", { animFrames: 56, node: Node.Forte, cast: Cast.Basic, type: Type.Echo, bullets: [
-    { hitFrame: 42, mv: 18.15, energy: 0.256, concerto: 0.7701, offtune: 730.6208 },
-    { hitFrame: 42, mv: 18.15, energy: 0.256, concerto: 0.7701, offtune: 730.6208 },
-    { hitFrame: 42, mv: 18.15, energy: 0.256, concerto: 0.7701, offtune: 730.6208 },
-    { hitFrame: 42, mv: 127.02, energy: 1.792, concerto: 5.3897, offtune: 5113.1376 },
-  ], castForte2: -13.41, ...DRIVE });
+    { hitFrame: 42, mv: 1815, energy: 26, concerto: 77, offtune: 731 },
+    { hitFrame: 42, mv: 1815, energy: 26, concerto: 77, offtune: 731 },
+    { hitFrame: 42, mv: 1815, energy: 26, concerto: 77, offtune: 731 },
+    { hitFrame: 42, mv: 12702, energy: 178, concerto: 539, offtune: 5112, forte2: -1341 },
+  ], ...DRIVE });
 // PLACEHOLDER FRAMES
 const SeraphicExecution5 = galbrenaAction("Forte Basic - Seraphic Execution 5", { animFrames: 85, node: Node.Forte, cast: Cast.Basic, type: Type.Echo, bullets: [
-    { hitFrame: 67, mv: 67.28, energy: 0.924, concerto: 2.538, offtune: 2707.4598 },
-    { hitFrame: 67, mv: 156.99, energy: 2.156, concerto: 5.922, offtune: 6317.5402 },
-  ], castForte2: -19.51});
+    { hitFrame: 67, mv: 6728, energy: 93, concerto: 254, offtune: 2708 },
+    { hitFrame: 67, mv: 15699, energy: 215, concerto: 592, offtune: 6317, forte2: -1951 },
+  ]});
 
 // PLACEHOLDER FRAMES
 const FlamewingVerdict1 = galbrenaAction("Forte Heavy - Flamewing Verdict 1", { animFrames: 36, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
-    { hitFrame: 27, mv: 59.22, energy: 0.87, concerto: 3.3, offtune: 2383 },
-    { hitFrame: 27, mv: 59.22, energy: 0.87, concerto: 3.3, offtune: 2383 },
-  ], castForte2: -9.76});
+    { hitFrame: 27, mv: 5922, energy: 87, concerto: 330, offtune: 2383 },
+    { hitFrame: 27, mv: 5922, energy: 87, concerto: 330, offtune: 2383, forte2: -976 },
+  ]});
 // PLACEHOLDER FRAMES
 const FlamewingVerdict2 = galbrenaAction("Forte Heavy - Flamewing Verdict 2", { animFrames: 26, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
-    { hitFrame: 22, mv: 38.35, energy: 0.61, concerto: 2.93, offtune: 1543 },
-    { hitFrame: 22, mv: 38.35, energy: 0.61, concerto: 2.93, offtune: 1543 },
-  ], castForte2: -7.32});
+    { hitFrame: 22, mv: 3835, energy: 61, concerto: 293, offtune: 1543 },
+    { hitFrame: 22, mv: 3835, energy: 61, concerto: 293, offtune: 1543, forte2: -732 },
+  ]});
 // PLACEHOLDER FRAMES
 const FlamewingVerdict3 = galbrenaAction("Forte Heavy - Flamewing Verdict 3", { animFrames: 73, node: Node.Forte, cast: Cast.Heavy, type: Type.Echo, bullets: [
-    { hitFrame: 34, mv: 17.69, energy: 0.2491, concerto: 0.7643, offtune: 711.9415 },
-    { hitFrame: 34, mv: 17.69, energy: 0.2491, concerto: 0.7643, offtune: 711.9415 },
-    { hitFrame: 34, mv: 17.69, energy: 0.2491, concerto: 0.7643, offtune: 711.9415 },
-    { hitFrame: 34, mv: 123.77, energy: 1.7427, concerto: 5.3471, offtune: 4981.1755 },
-  ], castForte2: -14.63});
+    { hitFrame: 34, mv: 1769, energy: 25, concerto: 77, offtune: 712 },
+    { hitFrame: 34, mv: 1769, energy: 25, concerto: 77, offtune: 712 },
+    { hitFrame: 34, mv: 1769, energy: 25, concerto: 77, offtune: 712 },
+    { hitFrame: 34, mv: 12377, energy: 174, concerto: 533, offtune: 4981, forte2: -1463 },
+  ]});
 
 // PLACEHOLDER FRAMES
 const Ravage = galbrenaAction("Forte Skill - Ravage", {
   cooldown: ENCROACH_CD,
   node: Node.Forte, cast: Cast.Skill, type: Type.Heavy, bullets: [
-    { hitFrame: 0, mv: 10.74, energy: 1.9781, concerto: 0.6664, offtune: 1512.545 },
-    { hitFrame: 0, mv: 25.04, energy: 4.6119, concerto: 1.5536, offtune: 3526.455 },
+    { hitFrame: 0, mv: 1074, energy: 198, concerto: 67, offtune: 1512 },
+    { hitFrame: 0, mv: 2504, energy: 461, concerto: 155, offtune: 3527 },
   ],
   resetForte2: true,
   updateBuffs: () => applyCurrent(BURNING_DRIVE, 1),
@@ -199,32 +199,32 @@ const Ravage = galbrenaAction("Forte Skill - Ravage", {
 const Liberation = galbrenaAction("Liberation - Hellfire Absolution", {
   cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Echo, bullets: [
-    { hitFrame: 0, mv: 110.9, concerto: 1.9999, offtune: 8399.997 },
-    { hitFrame: 0, mv: 90.74, concerto: 1.6364, offtune: 6873.0003 },
-    { hitFrame: 0, mv: 90.74, concerto: 1.6364, offtune: 6873.0003 },
-    { hitFrame: 0, mv: 90.74, concerto: 1.6364, offtune: 6873.0003 },
-    { hitFrame: 0, mv: 90.74, concerto: 1.6364, offtune: 6873.0003 },
-    { hitFrame: 0, mv: 90.74, concerto: 1.6364, offtune: 6873.0003 },
-    { hitFrame: 0, mv: 90.74, concerto: 1.6364, offtune: 6873.0003 },
-    { hitFrame: 0, mv: 90.74, concerto: 1.6364, offtune: 6873.0003 },
-    { hitFrame: 0, mv: 90.74, concerto: 1.6364, offtune: 6873.0003 },
-    { hitFrame: 0, mv: 90.74, concerto: 1.6364, offtune: 6873.0003 },
-    { hitFrame: 0, mv: 90.74, concerto: 1.6364, offtune: 6873.0003 },
-    { hitFrame: 0, mv: 90.74, concerto: 1.6361, offtune: 6873 },
-  ], resetEnergy: true,
+    { hitFrame: 0, mv: 11090, offtune: 8400 },
+    { hitFrame: 0, mv: 9074, offtune: 6873 },
+    { hitFrame: 0, mv: 9074, offtune: 6873 },
+    { hitFrame: 0, mv: 9074, offtune: 6873 },
+    { hitFrame: 0, mv: 9074, offtune: 6873 },
+    { hitFrame: 0, mv: 9074, offtune: 6873 },
+    { hitFrame: 0, mv: 9074, offtune: 6873 },
+    { hitFrame: 0, mv: 9074, offtune: 6873 },
+    { hitFrame: 0, mv: 9074, offtune: 6873 },
+    { hitFrame: 0, mv: 9074, offtune: 6873 },
+    { hitFrame: 0, mv: 9074, offtune: 6873 },
+    { hitFrame: 0, mv: 9074, offtune: 6873 },
+  ], castConcerto: 2000, resetEnergy: true,
   updateBuffs: () => applyCurrent(HELLFIRE_WINDOW, 1),
 });
 
-const Intro = galbrenaAction("Intro - Hellflare Overload", { animFrames: 57, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 94.12, energy: 10, castConcerto: 10, offtune: 4208, forte1: 3, ...DRIVE });
+const Intro = galbrenaAction("Intro - Hellflare Overload", { animFrames: 57, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 57, mv: 9412, energy: 1000, offtune: 4208, forte1: 3 }], castConcerto: 1000, ...DRIVE });
 /** Unlike most outros, this one deals real damage (795% MV) on top of the handoff concerto
  *  reset; its OFF-FIELD tag still marks it as her leaving the field for lostOnSwap purposes. */
 // PLACEHOLDER FRAMES
 const Outro = galbrenaAction("Outro - Ashen Pursuit", { cast: Cast.Outro, type: Type.Outro, bullets: [
-    { hitFrame: 0, mv: 79.5, energy: 1.003, offtune: 3032.6 },
-    { hitFrame: 0, mv: 79.5, energy: 1.003, offtune: 3032.6 },
-    { hitFrame: 0, mv: 79.5, energy: 1.003, offtune: 3032.6 },
-    { hitFrame: 0, mv: 556.5, energy: 7.021, offtune: 21228.2 },
-  ], castConcerto: -100});
+    { hitFrame: 0, mv: 7950 },
+    { hitFrame: 0, mv: 7950 },
+    { hitFrame: 0, mv: 7950 },
+    { hitFrame: 0, mv: 55650 },
+  ], minConcerto: 10000, castConcerto: -10000});
 
 /* ------------------------------------------------------------------------------------ buffs */
 
@@ -361,7 +361,7 @@ const GALBRENA_TALENTS = new Talent({
 
 /** Hellstride: a dodge on the ground during any of her own casts — a fixed 666 Fusion, Basic
  *  Attack DMG no DMG buff touches. */
-const Hellstride = galbrenaAction("Dodge - Hellstride", { animFrames: 22, type: Type.Basic, scaling: Scaling.Fixed, mv: 666, ...DRIVE });
+const Hellstride = galbrenaAction("Dodge - Hellstride", { animFrames: 22, type: Type.Basic, scaling: Scaling.Fixed, bullets: [{ hitFrame: 22, mv: 66600 }], ...DRIVE });
 
 const GALBRENA_RESONATOR = new Resonator({
   name: "Galbrena",
@@ -375,9 +375,10 @@ const GALBRENA_RESONATOR = new Resonator({
   dodge: (after) => (after.cast === Cast.Echo || after.resolveFn ? null : Hellstride),
   color: "#3454ac",
   intro: Intro,
-  maxEnergy: 125,
+  maxEnergy: 12500,
+  forteScale: [1, 0.01, 1, 1, 1],
   maxForte1: 27,
-  maxForte2: 100,
+  maxForte2: 10000,
 
   // reacts to *any* team member's own Echo cast, not just her own — see AFTERFLAME's own comment
   updateGlobal: () => {

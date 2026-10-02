@@ -89,7 +89,7 @@ export function heal(): void {
  *  — no stacks means the status isn't on the target. */
 const negativeStatusActions = (name: string, element: Attribute, subtype: Subtype, mvs: number[]): (Action | null)[] =>
   [null, ...mvs.map((mv, i) => new Action(`${name} - ${i + 1} Stack${(i+1)>1 ? "s" : ""}`, {
-    element, type: Type.Status, subtype, scaling: Scaling.Dot, mv,
+    element, type: Type.Status, subtype, scaling: Scaling.Dot, bullets: [{ hitFrame: 0, mv: mv }],
   }))];
 
 /** The rung a live stack count names, or null when there is none to fire. Every caller reads the
@@ -120,10 +120,10 @@ export const HAVOC_BANE = new Debuff({
  *  max-stack rung instead, which is also what Hiyuki's Glacio Bite does with the same ladder: her
  *  own file converts the stacks and fires these rungs itself, and nothing here needs to know. */
 export const GLACIO_CHAFE_ACTIONS = negativeStatusActions("Glacio Chafe", Attribute.Glacio, Subtype.GlacioChafe, [
-  24.5, 44.42, 64.34, 84.26, 104.17, 
-  124.09, 144.01, 163.93, 183.85, 203.77,
-  271.69, 339.61, 407.53, 
-  475.46, 543.38, 611.3,
+  2450, 4442, 6434, 8426, 10417, 
+  12409, 14401, 16393, 18385, 20377,
+  27169, 33961, 40753, 
+  47546, 54338, 61130,
 ]);
 
 /** A resonator's own copy of the rungs, filed under a field of theirs (`ActionField`): what their
@@ -147,10 +147,10 @@ export const GLACIO_CHAFE = new Debuff({
 /** Implosion: 15s a stack, refreshed on gain, cap 10; reaching the cap calculates in a 3m radius,
  *  0.2s cooldown. */
 export const FUSION_BURST_ACTIONS = negativeStatusActions("Fusion Burst", Attribute.Fusion, Subtype.FusionBurst, [
-  84, 152.29, 220.58, 288.88, 357.17, 
-  425.46, 493.75, 562.04, 630.34, 698.63,
-  931.5, 1164.38, 1397.26, 
-  1630.13, 1863.01, 2095.88,
+  8400, 15229, 22058, 28888, 35717, 
+  42546, 49375, 56204, 63034, 69863,
+  93150, 116438, 139726, 
+  163013, 186301, 209588,
 ]);
 export const FUSION_BURST = new Debuff({
   name: "Fusion Burst", maxStacks: 10, duration: 60 * 15,
@@ -189,11 +189,11 @@ export const FUSION_BURST = new Debuff({
  *  This is the one Negative Status whose duration is kept: unlike Electro Flare or Spectro
  *  Frazzle, a rotation can easily leave 15s between applications. */
 export const AERO_EROSION_ACTIONS = negativeStatusActions("Aero Erosion", Attribute.Aero, Subtype.AeroErosion, [
-  45, 112.5, 225, 
-  337.5, 450, 562.5, 
-  675, 787.5, 900, 
-  1012.5, 1125, 1237.5, 
-  1350, 1462.5, 1575,
+  4500, 11250, 22500, 
+  33750, 45000, 56250, 
+  67500, 78750, 90000, 
+  101250, 112500, 123750, 
+  135000, 146250, 157500,
 ]);
 export const AERO_EROSION: Debuff = new Debuff({
   name: "Aero Erosion", maxStacks: 3, duration: 60 * 14.8,
@@ -219,10 +219,10 @@ export const EROSION_HASTE = new Debuff({});
  *  kept, the same way Electro Flare's isn't — every rotation re-inflicts well inside it. The
  *  stack a tick costs is Shimmer's to stop (SHIMMER below). */
 const SPECTRO_FRAZZLE_MVS = [
-  30, 54.39, 78.78, 103.17, 127.56, 
-  151.95, 176.34, 200.73, 225.12, 249.51,
-  332.68, 415.85, 499.02, 
-  582.19, 665.36, 748.53,
+  3000, 5439, 7878, 10317, 12756, 
+  15195, 17634, 20073, 22512, 24951,
+  33268, 41585, 49902, 
+  58219, 66536, 74853,
 ];
 export const SPECTRO_FRAZZLE_ACTIONS = negativeStatusActions("Spectro Frazzle", Attribute.Spectro, Subtype.SpectroFrazzle, SPECTRO_FRAZZLE_MVS);
 /** Phoebe's Silent Prayer, the half of it that reaches this file: "extend Spectro Frazzle's
@@ -297,15 +297,15 @@ export const HELIACAL_EMBER_ACTIONS: (Action | null)[] = [null, ...SPECTRO_FRAZZ
 /** Electromagnetic's two ladders: the tick at its own count, and Electro Rage's extra multiplier
  *  on top of it (the same table). Both fired by ELECTRO_FLARE's own clock below. */
 export const ELECTRO_FLARE_DMG = negativeStatusActions("Electro Flare", Attribute.Electro, Subtype.ElectroFlare, [
-  50, 90.65, 131.3, 171.95, 212.6, 
-  253.25, 293.9, 334.55, 375.2, 415.85,
-  554.47, 693.08, 831.7, 970.32, 1108.93, 1247.55,
+  5000, 9065, 13130, 17195, 21260, 
+  25325, 29390, 33455, 37520, 41585,
+  55447, 69308, 83170, 97032, 110893, 124755,
 ]);
 
 export const ELECTRO_RAGE_ACTIONS = negativeStatusActions("Electro Rage", Attribute.Electro, Subtype.ElectroFlare, [
-  50, 90.65, 131.3, 171.95, 212.6, 
-  253.25, 293.9, 334.55, 375.2, 415.85,
-  554.47, 693.08, 831.7, 970.32, 1108.93, 1247.55,
+  5000, 9065, 13130, 17195, 21260, 
+  25325, 29390, 33455, 37520, 41585,
+  55447, 69308, 83170, 97032, 110893, 124755,
 ]);
 /** What lands past Electro Flare's cap: a second multiplier added onto the next Flare tick, and
  *  cleared by it. Only ever granted through `inflictElectroFlare()` below. */

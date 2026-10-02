@@ -55,6 +55,7 @@ import {
   stacksOf,
   stacksOfEnemy,
   stacksOfTeam,
+  runningBullet,
 } from "../../engine/context.js";
 import { Action, Rotation, ECHO, ActionGroup, INTRO } from "../../engine/rotation.js";
 import { tuneBreak } from "../../shared/tunebreak.js";
@@ -76,42 +77,42 @@ function zaniAction(id: string, def: object): Action {
 
 // --- Routine Negotiation: the ordinary chain, every hit of which banks Redundant Energy. Stage 3
 //     has a second form, the one the block stance hands back — the same press for 10 more.
-const BA1 = zaniAction("Basic - Routine Negotiation 1", { animFrames: 24, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 16, mv: 58.85, energy: 0.93, concerto: 1.85, offtune: 2960, forte1: 5 }]});
-const BA2 = zaniAction("Basic - Routine Negotiation 2", { animFrames: 32, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 18, mv: 79.53, energy: 1.25, concerto: 2.5, offtune: 4000, forte1: 5 }]});
+const BA1 = zaniAction("Basic - Routine Negotiation 1", { animFrames: 24, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 16, mv: 5885, energy: 93, concerto: 185, offtune: 2960, forte1: 5 }]});
+const BA2 = zaniAction("Basic - Routine Negotiation 2", { animFrames: 32, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 18, mv: 7953, energy: 125, concerto: 250, offtune: 4000, forte1: 5 }]});
 const BA3 = zaniAction("Basic - Routine Negotiation 3", { animFrames: 57, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 12, mv: 42.42, energy: 0.67, concerto: 1.34, offtune: 2134, forte1: 5 },
-    { hitFrame: 33, mv: 42.42, energy: 0.67, concerto: 1.34, offtune: 2134, forte1: 5 },
-    { hitFrame: 51, mv: 42.42, energy: 0.67, concerto: 1.34, offtune: 2134, forte1: 10 },
+    { hitFrame: 12, mv: 4242, energy: 67, concerto: 134, offtune: 2134, forte1: 5 },
+    { hitFrame: 33, mv: 4242, energy: 67, concerto: 134, offtune: 2134, forte1: 5 },
+    { hitFrame: 51, mv: 4242, energy: 67, concerto: 134, offtune: 2134, forte1: 10 },
   ]});
-const BA3Follow = zaniAction("Basic - Routine Negotiation 3 (Follow-Up)", { animFrames: 57, bullets: [{ hitFrame: 51, mv: 127.26, energy: 2.01, concerto: 4.02, offtune: 6402, forte1: 30 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
+const BA3Follow = zaniAction("Basic - Routine Negotiation 3 (Follow-Up)", { animFrames: 57, bullets: [{ hitFrame: 51, mv: 12726, energy: 201, concerto: 402, offtune: 6402, forte1: 30 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
 const BA4 = zaniAction("Basic - Routine Negotiation 4", { animFrames: 103, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 26, mv: 67.6, energy: 1.07, concerto: 2.13, offtune: 3400, forte1: 5 },
-    { hitFrame: 42, mv: 67.6, energy: 1.07, concerto: 2.13, offtune: 3400, forte1: 5 },
-    { hitFrame: 69, mv: 67.6, energy: 1.07, concerto: 2.13, offtune: 3400, forte1: 5 },
-    { hitFrame: 77, mv: 67.6, energy: 1.07, concerto: 2.13, offtune: 3400, forte1: 10 },
+    { hitFrame: 26, mv: 6760, energy: 107, concerto: 213, offtune: 3400, forte1: 5 },
+    { hitFrame: 42, mv: 6760, energy: 107, concerto: 213, offtune: 3400, forte1: 5 },
+    { hitFrame: 69, mv: 6760, energy: 107, concerto: 213, offtune: 3400, forte1: 5 },
+    { hitFrame: 77, mv: 6760, energy: 107, concerto: 213, offtune: 3400, forte1: 10 },
   ]});
 const Breakthrough = zaniAction("Basic - Breakthrough", { animFrames: 110, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 26, mv: 61.5, energy: 0.97, concerto: 1.94, offtune: 3094, forte1: 15 },
-    { hitFrame: 50, mv: 17.58, energy: 0.28, concerto: 0.56, offtune: 884, forte1: 10 },
-    { hitFrame: 60, mv: 17.58, energy: 0.28, concerto: 0.56, offtune: 884, forte1: 10 },
-    { hitFrame: 70, mv: 17.58, energy: 0.28, concerto: 0.56, offtune: 884, forte1: 10 },
-    { hitFrame: 80, mv: 17.58, energy: 0.28, concerto: 0.56, offtune: 884, forte1: 10 },
-    { hitFrame: 90, mv: 17.58, energy: 0.28, concerto: 0.56, offtune: 884, forte1: 10 },
-    { hitFrame: 100, mv: 17.58, energy: 0.28, concerto: 0.56, offtune: 884, forte1: 10 },
-    { hitFrame: 110, mv: 17.58, energy: 0.28, concerto: 0.56, offtune: 884, forte1: 10 },
+    { hitFrame: 26, mv: 6150, energy: 97, concerto: 194, offtune: 3094, forte1: 15 },
+    { hitFrame: 50, mv: 1758, energy: 28, concerto: 56, offtune: 884, forte1: 10 },
+    { hitFrame: 60, mv: 1758, energy: 28, concerto: 56, offtune: 884, forte1: 10 },
+    { hitFrame: 70, mv: 1758, energy: 28, concerto: 56, offtune: 884, forte1: 10 },
+    { hitFrame: 80, mv: 1758, energy: 28, concerto: 56, offtune: 884, forte1: 10 },
+    { hitFrame: 90, mv: 1758, energy: 28, concerto: 56, offtune: 884, forte1: 10 },
+    { hitFrame: 100, mv: 1758, energy: 28, concerto: 56, offtune: 884, forte1: 10 },
+    { hitFrame: 110, mv: 1758, energy: 28, concerto: 56, offtune: 884, forte1: 10 },
   ]});
-const MA = zaniAction("Mid-air - Routine Negotiation", { animFrames: 60, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 48, mv: 104.98, energy: 1.65, concerto: 3.3, offtune: 5280, forte1: 5 }]});
+const MA = zaniAction("Mid-air - Routine Negotiation", { animFrames: 60, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 48, mv: 10498, energy: 165, concerto: 330, offtune: 5280, forte1: 5 }]});
 const HA = zaniAction("Heavy - Routine Negotiation", { animFrames: 63, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
-    { hitFrame: 12, mv: 41.08, energy: 0.65, concerto: 1.3, offtune: 2066, forte1: 5 },
-    { hitFrame: 35, mv: 41.08, energy: 0.65, concerto: 1.3, offtune: 2066, forte1: 5 },
-    { hitFrame: 41, mv: 41.08, energy: 0.65, concerto: 1.3, offtune: 2066, forte1: 5 },
-    { hitFrame: 47, mv: 41.08, energy: 0.65, concerto: 1.3, offtune: 2066, forte1: 5 },
+    { hitFrame: 12, mv: 4108, energy: 65, concerto: 130, offtune: 2066, forte1: 5 },
+    { hitFrame: 35, mv: 4108, energy: 65, concerto: 130, offtune: 2066, forte1: 5 },
+    { hitFrame: 41, mv: 4108, energy: 65, concerto: 130, offtune: 2066, forte1: 5 },
+    { hitFrame: 47, mv: 4108, energy: 65, concerto: 130, offtune: 2066, forte1: 5 },
   ]});
 const DC = zaniAction("Dodge Counter - Routine Negotiation", { animFrames: 57, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
-    { hitFrame: 12, mv: 74.23, energy: 1.17, concerto: 5.6733, offtune: 2134, forte1: 5 },
-    { hitFrame: 33, mv: 74.23, energy: 1.17, concerto: 5.6733, offtune: 2134, forte1: 5 },
-    { hitFrame: 51, mv: 74.23, energy: 1.17, concerto: 5.6734, offtune: 2134, forte1: 10 },
-  ]});
+    { hitFrame: 12, mv: 7423, energy: 117, concerto: 234, offtune: 2134, forte1: 5 },
+    { hitFrame: 33, mv: 7423, energy: 117, concerto: 234, offtune: 2134, forte1: 5 },
+    { hitFrame: 51, mv: 7423, energy: 117, concerto: 234, offtune: 2134, forte1: 10 },
+  ], castConcerto: 1000});
 
 // --- Restless Watch: the plain skill, and Crisis Response Protocol's Targeted Action once
 //     Redundant Energy is full. Targeted Action deals Spectro Frazzle DMG without inflicting any
@@ -119,17 +120,17 @@ const DC = zaniAction("Dodge Counter - Routine Negotiation", { animFrames: 57, n
 const Skill = zaniAction("Skill - Standard Defense Protocol", {
   animFrames: 18,
   cooldown: 60 * 5,
-  node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [{ hitFrame: 8, mv: 63.94, energy: 5.67, offtune: 2144 }], castConcerto: 5, castForte1: 20,
+  node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [{ hitFrame: 8, mv: 6394, energy: 567, offtune: 2144 }], castConcerto: 500, castForte1: 20,
 });
 const TargetedAction = zaniAction("Forte Skill - Targeted Action", {
   animFrames: 134,
   node: Node.Forte, cast: Cast.Skill, type: Type.Skill, subtype: Subtype.SpectroFrazzle,
   bullets: [
-    { hitFrame: 66, mv: 86.19, energy: 1.74, concerto: 3, offtune: 3468,
+    { hitFrame: 66, mv: 8619, energy: 174, concerto: 300, offtune: 3468,
       updateDebuffs: () => applyEnemy(HELIACAL_EMBER, 1) },
-    { hitFrame: 117, mv: 28.73, energy: 0.58, concerto: 1, offtune: 1156 },
-    { hitFrame: 128, mv: 172.37, energy: 3.47, concerto: 6, offtune: 6936 },
-  ], castConcerto: 10, resetForte1: true,
+    { hitFrame: 117, mv: 2873, energy: 58, concerto: 100, offtune: 1156 },
+    { hitFrame: 128, mv: 17237, energy: 347, concerto: 600, offtune: 6936 },
+  ], castConcerto: 1000, resetForte1: true,
   updateBuffs: () => {
     applyCurrent(SUNBURST, 1);
     applyTeam(BLAZE, 10);
@@ -153,11 +154,11 @@ const blazeSlash = (name: string, blaze: number, def: object): Action =>
     },
   });
 
-const Daybreak = blazeSlash("Forte Basic - Heavy Slash: Daybreak", 10, { animFrames: 31, mv: 198.83, energy: 2.26, concerto: 3.00, offtune: 4000 });
-const Dawning = blazeSlash("Forte Basic - Heavy Slash: Dawning", 20, { animFrames: 79, bullets: [{ hitFrame: 71, mv: 424.09, energy: 5.13, concerto: 6.00, offtune: 9068 }]});
-const Nightfall = blazeSlash("Forte Basic - Heavy Slash: Nightfall", 40, { animFrames: 151, bullets: [{ hitFrame: 133, mv: 397.68, energy: 9.00, concerto: 12.00, offtune: 16000 }]});
+const Daybreak = blazeSlash("Forte Basic - Heavy Slash: Daybreak", 10, { animFrames: 31, bullets: [{ hitFrame: 31, mv: 19883, energy: 226, concerto: 300, offtune: 4000 }] });
+const Dawning = blazeSlash("Forte Basic - Heavy Slash: Dawning", 20, { animFrames: 79, bullets: [{ hitFrame: 71, mv: 42409, energy: 513, concerto: 600, offtune: 9068 }]});
+const Nightfall = blazeSlash("Forte Basic - Heavy Slash: Nightfall", 40, { animFrames: 151, bullets: [{ hitFrame: 133, mv: 39768, energy: 900, concerto: 1200, offtune: 16000 }]});
 const Lightsmash = blazeSlash("Forte Dodge Counter - Heavy Slash: Lightsmash", 20, {
-  animFrames: 77, bullets: [{ hitFrame: 69, mv: 424.09, energy: 5.13, concerto: 6.00 + 10, offtune: 9068 }], cast: Cast.DodgeCounter,
+  animFrames: 77, bullets: [{ hitFrame: 69, mv: 42409, energy: 513, concerto: 600 + 1000, offtune: 9068 }], cast: Cast.DodgeCounter,
 });
 const UBA123 = new ActionGroup("Forte Basic - Daybreak + Dawning + Nightfall", [Daybreak, Dawning, Nightfall]);
 
@@ -167,7 +168,7 @@ const Lib1 = zaniAction("Liberation - Rekindle", {
   animFrames: 200, timestop: 200, motionStop: 200,
   cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, 
-  bullets: [{ hitFrame: 120, mv: 318.52, offtune: 67200 }], castConcerto: 20, resetEnergy: true,
+  bullets: [{ hitFrame: 120, mv: 31852, offtune: 67200 }], castConcerto: 2000, resetEnergy: true,
   updateBuffs: () => {
     applyCurrent(INFERNO_MODE, 1);
     applyTeam(BLAZE, 50);
@@ -176,7 +177,7 @@ const Lib1 = zaniAction("Liberation - Rekindle", {
 const Lib2 = zaniAction("Liberation - The Last Stand", {
   animFrames: 134, timestop: 134, motionStop: 134,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, 
-  bullets: [{ hitFrame: 44, mv: 191.12, offtune: 15120 }, { hitFrame: 128, mv: 1082.96, offtune: 85680 }], castConcerto: 10,
+  bullets: [{ hitFrame: 44, mv: 19112, offtune: 15120 }, { hitFrame: 128, mv: 108296, offtune: 85680 }], castConcerto: 1000,
   updateBuffs: () => {
     revokeCurrent(INFERNO_MODE);
     revokeCurrent(CLOCK_OUT_REFILL);
@@ -186,13 +187,13 @@ const Lib2 = zaniAction("Liberation - The Last Stand", {
 const Intro = zaniAction("Intro - Immediate Execution", {
   animFrames: 90, prioFrames: 78, motionStop: 77,
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
-    { hitFrame: 20, mv: 24.24, energy: 1.2, offtune: 1220 },
-    { hitFrame: 26, mv: 24.24, energy: 1.2, offtune: 1220 },
-    { hitFrame: 32, mv: 24.24, energy: 1.2, offtune: 1220 },
-    { hitFrame: 38, mv: 24.24, energy: 1.2, offtune: 1220 },
-    { hitFrame: 44, mv: 24.24, energy: 1.2, offtune: 1220 },
-    { hitFrame: 78, mv: 80.8, energy: 4, offtune: 4064 },
-  ], castConcerto: 10, castForte1: 50,
+    { hitFrame: 20, mv: 2424, energy: 120, offtune: 1220 },
+    { hitFrame: 26, mv: 2424, energy: 120, offtune: 1220 },
+    { hitFrame: 32, mv: 2424, energy: 120, offtune: 1220 },
+    { hitFrame: 38, mv: 2424, energy: 120, offtune: 1220 },
+    { hitFrame: 44, mv: 2424, energy: 120, offtune: 1220 },
+    { hitFrame: 78, mv: 8080, energy: 400, offtune: 4064 },
+  ], castConcerto: 1000, castForte1: 50,
   // her own 20s team handoff is lost here, the standing rule for a team buff that short
   updateBuffs: () => revokeTeam(BEACON),
 });
@@ -202,7 +203,7 @@ const Intro = zaniAction("Intro - Immediate Execution", {
  *  afterAction, so this cast pays for the ones it is about to clear. */
 const Outro = zaniAction("Outro - Beacon For the Future", {
   animFrames: 0,
-  cast: Cast.Outro, type: Type.Outro, subtype: Subtype.SpectroFrazzle, bullets: [{ hitFrame: 0, mv: 150 }], castConcerto: -100,
+  cast: Cast.Outro, type: Type.Outro, subtype: Subtype.SpectroFrazzle, bullets: [{ hitFrame: 0, mv: 15000 }], minConcerto: 10000, castConcerto: -10000,
   // +10% a stack, sourced to the Embers themselves so the row says which of them paid for it
   applyStats: () => asSource(HELIACAL_EMBER, () => addStat(Stat.TotalDmg, 10 * stacksOfEnemy(HELIACAL_EMBER))),
   updateBuffs: () => applyTeam(BEACON, 1),
@@ -252,7 +253,7 @@ const INFERNO_MODE = new Buff({
 const BLAZE = new Buff({
   name: "Zani: Blaze", maxStacks: 150,
   applyStats: () => {
-    if (runningAction(Nightfall)) addStat(Stat.AddMv, 9.95 * Math.min(40, frozenStacks()));
+    if (runningAction(Nightfall)) addStat(Stat.AddMv, 995 * Math.min(40, frozenStacks()));
   },
 });
 
@@ -298,7 +299,9 @@ const BLAZE_SPENT = new Buff({
   // way the Forte Circuit's own "Additional Multiplier Per Blaze" row is. `frozenStacks()` is this
   // buff's own count as the action ended on it, which is what the Sequence read through
   // `stacksOf()` from outside.
-  applyStats: () => { if (runningAction(Lib2)) addStat(Stat.AddMv, Math.min(1200, 8 * frozenStacks())); },
+  applyStats: () => {
+    if (runningBullet(Lib2, -1)) addStat(Stat.AddMv, Math.min(120000, 800 * frozenStacks()));
+  },
 });
 const ZANI_S3 = new Sequence({
   name: "Zani S3: Each Day A New Commute",
@@ -362,8 +365,8 @@ const ZANI_RESONATOR = new Resonator({
   weapon: WeaponType.Gauntlets,
   color: "#b8a897",
   intro: Intro,
-  tuneBreak: tuneBreak(94, 94, 70, [[72, 1600]]),
-  maxEnergy: 125,
+  tuneBreak: tuneBreak(94, 94, 70, [[72, 160000]]),
+  maxEnergy: 12500,
   maxForte1: 100,
 
   stats: [[Stat.BaseHp, 10775], [Stat.BaseAtk, 437.5], [Stat.BaseDef, 1136.6646]],

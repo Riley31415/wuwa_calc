@@ -4,7 +4,7 @@
  * `Weapon`/`Resonator`), plus `EchoLoadout` and `Loadout`. Definitions only — what a piece
  * *does* is the hooks it declares, which `evaluate.ts` runs.
  */
-import { Stat, EnemyStat, Attribute, WeaponType, Tier, Cast, BuffTarget, ActionTag } from "./stats.js";
+import { Stat, EnemyStat, Attribute, WeaponType, Tier, Cast, BuffTarget, ActionTag, INSTA_DELAY } from "./stats.js";
 import type { Tag } from "./stats.js";
 import type { Rotation, Action, ActionField } from "./rotation.js";
 import { ctx } from "./runtime.js";
@@ -125,6 +125,9 @@ const PHASE_HIT_GRANTS = 128;
 /** The `onHit` grants, after each hit's damage. */
 const PHASE_ON_HIT = 256;
 export const PHASE_COUNT = 9;
+/** A Gear's two watchers over the whole team, as the pools hold it (`globalHooks`): one shape for every
+ *  kind of Gear, so the walk over them reads no Gear itself. A side it has none of is undefined. */
+export interface GlobalHook { gear: Gear; cast: (() => void) | undefined; hit: (() => void) | undefined }
 /** A Gear with only a `hitGlobal` still sits in its pool's `globalHooks` through this stand-in. */
 const NO_GLOBAL = (): void => {};
 
@@ -161,6 +164,8 @@ export class Gear {
   updateDebuffsFn?: () => void;
   updateGlobalFn?: () => void;
   hitGlobalFn?: () => void;
+  /** `updateGlobalFn`/`hitGlobalFn` as the pools hold them; null without either. */
+  globalEntry: GlobalHook | null;
   updateBuffsFn?: () => void;
   constantStatsFn?: () => void;
   applyStatsFn?: () => void;
@@ -194,6 +199,7 @@ export class Gear {
     this.updateDebuffsFn = def.updateDebuffs;
     this.hitGlobalFn = def.hitGlobal;
     this.updateGlobalFn = def.updateGlobal ?? (def.hitGlobal ? NO_GLOBAL : undefined);
+    this.globalEntry = this.updateGlobalFn ? { gear: this, cast: def.updateGlobal, hit: this.hitGlobalFn } : null;
     this.updateBuffsFn = def.updateBuffs;
     this.constantStatsFn = def.constantStats;
     this.applyStatsFn = def.applyStats;
@@ -327,10 +333,10 @@ export class Buff extends Gear {
         for (const line of lines) addStat(line[0] as Stat, perStack ? line[1] * n : line[1], line[2]);
       };
       const own = def.applyStats;
-      this.applyStatsFn = () => {
+      this.applyStatsFn = own ? () => {
         pay();
-        own?.();
-      };
+        own();
+      } : pay;
     }
     if (def.lostOnSwap) {
       const own = this.updateBuffsFn;
@@ -568,6 +574,12 @@ export interface LoadoutDef {
   rotation: Rotation | Partial<Record<SequenceLevel, Rotation>>;
   sequences?: Sequence[];
   mode?: ResonanceMode;
+  /** The Energy Regen the character screen must show at least, whatever the rotation's own bar asks
+   *  — a kit whose kit text scales off ER (Shorekeeper's 240%). Folded into the ER requirement. */
+  minEr?: number;
+  /** The Crit Rate the character screen must show at least (Qiuyuan's 65%). A build short of it is
+   *  dropped like one whose bar never fills. */
+  minCritRate?: number;
 }
 
 /** A resonator's real build — every resonator file's own `_LOADOUT` export is one of these, not a
@@ -612,6 +624,9 @@ export class Loadout {
    *  limited kits. */
   sequences: Sequence[];
   mode?: ResonanceMode;
+  /** See `LoadoutDef.minEr` / `minCritRate`; 0 where the kit names none. */
+  minEr: number;
+  minCritRate: number;
 
   constructor(def: LoadoutDef) {
     this.resonator = def.resonator;
@@ -631,6 +646,8 @@ export class Loadout {
     this.rotations = [...new Set(this.rotationByLevel.filter((r): r is Rotation => r !== null))];
     this.sequences = def.sequences ?? [];
     this.mode = def.mode;
+    this.minEr = def.minEr ?? 0;
+    this.minCritRate = def.minCritRate ?? 0;
   }
 
   /** The rotation a build at `sequenceLevel` runs: the one declared for that level, else the
@@ -689,6 +706,10 @@ export interface ResonatorDef extends GearDef {
    *  itself (TODO_ENGINE.md). 0, the default, is for a kit whose Liberation genuinely costs no
    *  Resonance Energy at all (Phrolova, Lucilla), not "not yet filled in". */
   maxEnergy?: number;
+  /** What one unit each forte gauge is held in reads as (`forteN` and every figure around it are
+   *  whole numbers in those units): 1 by default, 0.01 for a gauge kept in hundredths. One number
+   *  for every gauge, or one per gauge. */
+  forteScale?: number | [number, number, number, number, number];
   /** The cap on each forte gauge — Suoming's 800 Delusion, Hsin's 100 Answering Heart — declared
    *  once here, like `maxEnergy`. A gauge banks past it freely; the cap only bites when a cast
    *  spends from it, which starts from the cap rather than the overrun (evaluate.ts). Below 0
@@ -703,7 +724,7 @@ export interface ResonatorDef extends GearDef {
    *  team in index.ts. */
   color: string;
   /** The Intro this resonator casts — the kit's Intro, or its Intro Resolver where it has more than
-   *  one. What a FIRST_INTRO / INTRO_n marker casts when no Intro is written after it. */
+   *  one. What an INTRO_OPENER / INTRO_FIRST / INTRO_LAST marker casts when no Intro is written after it. */
   intro?: Action;
   /** This resonator's own Tune Break, where it isn't their weapon class's (Qingxiao's) — an Intro
    *  Resolver-style `resolve` where it depends on their form. Unset is the class's (tunebreak.ts). */
@@ -744,6 +765,7 @@ export class Resonator extends Gear {
   maxEnergy: number;
   /** `maxForte1`-`maxForte5` as one array, indexed the way `TeamMember.forte` is. */
   maxForte: [number, number, number, number, number];
+  forteScale: [number, number, number, number, number];
   color: string;
   intro?: Action;
   tuneBreak?: Action;
@@ -792,6 +814,8 @@ export class Resonator extends Gear {
     this.inherent2 = def.inherent2;
     this.maxEnergy = def.maxEnergy ?? 0;
     this.maxForte = [def.maxForte1 ?? 0, def.maxForte2 ?? 0, def.maxForte3 ?? 0, def.maxForte4 ?? 0, def.maxForte5 ?? 0];
+    const scale = def.forteScale ?? 1;
+    this.forteScale = Array.isArray(scale) ? scale : [scale, scale, scale, scale, scale];
     this.color = def.color;
     this.intro = def.intro;
     this.tuneBreak = def.tuneBreak;
@@ -802,11 +826,9 @@ export class Resonator extends Gear {
   }
 }
 
-/** How a mainslot echo's skill plays out. A SUMMON calls the creature in beside the resonator,
- *  who carries on — its hit is a follow-up wherever it is pressed. A TRANSFORM turns the resonator
- *  *into* it — a press of their own, and one that can be dash-cancelled or finish after they've
- *  swapped out. rotation.ts's ECHO marker and its `swap()`/`instaDodge()` forms key off this. Told apart by the
- *  action's own frames: 0 is a summon, anything more a transform. */
+/** How a mainslot echo's skill plays out: a press of its wearer's own, a summon's 8 frames or a
+ *  transform's whole cast. Any cut of it is taken only where it frees them sooner than pressing it
+ *  whole (`Action.cutPays`), so a summon's short press is never dashed out of. */
 
 export interface MainslotDef extends GearDef {
   /** The cast this echo performs — what rotation.ts's ECHO_* markers place, in the form each
@@ -818,14 +840,13 @@ export interface MainslotDef extends GearDef {
  *  rotation doesn't name the echo — it holds one of the ECHO_* markers, and `run()` swaps in
  *  whichever Mainslot the acting slot actually has equipped, in the form that marker asks for:
  *
- *  - `onfield`: the cast as declared. A SUMMON's is reported as a triggered row — the creature
- *    attacks, not the resonator — and is the one form a summon has, wherever it is pressed:
- *    always active, no special name, whichever marker placed it.
- *  - `outro`: what `ECHO.swap()` lands, right where it stands. A TRANSFORM pressed on the way out
- *    finishes off field, so its copy is `Action.swap()`'s form — the same name under a SWAP tag, inactive and
- *    triggered. A SUMMON's is just its one form again.
- *  - `cancel`: a TRANSFORM dash-cancelled the moment it is pressed — `Action.instaDodge()`'s form:
- *    the cast's own effects with none of its hit.
+ *  - `onfield`: the cast as declared.
+ *  - `outro`: what `ECHO.swap()` lands, right where it stands: the swap cancel at its last hit, or
+ *    the insta swap where that hit commits inside the insta window — the same name under a SWAP
+ *    tag, finishing off field.
+ *  - `cancel`: the echo dash-cancelled the moment it is pressed — `Action.instaDodge()`'s form:
+ *    the cast's own effects with only the hits committed inside the insta window. One under 18
+ *    frames needs no dash: an insta cancel instead.
  *  - `instaOut`: what `ECHO.instaSwap()` lands — `Action.instaSwap()`'s form, its hit landing off
  *    field after the swap. */
 export class Mainslot extends Gear {
@@ -838,14 +859,11 @@ export class Mainslot extends Gear {
     super(def);
     this.action = def.action;
     const a = def.action;
-    // a summon takes none of its wearer's time; a transform's cast is theirs, frames and all
-    if (a.animFrames === 0) {
-      this.onfield = this.cancel = this.outro = this.instaOut = a.variant(a.name, {});
-      return;
-    }
     this.onfield = a;
-    this.outro = a.swapCancel();
-    this.cancel = a.instaForm(ActionTag.InstaDodge);
+    // a swap cut inside the insta window is the insta swap, which keeps every hit committed that early
+    this.outro = a.cutFrame > INSTA_DELAY ? a.swapCancel() : a.instaSwap();
+    // an echo under 18 frames cancels without a dodge at all
+    this.cancel = a.instaForm(a.animFrames < 18 ? ActionTag.InstaCancel : ActionTag.InstaDodge);
     this.instaOut = a.instaSwap();
   }
 }
