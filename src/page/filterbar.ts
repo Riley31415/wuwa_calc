@@ -173,11 +173,12 @@ const COST_HELP = [
 /** Shown on the Matrix bubble and on the name menu's own line — the box this used to describe is
  *  gone, the option is per resonator now. */
 export const MATRIX_HELP = "Enables matrix exclusive buffs for older characters, scaled down to a neutral environment. Lucy also activates 1 stack of her boss kill inherent.";
+/** Markup, not text: the warning carries a style of its own. */
 const README = [
   "All beta calculations are subject to change!",
+  `<span class="readme-warn">DPR comparisons do not account for rotation time!</span>`,
   "If you find any bug or issue ping me on discord @rileyy._.",
   "Enemy lv100, 20% res, Resonator lv 90, Nodes lv10",
-  "Update: Added timer, cancels, and accurate buff timings"
 ];
 
 /** Which boxes show their description; survives redraws. The README starts open. */
@@ -207,7 +208,7 @@ export function comparisonFilters(): string {
       + `<button type="button" class="tcopt-name" data-help="${id}" aria-expanded="${open}">`
       + `${esc(label)}<span class="arrow">›</span></button></div>`
       + `<div class="tcopt-desc"${open ? "" : " hidden"}>`
-      + `<ul>${lines.map((l) => `<li>${esc(l)}</li>`).join("")}${extra}</ul></div></div>`;
+      + `<ul>${lines.map((l) => `<li>${l}</li>`).join("")}${extra}</ul></div></div>`;
   };
   return `<div class="tcfilters">
     <div class="tcfilter-row note">

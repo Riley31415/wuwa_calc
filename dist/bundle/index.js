@@ -2482,9 +2482,9 @@ var COST_HELP = [
 var MATRIX_HELP = "Enables matrix exclusive buffs for older characters, scaled down to a neutral environment. Lucy also activates 1 stack of her boss kill inherent.";
 var README = [
   "All beta calculations are subject to change!",
+  `<span class="readme-warn">DPR comparisons do not account for rotation time!</span>`,
   "If you find any bug or issue ping me on discord @rileyy._.",
-  "Enemy lv100, 20% res, Resonator lv 90, Nodes lv10",
-  "Update: Added timer, cancels, and accurate buff timings"
+  "Enemy lv100, 20% res, Resonator lv 90, Nodes lv10"
 ];
 var openHelp = /* @__PURE__ */ new Set(["readme"]);
 function comparisonFilters() {
@@ -2495,7 +2495,7 @@ function comparisonFilters() {
   };
   const note = (id, label, lines, extra = "") => {
     const open = openHelp.has(id);
-    return `<div class="tcopt note${open ? " open" : ""}" data-note="${id}"><div class="tcopt-head"><button type="button" class="tcopt-name" data-help="${id}" aria-expanded="${open}">${esc(label)}<span class="arrow">\u203A</span></button></div><div class="tcopt-desc"${open ? "" : " hidden"}><ul>${lines.map((l) => `<li>${esc(l)}</li>`).join("")}${extra}</ul></div></div>`;
+    return `<div class="tcopt note${open ? " open" : ""}" data-note="${id}"><div class="tcopt-head"><button type="button" class="tcopt-name" data-help="${id}" aria-expanded="${open}">${esc(label)}<span class="arrow">\u203A</span></button></div><div class="tcopt-desc"${open ? "" : " hidden"}><ul>${lines.map((l) => `<li>${l}</li>`).join("")}${extra}</ul></div></div>`;
   };
   return `<div class="tcfilters">
     <div class="tcfilter-row note">
@@ -2813,9 +2813,9 @@ var TEAM_HEAD = { dpr: "Team Avg DPR", dps: "Team DPS" };
 var wholeDamage = (run) => run.sectionTotals.reduce((a, b) => a + b, 0);
 var teamFigure = (run) => Math.floor(wholeDamage(run) / (teamMode === "dpr" ? Math.max(1, run.sectionTotals.length) : run.seconds));
 var personalFigure = (run, name) => Math.floor(run.sectionBySlot.reduce((a, by) => a + (by.get(name) ?? 0), 0) / Math.max(1, run.sectionTotals.length));
-var loopTime = (run) => teamMode === "dpr" ? `${(run.sectionSeconds[run.sectionSeconds.length - 1] ?? 0).toFixed(1)}s` : `${Math.round(run.seconds)}s`;
-var teamText = (run) => `${fmt(teamFigure(run))}${loopTime(run)}`;
-var teamHtml = (run) => `${fmt(teamFigure(run))}<sub class="looptime">${loopTime(run)}</sub>`;
+var loopTime = (run) => `${(run.sectionSeconds[run.sectionSeconds.length - 1] ?? 0).toFixed(1)}s`;
+var teamText = (run) => fmt(teamFigure(run)) + (teamMode === "dpr" ? loopTime(run) : "");
+var teamHtml = (run) => fmt(teamFigure(run)) + (teamMode === "dpr" ? `<sub class="looptime">${loopTime(run)}</sub>` : "");
 var pctTrunc = (ratio) => `${fmt(Math.trunc(ratio * 1e3) / 10, 1, true)}%`;
 var tableView = null;
 function comparisonTable(rows) {
@@ -4478,6 +4478,8 @@ function dismissed() {
   }
 }
 var TEXT = [
+  "Start Tutorial",
+  "Switch between DPS and DPR mode",
   `Try ${CLICKING} on a resonator to show only their teams`,
   `${CLICK} that resonator again and compare their weapons`,
   "Search to add another resonator or comparison",
@@ -4488,7 +4490,7 @@ var TEXT = [
   `${CLICK} on the team total for a loop to see its damage over time`,
   "Scroll down to read the rotation, buffs, and stats"
 ];
-var DETAIL_STAGE = 5;
+var DETAIL_STAGE = 7;
 var HEAD = 14;
 var shownNow = () => [...resonatorFilters].filter(([, mode]) => mode === "include").map(([name]) => name);
 var comparedNow = () => [...filters.scoped.map(scopedKey), ...AXES.flatMap((axis) => filters[axis].map((name) => `${axis}|${name}`))];
@@ -4550,20 +4552,32 @@ var stage = restoreStage();
 var started = false;
 var layer = null;
 var overlay = document.getElementById("loading");
+var sawDps = false;
 function settle() {
-  if (stage === 0 && showing())
-    setStage(1);
-  else if (stage === 1 && !showing())
-    setStage(0);
-  if (stage === 1 && comparing())
+  if (stage === 1 && teamMode === "dps")
+    sawDps = true;
+  else if (stage === 1 && sawDps) {
     setStage(2);
-  if (stage === 3 && !firstChip())
+    baseline();
+  }
+  if (stage === 2 && showing())
+    setStage(3);
+  else if (stage === 3 && !showing())
     setStage(2);
+  if (stage === 3 && comparing())
+    setStage(4);
+  if (stage === 5 && !firstChip())
+    setStage(4);
 }
 function build() {
   const el = document.createElement("div");
   el.className = "tut";
-  el.innerHTML = `<svg class="tut-arrow" aria-hidden="true"><defs><marker id="tutHead" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="12" refX="0" refY="6" orient="auto"><path d="M0,0 L14,6 L0,12 Z"></path></marker></defs><path class="tut-path" marker-end="url(#tutHead)" d=""></path></svg><div class="tut-box" role="dialog" aria-label="Tutorial"><p></p><div class="tut-buttons"><button type="button" class="tut-skip">Skip Tutorial</button></div></div>`;
+  el.innerHTML = `<svg class="tut-arrow" aria-hidden="true"><defs><marker id="tutHead" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="12" refX="0" refY="6" orient="auto"><path d="M0,0 L14,6 L0,12 Z"></path></marker></defs><path class="tut-path" marker-end="url(#tutHead)" d=""></path></svg><div class="tut-box" role="dialog" aria-label="Tutorial"><p></p><button type="button" class="tut-begin">${TEXT[0]}<span class="arrow">\u203A</span></button><div class="tut-buttons"><button type="button" class="tut-skip">Skip Tutorial</button></div></div>`;
+  el.querySelector(".tut-begin").addEventListener("click", () => {
+    sawDps = false;
+    setStage(1);
+    place();
+  });
   el.querySelector(".tut-skip").addEventListener("click", () => {
     done = true;
     try {
@@ -4620,7 +4634,10 @@ function place() {
   const main = document.querySelector("main");
   if (!main)
     return;
-  layer.querySelector("p").textContent = TEXT[stage];
+  const text = layer.querySelector("p");
+  text.textContent = TEXT[stage];
+  text.hidden = stage === 0;
+  layer.querySelector(".tut-begin").hidden = stage !== 0;
   if (stage >= DETAIL_STAGE) {
     placeDetail(box, path, rect(main));
     return;
@@ -4634,7 +4651,7 @@ function place() {
   const stacked = layout.classList.contains("stack");
   const items = [...document.querySelector(".ctxmenu:not(.rowcap)")?.querySelectorAll(".ctxitem") ?? []];
   const compares2 = items.filter((item) => item.textContent?.startsWith("Compare"));
-  const line = stage === 0 ? items[0] : compares2.find((item) => item.textContent?.includes("weapon")) ?? compares2[0];
+  const line = stage === 2 ? items[0] : compares2.find((item) => item.textContent?.includes("weapon")) ?? compares2[0];
   const headCell = document.querySelector(".tgrid .trow.thead .c");
   const below = headCell ? rect(headCell).bottom : rect(main).top;
   const already = new Set(shownNow());
@@ -4652,49 +4669,56 @@ function place() {
     fresh = spare;
     break;
   }
-  const column = (stage === 0 ? fresh : void 0) ?? first;
+  const column = (stage === 2 ? fresh : void 0) ?? first;
   const chips = [...document.querySelectorAll(".tcchips .rchip")];
-  const anchor = stage === 2 ? search : stage === 3 ? stacked ? chips[chips.length - 1] : chips[0] : stage === 4 ? rowElementAt(0)?.querySelector(".gotodetail") : line ?? column;
+  const anchor = stage === 0 ? null : stage === 1 ? document.querySelector(".tgrid .c.dprhead") : stage === 4 ? search : stage === 5 ? stacked ? chips[chips.length - 1] : chips[0] : stage === 6 ? rowElementAt(0)?.querySelector(".gotodetail") : line ?? column;
   mark(anchor);
   const anchorR = anchor ? rect(anchor) : null;
   const mainR = rect(main), layoutR = rect(layout), tableR = rect(table), filterR = rect(filterbar);
-  const aside = stage > 1 || stacked;
+  const aside = stage > 3 || stacked;
   const [from, to] = aside ? [filterR.left, filterR.right] : [layoutR.left, tableR.left];
-  const width = Math.max(240, Math.min(330, to - from - 40));
-  box.style.width = `${width}px`;
-  const boxH = rect(box).height;
-  const middle = Math.min(Math.max((from + to - width) / 2, mainR.left + 12), mainR.right - width - 12);
-  box.style.left = `${stacked && stage === 4 ? mainR.left + 12 : middle}px`;
+  box.style.width = stage === 0 ? "max-content" : `${Math.max(240, Math.min(330, to - from - 40))}px`;
+  const { width, height: boxH } = rect(box);
+  const ideal = stage === 0 && !aside ? to - width - 20 : (from + to - width) / 2;
+  const middle = Math.min(Math.max(ideal, mainR.left + 12), mainR.right - width - 12);
+  box.style.left = `${stacked && stage === 6 ? mainR.left + 12 : middle}px`;
   const list = document.getElementById("searchResults");
   const listR = list?.childElementCount ? rect(list) : null;
-  const under = stage === 2 && listR ? Math.max(filterR.bottom, listR.bottom) : filterR.bottom;
+  const under = stage === 4 && listR ? Math.max(filterR.bottom, listR.bottom) : filterR.bottom;
   const top = aside ? under + 16 : mainR.top + mainR.height * 0.2;
-  const clear = stacked && stage < 2 && anchorR ? Math.min(top, anchorR.top - boxH - 40) : top;
+  const clear = stacked && stage < 4 && anchorR ? Math.min(top, anchorR.top - boxH - 40) : top;
   box.style.top = `${Math.min(Math.max(clear, mainR.top + 12), mainR.bottom - boxH - 12)}px`;
-  if (!anchorR || anchorR.top > mainR.bottom || anchorR.bottom < mainR.top || anchorR.right < mainR.left || anchorR.left > mainR.right && stage !== 4) {
+  if (!anchorR || anchorR.top > mainR.bottom || anchorR.bottom < mainR.top || anchorR.right < mainR.left || anchorR.left > mainR.right && stage !== 6) {
     path.setAttribute("d", "");
     return;
   }
   const boxR = rect(box);
   const by = boxR.top + boxR.height / 2;
   const bow = Math.min(100, boxR.left - mainR.left - 8);
-  if (stage === 4 && !stacked) {
+  if (stage === 6 && !stacked) {
     const [tx2, ty2] = [anchorR.left + anchorR.width / 2, anchorR.bottom + 4];
     path.setAttribute("d", `M ${boxR.left} ${by} C ${boxR.left - bow} ${by}, ${tx2} ${ty2 + HEAD + 90}, ${tx2} ${ty2 + HEAD}`);
     return;
   }
-  if (stage === 4 && stacked && anchorR.right <= mainR.right) {
+  if (stage === 6 && stacked && anchorR.right <= mainR.right) {
     const [tx2, ty2] = [anchorR.left + anchorR.width / 2, anchorR.top - 4];
     path.setAttribute("d", `M ${boxR.right} ${by} C ${boxR.right + 40} ${by}, ${tx2} ${ty2 - HEAD - 40}, ${tx2} ${ty2 - HEAD}`);
     return;
   }
-  if (stage === 4 && anchorR.right > mainR.right) {
+  if (stage === 6 && anchorR.right > mainR.right) {
     const [tx2, ty2] = [mainR.right - 14, anchorR.top + anchorR.height / 2];
     path.setAttribute("d", `M ${boxR.right} ${by} C ${boxR.right + 30} ${by}, ${tx2 - HEAD - 30} ${ty2}, ${tx2 - HEAD} ${ty2}`);
     return;
   }
+  if (stage === 1 && !stacked) {
+    const cx = boxR.left + boxR.width / 2;
+    const [ax, ay] = [anchorR.left + anchorR.width / 2, anchorR.top - 4];
+    const peak = Math.max(mainR.top + 8, ay - HEAD - 60);
+    path.setAttribute("d", `M ${cx} ${boxR.top} C ${cx} ${peak}, ${ax} ${peak}, ${ax} ${ay - HEAD}`);
+    return;
+  }
   const [tx, ty] = [anchorR.left - 4, anchorR.top + anchorR.height / 2];
-  if (stage === 2 || stage === 3) {
+  if (stage === 4 || stage === 5) {
     const bx2 = boxR.left;
     if (!stacked) {
       path.setAttribute("d", tx - HEAD - bow >= mainR.left ? `M ${bx2} ${by} C ${bx2 - bow} ${by}, ${tx - HEAD - bow} ${ty}, ${tx - HEAD} ${ty}` : `M ${bx2} ${by} C ${bx2 - bow} ${by}, ${anchorR.left + anchorR.width / 2} ${ty + HEAD + 70}, ${anchorR.left + anchorR.width / 2} ${ty + HEAD}`);
@@ -4706,7 +4730,7 @@ function place() {
     path.setAttribute("d", `M ${cx} ${boxR.top} C ${cx} ${boxR.top - bend}, ${ax} ${ay + HEAD + bend}, ${ax} ${ay + HEAD}`);
     return;
   }
-  if (stacked && stage < 2) {
+  if (stacked && stage < 4) {
     const bx2 = boxR.left + boxR.width / 2;
     const [cx, cy] = [anchorR.left + anchorR.width / 2, anchorR.top - 4];
     const bend = Math.max(12, Math.min(70, (cy - HEAD - boxR.bottom) * 0.5));
@@ -4755,7 +4779,7 @@ function hideTutorial() {
 }
 var typing;
 document.addEventListener("click", (e) => {
-  if (!layer || layer.hidden || stage !== 2 || typing !== void 0)
+  if (!layer || layer.hidden || stage !== 4 || typing !== void 0)
     return;
   if (!e.target.closest?.("#optionSearch"))
     return;
@@ -4778,9 +4802,9 @@ document.addEventListener("click", (e) => {
   typing = setTimeout(key, 50);
 }, true);
 function searchUsed() {
-  if (!layer || layer.hidden || stage !== 2)
+  if (!layer || layer.hidden || stage !== 4)
     return;
-  setStage(3);
+  setStage(5);
   place();
 }
 document.addEventListener("click", (e) => {
@@ -4792,15 +4816,15 @@ document.addEventListener("keydown", (e) => {
     searchUsed();
 }, true);
 document.addEventListener("click", (e) => {
-  if (!layer || layer.hidden || stage !== 3)
+  if (!layer || layer.hidden || stage !== 5)
     return;
   if (!e.target.closest?.(".tcchips .rchip, .tcchips .clearall"))
     return;
-  setStage(4);
+  setStage(6);
   place();
 }, true);
 document.addEventListener("click", (e) => {
-  if (!layer || layer.hidden || stage !== 4)
+  if (!layer || layer.hidden || stage !== 6)
     return;
   if (!e.target.closest?.(".gotodetail"))
     return;
@@ -4848,14 +4872,13 @@ function finish() {
 document.addEventListener("click", (e) => {
   if (!e.target.closest?.(".tutstart"))
     return;
-  if (layer && !layer.hidden)
-    return;
   try {
     localStorage.removeItem(DONE_KEY);
   } catch {
   }
   done = false;
-  setStage(0);
+  sawDps = false;
+  setStage(1);
   baseline();
   maybeShowTutorial(true);
 }, true);

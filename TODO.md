@@ -2,6 +2,9 @@
 jingran ba4/skill2 cancel
 
 #
+denia midair
+
+#
 implement priorities to all actions
 enforce cancelling after priority etc
 

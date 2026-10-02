@@ -1,13 +1,15 @@
 /**
- * The first-run tutorial, five stages of it, each moved on by the reader doing what it asks:
+ * The first-run tutorial, seven stages of it on the table, each moved on by the reader doing what it asks:
  *
- *   1  show one resonator's teams      2  run a comparison on them
- *   3  add a filter from the search    4  take a filter back off
- *   5  open a team's rotation, which is the last of it
+ *   1  press Start Tutorial            2  switch the team column to DPS and back to DPR
+ *   3  show one resonator's teams      4  run a comparison on them
+ *   5  add a filter from the search    6  take a filter back off
+ *   7  open a team's rotation, which is the last of it
  *
- * The first two stand beside the table and point into the first row's third member — into the line
- * of the menu that does the thing, whenever one is open over it. The rest stand under the filters
- * and point into the search bar, the first filter bubble, and the first row's rotation link.
+ * The first four stand beside the table: the Start card points at nothing, the second into the team
+ * column's heading, and the next two into the first row's third member — into the line of the menu
+ * that does the thing, whenever one is open over it. The rest stand under the filters and point into
+ * the search bar, the first filter bubble, and the first row's rotation link.
  *
  * Two of them stand on a filter rather than on a press, and step back when it is taken off again
  * (`settle()`): a reader who removes the resonator they showed is back at stage one, and one who
@@ -22,13 +24,13 @@
  * Before the first stage it also waits for the base page — no filter and no compare set, any cost
  * mode — since "show one resonator's teams" says nothing to a reader who arrived on a link that
  * already shows one. That is a wait, not a dismissal: nothing is marked, and it opens the moment the
- * filters come off. The README's line starts it wherever the reader is.
+ * filters come off. The README's line starts it over, past the Start card, wherever the reader is.
  */
 import { AXES, scopedKey } from "../solver.js";
 import { searchChoice } from "./filterbar.js";
 import { echoFilters, filters, refineFilters, resonatorFilters, sequenceFilters, weaponFilters, TEAMS, visibleRows } from "./model.js";
 import { rect, CLICKING, CLICK } from "./panels.js";
-import { rowElementAt } from "./table.js";
+import { rowElementAt, teamMode } from "./table.js";
 
 const DONE_KEY = "wuwa.tutorialDone";
 const STAGE_KEY = "wuwa.tutorialStage";
@@ -48,6 +50,8 @@ function dismissed(): boolean {
 }
 
 const TEXT = [
+  "Start Tutorial",
+  "Switch between DPS and DPR mode",
   `Try ${CLICKING} on a resonator to show only their teams`,
   `${CLICK} that resonator again and compare their weapons`,
   "Search to add another resonator or comparison",
@@ -60,7 +64,7 @@ const TEXT = [
 ];
 /** The stage the rotation page's own begin at: below this the card belongs to the comparison
  *  table, at or above it to the rotation page, and it waits out of sight on the other one. */
-const DETAIL_STAGE = 5;
+const DETAIL_STAGE = 7;
 /** The head's own length: the line stops this far short of what it points at, so the head's back
  *  edge is where the line ends and its tip is what lands on the target. */
 const HEAD = 14;
@@ -160,15 +164,23 @@ let stage = restoreStage();
 let started = false;
 let layer: HTMLElement | null = null;
 const overlay = document.getElementById("loading");
+/** Whether the team column has read DPS during the second stage — switching back to DPR then passes it. */
+let sawDps = false;
 
 /** Settle the stage against what the page is actually showing. Two of them are held up by a filter
  *  rather than by a press, so they are reached the moment it is set and given up the moment it is
  *  taken off — the reader is never asked to compare a resonator they have since stopped showing. */
 function settle(): void {
-  if (stage === 0 && showing()) setStage(1);
-  else if (stage === 1 && !showing()) setStage(0);
-  if (stage === 1 && comparing()) setStage(2);
-  if (stage === 3 && !firstChip()) setStage(2);
+  if (stage === 1 && teamMode === "dps") sawDps = true;
+  else if (stage === 1 && sawDps) {
+    setStage(2);
+    // the resonator stages measure against what is showing when they are reached
+    baseline();
+  }
+  if (stage === 2 && showing()) setStage(3);
+  else if (stage === 3 && !showing()) setStage(2);
+  if (stage === 3 && comparing()) setStage(4);
+  if (stage === 5 && !firstChip()) setStage(4);
 }
 
 function build(): HTMLElement {
@@ -182,8 +194,14 @@ function build(): HTMLElement {
     + `<path class="tut-path" marker-end="url(#tutHead)" d=""></path></svg>`
     + `<div class="tut-box" role="dialog" aria-label="Tutorial">`
     + `<p></p>`
+    + `<button type="button" class="tut-begin">${TEXT[0]}<span class="arrow">›</span></button>`
     + `<div class="tut-buttons"><button type="button" class="tut-skip">Skip Tutorial</button></div>`
     + `</div>`;
+  el.querySelector(".tut-begin")!.addEventListener("click", () => {
+    sawDps = false;
+    setStage(1);
+    place();
+  });
   el.querySelector(".tut-skip")!.addEventListener("click", () => {
     done = true;
     try {
@@ -261,7 +279,11 @@ function place(): void {
   const path = layer.querySelector<SVGPathElement>(".tut-path")!;
   const main = document.querySelector<HTMLElement>("main");
   if (!main) return;
-  layer.querySelector("p")!.textContent = TEXT[stage]!;
+  const text = layer.querySelector("p")!;
+  text.textContent = TEXT[stage]!;
+  // the first card is a button of its own rather than a line asking for something
+  text.hidden = stage === 0;
+  layer.querySelector<HTMLElement>(".tut-begin")!.hidden = stage !== 0;
   if (stage >= DETAIL_STAGE) {
     placeDetail(box, path, rect(main));
     return;
@@ -272,7 +294,7 @@ function place(): void {
   const search = document.querySelector<HTMLElement>(".tcsearch");
   if (!layout || !table || !filterbar || !search) return;
 
-  // What the card points into, stage by stage. The first two take the line of the menu that does
+  // What the card points into, stage by stage. The resonator two take the line of the menu that does
   // what they are asking for whenever one is open — the menu stands over the row anyway — and the
   // third member's own column the rest of the time: the first row of it while the table is at the
   // top, and whichever row has scrolled up to the header once it is not, so the arrow always has a
@@ -281,7 +303,7 @@ function place(): void {
   const stacked = layout.classList.contains("stack");
   const items = [...document.querySelector(".ctxmenu:not(.rowcap)")?.querySelectorAll<HTMLElement>(".ctxitem") ?? []];
   const compares = items.filter((item) => item.textContent?.startsWith("Compare"));
-  const line = stage === 0 ? items[0]
+  const line = stage === 2 ? items[0]
     : compares.find((item) => item.textContent?.includes("weapon")) ?? compares[0];
   const headCell = document.querySelector(".tgrid .trow.thead .c");
   const below = headCell ? rect(headCell).bottom : rect(main).top;
@@ -303,53 +325,57 @@ function place(): void {
     fresh = spare;
     break;
   }
-  const column = (stage === 0 ? fresh : undefined) ?? first;
+  const column = (stage === 2 ? fresh : undefined) ?? first;
   // the bubbles wrap into rows of their own on a narrow window, where the card stands under them
   // and the last one is the one nearest it
   const chips = [...document.querySelectorAll<HTMLElement>(".tcchips .rchip")];
-  const anchor = stage === 2 ? search
-    : stage === 3 ? (stacked ? chips[chips.length - 1] : chips[0])
-    : stage === 4 ? rowElementAt(0)?.querySelector(".gotodetail")
+  const anchor = stage === 0 ? null
+    : stage === 1 ? document.querySelector<HTMLElement>(".tgrid .c.dprhead")
+    : stage === 4 ? search
+    : stage === 5 ? (stacked ? chips[chips.length - 1] : chips[0])
+    : stage === 6 ? rowElementAt(0)?.querySelector(".gotodetail")
     : line ?? column;
   mark(anchor);
   const anchorR = anchor ? rect(anchor) : null;
 
-  // What the card centres between: the filters, for every stage past the second and for those two
+  // What the card centres between: the filters, for every stage past the fourth and for those four
   // as well once the window is too narrow to stand them beside the table (`fitSide()`'s `stack`);
   // else the empty band the table is centred against (index.css's own `.tclayout::before`).
   const mainR = rect(main), layoutR = rect(layout), tableR = rect(table), filterR = rect(filterbar);
-  const aside = stage > 1 || stacked;
+  const aside = stage > 3 || stacked;
   const [from, to] = aside ? [filterR.left, filterR.right] : [layoutR.left, tableR.left];
-  const width = Math.max(240, Math.min(330, to - from - 40));
-  box.style.width = `${width}px`;
-  const boxH = rect(box).height;
+  // the Start card is only as wide as its own button
+  box.style.width = stage === 0 ? "max-content" : `${Math.max(240, Math.min(330, to - from - 40))}px`;
+  const { width, height: boxH } = rect(box);
   // centred in whichever it is, but never off the side of the screen: a window with the aside
   // still beside the table and barely any band left keeps the card in view over the table's own
   // left edge rather than half of it hanging off the page
   // ...except the last stage on a stacked layout, which stands at the page's left edge: it points
   // into a cell out at the far right of the table, and the room it leaves beside itself is the room
   // its arrow has to run in
-  const middle = Math.min(Math.max((from + to - width) / 2, mainR.left + 12), mainR.right - width - 12);
-  box.style.left = `${stacked && stage === 4 ? mainR.left + 12 : middle}px`;
+  // ...and the Start card, beside the table, stands right up against its left edge instead
+  const ideal = stage === 0 && !aside ? to - width - 20 : (from + to - width) / 2;
+  const middle = Math.min(Math.max(ideal, mainR.left + 12), mainR.right - width - 12);
+  box.style.left = `${stacked && stage === 6 ? mainR.left + 12 : middle}px`;
   // hard under the filters wherever it stands over the page, and a fifth of the way down the screen
   // where it stands beside the table instead
   // ...and below the search bar's own list while that is open, which the filters' own bottom edge
   // knows nothing about: the list floats over the page rather than standing in it
   const list = document.getElementById("searchResults");
   const listR = list?.childElementCount ? rect(list) : null;
-  const under = stage === 2 && listR ? Math.max(filterR.bottom, listR.bottom) : filterR.bottom;
+  const under = stage === 4 && listR ? Math.max(filterR.bottom, listR.bottom) : filterR.bottom;
   const top = aside ? under + 16 : mainR.top + mainR.height * 0.2;
   // Stacked, the filters end barely a row above the table, so a card standing under them covers the
   // very cell it points into. It is lifted whatever that takes — over the bottom of the filters
   // rather than over the table — since a cell the card hides is a cell nobody can be shown.
-  const clear = stacked && stage < 2 && anchorR ? Math.min(top, anchorR.top - boxH - 40) : top;
+  const clear = stacked && stage < 4 && anchorR ? Math.min(top, anchorR.top - boxH - 40) : top;
   box.style.top = `${Math.min(Math.max(clear, mainR.top + 12), mainR.bottom - boxH - 12)}px`;
 
   // Nothing to draw with no anchor at all, or with a redraw catching it scrolled off the table.
   // Sideways too — except the rotation link, which a narrow window carries off the right of the
   // scrollport on every row and which is pointed at as far as the screen goes instead (below).
   if (!anchorR || anchorR.top > mainR.bottom || anchorR.bottom < mainR.top
-    || anchorR.right < mainR.left || (anchorR.left > mainR.right && stage !== 4)) {
+    || anchorR.right < mainR.left || (anchorR.left > mainR.right && stage !== 6)) {
     path.setAttribute("d", "");
     return;
   }
@@ -359,20 +385,20 @@ function place(): void {
   // the stages standing under the filters go out of the left edge and bow further left, which keeps
   // them clear of the search bar and the bubbles over the card
   const bow = Math.min(100, boxR.left - mainR.left - 8);
-  if (stage === 4 && !stacked) {
+  if (stage === 6 && !stacked) {
     // around the table and up into the bottom edge of the rotation link
     const [tx, ty] = [anchorR.left + anchorR.width / 2, anchorR.bottom + 4];
     path.setAttribute("d", `M ${boxR.left} ${by} C ${boxR.left - bow} ${by}, ${tx} ${ty + HEAD + 90}, ${tx} ${ty + HEAD}`);
     return;
   }
-  if (stage === 4 && stacked && anchorR.right <= mainR.right) {
+  if (stage === 6 && stacked && anchorR.right <= mainR.right) {
     // Thin view with the link in sight: out of the card's side and down into the cell's top edge,
     // which is the edge facing a card that stands above the table rather than beside it.
     const [tx, ty] = [anchorR.left + anchorR.width / 2, anchorR.top - 4];
     path.setAttribute("d", `M ${boxR.right} ${by} C ${boxR.right + 40} ${by}, ${tx} ${ty - HEAD - 40}, ${tx} ${ty - HEAD}`);
     return;
   }
-  if (stage === 4 && anchorR.right > mainR.right) {
+  if (stage === 6 && anchorR.right > mainR.right) {
     // The link is off the side of the scrollport — a narrow window, where the table's last columns
     // are a sideways scroll away. The arrow runs along its row as far as the screen goes and points
     // the way it lies, since a point nobody can see is no use to aim at; scrolling the table across
@@ -381,8 +407,16 @@ function place(): void {
     path.setAttribute("d", `M ${boxR.right} ${by} C ${boxR.right + 30} ${by}, ${tx - HEAD - 30} ${ty}, ${tx - HEAD} ${ty}`);
     return;
   }
+  if (stage === 1 && !stacked) {
+    // up out of the card's top and over the table, dropping into the heading's top edge
+    const cx = boxR.left + boxR.width / 2;
+    const [ax, ay] = [anchorR.left + anchorR.width / 2, anchorR.top - 4];
+    const peak = Math.max(mainR.top + 8, ay - HEAD - 60);
+    path.setAttribute("d", `M ${cx} ${boxR.top} C ${cx} ${peak}, ${ax} ${peak}, ${ax} ${ay - HEAD}`);
+    return;
+  }
   const [tx, ty] = [anchorR.left - 4, anchorR.top + anchorR.height / 2];
-  if (stage === 2 || stage === 3) {
+  if (stage === 4 || stage === 5) {
     const bx = boxR.left;
     if (!stacked) {
       // back into the left edge of the search bar or the bubble, bowing left out of the card to
@@ -400,7 +434,7 @@ function place(): void {
     path.setAttribute("d", `M ${cx} ${boxR.top} C ${cx} ${boxR.top - bend}, ${ax} ${ay + HEAD + bend}, ${ax} ${ay + HEAD}`);
     return;
   }
-  if (stacked && stage < 2) {
+  if (stacked && stage < 4) {
     // Straight down out of the bottom of the card into the top edge of the cell: stacked, the card
     // stands over the table with nothing beside it to go around.
     const bx = boxR.left + boxR.width / 2;
@@ -454,7 +488,7 @@ export function maybeShowTutorial(force = false): void {
   if (!layer) {
     layer = build();
     document.body.appendChild(layer);
-    // whatever the restored filters already show is what the first two stages measure against
+    // whatever the restored filters already show is what the resonator stages measure against
     baseline();
   }
   layer.hidden = false;
@@ -473,7 +507,7 @@ export function hideTutorial(): void {
 // isn't a filter already.
 let typing: ReturnType<typeof setTimeout> | undefined;
 document.addEventListener("click", (e) => {
-  if (!layer || layer.hidden || stage !== 2 || typing !== undefined) return;
+  if (!layer || layer.hidden || stage !== 4 || typing !== undefined) return;
   if (!(e.target as Element).closest?.("#optionSearch")) return;
   const input = document.querySelector<HTMLInputElement>("#optionSearch");
   const cells = [...rowElementAt(0)?.querySelectorAll<HTMLElement>(".c.name.res") ?? []];
@@ -494,10 +528,10 @@ document.addEventListener("click", (e) => {
   typing = setTimeout(key, 50);
 }, true);
 
-// A chip off the search bar is what the third stage asks for, taken by press or by Enter.
+// A chip off the search bar is what the fifth stage asks for, taken by press or by Enter.
 function searchUsed(): void {
-  if (!layer || layer.hidden || stage !== 2) return;
-  setStage(3);
+  if (!layer || layer.hidden || stage !== 4) return;
+  setStage(5);
   place();
 }
 document.addEventListener("click", (e) => {
@@ -507,20 +541,20 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && (e.target as HTMLElement).id === "optionSearch" && searchChoice()) searchUsed();
 }, true);
 
-// A press on a bubble is what takes it off, which is the fourth stage's own ask. Captured, and the
+// A press on a bubble is what takes it off, which is the sixth stage's own ask. Captured, and the
 // stage moves on here rather than in `settle()`: taking the last bubble off would otherwise read as
 // there being none to take off, and send the reader back to the search they had already used.
 document.addEventListener("click", (e) => {
-  if (!layer || layer.hidden || stage !== 3) return;
+  if (!layer || layer.hidden || stage !== 5) return;
   if (!(e.target as Element).closest?.(".tcchips .rchip, .tcchips .clearall")) return;
-  setStage(4);
+  setStage(6);
   place();
 }, true);
 
 // ...and the rotation link hands the tutorial over to the page it opens. Placed by the render that
 // follows rather than here: the table is still the page on screen at the moment of the press.
 document.addEventListener("click", (e) => {
-  if (!layer || layer.hidden || stage !== 4) return;
+  if (!layer || layer.hidden || stage !== 6) return;
   if (!(e.target as Element).closest?.(".gotodetail")) return;
   setStage(DETAIL_STAGE);
 }, true);
@@ -565,16 +599,15 @@ function finish(): void {
   hideTutorial();
 }
 
-// The README's own way back in. Nothing to do while the tutorial is already up — a press then would
-// only send the reader back to a stage one they are standing in the middle of.
+// The README's own way back in: from the top, even mid-tutorial, past the Start card it already is.
 document.addEventListener("click", (e) => {
   if (!(e.target as Element).closest?.(".tutstart")) return;
-  if (layer && !layer.hidden) return;
   try {
     localStorage.removeItem(DONE_KEY);
   } catch { /* no storage — nothing was keeping it away to begin with */ }
   done = false;
-  setStage(0);
+  sawDps = false;
+  setStage(1);
   baseline();
   maybeShowTutorial(true);
 }, true);
@@ -588,7 +621,7 @@ if (overlay) {
   }).observe(overlay, { attributes: true, attributeFilter: ["hidden"] });
 }
 
-// A menu opening or closing is what moves the first two stages' arrows between the row and the line
+// A menu opening or closing is what moves the resonator stages' arrows between the row and the line
 // standing over it, and anything else parked in the body can move what a card points at as much as
 // a scroll does. Neither redraws the table, so watching that body is the only way to hear about it.
 new MutationObserver(() => {

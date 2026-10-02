@@ -281,7 +281,7 @@ const cmpDrawn = new Set<string>();
 /** What the team column reads, switched by clicking its heading — and what the table ranks by: the
  *  four rotations, as the damage one of them does on average (DPR, beside how long one takes) or as
  *  the rate over the time they took (DPS). */
-let teamMode: "dpr" | "dps" = "dpr";
+export let teamMode: "dpr" | "dps" = "dpr";
 const TEAM_HEAD = { dpr: "Team Avg DPR", dps: "Team DPS" };
 const wholeDamage = (run: TeamRun): number => run.sectionTotals.reduce((a, b) => a + b, 0);
 const teamFigure = (run: TeamRun): number =>
@@ -289,14 +289,12 @@ const teamFigure = (run: TeamRun): number =>
 /** One member's share of those sections, always per section whatever the team column reads. */
 const personalFigure = (run: TeamRun, name: string): number =>
   Math.floor(run.sectionBySlot.reduce((a, by) => a + (by.get(name) ?? 0), 0) / Math.max(1, run.sectionTotals.length));
-/** The team cell's time, a dimmed subscript — plain for the sizing row. Beside DPR (the four
- *  rotations' average damage), the last rotation's length; beside DPS, the whole fight's animation
- *  time, what the rate divides by. */
-const loopTime = (run: TeamRun): string => (teamMode === "dpr"
-  ? `${(run.sectionSeconds[run.sectionSeconds.length - 1] ?? 0).toFixed(1)}s`
-  : `${Math.round(run.seconds)}s`);
-const teamText = (run: TeamRun): string => `${fmt(teamFigure(run))}${loopTime(run)}`;
-const teamHtml = (run: TeamRun): string => `${fmt(teamFigure(run))}<sub class="looptime">${loopTime(run)}</sub>`;
+/** Beside DPR, the last rotation's length as a dimmed subscript — plain for the sizing row. DPS
+ *  reads alone. */
+const loopTime = (run: TeamRun): string => `${(run.sectionSeconds[run.sectionSeconds.length - 1] ?? 0).toFixed(1)}s`;
+const teamText = (run: TeamRun): string => fmt(teamFigure(run)) + (teamMode === "dpr" ? loopTime(run) : "");
+const teamHtml = (run: TeamRun): string =>
+  fmt(teamFigure(run)) + (teamMode === "dpr" ? `<sub class="looptime">${loopTime(run)}</sub>` : "");
 /** A compare's share, one decimal truncated — never rounded up to a gain it didn't make. */
 const pctTrunc = (ratio: number): string => `${fmt(Math.trunc(ratio * 1000) / 10, 1, true)}%`;
 

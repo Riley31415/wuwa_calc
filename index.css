@@ -1823,4 +1823,21 @@ main.stack { padding: 0 12px 420px; }
   cursor: pointer;
 }
 .tut-skip { font-size: 11px; }
+/* the README's warning */
+.readme-warn { color: #f5d042; text-decoration: underline; }
+/* the first card's whole ask: white, blue under the pointer */
+.tut-begin {
+  font: inherit;
+  font-size: 20px;
+  font-weight: 650;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #fff;
+  cursor: pointer;
+}
+/* the table's own marker, nudged the same way on hover */
+.tut-begin .arrow { display: inline-block; margin-left: 6px; transition: transform .12s; }
+.tut-begin:hover .arrow { transform: translateX(2px); }
+.tut-begin:hover { color: var(--accent); }
 .tut-skip:hover, .tutstart:hover { color: #8bf0b4; }
