@@ -190,19 +190,19 @@ const SwitchFeather = yangyangAction("Skill - Sword Stance Switch: Feather", { a
 const FlowAzure = yangyangAction("Skill - Sword Stance Flow: Azure", {
   animFrames: 59, prioFrames: 46,
   node: Node.Forte, cast: Cast.Skill, type: Type.Heavy, bullets: [
-    { hitFrame: 22, mv: 6995, energy: 696, concerto: 900, offtune: 3519 },
-    { hitFrame: 41, mv: 1555, energy: 25, concerto: 49, offtune: 782 },
-    { hitFrame: 50, commitFrame: 41, mv: 1555, energy: 25, concerto: 49, offtune: 782 },
-    { hitFrame: 59, commitFrame: 41, mv: 1555, energy: 25, concerto: 49, offtune: 782 },
-  ], castForte2: 1,castForte1: 10000, 
+    { hitFrame: 22, mv: 6995, energy: 696, concerto: 600, offtune: 3519 },
+    { hitFrame: 41, mv: 1555, energy: 155, concerto: 134, offtune: 782 },
+    { hitFrame: 50, commitFrame: 41, mv: 1555, energy: 155, concerto: 134, offtune: 782 },
+    { hitFrame: 59, commitFrame: 41, mv: 1555, energy: 155, concerto: 134, offtune: 782 },
+  ], castForte2: 1,castForte1: 10000,
   ...FLOW,
 });
 const FlowFeather = yangyangAction("Skill - Sword Stance Flow: Feather", {
   animFrames: 44,
   node: Node.Forte, cast: Cast.Skill, type: Type.Heavy, bullets: [
-    { hitFrame: 28, mv: 3356, energy: 387, concerto: 500, offtune: 1688 },
-    { hitFrame: 36, commitFrame: 28, mv: 3356, energy: 387, concerto: 500, offtune: 1688 },
-    { hitFrame: 44, commitFrame: 28, mv: 3356, energy: 387, concerto: 500, offtune: 1688 },
+    { hitFrame: 28, mv: 3356, energy: 387, concerto: 334, offtune: 1688 },
+    { hitFrame: 36, commitFrame: 28, mv: 3356, energy: 387, concerto: 334, offtune: 1688 },
+    { hitFrame: 44, commitFrame: 28, mv: 3356, energy: 387, concerto: 334, offtune: 1688 },
   ], castForte2: 1, castForte1: 10000, 
   ...FLOW,
 });
@@ -220,11 +220,10 @@ const HeavyAzure = yangyangAction("Forte Heavy - Azure Sword Stance", { minForte
     applyCurrent(BATED_BREATH, 1);
     applyCurrent(BATED_BREATH_CD, 1);
   },
-  // only opens at 2 Azure Plume, and spends it outright: maxForte2 (2 below) clamps an overrun
-  // back to the cap before this lands exactly on 0
-  castForte2: -2,
+  // "consumes all Azure Plume": -100 shows the whole-bar drain; the bar reads empty after it
+  castForte2: -100,
 });
-const HeavyFeather = yangyangAction("Forte Heavy - Feather Sword Stance", {
+const HeavyFeather = yangyangAction("Forte Heavy - Feather Sword Stance", { minForte2: 2,
   animFrames: 45,
   node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 36, mv: 2171, energy: 19, concerto: 47, offtune: 747,
@@ -245,9 +244,8 @@ const FeatherFall = yangyangAction("Forte Mid-air - Feather Fall", { minForte2: 
     { hitFrame: 28, mv: 1480, energy: 17, concerto: 42, offtune: 662 },
     { hitFrame: 58, mv: 6657, energy: 75, concerto: 186, offtune: 2976 },
   ],
-  // Feather Sword Stance itself spends none — this auto-cast follow-up is what actually spends
-  // the 2 Azure Plume that opened it
-  castForte2: -2,
+  // Feather Sword Stance itself spends none — this auto-cast follow-up consumes all Azure Plume
+  castForte2: -100,
 });
 const HiB1 = yangyangAction("Basic - Havoc in Bloom 1", { animFrames: 38, node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, bullets: [
     { hitFrame: 14, mv: 3979, energy: 45, concerto: 112, offtune: 1779 },

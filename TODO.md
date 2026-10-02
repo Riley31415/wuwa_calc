@@ -5,6 +5,9 @@ jingran ba4/skill2 cancel
 denia midair
 
 #
+make embed show team + dpr if you link a team
+
+#
 implement priorities to all actions
 enforce cancelling after priority etc
 
