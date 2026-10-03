@@ -125,7 +125,7 @@ export interface DamageFactors {
 
 /**
  * Every term of the damage formula, kept apart so the table can show the whole product rather
- * than only its result. `damage()` is just the product of these.
+ * than only its result.
  *
  * @returns each multiplier, plus the `avg` they come to
  */
@@ -183,7 +183,7 @@ export function damageFactors(snapshot: Snapshot): DamageFactors {
   // bonus and amplification are both gated off for tune, so this is the multiplier tune has.
   // ...and it divides its own points down rather than going through `s()`: Tune Break Boost is
   // not a ratio stat (see stats.ts's own PERCENT_STATS), it is a count that happens to buy 1% each.
-  const tbbFactor = 1 + (snapshot.stats[Stat.Tbb]! / 100) * (1 - notTune);
+  const tbbFactor = 1 + (snapshot.stats[Stat.TBB]! / 100) * (1 - notTune);
   const resFactor = resFactorOf(snapshot);
   const defFactor = defFactorOf(snapshot);
   // Total Damage and Damage Taken read like amplification on a dot: only the part scoped to the
@@ -251,7 +251,7 @@ export function damageAvgOf(
   const finalMv = (action.mv + stats[Stat.AddMv]!) * (1 + stats[Stat.MulMv]! / 100) / (100 * MV_UNIT);
   const ampFactor = 1 + ((notDot ? amp : subtypeAmp) / 100) * notTune;
   const bonusFactor = 1 + (dmgBonus / 100) * notDot * notTune;
-  const tbbFactor = 1 + (stats[Stat.Tbb]! / 100) * (1 - notTune);
+  const tbbFactor = 1 + (stats[Stat.TBB]! / 100) * (1 - notTune);
   const resFactor = resFactorFrom(resOf(stats, notDot, enemyRes) / 100);
   const defFactor = defFactorFrom((1 - shredOf(stats, notDot, enemyDef)) * enemyDef);
   const dealtFactor = 1 + (notDot ? stats[Stat.TotalDmg]! : subtypeTotalDmg) / 100;
@@ -265,19 +265,3 @@ export function damageAvgOf(
   return Math.floor(noCrit * critFactor);
 }
 
-export const damageAvg = (s: Snapshot): number => damageAvgOf(
-  s.action, s.stats, s.atk, s.hp, s.def, s.amp, s.subtypeAmp, s.dmgBonus, s.subtypeCritRate, s.subtypeCritDmg,
-  s.subtypeTotalDmg, s.subtypeDamageTaken, s.enemyRes, s.enemyDef,
-);
-
-export interface Damage {
-  noCrit: number;
-  crit: number;
-  avg: number;
-}
-
-/** @param snapshot  from State.resolve() */
-export function damage(snapshot: Snapshot): Damage {
-  const { noCrit, crit, avg } = damageFactors(snapshot);
-  return { noCrit, crit, avg };
-}

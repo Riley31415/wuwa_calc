@@ -27,7 +27,7 @@ type MainEntry = readonly [Stat, number] | readonly [Stat, number, Tag];
 const MAIN: Record<Mainstat, MainEntry> = {
   [Mainstat.CR4]: [Stat.CritRate, 22], [Mainstat.CD4]: [Stat.CritDmg, 44],
   [Mainstat.ATK4]: [Stat.BonusAtk, 33], [Mainstat.HP4]: [Stat.BonusHp, 33], [Mainstat.DEF4]: [Stat.BonusDef, 41.8],
-  [Mainstat.ER3]: [Stat.Er, 32], [Mainstat.ATK3]: [Stat.BonusAtk, 30],
+  [Mainstat.ER3]: [Stat.ER, 32], [Mainstat.ATK3]: [Stat.BonusAtk, 30],
   [Mainstat.HP3]: [Stat.BonusHp, 30], [Mainstat.DEF3]: [Stat.BonusDef, 38],
   [Mainstat.Glacio3]:  [Stat.DmgBonus, 30, Attribute.Glacio],
   [Mainstat.Fusion3]:  [Stat.DmgBonus, 30, Attribute.Fusion],
@@ -65,7 +65,7 @@ const label = (key: Mainstat): string => {
 const SLOT_BUFFS = new WeakMap<Buff, Buff[]>();
 export const mainstatSlotBuffs = (piece: Buff): Buff[] => SLOT_BUFFS.get(piece) ?? [];
 const slotBuffOf = (key: Mainstat): Buff => {
-  const [stat, value, tag] = MAIN[key];
+  const [stat, , tag] = MAIN[key];
   const cost = costOf(key);
   return new Buff({
     name: `${cost}C ${statLabel(tag ? scopedStat(tag, stat) : stat)}`,

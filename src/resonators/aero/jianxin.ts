@@ -28,15 +28,14 @@ import {
   addStat,
   applyCurrent,
   casting,
-  currentAction, pressed,
+  currentAction,
   onAction,
   runningAction,
-  forte1,
   isHeld,
   queueOutro,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Cooldown, Rotation, ECHO, INTRO } from "../../engine/rotation.js";
-import { HEALS, SHIELD, gainShield } from "../../shared/status.js";
+import { HEALS, gainShield } from "../../shared/status.js";
 import { MARCATO } from "../../weapons/standard.js";
 import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
@@ -86,7 +85,7 @@ const ChiCounter = jianxinAction("Skill - Calming Air: Chi Counter", { cooldown:
 // --- Purification Force Field: the 3.12s field's 29.83% ticks (15 — see the file header) and the
 //     636.20% explosion as it collapses, as one cast. Spends the Energy bar (150).
 const Liberation = jianxinAction("Liberation - Purification Force Field", {
-  animFrames: 185, timestop: 157, motionStop: 185, prioFrames: 185,
+  animFrames: 185, timestop: [0, 157], motionStop: [0, 185], prioFrames: 185,
   cooldown: 60 * 20,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 185, mv: 63620 + 2983 * 15, concerto: 2000, offtune: 48000 + 3200 * 15 }], 
   resetEnergy: true,

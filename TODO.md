@@ -1,30 +1,20 @@
 #
-jingran ba4/skill2 cancel
+implement priorities to all actions. automate cancelling? enforce priorities atleast.
 
-#
-denia midair
-
-#
-make embed show team + dpr if you link a team
-
-#
-implement priorities to all actions
-enforce cancelling after priority etc
-
-#
-import bullet commit frames from anto when it updates
-add echo frames
+dodge = priority 6
+jump = priority 
 
 #
 make echo actions resolvers that play only if their mainslot echo is equipped (create a template one for all echo actions to use)
 mainslot no longer points to echo, the echo action points to the required mainslot
 delete the current ECHO placeholder action and related logic, replace them with every mainslot that character may have.
+fully implement echo frames
 
 #
-better wait Xs visual
+make embed show team + dpr if you link a team
 
 #
-get mornye field buff time (and for other fields/buff starts)
+get sk/mornye field buff time (and for other fields/buff starts)
 
 # standard 5 star/4 star
 calcharo

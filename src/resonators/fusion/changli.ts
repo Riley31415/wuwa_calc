@@ -22,7 +22,7 @@ import {
   
   queueOutro,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, START_LAST, ECHO, INTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, START_LAST, INTRO } from "../../engine/rotation.js";
 import { BLAZING_BRILLIANCE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { NM_INFERNO_RIDER, MOLTEN_RIFT_5PC } from "../../echoes/jinzhou.js";
@@ -63,8 +63,8 @@ const DC = changliAction("Dodge Counter - Blazing Enlightenment 3", { animFrames
   ], castConcerto: 1000});
 const HA = changliAction("Heavy - Blazing Enlightenment", { animFrames: 47, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 14, mv: 2899, energy: 43, concerto: 86, offtune: 1372 },
-    { hitFrame: 20, mv: 2899, energy: 43, concerto: 86, offtune: 1372 },
-    { hitFrame: 26, mv: 2899, energy: 43, concerto: 86, offtune: 1372 },
+    { hitFrame: 20, commitFrame: 14, mv: 2899, energy: 43, concerto: 86, offtune: 1372 },
+    { hitFrame: 26, commitFrame: 14, mv: 2899, energy: 43, concerto: 86, offtune: 1372 },
     { hitFrame: 35, mv: 3727, energy: 56, concerto: 111, offtune: 1764 },
   ]});
 
@@ -80,7 +80,7 @@ const MA3 = changliAction("Mid-air - Blazing Enlightenment 3", { animFrames: 47,
     { hitFrame: 35, mv: 4400, energy: 66, concerto: 131, offtune: 2083 },
   ]});
 const MA4 = changliAction("Mid-air - Blazing Enlightenment 4", { animFrames: 53, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 6, mv: 3803, energy: 57, concerto: 113, offtune: 1800 },
+    { hitFrame: 6, mv: 3803, energy: 57, concerto: 113, offtune: 1800, updateDebuffs: () => applyCurrent(TRUE_SIGHT, 1) },
     { hitFrame: 18, commitFrame: 6, mv: 2218, energy: 33, concerto: 66, offtune: 1050 },
     { hitFrame: 24, commitFrame: 6, mv: 2218, energy: 33, concerto: 66, offtune: 1050 },
     { hitFrame: 29, commitFrame: 6, mv: 2218, energy: 33, concerto: 66, offtune: 1050 },
@@ -106,8 +106,8 @@ const SMA = changliAction("Basic - True Sight: Charge", { animFrames: 40, node: 
 // True Sight: Capture holds 2 charges, one back every 12s
 const Skill = changliAction("Skill - Tripartite Flames", { animFrames: 89, cooldown: new Cooldown({ frames: 60 * 12, charges: 2 }), node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 10, mv: 8188, energy: 160, offtune: 2496 },
-    { hitFrame: 18, mv: 8188, energy: 160, offtune: 2496 },
-    { hitFrame: 27, mv: 8188, energy: 160, offtune: 2496 },
+    { hitFrame: 18, commitFrame: 10, mv: 8188, energy: 160, offtune: 2496 },
+    { hitFrame: 27, commitFrame: 10, mv: 8188, energy: 160, offtune: 2496 },
     { hitFrame: 74, mv: 16376, energy: 320, offtune: 4992 },
   ], castConcerto: 1400});
 
@@ -124,18 +124,18 @@ const FlamingSacrifice = changliAction("Forte Heavy - Flaming Sacrifice", { minF
 
 // --- liberation: Radiance of Fealty — grants 4 Enflamement outright and opens Fiery Feather
 const Liberation = changliAction("Liberation - Radiance of Fealty", {
-  animFrames: 191, timestop: 189, motionStop: 158, cooldown: 60 * 20,
+  animFrames: 191, prioFrames: 191, timestop: [0, 189], motionStop: [0, 158], cooldown: 60 * 20,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 163, mv: 121275, offtune: 100800 }], castConcerto: 2000, castForte1: 4, resetEnergy: true,
   updateBuffs: () => applyCurrent(FIERY_FEATHER, 1),
 });
 
 // --- intro / outro. Intro also opens True Sight.
-const Intro = changliAction("Intro - Obedience of Rules", { animFrames: 45, prioFrames: 45, motionStop: 40, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
-    { hitFrame: 6, mv: 4450, energy: 300, offtune: 1791 },
-    { hitFrame: 18, mv: 2596, energy: 175, offtune: 1045 },
-    { hitFrame: 24, mv: 2596, energy: 175, offtune: 1045 },
-    { hitFrame: 29, mv: 2596, energy: 175, offtune: 1045 },
-    { hitFrame: 35, mv: 2596, energy: 175, offtune: 1045 },
+const Intro = changliAction("Intro - Obedience of Rules", { animFrames: 45, noSwapFrames: 46, prioFrames: 45, motionStop: [5, 44], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
+    { hitFrame: 6, mv: 4450, energy: 300, offtune: 1791, updateDebuffs: () => applyCurrent(TRUE_SIGHT, 1) },
+    { hitFrame: 18, commitFrame: 6, mv: 2596, energy: 175, offtune: 1045 },
+    { hitFrame: 24, commitFrame: 6, mv: 2596, energy: 175, offtune: 1045 },
+    { hitFrame: 29, commitFrame: 6, mv: 2596, energy: 175, offtune: 1045 },
+    { hitFrame: 35, commitFrame: 6, mv: 2596, energy: 175, offtune: 1045 },
   ], castConcerto: 1000});
 const Outro = changliAction("Outro - Strategy of Duality", {
   animFrames: 0,
@@ -266,9 +266,10 @@ const CHANGLI_RESONATOR = new Resonator({
   maxEnergy: 12500,
   maxForte1: 4,
 
-  // her combo finishers/Skill/Intro arm True Sight; the two Sword-of-Fealty casts spend it
+  // Stage 4 and the Skill arm True Sight on cast (Mid-air Stage 4's and the Intro's are their first
+  // hits'); the two Sword-of-Fealty casts spend it
   updateBuffs: () => {
-    if (runningAction(BA4) || runningAction(MA4) || runningAction(Skill) || runningAction(Intro)) applyCurrent(TRUE_SIGHT, 1);
+    if (runningAction(BA4) || runningAction(Skill)) applyCurrent(TRUE_SIGHT, 1);
     if (runningAction(SBA) || runningAction(SMA)) revokeCurrent(TRUE_SIGHT);
   },
 

@@ -14,11 +14,11 @@
  * migrated (old-engine) sheet's own multi-hit totals. Energy/concerto/offtune/Prowess/Ascendancy
  * deltas aren't exposed on the page itself, so those come off the migrated sheet directly.
  *
- * Sublime is the Sun's own opening press deals no damage of its own, so Lib2 is placed directly
- * and its own updateBuffs() queues Lib3 once the ninth Sunborne hit lands. The migrated sheet gives
- * Lib3 energy -125, but the page is explicit it costs no Resonance Energy at all — trusted here.
- * Lib3's own cross-kit special (ending Phrolova's own Maestro instantly) calls phrolova.ts's
- * `endMaestro()` — a no-op on any team that isn't running her.
+ * Sublime is the Sun is one press of 21 hits, as wuwalab has it: nine Sunborne, then Everbright
+ * Protector's twelve. The migrated sheet gave Everbright energy -125, but the page is explicit it
+ * costs no Resonance Energy at all — trusted here. Everbright's own cross-kit special (ending
+ * Phrolova's own Maestro instantly) calls phrolova.ts's `endMaestro()` on its first hit — a no-op on
+ * any team that isn't running her.
  *
  * Glory's Favor (Inherent Skill): a shield on every damaging hit, 0.5s ICD — `gainShield()` per
  * action, which spaces them 30 frames apart. Ruler's Realm's own shield (any team member's
@@ -32,14 +32,12 @@ import {
   applyTeam,
   revokeCurrent,
   casting,
-  currentAction,
   onAction,
   runningAction,
   currentTeam,
   addStat,
   queue,
   queueOutro,
-  forte2,
   removeStack,
   frozenStacks,
   getStat,
@@ -48,8 +46,7 @@ import {
   runningAnyOf,
 } from "../../engine/context.js";
 import { Action, Rotation, ECHO, INTRO } from "../../engine/rotation.js";
-import { applied } from "../../engine/context.js";
-import { SHIELD, gainShield } from "../../shared/status.js";
+import { gainShield } from "../../shared/status.js";
 import { THUNDERFLARE_DOMINION, VERDANT_SUMMIT } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { FALSE_SOVEREIGN, COV_3PC } from "../../echoes/septimont.js";
@@ -134,41 +131,54 @@ const FSkill3 = augustaAction("Forte Skill - Undying Sunlight: Plunge", {
 // liberation: Sword of Eternal Oath, the plain press-and-release cast
 const Lib1 = augustaAction("Liberation - Sword of Eternal Oath", { animFrames: 106, cooldown: 60 * 25, node: Node.Liberation, cast: Cast.Liberation, type: Type.Heavy, bullets: [
     { hitFrame: 4, mv: 3299, energy: 15, offtune: 881 },
-    { hitFrame: 10, mv: 3299, energy: 15, offtune: 881 },
+    { hitFrame: 10, commitFrame: 4, mv: 3299, energy: 15, offtune: 881 },
     { hitFrame: 22, mv: 13194, energy: 57, offtune: 3521 },
-    { hitFrame: 28, mv: 13194, energy: 57, offtune: 3521 },
-    { hitFrame: 34, mv: 13194, energy: 57, offtune: 3521 },
+    { hitFrame: 28, commitFrame: 22, mv: 13194, energy: 57, offtune: 3521 },
+    { hitFrame: 34, commitFrame: 22, mv: 13194, energy: 57, offtune: 3521 },
     { hitFrame: 62, mv: 3299, energy: 15, offtune: 881 },
-    { hitFrame: 68, mv: 3299, energy: 15, offtune: 881 },
+    { hitFrame: 68, commitFrame: 62, mv: 3299, energy: 15, offtune: 881 },
     { hitFrame: 85, mv: 57170, energy: 243, offtune: 15255 },
   ], castConcerto: 2000, castForte2: 2000, resetEnergy: true });
-/** Held instead of released once Majesty reaches 2 stacks — costs both rather than
- *  Energy. Nine hits lumped into one action; queues Everbright Protector itself once the ninth lands. */
+/** Held instead of released once Majesty reaches 2 stacks — costs both rather than Energy. Nine
+ *  Sunborne hits, then Everbright Protector from 389: the finisher ends Sworn Allegiance and spends
+ *  every stack of Crown of Wills. */
 const Lib2 = augustaAction("Liberation - Sublime is the Sun", {
-  animFrames: 503, timestop: 503, motionStop: 503, cooldown: 60 * 25,
-  node: Node.Liberation, cast: Cast.Liberation,
+  animFrames: 503, prioFrames: 503, timestop: [0, 503], motionStop: [0, 503], cooldown: 60 * 25,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Heavy, bullets: [
+    { hitFrame: 100, mv: 11929, concerto: 200, offtune: 7200 },
+    { hitFrame: 116, mv: 11929, concerto: 200, offtune: 7200 },
+    { hitFrame: 141, mv: 11929, concerto: 200, offtune: 7200 },
+    { hitFrame: 161, mv: 11929, concerto: 200, offtune: 7200 },
+    { hitFrame: 178, mv: 11929, concerto: 200, offtune: 7200 },
+    { hitFrame: 204, mv: 11929, concerto: 200, offtune: 7200 },
+    { hitFrame: 225, mv: 11929, concerto: 200, offtune: 7200 },
+    { hitFrame: 241, mv: 11929, concerto: 200, offtune: 7200 },
+    { hitFrame: 268, mv: 11929, concerto: 200, offtune: 7200 },
+    // ends Phrolova's Maestro, Hecate and all — a no-op on a team without her
+    { hitFrame: 389, mv: 23858, concerto: 200, offtune: 10080, updateDebuffs: () => endMaestro() },
+    { hitFrame: 425, mv: 89465, concerto: 750, offtune: 37800 },
+    { hitFrame: 435, mv: 597, concerto: 5, offtune: 252 },
+    { hitFrame: 440, commitFrame: 435, mv: 597, concerto: 5, offtune: 252 },
+    { hitFrame: 444, commitFrame: 435, mv: 597, concerto: 5, offtune: 252 },
+    { hitFrame: 449, commitFrame: 435, mv: 597, concerto: 5, offtune: 252 },
+    { hitFrame: 454, commitFrame: 435, mv: 597, concerto: 5, offtune: 252 },
+    { hitFrame: 458, commitFrame: 435, mv: 597, concerto: 5, offtune: 252 },
+    { hitFrame: 463, commitFrame: 435, mv: 597, concerto: 5, offtune: 252 },
+    { hitFrame: 468, commitFrame: 435, mv: 597, concerto: 5, offtune: 252 },
+    { hitFrame: 472, commitFrame: 435, mv: 597, concerto: 5, offtune: 252 },
+    { hitFrame: 477, commitFrame: 435, mv: 597, concerto: 5, offtune: 252 },
+  ],
   updateBuffs: () => {
     removeStack(MAJESTY, 2);
-    queue(Lib2fua);
-    queue(Lib3);
     applyTeam(RULERS_REALM, 1);
   },
-});
-
-const Lib2fua = augustaAction("Liberation - Sublime is the Sun: Sunborne x9", { node: Node.Liberation, cast: Cast.Liberation, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 107361, concerto: 1800, offtune: 64800 }] });
-/** The finisher — ends Sworn Allegiance and spends every stack of Crown of Wills. Costs no
- *  Resonance Energy. */
-const Lib3 = augustaAction("Liberation - Sublime is the Sun: Everbright Protector", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 119293, concerto: 1000, offtune: 50400 }], 
-  // ends Phrolova's Maestro, Hecate and all — a no-op on a team without her
-  updateBuffs: () => endMaestro(),
 });
 
 /** S6's Thunder Rage: two instances of 100% of her ATK at the spot, Heavy Attack DMG, whenever she
  *  casts Spinslash or Uppercut. Not a row on the kit page, so no energy, concerto or off-tune. */
 const ThunderRage = augustaAction("Heavy - Thunder Rage (S6)", { node: Node.Forte, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 20000 }] });
 
-const Intro = augustaAction("Intro - Stride of Goldenflare", { animFrames: 73, prioFrames: 73, motionStop: 10, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 46, mv: 9941, energy: 500, offtune: 4800 }, { hitFrame: 63, mv: 9941, energy: 500, offtune: 4800 }], castConcerto: 1000, castForte1: 660, castForte2: 1000});
+const Intro = augustaAction("Intro - Stride of Goldenflare", { animFrames: 73, noSwapFrames: 68, prioFrames: 73, motionStop: [6, 15], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 46, mv: 9941, energy: 500, offtune: 4800 }, { hitFrame: 63, mv: 9941, energy: 500, offtune: 4800 }], castConcerto: 1000, castForte1: 660, castForte2: 1000});
 /** No damage of its own, just the outro handoff (BATTLESONG) — her own Majesty/Crown of Wills
  *  grant is earned later, off the recipient's own Outro. */
 const Outro = augustaAction("Outro - Battlesong of the Unyielding", {
@@ -194,7 +204,7 @@ const CROWN_OF_WILLS = new Buff({
     if (isHeld(AG_S1)) asSource(AG_S1, () => addStat(Stat.CritDmg, 15 * n));
     if (isHeld(AG_S2)) asSource(AG_S2, () => addStat(Stat.CritRate, 20 * n));
   },
-  afterAction: () => { if (runningAction(Lib3)) revokeCurrent(CROWN_OF_WILLS); },
+  afterAction: () => { if (runningAction(Lib2)) revokeCurrent(CROWN_OF_WILLS); },
 });
 /** A gain against the cap her nodes set, since the buff's own is the highest of the three. */
 function gainCrown(n: number): void {
@@ -221,7 +231,7 @@ const BATTLESONG = new Buff({
 
 /** A shield on every damaging hit of her casts, at the shield's 0.5s cooldown. Shields are not a
  *  stat, so the marker is all this piece adds. */
-const SHIELDS = new Set<Action>([BA1, BA2, BA3, BA4, MA, DC, MDC, HA, FHA1, FHA2, FJump, Skill, FSkill1, FSkill2, FSkill3, Lib1, Lib2, Lib2fua, Lib3, Intro]);
+const SHIELDS = new Set<Action>([BA1, BA2, BA3, BA4, MA, DC, MDC, HA, FHA1, FHA2, FJump, Skill, FSkill1, FSkill2, FSkill3, Lib1, Lib2, Intro]);
 const AG_INHERENT_1 = new Inherent({
   name: "Inherent: Glory's Favor",
   updateDebuffs: () => {
@@ -289,7 +299,7 @@ const AG_S2 = new Sequence({
 /** S3: the four Thunderoar hits, Undying Sunlight's Plunge, Sunborne and Everbright Protector at
  *  x1.25 — multiplicative, nanoka's own S3 rows (Backstep 67.1% against 53.68%, Sunborne 149.11%
  *  against 119.29%). */
-const AG_S3_HITS = new Set<Action>([FHA1, FHA2, FJump, FSkill3, Lib2fua, Lib3]);
+const AG_S3_HITS = new Set<Action>([FHA1, FHA2, FJump, FSkill3, Lib2]);
 const AG_S3 = new Sequence({
   name: "Augusta S3: Forged in Rot and Ruin",
   applyStats: () => { if (runningAnyOf(AG_S3_HITS)) addStat(Stat.MulMv, 25); },

@@ -5,7 +5,6 @@
 import { WeaponType, Stat, Type, Cast, Attribute, Tier, BuffTarget } from "../engine/stats.js";
 import { Buff, Weapon, refinements } from "../engine/gear.js";
 import {
-  addStat,
   applyCurrent,
   casting,
   currentAction,
@@ -42,7 +41,7 @@ function concertoWeapon(name: string, weaponType: WeaponType, tier: Tier = Tier.
     });
     return new Weapon({
       weaponType, tier, name: `${name}${rank}`,
-      stats: [[Stat.BaseAtk, 337.5], [Stat.Er, 51.84]],
+      stats: [[Stat.BaseAtk, 337.5], [Stat.ER, 51.84]],
       combatStart: () => applyCurrent(CEASELESS_ARIA, 1),
       grants: [{ on: onCast(Cast.Outro), buff: CEASELESS_ARIA }],
     });
@@ -66,7 +65,7 @@ export const STATIC_MIST = refinements((r, rank) => {
   });
   return new Weapon({
     weaponType: WeaponType.Pistols, tier: Tier.Standard, name: `Static Mist${rank}`,
-    stats: [[Stat.BaseAtk, 587.5], [Stat.CritRate, 24.3], [Stat.Er, [12.8, 16, 19.2, 22.4, 25.6][r]!]],
+    stats: [[Stat.BaseAtk, 587.5], [Stat.CritRate, 24.3], [Stat.ER, [12.8, 16, 19.2, 22.4, 25.6][r]!]],
     grants: [{ on: onCast(Cast.Outro), buff: STATIC_MIST_HANDOFF, to: BuffTarget.Next }],
   });
 });
@@ -79,7 +78,7 @@ export const EMERALD_OF_GENESIS = refinements((r, rank) => {
   });
   return new Weapon({
     weaponType: WeaponType.Sword, tier: Tier.Standard, name: `Emerald of Genesis${rank}`,
-    stats: [[Stat.BaseAtk, 587.5], [Stat.CritRate, 24.3], [Stat.Er, [12.8, 16, 19.2, 22.4, 25.6][r]!]],
+    stats: [[Stat.BaseAtk, 587.5], [Stat.CritRate, 24.3], [Stat.ER, [12.8, 16, 19.2, 22.4, 25.6][r]!]],
     grants: [{ on: onCast(Cast.Skill), buff: EOG_STACKS }],
   });
 });
@@ -92,7 +91,7 @@ export const COSMIC_RIPPLES = refinements((r, rank) => {
   });
   return new Weapon({
     weaponType: WeaponType.Rectifier, tier: Tier.Standard, name: `Cosmic Ripples${rank}`,
-    stats: [[Stat.BaseAtk, 500], [Stat.BonusAtk, 54], [Stat.Er, [12.8, 16, 19.2, 22.4, 25.6][r]!]],
+    stats: [[Stat.BaseAtk, 500], [Stat.BonusAtk, 54], [Stat.ER, [12.8, 16, 19.2, 22.4, 25.6][r]!]],
     grants: [{ on: onType(Type.Basic), buff: COSMIC_RIPPLES_STACKS, onHit: true }],
   });
 });
@@ -112,7 +111,7 @@ export const ABYSS_SURGES = refinements((r, rank) => {
   });
   return new Weapon({
     weaponType: WeaponType.Gauntlets, tier: Tier.Standard, name: `Abyss Surges${rank}`,
-    stats: [[Stat.BaseAtk, 587.5], [Stat.BonusAtk, 36.45], [Stat.Er, [12.8, 16, 19.2, 22.4, 25.6][r]!]],
+    stats: [[Stat.BaseAtk, 587.5], [Stat.BonusAtk, 36.45], [Stat.ER, [12.8, 16, 19.2, 22.4, 25.6][r]!]],
     grants: [
       { on: onType(Type.Skill), buff: ABYSS_SKILL_HIT, onHit: true },
       { on: onType(Type.Basic), buff: ABYSS_BASIC_HIT, onHit: true },
@@ -128,7 +127,7 @@ export const LUSTROUS_RAZOR = refinements((r, rank) => {
   });
   return new Weapon({
     weaponType: WeaponType.Broadblade, tier: Tier.Standard, name: `Lustrous Razor${rank}`,
-    stats: [[Stat.BaseAtk, 587.5], [Stat.BonusAtk, 36.45], [Stat.Er, [12.8, 16, 19.2, 22.4, 25.6][r]!]],
+    stats: [[Stat.BaseAtk, 587.5], [Stat.BonusAtk, 36.45], [Stat.ER, [12.8, 16, 19.2, 22.4, 25.6][r]!]],
     grants: [{ on: onCast(Cast.Skill), buff: LUSTROUS_RAZOR_STACKS }],
   });
 });
@@ -185,7 +184,7 @@ export const NEW_STD_SWORD = refinements((r, rank) => {
   });
   return new Weapon({
     weaponType: WeaponType.Sword, tier: Tier.Standard, name: `Laser Shearer${rank}`,
-    stats: [[Stat.BaseAtk, 587.5], [Stat.Er, 38.88], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
+    stats: [[Stat.BaseAtk, 587.5], [Stat.ER, 38.88], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     grants: [{ on: hitInterfered, buff: SIGNAL_CATCHER_BUFF, onHit: true }],
   });
 });
@@ -204,7 +203,7 @@ export const BLOODPACTS_PLEDGE = refinements((r, rank) => {
   });
   return new Weapon({
     weaponType: WeaponType.Sword, tier: Tier.Free, name: `Bloodpact's Pledge${rank}`,
-    stats: [[Stat.BaseAtk, 587.5], [Stat.Er, 38.88]],
+    stats: [[Stat.BaseAtk, 587.5], [Stat.ER, 38.88]],
     grants: [{ on: onApplied(HEALS), buff: HARMONIOUS_VIBRANCY }],
   });
 });
@@ -231,7 +230,7 @@ export const NEW_STD_RECTIFIER = refinements((r, rank) => {
   });
   return new Weapon({
     weaponType: WeaponType.Rectifier, tier: Tier.Standard, name: `Boson Astrolabe${rank}`,
-    stats: [[Stat.BaseAtk, 525], [Stat.Er, 38.88], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
+    stats: [[Stat.BaseAtk, 525], [Stat.ER, 38.88], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     hitGlobal: () => { if (casting(Cast.TuneBreak)) applyCurrent(PATH_OBSERVER_BUFF, 1); },
   });
 });

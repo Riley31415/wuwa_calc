@@ -30,7 +30,7 @@ import { ctx, resolving } from "./runtime.js";
 import type { GearDef, Mainslot } from "./gear.js";
 import type { State, VisitGate } from "./state.js";
 import type { Result } from "./evaluate.js";
-import { Cast, ActionTag, INSTA_DELAY, MASH_DELAY, HOLD_DELAY, CANCEL_DELAY, SWAP_DELAY, FULL_CONCERTO } from "./stats.js";
+import { Cast, ActionTag, INSTA_DELAY, MASH_DELAY, HOLD_DELAY, CANCEL_DELAY, SWAP_DELAY, FULL_CONCERTO, splitStop } from "./stats.js";
 import type { Attribute, Type, Subtype, Node, Scaling } from "./stats.js";
 
 /* ------------------------------------------------------------------------------- the action */
@@ -131,20 +131,23 @@ export interface ActionDef extends GearDef {
    *  against that. 0, the default, is a press that takes no time of the fight's own: a follow-up,
    *  a summon echo. One nothing has measured declares 60, the engine's one-second stand-in. */
   animFrames?: number;
-  /** The frames the press holds priority 11+ (wuwalab's `priority_timeline`): no cancel lands
-   *  before them (`cutFrame`). */
+  /** The frames the press holds priority 10+ (wuwalab's `priority_timeline`): no cancel lands
+   *  before them (`cutFrame`) — but a swap does, priority or not (`swapCutFrame`). */
   prioFrames?: number;
+  /** The frames the resonator can't swap out for (wuwalab's `no_swap`): no swap cancel lands
+   *  before them (`swapCutFrame`). */
+  noSwapFrames?: number;
   /** An Intro's frame the Outro buffs queued for it land on, their durations starting there. */
   qteFrames?: number;
   /** The press's bullets, each landing on its own frame (wuwalab's `hits`), each with what it deals
    *  and banks. Unset, a press with a motion value is one bullet at `animFrames`; empty, a cast alone. */
   bullets?: BulletDef[];
-  /** The frames of `animFrames` the world stands still for (wuwalab's `time_stop`) — part of the
-   *  animation, but none of the fight's time: `cancelCost()` takes it back off. */
-  timestop?: number;
-  /** The frames of `total_frames` the hit freezes the animation for (wuwalab's `motion_stop`):
-   *  every inactive resonator's queued hits and clocks pause through it (`shiftOffField()`). */
-  motionStop?: number;
+  /** The animation frames the world stands still for, `[start, end)` (wuwalab's `time_stop_start`
+   *  and `time_stop`) — part of the animation, but none of the fight's time: `cancelCost()` takes it back off. */
+  timestop?: readonly [number, number];
+  /** The animation frames the hit freezes for, `[start, end)` (wuwalab's `motion_stop`): every
+   *  inactive resonator's queued hits and clocks pause through it (`shiftOffField()`). */
+  motionStop?: readonly [number, number];
   /** The field this hit belongs to — a summon firing on its own beside the fight (a coordinated
    *  attack, Denia's Erosion Field, Jué's follow-up, Xiangli Yao's outro laser, Rebecca's turret).
    *  The same `ActionField` the Buff that opens the field names, which is what pairs a run of hits
@@ -219,11 +222,12 @@ export function cancelCost(a: Action, cut: ActionTag | null): { action: number; 
   // a part holding none of its bullets
   const whole = a.half === "cast" ? a.formOf ?? a : a;
   const action = tag === ActionTag.Default ? full : tag === ActionTag.Field || insta ? 0
-    : tag === ActionTag.HoldCancel ? Math.min(HOLD_DELAY, full) : Math.min(whole.onHitAt ?? whole.cutFrame, full);
-  const timestop = Math.min(a.timestop, action);
+    : tag === ActionTag.HoldCancel ? Math.min(HOLD_DELAY, full)
+    : Math.min(whole.onHitAt ?? (tag === ActionTag.SwapCancel ? whole.swapCutFrame : whole.cutFrame), full);
   // a swap's own frames are the handoff's (SWAP_DELAY), charged when the next resonator comes in (`run()`)
   const global = tag === ActionTag.InstaSwap || tag === ActionTag.SwapCancel ? 0 : insta ? INSTA_DELAY : tag === ActionTag.MashCancel ? MASH_DELAY
     : tag === ActionTag.Cancel || tag === ActionTag.DodgeCancel || tag === ActionTag.JumpCancel || tag === ActionTag.HitCancel || tag === ActionTag.DodgeOnHit || tag === ActionTag.JumpOnHit ? CANCEL_DELAY : 0;
+  const timestop = splitStop(a.timestopFrom, a.timestop, action, action + global).own;
   return { action, timestop, global, total: action - timestop + global };
 }
 
@@ -332,11 +336,15 @@ export class Action extends Gear {
   skipNextFn?: () => boolean;
   animFrames: number;
   prioFrames: number;
+  noSwapFrames: number;
   qteFrames: number;
   /** Where an on-hit cut cuts (its first bullet's hit); null on every other press. Engine-owned. */
   onHitAt: number | null = null;
+  /** The stops' lengths, and the animation frame each starts on (`ActionDef.timestop`/`motionStop`). */
   timestop: number;
+  timestopFrom: number;
   motionStop: number;
+  motionStopFrom: number;
   cooldown: Cooldown | null;
   cooldownFrames: number;
   gameWait: boolean;
@@ -367,6 +375,7 @@ export class Action extends Gear {
     this.scaling = def.scaling ?? null;
     this.animFrames = def.animFrames ?? 0;
     this.prioFrames = def.prioFrames ?? 0;
+    this.noSwapFrames = def.noSwapFrames ?? 0;
     this.qteFrames = def.qteFrames ?? 0;
     if (def.qteFrames !== undefined && def.cast !== Cast.Intro) throw new Error(`${name}: qteFrames is an Intro's alone`);
     // declared bullets sum to the action's own totals; an action's motion value is only ever its bullets'
@@ -404,8 +413,14 @@ export class Action extends Gear {
     this.resetForte = [!!def.resetForte1, !!def.resetForte2, !!def.resetForte3, !!def.resetForte4, !!def.resetForte5];
     this.resolveFn = def.resolve;
     this.skipNextFn = def.skipNext;
-    this.timestop = def.timestop ?? 0;
-    this.motionStop = def.motionStop ?? 0;
+    // a kit's def is often typed loosely (`def: object`), so a bare number gets this far
+    if (typeof def.timestop === "number" || typeof def.motionStop === "number") throw new Error(`${name}: timestop/motionStop are [start, end) ranges`);
+    const [ts0, ts1] = def.timestop ?? [0, 0], [ms0, ms1] = def.motionStop ?? [0, 0];
+    if (ts1 < ts0 || ms1 < ms0) throw new Error(`${name}: a stop's range ends before it starts`);
+    this.timestopFrom = ts0;
+    this.timestop = ts1 - ts0;
+    this.motionStopFrom = ms0;
+    this.motionStop = ms1 - ms0;
     this.tag = def.tag ?? (def.cast === Cast.Outro ? ActionTag.Field : ActionTag.Default);
     // a bare frame count becomes this cast's own Cooldown, written back so every variant and
     // cancelled form of it draws on the same one
@@ -419,6 +434,13 @@ export class Action extends Gear {
   /** Where a cancel cuts this press: its last bullet committed, and never inside its priority. */
   get cutFrame(): number {
     let at = this.prioFrames;
+    for (const b of this.bullets) at = Math.max(at, b.commitFrame);
+    return at;
+  }
+  /** Where a swap cancel cuts it: its last bullet committed, and never inside its no-swap frames —
+   *  priority holds no swap back. */
+  get swapCutFrame(): number {
+    let at = this.noSwapFrames;
     for (const b of this.bullets) at = Math.max(at, b.commitFrame);
     return at;
   }
@@ -441,7 +463,7 @@ export class Action extends Gear {
   private costs?: Map<ActionTag | null, ReturnType<typeof cancelCost>>;
   /** What the clock charges this press let go at animation frame `frame` by a hold cancel. */
   holdCost(frame: number): ReturnType<typeof cancelCost> {
-    const timestop = Math.min(this.timestop, frame);
+    const timestop = splitStop(this.timestopFrom, this.timestop, frame, frame).own;
     return { action: frame, timestop, global: 0, total: frame - timestop };
   }
   /** What this cast banks on each bar — energy, concerto, forte 1-5 — its bullets' aside. */
@@ -588,7 +610,7 @@ export class Action extends Gear {
    *  its cast banks, and every hook — evaluate() runs only the cast's (`updateGlobal`, `updateBuffs`). */
   castPart(): Action {
     if (!this.castCopy) {
-      const instant = this.castsInstantly ? { animFrames: 0, prioFrames: 0, timestop: 0 } : {};
+      const instant = this.castsInstantly ? { animFrames: 0, prioFrames: 0, noSwapFrames: 0, timestop: undefined } : {};
       // a hitless press banks what it declares on its cast
       this.castCopy = this.variant(this.name, this.bullets.length ? {
         bullets: [], energy: 0, offtune: 0, concerto: 0, forte1: 0, forte2: 0, forte3: 0, forte4: 0, forte5: 0, ...instant,
@@ -607,7 +629,7 @@ export class Action extends Gear {
       const h = this.bullets[k]!;
       const copy = this.variant(this.name, {
         bullets: [{ ...h, hitFrame: 0, commitFrame: 0 }],
-        animFrames: 0, prioFrames: 0, timestop: 0, motionStop: 0, cooldown: undefined,
+        animFrames: 0, prioFrames: 0, noSwapFrames: 0, timestop: undefined, motionStop: undefined, cooldown: undefined,
         castEnergy: 0, castConcerto: 0, castOfftune: 0, castForte1: 0, castForte2: 0, castForte3: 0, castForte4: 0, castForte5: 0,
         resetEnergy: false, resetForte1: false, resetForte2: false, resetForte3: false, resetForte4: false, resetForte5: false,
         // the swap was the cast's; the hit is no cut of its own
@@ -626,7 +648,7 @@ export class Action extends Gear {
     if (!this.endCopy) {
       this.endCopy = this.variant(this.name, {
         bullets: [], energy: 0, offtune: 0, concerto: 0, forte1: 0, forte2: 0, forte3: 0, forte4: 0, forte5: 0,
-        animFrames: 0, prioFrames: 0, timestop: 0, motionStop: 0, cooldown: undefined,
+        animFrames: 0, prioFrames: 0, noSwapFrames: 0, timestop: undefined, motionStop: undefined, cooldown: undefined,
         castEnergy: 0, castConcerto: 0, castOfftune: 0, castForte1: 0, castForte2: 0, castForte3: 0, castForte4: 0, castForte5: 0,
         resetEnergy: false, resetForte1: false, resetForte2: false, resetForte3: false, resetForte4: false, resetForte5: false,
         tag: this.tag === ActionTag.Field ? ActionTag.Field : ActionTag.Default,
@@ -1401,37 +1423,69 @@ export function runRotations(state: State, rotations: Rotation[], count: number)
     state.handoffWaits = false;
     const blind = state.successorMissed;
     state.successor = null;
+    const handoff = state.lastHandoff;
     state.lastHandoff = null;
-    // the last member's swap out, charged to their last press like any other (an outro paid its own)
-    // the fight ends on that swap — or, where the last visit left on its outro, at that outro's
-    // handoff, the outro and all after it cut: what is due by the swap lands, and whatever is still
-    // in flight (an insta-swapped press's hits) never does
-    let end: number, endReal: number;
+    // The fight ends where the incoming Intro the last Outro hands into does, as every section
+    // does: that Intro plays, and what is due by its end lands. A last visit leaving on a swap ends
+    // on that swap. Whatever is still in flight past the end (an insta-swapped press's hits) never
+    // lands.
+    let end = 0, endReal = 0, cutoff = 0;
+    // a break already draining as the fight ends holds its end back; one the closing Intro sets off does not
+    const drainUntil = state.drainUntil;
+    const playIntro = (to: number, visit: Chain | null): void => {
+      const chain = visit?.cast ? visit : introChain(to);
+      state.active = to;
+      if (handoff) state.slots[to]!.arrive(handoff.from, handoff.at);
+      state.slots[to]!.visitChain = chain;
+      out[section]!.push(...run(state, [chain.cast!]));
+      cutoff = endReal = Math.max(state.real, state.playsTo);
+      end = state.gameOf(endReal);
+    };
     if (fightEnd) {
+      // the outro and the Intro it hands into stay; the fight ends where the row after that Intro begins
       const rows = out[section]!;
-      rows.length = Math.max(0, rows.indexOf(fightEnd));
-      end = fightEnd.starts;
-      endReal = fightEnd.realStarts;
+      const at = rows.indexOf(fightEnd);
+      let intro = -1;
+      for (let k = at + 1; k < rows.length && intro < 0; k++) if (isCast(rows[k]!.action, Cast.Intro) && !rows[k]!.queued) intro = k;
+      const next = intro >= 0 ? rows.slice(intro + 1).find((r) => !r.queued) : undefined;
+      if (intro >= 0) {
+        // the press after the Intro is where it ended, else the clock stands at its end
+        if (next) rows.length = rows.indexOf(next);
+        cutoff = endReal = next ? next.realStarts : Math.max(state.real, state.playsTo);
+        end = state.gameOf(endReal);
+      } else if (at === rows.length - 1 && state.onField >= 0) {
+        // nothing ran after the outro: the Intro it hands into plays now
+        playIntro(state.onField, null);
+      } else {
+        rows.length = Math.max(0, at);
+        end = fightEnd.starts;
+        endReal = fightEnd.realStarts;
+        cutoff = endReal - SWAP_DELAY;
+      }
+    } else if (finalTo >= 0) {
+      playIntro(finalTo, finalVisit);
     } else {
+      // the last member's swap out, charged to their last press like any other
       if (state.lastOwn) state.lastOwn.swapFrames = (state.lastOwn.swapFrames ?? 0) + SWAP_DELAY;
       endReal = Math.max(state.real, state.playsTo) + SWAP_DELAY;
       end = state.gameOf(endReal);
+      cutoff = endReal - SWAP_DELAY;
     }
-    state.timed = state.timed.filter((h) => h.due <= endReal - SWAP_DELAY);
+    state.timed = state.timed.filter((h) => h.due <= cutoff);
     // ...and nothing what lands queues past it plays either (Hecate's next attack, say)
-    if (state.timed.length || state.behindNext.length) out[section]!.push(...run(state, [], true, endReal - SWAP_DELAY));
+    if (state.timed.length || state.behindNext.length) out[section]!.push(...run(state, [], true, cutoff));
     // a break the drain cast can't be swapped out of: the swap, and the fight's end, come after it
-    if (state.drainUntil > endReal - SWAP_DELAY && state.drainUntil < Infinity) {
-      endReal = state.drainUntil + SWAP_DELAY;
+    if (drainUntil > endReal - SWAP_DELAY && drainUntil < Infinity) {
+      endReal = drainUntil + SWAP_DELAY;
       end = state.gameOf(endReal);
     }
     return { sections: out, starts, end, blind };
   };
 
-  // The section the last slot has just outro'd out of ends with that visit — its outro and every
-  // follow-up the outro queued behind it: `closing` says the next rows to land open the next
-  // section, starting at the incoming Intro.
-  let closing = false;
+  // The section the last slot has just outro'd out of ends with that visit and the incoming Intro
+  // its outro hands into: `closing` says the next section opens on the rows after that Intro
+  // (`afterIntro`), or at once where the field arrived on a swap, with no Intro to cast.
+  let closing = false, afterIntro = false;
   // How many frames are waiting for the field to come back for a main visit of their own (see
   // `visit()`), and a section-closing trip that finished while one was. The last slot's own outro
   // is what ends a trip round the team, but its visit can run *inside* another slot's wait — the
@@ -1442,21 +1496,40 @@ export function runRotations(state: State, rotations: Rotation[], count: number)
   // the outro the fight's last trip left on, where it closed inside a wait rather than as the
   // final visit (which leaves on no outro at all): the fight ends at its handoff
   let fightEnd: Result | null = null;
-  // where a held close's outro sits in its section, how long the section was, and the frame the
-  // incoming member was handed the field: if nothing lands before the close, it opens the next one
-  let pendingAt = -1, pendingLen = -1, pendingOpens = 0;
+  // the fight's last visit left on its Outro: who it hands to (-1 for none), and the visit they
+  // are known to arrive on — the incoming Intro plays before the end
+  let finalTo = -1, finalVisit: Chain | null = null;
+  // where a held close's outro sits in its section, and the frame the incoming member was handed
+  // the field there
+  let pendingAt = -1, pendingOpens = 0;
   // Which slots have had their own visit this trip round the team, and which slot the trip opened
   // on. A double-Intro pair spends its pre-visits *inside* the trip, so the field can come back to
   // a slot that is already done with — it steps over that slot rather than giving it a second
   // visit, and the trip begins again when it reaches the one that opened it.
   const doubled = new Set<number>(), mained = new Set<number>();
   let cycleStart = 0;
+  /** Where an Intro just placed ends: the game frame its next press starts on, or where the clock
+   *  stands with none placed yet. */
+  const introEnd = (after: Result[]): number => {
+    const next = after.find((r) => !r.queued);
+    return state.gameOf(next ? next.realStarts : Math.max(state.real, state.playsTo));
+  };
   const place = (snaps: Result[]): void => {
     // nothing past the last section: a visit that runs two chains (a double-Intro pre-visit and
     // then its own) can close the final section on the first and still place the second
     if (closing) {
+      let k = -1;
+      if (afterIntro) for (let j = 0; j < snaps.length && k < 0; j++) if (isCast(snaps[j]!.action, Cast.Intro) && !snaps[j]!.queued) k = j;
+      // the incoming Intro is the closing section's last row, and the next opens where it ends: the
+      // press after it, on the game clock (a row's own `starts` carries its lead-in)
+      if (k >= 0) {
+        out[section]!.push(...snaps.slice(0, k + 1));
+        snaps = snaps.slice(k + 1);
+        opensAt = introEnd(snaps);
+      }
       section++;
       closing = false;
+      afterIntro = false;
       out.push([]);
       starts.push(opensAt);
     }
@@ -1535,11 +1608,11 @@ export function runRotations(state: State, rotations: Rotation[], count: number)
     // depends on what the visit granted by then
     // a chain leaving on its last cast's `.swap()` has no exit row: the cast already left
     swapped = chain.exit === SWAP_EXIT;
-    // the visit that closes the fight swaps out and ends there: its Outro would open a rotation
-    // that never comes
+    // the visit that closes the fight leaves on its Outro too, into the incoming Intro the fight
+    // ends on (`finish()`); one leaving on a swap ends there
     const closes = i === closer && chain.entry !== DOUBLE_ENTRY && !awaiting;
     const final = closes && section + 1 >= count;
-    const exit = swapped || final ? [] : [chain.exit];
+    const exit = swapped ? [] : [chain.exit];
     const list = chain.entry === INTRO_ENTRY || chain.entry === DOUBLE_ENTRY ? [chain.cast!, ...casts, ...exit] : [...casts, ...exit];
     state.slots[i]!.visitChain = chain;
     const snaps = run(state, list);
@@ -1550,7 +1623,11 @@ export function runRotations(state: State, rotations: Rotation[], count: number)
     // rotation ends where the others do
     const next = final && state.successor ? state.successorOf(chain) : null;
     const after = !final ? -1 : state.successor ? next?.slot ?? -1 : (i + 1) % rotations.length;
-    if (final && after >= 0 && state.handoffWaits) {
+    if (final && !swapped) {
+      finalTo = after;
+      finalVisit = (next?.visit as Chain | undefined) ?? null;
+    }
+    if (final && !exit.length && after >= 0 && state.handoffWaits) {
       const into = state.slots[after]!;
       const from = Math.max(state.real, state.playsTo);
       const short = into.handoffShortfall(chain, state.gameOf(from + SWAP_DELAY), planned(after, false, next?.visit ?? null));
@@ -1575,11 +1652,11 @@ export function runRotations(state: State, rotations: Rotation[], count: number)
       for (let k = snaps.length - 1; k >= 0 && at < 0; k--) if (snaps[k]!.member === name && isCast(snaps[k]!.action, Cast.Outro) && !snaps[k]!.queued) at = k;
     }
     if (at >= 0) {
-      place(snaps.slice(0, at));
+      place(snaps);
       closing = true;
-      // the Outro is cast on the swap out, which is where the incoming member was handed the field
+      afterIntro = true;
+      // the section's time opens where the incoming member was handed the field
       opensAt = state.slots[state.active]!.handoffAt;
-      place(snaps.slice(at));
       return;
     }
     place(snaps);
@@ -1597,9 +1674,11 @@ export function runRotations(state: State, rotations: Rotation[], count: number)
         const rows = out[section]!, name = state.slots[i]!.name;
         pendingAt = -1;
         for (let k = rows.length - 1; k >= rows.length - snaps.length && pendingAt < 0; k--) if (rows[k]!.member === name && isCast(rows[k]!.action, Cast.Outro) && !rows[k]!.queued) pendingAt = k;
-        pendingLen = rows.length;
         pendingOpens = state.slots[state.active]!.handoffAt;
-      } else closing = true;
+      } else {
+        closing = true;
+        afterIntro = !swapped;
+      }
     }
   };
 
@@ -1721,11 +1800,9 @@ export function runRotations(state: State, rotations: Rotation[], count: number)
     if (awaiting || !closePending) return;
     closePending = false;
     closing = true;
-    // nothing landed since the held outro: the rotation ends on that swap, as an unheld one does
-    const rows = out[section]!;
-    if (pendingAt < 0 || rows.length !== pendingLen || section + 1 >= count) return;
-    opensAt = pendingOpens;
-    place(rows.splice(pendingAt));
+    // the next section opens after the Intro the field comes back on, as an unheld close's does
+    afterIntro = true;
+    if (pendingAt >= 0) opensAt = pendingOpens;
   }
 
   // A leader with a double Intro of their own: pre-visits in team order, a slot without one playing

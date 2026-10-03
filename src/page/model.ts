@@ -198,7 +198,7 @@ let poolAlone = new Set<string>();
 let poolKey: string | null = null;
 function leaderNeeds(): Map<string, number> {
   const added = [...resonatorFilters].filter(([, mode]) => mode === "include").map(([name]) => name);
-  const key = added.join(" ");
+  const key = added.join("\0");
   if (key === poolKey) return poolNeeds;
   [poolKey, poolAdded, poolNeeds] = [key, added, new Map()];
   poolAlone = new Set(added);

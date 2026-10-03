@@ -44,7 +44,7 @@ import {
   lostOnSwap,
   addToCast,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, START_LAST, ECHO, INTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, START_LAST, INTRO } from "../../engine/rotation.js";
 import { applied } from "../../engine/context.js";
 import { TUNE_STRAIN_SHIFTING, tuneBreak } from "../../shared/tunebreak.js";
 import { applyStrain, TUNE_BREAK, TUNE_STRAIN_INTERFERED, strainPayout } from "../../shared/tunebreak.js";
@@ -217,19 +217,19 @@ const IchorBlade = luukAction("Forte - Ichor Blade", { animFrames: 357, node: No
   ]});
 
 const Liberation = luukAction("Liberation - Rewritten in Winter's Margins", {
-  animFrames: 247, timestop: 247, motionStop: 247, cooldown: 60 * 25,
+  animFrames: 247, prioFrames: 250, timestop: [0, 247], motionStop: [0, 247], cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Basic, bullets: [
     { hitFrame: 230, mv: 74554, offtune: 50400 },
     { hitFrame: 232, mv: 4971, offtune: 3360 },
-    { hitFrame: 234, mv: 4971, offtune: 3360 },
-    { hitFrame: 237, mv: 4971, offtune: 3360 },
-    { hitFrame: 239, mv: 4971, offtune: 3360 },
-    { hitFrame: 242, mv: 4971, offtune: 3360 },
+    { hitFrame: 234, commitFrame: 232, mv: 4971, offtune: 3360 },
+    { hitFrame: 237, commitFrame: 232, mv: 4971, offtune: 3360 },
+    { hitFrame: 239, commitFrame: 232, mv: 4971, offtune: 3360 },
+    { hitFrame: 242, commitFrame: 232, mv: 4971, offtune: 3360 },
   ], castConcerto: 2000, resetEnergy: true,
 });
 
 const Intro = luukAction("Intro - Before Injection of Dawn", {
-  animFrames: 75, prioFrames: 73, motionStop: 21,
+  animFrames: 75, noSwapFrames: 57, prioFrames: 73, motionStop: [5, 25],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 27, mv: 7267, energy: 334, offtune: 3440 },
     { hitFrame: 33, mv: 7267, energy: 334, offtune: 3440 },
@@ -332,7 +332,7 @@ const LK_INHERENT_2 = new Inherent({
   // late, like every Tune Break Boost read — a team's own Tbb can arrive from another gear's
   // convertStats (Denia's Etched Colors), which an ordinary convertStats here would race
   lateConvertStats: () => {
-    if (stacksOfEnemy(TUNE_STRAIN_INTERFERED) > 0) addStat(Stat.Amp, Math.min(30, 5 * Math.floor(getStat(Stat.Tbb) / 10)));
+    if (stacksOfEnemy(TUNE_STRAIN_INTERFERED) > 0) addStat(Stat.Amp, Math.min(30, 5 * Math.floor(getStat(Stat.TBB) / 10)));
   },
 });
 
@@ -353,7 +353,7 @@ const LUUK_RESONATOR = new Resonator({
   weapon: WeaponType.Gauntlets,
   color: "#ddb246",
   intro: Intro,
-  tuneBreak: tuneBreak(94, 94, 70, [[72, 160000]]),
+  tuneBreak: tuneBreak(94, [0, 94], [0, 70], [[72, 160000]], 90),
   maxEnergy: 12500,
   forteScale: [0.01, 1, 1, 1, 1],
   maxForte1: 30000,
@@ -369,7 +369,7 @@ const LUUK_RESONATOR = new Resonator({
   stats: [
     [Stat.BaseHp, 10300], [Stat.BaseAtk, 462.5], [Stat.BaseDef, 1112.2202],
     // the flat 10 every tune-break-era resonator carries (nanoka's own weakness_mastery)
-    [Stat.Tbb, 10],
+    [Stat.TBB, 10],
   ],
 });
 
@@ -395,7 +395,7 @@ const LK_S2 = new Sequence({
   name: "Luuk S2: Avalanche Roaring in Eyes",
   applyStats: () => { if (runningAction(Liberation)) addStat(Stat.MulMv, 60); },
   lateConvertStats: () => {
-    if (stacksOfEnemy(TUNE_STRAIN_INTERFERED) > 0) addStat(Stat.Amp, Math.min(30, 5 * Math.floor(getStat(Stat.Tbb) / 10)));
+    if (stacksOfEnemy(TUNE_STRAIN_INTERFERED) > 0) addStat(Stat.Amp, Math.min(30, 5 * Math.floor(getStat(Stat.TBB) / 10)));
   },
 });
 

@@ -39,7 +39,7 @@ const CRIT_WEIGHTS = [70, 70, 70, 24, 24, 24, 9, 9];
 const ROLL: Record<Substat, { stat: Stat; tag?: Tag; values: number[]; weights: number[]; label: string }> = {
   [Substat.CritRate]: { stat: Stat.CritRate, values: [6.3, 6.9, 7.5, 8.1, 8.7, 9.3, 9.9, 10.5], weights: CRIT_WEIGHTS, label: "Crit Rate" },
   [Substat.CritDmg]: { stat: Stat.CritDmg, values: [12.6, 13.8, 15, 16.2, 17.4, 18.6, 19.8, 21], weights: CRIT_WEIGHTS, label: "Crit Dmg" },
-  [Substat.Er]: { stat: Stat.Er, values: [6.8, 7.6, 8.4, 9.2, 10, 10.8, 11.6, 12.4], weights: WEIGHTS, label: "ER" },
+  [Substat.Er]: { stat: Stat.ER, values: [6.8, 7.6, 8.4, 9.2, 10, 10.8, 11.6, 12.4], weights: WEIGHTS, label: "ER" },
   [Substat.AtkPct]: { stat: Stat.BonusAtk, values: PCT, weights: WEIGHTS, label: "ATK" },
   [Substat.FlatAtk]: { stat: Stat.FlatAtk, values: [30, 40, 50, 60], weights: [7, 54, 39, 3], label: "ATK" },
   [Substat.HpPct]: { stat: Stat.BonusHp, values: PCT, weights: WEIGHTS, label: "HP" },
@@ -58,9 +58,9 @@ const rollAt = (s: Substat, p: number): number => {
   const { values, weights } = ROLL[s];
   const target = p * weights.reduce((a, b) => a + b, 0);
   let seen = 0;
-  for (const [i, value] of values.entries()) {
+  for (let i = 0; i < values.length; i++) {
     seen += weights[i]!;
-    if (seen >= target) return value;
+    if (seen >= target) return values[i]!;
   }
   return values[values.length - 1]!;
 };
@@ -142,7 +142,7 @@ function spreadPiece(named: Substat[], shape: number[] = SHAPE, ownEr = false): 
 /** The stats a spread's hover leaves lit where they rolled only once: the ER line of a build that
  *  has a Liberation to pay for, which is the whole reason the tier reads as it does. Everything
  *  else at a single roll is the spread's small change and dims, the named sixth included. */
-export const litStats = (maxEnergy: number): StatKey[] => (maxEnergy ? [Stat.Er] : []);
+export const litStats = (maxEnergy: number): StatKey[] => (maxEnergy ? [Stat.ER] : []);
 
 /** ER points a build is allowed to come up short by with nothing backing them. A bar that misses
  *  by a hair misses on the worst single window of the run, and buying a whole roll — 9.2 points, a

@@ -39,7 +39,7 @@
  * nanoka only names which casts grant them.
  */
 import { Stat, Attribute, WeaponType, Type, Subtype, Cast, Node, Scaling } from "../../engine/stats.js";
-import { Buff, Talent, Inherent, ResonanceMode, Resonator, Loadout, EchoLoadout, Sequence, coordinatedBuff } from "../../engine/gear.js";
+import { Buff, Talent, Inherent, ResonanceMode, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
   asSource,
   typeOverride,
@@ -51,6 +51,7 @@ import {
   currentTeam,
   isType,
   queue,
+  cancelHits,
   removeStack,
   stacksOfEnemy,
   applyCurrent,
@@ -67,13 +68,13 @@ import {
   forte1,
   setForte1,
   getStat,
-  forte2,
   stacksOf,
   stacksOfTeam,
   addToCast,
   runningBullet,
 } from "../../engine/context.js";
-import { Action, Cooldown, Rotation, NOINTRO, ECHO, ActionGroup, ActionField, INTRO } from "../../engine/rotation.js";
+import { Action, Cooldown, Rotation, NOINTRO, ECHO, ActionGroup, INTRO } from "../../engine/rotation.js";
+import type { BulletDef } from "../../engine/rotation.js";
 import { applied, applyEnemy } from "../../engine/context.js";
 import { FUSION_BURST, FUSION_BURST_ACTIONS } from "../../shared/status.js";
 import { ENEMY_MAX_OFFTUNE, TUNE_STRAIN_SHIFTING } from "../../shared/tunebreak.js";
@@ -126,9 +127,7 @@ const DC = deniaAction("Dodge Counter - Stagecraft Form 3", { animFrames: 38, no
 
 // --- Breakdown Form: Basic Attack DMG, banking Conformal Charge (forte2). Each also declares the
 //     Void Particle (forte1) it spends when she holds any — the sheet's own figures, declared here
-//     rather than on the buff so the gauge shows the spend, and how far past 0 it runs. The mid-air
-//     chain shares every number with the ground one, so it shares these — bar its own dodge
-//     counter, which is its own action below.
+//     rather than on the buff so the gauge shows the spend, and how far past 0 it runs.
 const UBA1 = deniaAction("Basic - Breakdown Form 1", { animFrames: 21, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 13, mv: 3651, energy: 77, concerto: 153, offtune: 2448, forte2: 3 }], castForte1: -18});
 const UBA2 = deniaAction("Basic - Breakdown Form 2", { animFrames: 52, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 3751, energy: 79, concerto: 158, offtune: 2516, forte2: 4 },
@@ -142,6 +141,20 @@ const UBA4 = deniaAction("Basic - Breakdown Form 4", { animFrames: 63, node: Nod
     { hitFrame: 14, mv: 3554, energy: 75, concerto: 149, offtune: 2384, updateDebuffs: () => deniaLays(1), forte2: 3 },
     { hitFrame: 36, commitFrame: 30, mv: 8292, energy: 174, concerto: 348, offtune: 5561, forte2: 8 },
   ], castForte1: -58});
+// the mid-air chain: every hit the ground one's, its Stage 4 a shorter 57 frames (wuwalab)
+const UMBA1 = deniaAction("Mid-air - Breakdown Form 1", { animFrames: 21, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 13, mv: 3651, energy: 77, concerto: 153, offtune: 2448, forte2: 3 }], castForte1: -18});
+const UMBA2 = deniaAction("Mid-air - Breakdown Form 2", { animFrames: 52, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 14, mv: 3751, energy: 79, concerto: 158, offtune: 2516, forte2: 4 },
+    { hitFrame: 26, commitFrame: 14, mv: 1407, energy: 30, concerto: 59, offtune: 944, forte2: 2 },
+    { hitFrame: 32, commitFrame: 14, mv: 1407, energy: 30, concerto: 59, offtune: 944, forte2: 2 },
+    { hitFrame: 38, commitFrame: 14, mv: 1407, energy: 30, concerto: 59, offtune: 944, forte2: 2 },
+    { hitFrame: 44, commitFrame: 14, mv: 1407, energy: 30, concerto: 59, offtune: 944, forte2: 2 },
+  ], castForte1: -46});
+const UMBA3 = deniaAction("Mid-air - Breakdown Form 3", { animFrames: 36, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 23, mv: 6239, energy: 131, concerto: 262, offtune: 4184, forte2: 6, updateDebuffs: () => deniaLays(1) }], castForte1: -30});
+const UMBA4 = deniaAction("Mid-air - Breakdown Form 4", { animFrames: 57, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 14, mv: 3554, energy: 75, concerto: 149, offtune: 2384, updateDebuffs: () => deniaLays(1), forte2: 3 },
+    { hitFrame: 36, commitFrame: 30, mv: 8292, energy: 174, concerto: 348, offtune: 5561, forte2: 8 },
+  ], castForte1: -58});
 const UHA = deniaAction("Heavy - Breakdown Form", { animFrames: 74, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 63, mv: 13706, energy: 288, concerto: 575, offtune: 9192, forte2: 13 }], castForte1: -66});
 const UMHA = deniaAction("Heavy - Breakdown Form (Mid-Air)", { animFrames: 48, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 22, mv: 2959, energy: 62, concerto: 124, offtune: 1984, forte2: 3 },
@@ -149,12 +162,11 @@ const UMHA = deniaAction("Heavy - Breakdown Form (Mid-Air)", { animFrames: 48, n
   ], castForte1: -37});
 // Both Breakdown dodge counters *are* Stage 3: ground and mid-air alike carry every one of UBA3's
 // values (wuwalab's own "Stage 3 (Dodge Counter)" / "Stage 3 (Mid-Air Dodge Counter)"), plus the
-// hidden +10 Concerto every dodge counter carries (CLAUDE.md). Kept as two actions even though
-// nothing separates them, so a rotation still says which one it played — the same reason the
-// mid-air chain has its own entries above. nanoka has a single 108.08% "Dodge Counter - Breakdown
-// Form" row instead, matching neither.
+// hidden +10 Concerto every dodge counter carries (CLAUDE.md); the mid-air one plays 65 frames to
+// the ground one's 36. nanoka has a single 108.08% "Dodge Counter - Breakdown Form" row instead,
+// matching neither.
 const UDC = deniaAction("Dodge Counter - Breakdown Form 3", { animFrames: 36, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 23, mv: 6239, energy: 131, concerto: 262, offtune: 4184, forte2: 6, updateDebuffs: () => deniaLays(1) }], castForte1: -30, castConcerto: 1000});
-const UMDC = deniaAction("Dodge Counter - Breakdown Form 3 (Mid-Air)", { animFrames: 36, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 23, mv: 6239, energy: 131, concerto: 262, offtune: 4184, forte2: 6, updateDebuffs: () => deniaLays(1) }], castForte1: -30, castConcerto: 1000});
+const UMDC = deniaAction("Dodge Counter - Breakdown Form 3 (Mid-Air)", { animFrames: 65, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 23, mv: 6239, energy: 131, concerto: 262, offtune: 4184, forte2: 6, updateDebuffs: () => deniaLays(1) }], castForte1: -30, castConcerto: 1000});
 
 // --- Resonance Skill: Phantom Bubble in Stagecraft (its 24.4 Concerto is what makes her loop),
 //     Beckon in Breakdown, or Banish in its place while a Dark Core is held. Stage 2 spends every
@@ -184,13 +196,12 @@ const Banish2 = deniaAction("Skill - Banish 2", { animFrames: 71, cooldown: 30, 
 
 // --- Final Act. Stagecraft spends the Energy bar (125); Breakdown spends the full Conformal
 //     Charge and every Void Particle instead (zeroed in DENIA_RESONATOR's update — "all", not a fixed
-//     delta), and drops the Erosion Field: a 136.33% Liberation pull as it lands and every 4s of
-//     its 30s after — eight in all (wuwalab's hit count), the first queued straight off the cast
-//     and the rest one every four active presses by anyone (EROSION_FIELD below), each its own
-//     cast to the modes below.
+//     delta), and sets the Erosion Field at its frame 0: one field action whose eight 136.33%
+//     Liberation pulls are its own bullets, 158 to 1838 (wuwalab), each its own cast to the modes
+//     below.
 const Lib1 = deniaAction("Liberation - Final Act (Stagecraft)", {
-  animFrames: 259, timestop: 251, motionStop: 251, cooldown: 60 * 25,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 257, mv: 39762, offtune: 48000, updateDebuffs: () => deniaLays(2) }],
+  animFrames: 259, prioFrames: 255, timestop: [0, 251], motionStop: [0, 251], cooldown: 60 * 25,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 257, commitFrame: 251, mv: 39762, offtune: 48000, updateDebuffs: () => deniaLays(2) }],
   castConcerto: 2000, resetEnergy: true, 
   updateBuffs: () => { 
     revokeCurrent(ENTROPY_STAGECRAFT); applyCurrent(ENTROPY_BREAKDOWN);
@@ -198,51 +209,64 @@ const Lib1 = deniaAction("Liberation - Final Act (Stagecraft)", {
 });
 /** Spends every Void Particle and all the Conformal Charge, and shifts back to Stagecraft. */
 const Lib2 = deniaAction("Liberation - Final Act (Breakdown)", { minForte2: 100,
-  animFrames: 171, timestop: 131, motionStop: 131, cooldown: 60 * 25,
+  animFrames: 171, noSwapFrames: 160, timestop: [0, 131], motionStop: [0, 131], cooldown: 60 * 25, prioFrames: 163,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [
     {
-      hitFrame: 104, mv: 19881, energy: 750, offtune: 13132,
-      // the field pulls as the Final Act lands, its first pull queued off the hit
-      updateDebuffs: () => {
-        deniaLays(2);
-        queue(ErosionField);
-      },
+      hitFrame: 104, commitFrame: 98, mv: 19881, energy: 750, offtune: 13132,
+      updateDebuffs: () => deniaLays(2),
     },
-    { hitFrame: 111, mv: 19881, energy: 750, offtune: 13132 },
-    { hitFrame: 118, mv: 19881, energy: 750, offtune: 13132 },
-    { hitFrame: 125, mv: 19881, energy: 750, offtune: 13132 },
+    { hitFrame: 111, commitFrame: 98, mv: 19881, energy: 750, offtune: 13132 },
+    { hitFrame: 118, commitFrame: 98, mv: 19881, energy: 750, offtune: 13132 },
+    { hitFrame: 125, commitFrame: 98, mv: 19881, energy: 750, offtune: 13132 },
   ],
   castConcerto: 2000, resetForte1: true,
   // the Breakdown shift's +30% ATK pays into this cast: the shift takes itself off next action
   updateBuffs: () => {
     applyCurrent(ENTROPY_STAGECRAFT);
-    // only one field of hers at a time: a fresh cast starts the clock over
-    const field = isHeld(DN_S4) ? EROSION_FIELD_S4 : EROSION_FIELD;
-    revokeTeam(field);
-    applyTeam(field, field.maxStacks);
+    // only one field of hers at a time: a fresh cast sets it again, whatever the last had left
+    cancelHits(FIELDS);
+    applyTeam(EROSION_SET, 1);
+    queue(isHeld(DN_S4) ? ErosionFieldS4 : ErosionField);
   }, resetForte2: true
 });
-/** Her field, and the one pull of it — the pair sits together the way a status ladder sits with
- *  its own gear (shared/status.ts): EROSION_FIELD below is the window standing, and granting that
- *  is what the report reads as her dropping the field. */
-const EROSION = new ActionField("Denia: Erosion Field");
+/** Her field: one action, its pulls its own bullets on her slot whoever is on field. */
+/** The field's pulls, every `every` frames from 158 for its 30s; the last takes the field down. */
+function erosionPulls(every: number, count: number): BulletDef[] {
+  const pull = { mv: 13633, updateDebuffs: () => deniaLays(2) };
+  const out: BulletDef[] = [];
+  for (let k = 0; k < count - 1; k++) out.push({ hitFrame: 158 + every * k, ...pull });
+  out.push({
+    hitFrame: 158 + every * (count - 1), mv: 13633,
+    updateDebuffs: () => {
+      deniaLays(2);
+      revokeTeam(EROSION_SET);
+    },
+  });
+  return out;
+}
 const ErosionField = deniaAction("Forte - Erosion Field", {
-  node: Node.Forte, type: Type.Liberation, bullets: [{ hitFrame: 0, mv: 13633 }], field: EROSION, updateDebuffs: () => deniaLays(2),
+  node: Node.Forte, type: Type.Liberation, bullets: erosionPulls(240, 8),
 });
+/** S4: a pull every 3s rather than every 4s, eleven across the 30s. */
+const ErosionFieldS4 = ErosionField.variant("Forte - Erosion Field", { bullets: erosionPulls(180, 11) });
+ErosionFieldS4.formOf = ErosionField;
+const FIELDS = new Set<Action>([ErosionField]);
+/** The field standing: from Final Act - Breakdown's frame 0 to its last pull. */
+const EROSION_SET = new Buff({ name: "Denia: Erosion Field" });
 
 // --- Intros, one per form. Both bank a Dark Core and 25 Void Particle.
 const Intro = deniaAction("Intro - It's Been A While!", {
-  animFrames: 53, prioFrames: 50, motionStop: 42,
+  animFrames: 53, noSwapFrames: 47, prioFrames: 50, motionStop: [5, 46],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 28, mv: 10462, energy: 1000, offtune: 7016, updateDebuffs: () => deniaLays(2) }], castConcerto: 1000, castForte1: 25,
   updateBuffs: () => applyCurrent(DARK_CORE),
 });
 // Knock Knock is the Breakdown-form Intro, so it shifts form as well as banking its own Dark Core
 const EIntro = deniaAction("Intro - Knock Knock", {
-  animFrames: 81, prioFrames: 77, motionStop: 39,
+  animFrames: 81, noSwapFrames: 75, prioFrames: 77, motionStop: [5, 43],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
-    { hitFrame: 73, mv: 5174, energy: 334, offtune: 3470, updateDebuffs: () => deniaLays(2) },
-    { hitFrame: 80, commitFrame: 77, mv: 5174, energy: 334, offtune: 3470 },
-    { hitFrame: 87, commitFrame: 77, mv: 5174, energy: 334, offtune: 3470 },
+    { hitFrame: 73, commitFrame: 49, mv: 5174, energy: 334, offtune: 3470, updateDebuffs: () => deniaLays(2) },
+    { hitFrame: 80, commitFrame: 49, mv: 5174, energy: 334, offtune: 3470 },
+    { hitFrame: 87, commitFrame: 49, mv: 5174, energy: 334, offtune: 3470 },
   ], castConcerto: 1000, castForte1: 25,
   updateBuffs: () => {
     revokeCurrent(ENTROPY_STAGECRAFT);
@@ -350,15 +374,6 @@ const ENTROPY_BREAKDOWN = new Buff({
   },
 });
 
-/** Erosion Field: 30s from Final Act - Breakdown, pulling every 4s — on this clockless engine
- *  thirty active, non-triggered presses by anyone on the team, one tick every fourth of them,
- *  seven in all. The same window every other field is (gear.ts's `coordinatedBuff`): team-held so it counts
- *  everyone's turns, ticking onto her own slot whoever is on field, and gone with the last of them. */
-const EROSION_FIELD = coordinatedBuff("Denia: Erosion Field", 30, () => DENIA_RESONATOR, ErosionField, { every: 4 });
-/** The same field on S4's own 3s interval: ten pulls across the 30s rather than seven, counted the
- *  only way this engine can count them — one every third press, over the thirty that fit. */
-const EROSION_FIELD_S4 = coordinatedBuff("Denia: Erosion Field", 30, () => DENIA_RESONATOR, ErosionField, { every: 3 });
-
 /** Entropy Shift: Stagecraft Form — 30s from Final Act - Breakdown, so it bridges to the next
  *  loop. Its 1 Void Particle/s and its Dark Core are both banked on her outro: the time she is off
  *  field, taken as 20 of the engine's seconds. */
@@ -394,7 +409,7 @@ const ETCHED_COLORS_BURST = new Buff({
 const ETCHED_COLORS_STRAIN = new Buff({
   name: "Inherent: Etched Colors (strain)",
   convertStats: () => {
-    addStat(Stat.Tbb, 10 + Math.min(40, Math.max(0, 8 * (getStat(Stat.OfftuneBuildup) - 100) / 10)));
+    addStat(Stat.TBB, 10 + Math.min(40, Math.max(0, 8 * (getStat(Stat.OfftuneBuildup) - 100) / 10)));
   },
 });
 
@@ -485,7 +500,7 @@ const DEGENERATE_VOIDMATTER = new Buff({
 const TIDES_STRAIN = new Buff({
   name: "Denia S2: Tossed in the Tides of Reality (strain)",
   duration: 60 * 15,
-  stats: [[Stat.Tbb, 20]],
+  stats: [[Stat.TBB, 20]],
 });
 /** S2: the mode's own handout above, and Banish at x1.4 — nanoka's second Stage 2 ladder
  *  (392.04/627.26/862.48/1097.70/1332.92% against 280.03/448.04/616.06/784.07/952.09), so
@@ -546,7 +561,7 @@ const DN_S5 = new Sequence({
 
 /** Whether the Erosion Field she drops is standing — what Final Act - Breakdown leaves behind, and
  *  the window S6's own burst answers to. */
-const erosionStanding = (): boolean => stacksOfTeam(EROSION_FIELD) > 0 || stacksOfTeam(EROSION_FIELD_S4) > 0;
+const erosionStanding = (): boolean => stacksOfTeam(EROSION_SET) > 0;
 
 /** S6: +60% ATK and +60% Fusion DMG Bonus in either Entropy Shift; in Fusion Burst, every pull of
  *  her Erosion Field calculates a Fusion Burst at the target's cap without taking the stacks, at
@@ -562,7 +577,8 @@ const DN_S6 = new Sequence({
     addStat(Stat.BonusAtk, 60);
     addStat(Stat.DmgBonus, 60, Attribute.Fusion);
   },
-  updateBuffs: () => {
+  // every pull of the field: each is a hit of its one action
+  updateDebuffs: () => {
     if (!isHeld(MODE_BURST) || !runningAction(ErosionField)) return;
     queue(FUSION_BURST_ACTIONS[currentTeam().enemyMax(FUSION_BURST)]!);
   },
@@ -608,7 +624,7 @@ const DENIA_RESONATOR = new Resonator({
   stats: [
     [Stat.BaseHp, 11025], [Stat.BaseAtk, 425], [Stat.BaseDef, 1148.8868],
     // the flat 10 every tune-break-era resonator carries (nanoka's own weakness_mastery)
-    [Stat.Tbb, 10],
+    [Stat.TBB, 10],
   ],
 });
 
@@ -621,11 +637,14 @@ const DENIA_RESONATOR = new Resonator({
  *  the next loop's Intro picks up. */
 const UBA1234 = new ActionGroup("Basic - Breakdown Form 1234", [UBA1, UBA2, UBA3, UBA4]);
 const UBA12 = new ActionGroup("Basic - Breakdown Form 12", [UBA1, UBA2]);
+// a jump cancel leaves her airborne, so the string after it is the mid-air chain
+const UMBA1234 = new ActionGroup("Mid-air - Breakdown Form 1234", [UMBA1, UMBA2, UMBA3, UMBA4]);
+const UMBA12 = new ActionGroup("Mid-air - Breakdown Form 12", [UMBA1, UMBA2]);
 const USkill12 = new ActionGroup("Skill - Banish 12", [Banish1, Banish2]);
 
 const DN_ROTATION_BURST = new Rotation([
   NOINTRO, Skill.instaCancel(), Lib1,
-  UBA12.jumpCancel(), UBA1234.cancel(), 
+  UBA12.jumpCancel(), UMBA1234.cancel(), 
   USkill12.instaCancel(), Lib2, 
   ECHO.instaSwap(), Outro,
 
@@ -664,12 +683,12 @@ export const DENIA_BURST = new Loadout({
 
 const DN_ROTATION_STRAIN = new Rotation([
   NOINTRO, Skill.instaCancel(), Lib1,
-  UBA12.dodgeCancel(), UBA12.jumpCancel(), UBA12.cancel(),
+  UBA12.dodgeCancel(), UBA12.jumpCancel(), UMBA12.cancel(),
   USkill12.instaCancel(), Lib2,
   ECHO.instaSwap(), Outro,
 
   INTRO, BA4.instaCancel(), Skill.instaCancel(), Lib1,
-  UBA12.jumpCancel(), UBA12.cancel(),
+  UBA12.jumpCancel(), UMBA12.cancel(),
   USkill12.instaCancel(), Lib2,
   ECHO.instaSwap(), Outro,
 ]);
@@ -677,7 +696,7 @@ const DN_ROTATION_STRAIN = new Rotation([
 const DN_ROTATION_STRAIN_S3 = new Rotation([
   NOINTRO,
   INTRO, Lib1,
-  UBA12.jumpCancel(), UBA12.cancel(),
+  UBA12.jumpCancel(), UMBA12.cancel(),
   USkill12.instaCancel(), Lib2,
   ECHO.instaSwap(), Outro,
 ]);

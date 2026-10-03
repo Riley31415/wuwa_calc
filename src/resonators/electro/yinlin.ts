@@ -116,7 +116,7 @@ const Skill2 = yinlinAction("Skill - Lightning Execution", { animFrames: 77, nod
 const ACTION_BLAST = yinlinAction("Skill - Electromagnetic Blast", { node: Node.Skill, type: Type.Skill, bullets: [{ hitFrame: 0, mv: 1989, concerto: 500, forte1: 500 }] });
 
 // PLACEHOLDER FRAMES
-const Liberation = yinlinAction("Liberation - Thundering Wrath", { animFrames: 191, timestop: 191, motionStop: 191, prioFrames: 191, cooldown: 60 * 16, node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [
+const Liberation = yinlinAction("Liberation - Thundering Wrath", { animFrames: 191, timestop: [0, 191], motionStop: [0, 191], prioFrames: 191, cooldown: 60 * 16, node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [
     { hitFrame: 191, mv: 11656, offtune: 5143 },
     { hitFrame: 191, mv: 11656, offtune: 5143 },
     { hitFrame: 191, mv: 11656, offtune: 5143 },

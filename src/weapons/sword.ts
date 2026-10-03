@@ -7,10 +7,9 @@ import {
   addStat,
   frozenStacks,
   casting,
-  currentAction, isType,
+  isType,
   revokeCurrent,
   applyCurrent,
-  removeStack,
   applyTeam,
   stacksOfEnemy,
   revokeTeam,
@@ -18,7 +17,6 @@ import {
   onCast,
   onType,
   onInflict,
-  either,
   isHeld,
   stacksOf,
   lostOnSwap,
@@ -90,7 +88,7 @@ export const UNFLICKERING_VALOR = refinements((r, rank) => {
   });
   return new Weapon({
     weaponType: WeaponType.Sword, name: `Unflickering Valor${rank}`,
-    stats: [[Stat.BaseAtk, 412.5], [Stat.Er, 77.04], [Stat.CritRate, [8, 10, 12, 14, 16][r]!]],
+    stats: [[Stat.BaseAtk, 412.5], [Stat.ER, 77.04], [Stat.CritRate, [8, 10, 12, 14, 16][r]!]],
     grants: [
       { on: onCast(Cast.Liberation), buff: LAUGHTER_PREVAILS_LIB },
       { on: onType(Type.Basic), buff: LAUGHTER_PREVAILS_BASIC, onHit: true },

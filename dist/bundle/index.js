@@ -57,6 +57,7 @@ import {
   sequenceLevels,
   solveTeam,
   splitStat,
+  splitStop,
   statDisplayScale,
   statLabel,
   substatRollBuffs,
@@ -64,7 +65,7 @@ import {
   teamAt,
   teamKey,
   weaponBase
-} from "./chunk-G2PHDKXA.js";
+} from "./chunk-CPNVZIFF.js";
 
 // dist/src/display.js
 var shown = (s, i) => s.shownAfter?.[i] ?? [s.energy, s.concerto, s.offtune, ...s.forte][i];
@@ -181,8 +182,8 @@ var FEEDS = {
   },
   mv: (a) => keysFor(
     a,
-    15,
-    16
+    16,
+    17
     /* Stat.MulMv */
   ),
   cr: (a) => fixed(a) ? [] : !special(a) ? keysFor(
@@ -205,51 +206,51 @@ var FEEDS = {
   )],
   dmgBonus: (a) => special(a) ? [] : keysFor(
     a,
-    17
+    18
     /* Stat.DmgBonus */
   ),
   amp: (a) => a.scaling === 4 || fixed(a) ? [] : a.scaling !== 3 ? keysFor(
     a,
-    18
+    19
     /* Stat.Amp */
   ) : !sub(a) ? [] : [scopedStat(
     sub(a),
-    18
+    19
     /* Stat.Amp */
   )],
   dealt: (a) => fixed(a) ? [] : a.scaling !== 3 ? keysFor(
     a,
-    19,
-    20
+    20,
+    21
     /* Stat.DamageTaken */
   ) : !sub(a) ? [] : [scopedStat(
     sub(a),
-    19
+    20
     /* Stat.TotalDmg */
   ), scopedStat(
     sub(a),
-    20
+    21
     /* Stat.DamageTaken */
   )],
   effDef: (a) => fixed(a) ? [] : a.scaling === 3 ? keysFor(
     a,
-    36
+    37
     /* EnemyStat.DefReduce */
   ) : keysFor(
     a,
-    22,
     23,
-    36
+    24,
+    37
     /* EnemyStat.DefReduce */
   ),
   effRes: (a) => a.scaling === 3 ? keysFor(
     a,
-    35
+    36
     /* EnemyStat.ResReduce */
   ) : fixed(a) ? [] : keysFor(
     a,
-    21,
-    35
+    22,
+    36
     /* EnemyStat.ResReduce */
   )
   // energy/concerto/offtune are running totals — `rowValues()` builds their panels by hand
@@ -292,31 +293,31 @@ var SECTION_OF = {
     /* Stat.FlatDef */
   ]: "Flat DEF",
   [
-    22
+    23
     /* Stat.DefIgnoreNew */
   ]: "DEF Ignore (new)",
   [
-    23
+    24
     /* Stat.DefIgnoreOld */
   ]: "DEF Ignore (old)",
   [
-    36
+    37
     /* EnemyStat.DefReduce */
   ]: "DEF Reduce",
   [
-    21
+    22
     /* Stat.ResIgnore */
   ]: "RES Ignore",
   [
-    35
+    36
     /* EnemyStat.ResReduce */
   ]: "RES Reduce",
   [
-    19
+    20
     /* Stat.TotalDmg */
   ]: "Total Damage",
   [
-    20
+    21
     /* Stat.DamageTaken */
   ]: "Damage Taken"
 };
@@ -342,13 +343,14 @@ var actionInfo = (action, type, source) => {
   let press = action;
   while (press.cancelOf ?? press.formOf)
     press = press.cancelOf ?? press.formOf;
-  push("Hit Frames", press.bullets.length ? press.bullets.map((h) => h.hitFrame).join(", ") : null);
-  push("Commit Frames", press.bullets.some((h) => h.commitFrame !== h.hitFrame) ? press.bullets.map((h) => h.commitFrame).join(", ") : null);
   push("Animation Frames", String(press.animFrames));
   push("High Priority Frames", press.prioFrames ? String(press.prioFrames) : null);
+  push("No Swap Frames", press.noSwapFrames ? String(press.noSwapFrames) : null);
   push("Outro Buff Frames", press.qteFrames ? String(press.qteFrames) : null);
-  push("Time Stop Frames", press.timestop ? String(press.timestop) : null);
-  push("Motion Stop Frames", press.motionStop ? String(press.motionStop) : null);
+  push("Time Stop Frames", press.timestop ? `${press.timestopFrom}-${press.timestopFrom + press.timestop}` : null);
+  push("Motion Stop Frames", press.motionStop ? `${press.motionStopFrom}-${press.motionStopFrom + press.motionStop}` : null);
+  push("Hit Frames", press.bullets.length ? press.bullets.map((h) => h.hitFrame).join(", ") : null);
+  push("Commit Frames", press.bullets.some((h) => h.commitFrame !== h.hitFrame) ? press.bullets.map((h) => h.commitFrame).join(", ") : null);
   if (source)
     info.push({ label: "Source", value: source.name, source: source.source });
   return info;
@@ -502,10 +504,10 @@ function rowValues(snap, { mv, avg }, members = []) {
     // the column is the pair's combined lift, since Total Damage and Damage Taken multiply; a dot
     // reads only its status-scoped halves, the way `amp` above does
     dealt: fixed(snap.action) ? null : snap.action.scaling === 3 ? ((1 + snap.subtypeTotalDmg / 100) * (1 + snap.subtypeDamageTaken / 100) - 1) * 100 : ((1 + snap.stat(
-      19
+      20
       /* Stat.TotalDmg */
     ) / 100) * (1 + snap.stat(
-      20
+      21
       /* Stat.DamageTaken */
     ) / 100) - 1) * 100,
     effDef: fixed(snap.action) ? null : effectiveShred(snap) * 100,
@@ -543,14 +545,14 @@ function rowValues(snap, { mv, avg }, members = []) {
     const dot = snap.action.scaling === 3;
     const pct = (v) => `${fmt(v, 2)}%`;
     const ignoreNew = dot ? 0 : snap.stat(
-      22
+      23
       /* Stat.DefIgnoreNew */
     ), ignoreOld = dot ? 0 : snap.stat(
-      23
+      24
       /* Stat.DefIgnoreOld */
     );
     const reduce = snap.stat(
-      36
+      37
       /* EnemyStat.DefReduce */
     );
     const base = fmt(snap.enemyDef, 0, false, false);
@@ -568,15 +570,15 @@ function rowValues(snap, { mv, avg }, members = []) {
   }
   const RESOURCE_STAT = {
     energy: [
-      26
+      27
       /* Stat.AddEnergy */
     ],
     concerto: [
-      27
+      28
       /* Stat.AddConcerto */
     ],
     offtune: [
-      28
+      29
       /* Stat.AddOfftune */
     ]
   };
@@ -609,12 +611,22 @@ function rowValues(snap, { mv, avg }, members = []) {
       /* Stat.EnergyRegenMult */
     ) / 100);
   }
-  const buildingOfftune = snap.action.offtune + tracing(snap, keysFor(
+  const buildingOfftune = (snap.action.offtune + tracing(snap, keysFor(
     snap.action,
-    28
+    29
     /* Stat.AddOfftune */
-  )).reduce((n, r) => n + r.value, 0);
+  )).reduce((n, r) => n + r.value, 0)) * (1 + snap.stat(
+    15
+    /* Stat.OfftuneMult */
+  ) / 100);
   if (buildingOfftune > 0) {
+    const mult = tracing(snap, keysFor(
+      snap.action,
+      15
+      /* Stat.OfftuneMult */
+    ));
+    if (mult.length)
+      sources.offtune = [...sources.offtune ?? [], ...mult.map((r) => ({ ...r, section: ENERGY_RATE }))];
     const rate2 = tracing(snap, keysFor(
       snap.action,
       13
@@ -625,7 +637,7 @@ function rowValues(snap, { mv, avg }, members = []) {
   }
   const direct = tracing(snap, keysFor(
     snap.action,
-    29
+    30
     /* Stat.DirectOfftune */
   ));
   raw["moved:offtune"] = ((buildingOfftune < 0 ? buildingOfftune : buildingOfftune * (snap.stat(
@@ -642,11 +654,11 @@ function rowValues(snap, { mv, avg }, members = []) {
   }
   const FORTE_FIELD = ["forte1", "forte2", "forte3", "forte4", "forte5"];
   const FORTE_STAT = [
-    30,
     31,
     32,
     33,
-    34
+    34,
+    35
     /* Stat.AddForte5 */
   ];
   FORTE_GAUGES.forEach((key, i) => {
@@ -668,7 +680,7 @@ function rowValues(snap, { mv, avg }, members = []) {
   if (!raw.mv)
     delete sources.mv;
   else {
-    const isFactor = (r) => r.stat !== void 0 && splitStat(r.stat)[0] === 16;
+    const isFactor = (r) => r.stat !== void 0 && splitStat(r.stat)[0] === 17;
     const parts = sources.mv ?? [];
     if (parts.length)
       buffed.add("mv");
@@ -681,14 +693,14 @@ function rowValues(snap, { mv, avg }, members = []) {
   if (sources.dealt?.length) {
     const half = (stat) => sources.dealt.filter((r) => r.stat !== void 0 && splitStat(r.stat)[0] === stat).reduce((n, r) => n + r.value, 0);
     const total = half(
-      19
+      20
       /* Stat.TotalDmg */
     ), taken = half(
-      20
+      21
       /* Stat.DamageTaken */
     );
     if (total && taken) {
-      sources.dealt = [...sources.dealt, ...[[19, total], [20, taken]].map(([stat, value]) => ({
+      sources.dealt = [...sources.dealt, ...[[20, total], [21, taken]].map(([stat, value]) => ({
         source: "",
         label: "Total",
         value,
@@ -1569,7 +1581,7 @@ function framesPopover(snaps) {
     if (s.swapFrames)
       rows.push(line("Swap Delay", s.swapFrames));
     total += s.swapFrames ?? 0;
-    banks += Math.max(0, s.action.timestop - cost.timestop);
+    banks += splitStop(press.timestopFrom, press.timestop, cost.action, cost.action + cost.global).banked;
   }
   return lazyPop(`<span class="pop frames"><table><tr class="sec"><td colspan="2">Active Frames</td></tr>` + rows.join("") + line("Total", total, ' class="sum"') + (banks ? line("Timestop Banked", banks) : "") + `</table></span>`);
 }
@@ -1677,7 +1689,7 @@ function menuStatRows(member2, combo, erRolls) {
     for (const tag of scopes) {
       const v = get(scopedStat(
         tag,
-        17
+        18
         /* Stat.DmgBonus */
       ));
       if (v > bestValue) {
@@ -1688,7 +1700,7 @@ function menuStatRows(member2, combo, erRolls) {
     if (bestTag !== null)
       push(statLabel(scopedStat(
         bestTag,
-        17
+        18
         /* Stat.DmgBonus */
       )), bestValue, true);
   };
@@ -1712,10 +1724,10 @@ function menuStatRows(member2, combo, erRolls) {
   ), false);
   push(statLabel(
     11
-    /* Stat.Er */
+    /* Stat.ER */
   ), get(
     11
-    /* Stat.Er */
+    /* Stat.ER */
   ), true);
   push(statLabel(
     9
@@ -1733,10 +1745,10 @@ function menuStatRows(member2, combo, erRolls) {
   ), true);
   push(statLabel(
     12
-    /* Stat.Tbb */
+    /* Stat.TBB */
   ), get(
     12
-    /* Stat.Tbb */
+    /* Stat.TBB */
   ), false);
   pushBest(ATTRIBUTE_SCOPES);
   pushBest(CORE_TYPE_SCOPES);
@@ -1796,7 +1808,7 @@ var constantKeys = (stats) => new Set(stats.map(lineKey));
 var statRow = (e, owner, slotHue, noStat = false) => {
   const percent = isPercent(e.stat);
   const stat = splitStat(e.stat)[0];
-  const resource = stat === 26 || stat === 27;
+  const resource = stat === 27 || stat === 28;
   return `<tr class="stat${e.dim ? " one" : ""}"><td class="s" style="--own:${slotHue.get(owner) ?? FALLBACK_HUE}">${esc(e.source)}</td>` + (noStat ? "" : `<td class="k">${esc(statLabel(e.stat))}</td>`) + `<td class="v">${fmt(e.value / statDisplayScale(stat), percent ? 1 : resource ? 2 : 0)}${percent ? "%" : ""}</td></tr>`;
 };
 function piecePopover(run, pieces, owner, slotHue) {
@@ -1814,7 +1826,7 @@ function piecePopover(run, pieces, owner, slotHue) {
 function resonatorPopover(run, kit, equipped, owner, slotHue) {
   const stats = menuStats([...kit]);
   const constant = constantKeys(stats);
-  const forte = (e) => e.stat >= 30 && e.stat <= 34;
+  const forte = (e) => e.stat >= 31 && e.stat <= 35;
   const mine = (root, e) => e.owner === owner && (kit.has(root) || !equipped.has(root)) && !constant.has(lineKey(e)) && !forte(e);
   return statsPanel(stats, buffStats(run, mine), owner, slotHue);
 }
@@ -3806,7 +3818,7 @@ function erRequirement(flat, resetIdx, member2, maxEnergy, constant) {
       if (s.endsLoop)
         continue;
       const gain = (s.action.energy + s.stat(
-        26
+        27
         /* Stat.AddEnergy */
       ) + (s.castGain?.[0] ?? 0)) * (1 + s.stat(
         14
@@ -3814,7 +3826,7 @@ function erRequirement(flat, resetIdx, member2, maxEnergy, constant) {
       ) / 100);
       buffed += gain * (s.stat(
         11
-        /* Stat.Er */
+        /* Stat.ER */
       ) - constant);
     }
   }
@@ -3831,13 +3843,12 @@ function energyRequirements(run, lines) {
     const combo = run.combo[idx];
     const constantSources = menuStats(m.loadout.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs, erOf[idx])).filter(
       (e) => e.stat === 11
-      /* Stat.Er */
+      /* Stat.ER */
     );
     const constant = constantSources.reduce((n, e) => n + e.value, 0);
     const casts = resetIndices(flat, 0, flat.length, m.name).slice(1);
     const asked = casts.map((i) => erRequirement(flat, i, m.name, maxEnergy, constant)).filter((v) => v != null);
     const bar = asked.length ? Math.max(...asked) : null;
-    const name = m.loadout.resonator.name;
     const line = (what, need, held) => {
       const met = need <= held + ER_TOLERANCE;
       return { met, html: `<div>${what}: <span class="${met ? "need-met" : "need-miss"}">${fmt(need, 1, true)}%</span> (${met ? "Met" : "Not Met"})</div>` };
@@ -3856,7 +3867,7 @@ function energyRequirements(run, lines) {
       const need = Math.max(bar ?? 0, minEr);
       own.set(statLabel(
         11
-        /* Stat.Er */
+        /* Stat.ER */
       ), tag(need, need <= constant + ER_TOLERANCE, lines2.map((l) => l.html)));
     }
     const minCr = m.loadout.minCritRate;

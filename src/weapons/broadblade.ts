@@ -5,11 +5,11 @@ import { WeaponType, Stat, Attribute, Type, Cast, BuffTarget } from "../engine/s
 import { Buff, Weapon, refinements } from "../engine/gear.js";
 import {
   addStat, frozenStacks, casting, currentTeam, currentMember, addBuff, applyCurrent, removeStack, revokeCurrent, applied,
-  onCast, onType, onApplied, isActive, isType, setStacksSelf, triggeredAction,
-  applyTeam, currentAction, pressed, extendCurrent, isHeld, inflicting,
+  onCast, onApplied, isActive, isType, setStacksSelf,
+  applyTeam, extendCurrent, isHeld,
   addToCast,
 } from "../engine/context.js";
-import { SHIELD, HEALS, inflictedNegativeStatus, inflictedNegativeStatusBy } from "../shared/status.js";
+import { SHIELD, HEALS, inflictedNegativeStatusBy } from "../shared/status.js";
 
 /** Jiyan's sig: Swordsworn. +12% Attribute DMG Bonus flat. Every Intro/Liberation cast
  *  grants +24% Heavy Attack DMG Bonus, up to 2 stacks, 14s. */
@@ -170,7 +170,7 @@ export const STARFIELD_CALIBRATOR = refinements((r, rank) => {
   });
   return new Weapon({
     weaponType: WeaponType.Broadblade, name: `Starfield Calibrator${rank}`,
-    stats: [[Stat.BaseAtk, 412.5], [Stat.Er, 77.04], [Stat.BonusDef, [16, 20, 24, 28, 32][r]!]],
+    stats: [[Stat.BaseAtk, 412.5], [Stat.ER, 77.04], [Stat.BonusDef, [16, 20, 24, 28, 32][r]!]],
     combatStart: () => applyCurrent(DEFINITE_SOLUTION, 1),
     grants: [
       { on: onApplied(HEALS), buff: DEFINITE_SOLUTION_TEAM, to: BuffTarget.Team },

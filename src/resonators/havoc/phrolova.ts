@@ -33,7 +33,6 @@ import {
   asSource,
   isActive,
   onCast,
-  setForte1,
   addForte1,
   lostOnSwap,
   addBuff,
@@ -49,7 +48,7 @@ import { DREAM_OF_THE_LOST_3PC } from "../../echoes/septimont.js";
 import { NM_HECATE } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
-import { BELL_BORNE_GEOCHELONE, HAVOC_ECLIPSE_2PC, HERON, MOONLIT_CLOUDS_2PC, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
+import { HAVOC_ECLIPSE_2PC } from "../../echoes/jinzhou.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -122,25 +121,25 @@ const ScarletCoda = phroAction("Forte Heavy - Scarlet Coda", { minForte1: 6,
 // "Lib2" row (465.22% MV) has no matching action here — a known gap, flagged rather than guessed.
 // Opens Maestro and banks the ten auto-cast chances (NOTES' own bits 12-15).
 const Liberation = phroAction("Liberation - Waltz of Forsaken Depths", {
-  animFrames: 240, timestop: 240, motionStop: 240,
+  animFrames: 240, prioFrames: 240, timestop: [0, 240], motionStop: [0, 240],
   node: Node.Liberation, cast: Cast.Liberation, castConcerto: 2000, resetForte1: true,
   updateBuffs: () => startMaestro(),
 });
 /** Recast during Maestro: ends it (and with it Suite of Immortality's replacement). */
 export const CurtainCall = phroAction("Liberation - Curtain Call", {
-  animFrames: 83, bullets: [{ hitFrame: 42, mv: 46522, energy: 293, concerto: 585, offtune: 9360 }],
+  animFrames: 83, prioFrames: 47, bullets: [{ hitFrame: 42, mv: 46522, energy: 293, concerto: 585, offtune: 9360 }],
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation,
   updateBuffs: () => endMaestro(),
 });
 
 const Intro = phroAction("Intro - Suite of Quietus", {
-  animFrames: 80, prioFrames: 80, motionStop: 33,
-  node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 43, mv: 8061, energy: 400, offtune: 4055 }, { hitFrame: 62, mv: 12091, energy: 600, offtune: 6082 }], castConcerto: 1000,
+  animFrames: 80, noSwapFrames: 76, prioFrames: 80, motionStop: [6, 38],
+  node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 43, commitFrame: 40, mv: 8061, energy: 400, offtune: 4055 }, { hitFrame: 62, commitFrame: 59, mv: 12091, energy: 600, offtune: 6082 }], castConcerto: 1000,
 });
 /** Maestro-replaced Intro — used whenever she re-enters with Maestro still open. Playing it is
  *  also what closes Maestro back out. */
 const EIntro = phroAction("Intro - Suite of Immortality", {
-  animFrames: 93, prioFrames: 93, motionStop: 51,
+  animFrames: 93, noSwapFrames: 90, prioFrames: 93, motionStop: [6, 56],
   node: Node.Intro, cast: Cast.Intro, type: Type.Skill, bullets: [{ hitFrame: 60, mv: 59643, energy: 1000, offtune: 9600 }], castConcerto: 1000,resetForte1: true,
   // the Waltz ends here, and the notes it was playing through go with it
   updateBuffs: () => endMaestro(),
@@ -160,16 +159,18 @@ function hecateAction(id: string, def: object): Action {
 }
 /** One Hecate attack beside the fight: its bullets on their frames (wuwalab), and its end playing
  *  whatever she has queued next (`hecateEnded()`). */
-const hecateMove = (id: string, animFrames: number, bullets: [number, number][]): Action => hecateAction(id, {
-  tag: ActionTag.Field, animFrames, bullets: bullets.map(([hitFrame, mv]) => ({ hitFrame, mv })), afterAction: () => hecateEnded(),
+const hecateMove = (id: string, animFrames: number, bullets: [number, number, object?][]): Action => hecateAction(id, {
+  tag: ActionTag.Field, animFrames, bullets: bullets.map(([hitFrame, mv, extra]) => ({ hitFrame, mv, ...extra })), afterAction: () => hecateEnded(),
 });
 const HECATE_1 = hecateMove("Basic - Hecate 1", 40, [[10, 2784]]);
 const HECATE_2 = hecateMove("Basic - Hecate 2", 49, [[4, 1392], [22, 1392]]);
+// an enhanced attack's second hit banks its Aftersound (wuwalab's counter_enhanced_hecate)
+const AFTERSOUND_HIT = { updateDebuffs: () => addBuff(PHROLOVA_RESONATOR, AFTERSOUND, 1) };
 // indexed by the note's slot value less one: Strings, Winds, Cadenza
 const NOTE_MOVES = [
-  hecateMove("Enhanced - Hecate Strings", 91, [[26, 10438], [56, 24355]]),
-  hecateMove("Enhanced - Hecate Winds", 70, [[26, 9916], [56, 23137]]),
-  hecateMove("Enhanced - Hecate Cadenza", 70, [[26, 10438], [56, 24355]]),
+  hecateMove("Enhanced - Hecate Strings", 91, [[26, 10438], [56, 24355, AFTERSOUND_HIT]]),
+  hecateMove("Enhanced - Hecate Winds", 70, [[26, 9916], [56, 23137, AFTERSOUND_HIT]]),
+  hecateMove("Enhanced - Hecate Cadenza", 70, [[26, 10438], [56, 24355, AFTERSOUND_HIT]]),
 ];
 
 // The manual command, pressed on field: Hecate 1-2 by hand, then the leftmost note's attack as
@@ -297,7 +298,6 @@ function hecateHold(next: Action): Action | null {
 function playHecate(playing: number, move: Action, behind = false): void {
   const w = queued();
   setQueue(w & 63, (w >> 6) & 63, playing);
-  if (playing === 3) addBuff(PHROLOVA_RESONATOR, AFTERSOUND, 1);
   // Maestro's attack, whichever end or cast set it going
   asSource(MAESTRO, () => (behind ? queueOnBehindNext(PHROLOVA_RESONATOR, move) : queueOn(PHROLOVA_RESONATOR, move)));
 }
@@ -306,7 +306,6 @@ function playHecate(playing: number, move: Action, behind = false): void {
 function startEnhanced(): void {
   const w = queued();
   setQueue(w & 63, (w >> 6) & 63, 3);
-  addBuff(PHROLOVA_RESONATOR, AFTERSOUND, 1);
 }
 
 /** Hecate's attack is over: she plays whatever is next. */

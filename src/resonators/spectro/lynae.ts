@@ -55,17 +55,17 @@ function lynaeAction(id: string, def: object): Action {
 //     Kaleidoscopic Parade, so it opens the rotation and the rest of this chain never gets played.
 const BA1 = lynaeAction("Basic - Chroma Drift 1", { animFrames: 31, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 16, mv: 8619, energy: 128, concerto: 459, offtune: 4080 }], castForte1: 12});
 const BA2 = lynaeAction("Basic - Chroma Drift 2", { animFrames: 66, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 15, mv: 5239, energy: 78, concerto: 279, offtune: 2480 },
+    { hitFrame: 15, mv: 5239, energy: 78, concerto: 279, offtune: 2480, forte1: 21 },
     { hitFrame: 29, mv: 5239, energy: 78, concerto: 279, offtune: 2480 },
     { hitFrame: 39, mv: 5239, energy: 78, concerto: 279, offtune: 2480 },
-  ], castForte1: 21});
+  ]});
 const BA3 = lynaeAction("Basic - Chroma Drift 3", { animFrames: 44, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 28, mv: 12337, energy: 183, concerto: 657, offtune: 5840 }], castForte1: 17});
 const DC = lynaeAction("Dodge Counter - Chroma Drift", { animFrames: 49, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 31, mv: 23997, energy: 205, concerto: 738, offtune: 6560 }], castConcerto: 1000, castForte1: 19});
 const MA = lynaeAction("Mid-air - Chroma Drift Plunge", { animFrames: 54, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 26, mv: 1437, energy: 22, concerto: 77, offtune: 680 },
     { hitFrame: 41, mv: 12928, energy: 192, concerto: 689, offtune: 6120 },
   ], castForte1: 20});
-const SparkCollision = lynaeAction("Basic - Spark Collision Lv. 3", { minForte1: 120, animFrames: 157, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const SparkCollision = lynaeAction("Basic - Spark Collision Lv. 3", { minForte1: 120, animFrames: 157, noSwapFrames: 84, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 100, mv: 27778, energy: 411, concerto: 1480, offtune: 13150 },
     { hitFrame: 111, mv: 27778, energy: 411, concerto: 1480, offtune: 13150 },
   ], castForte1: -120, castForte2: 12000});
@@ -104,8 +104,9 @@ const KHeavy = lynaeAction("Heavy - Kaleidoscopic Parade (Ground)", { animFrames
     { hitFrame: 26, mv: 1763, energy: 42, concerto: 94, offtune: 835 },
     { hitFrame: 30, mv: 1763, energy: 42, concerto: 94, offtune: 835 },
     { hitFrame: 34, mv: 1763, energy: 42, concerto: 94, offtune: 835 },
+    // released: Graffiti Blast
+    { hitFrame: 56, mv: 10478, energy: 155, concerto: 558, offtune: 4960 },
   ]});
-const GraffitiBlast = lynaeAction("Heavy - Kaleidoscopic Parade: Graffiti Blast", { animFrames: 70, node: Node.Normal, cast: Cast.Heavy, type: Type.Basic, bullets: [{ hitFrame: 70, mv: 10478, energy: 155, concerto: 558, offtune: 4960 }] });
 
 // --- Forte Circuit. These carry Photochromic Flux, which is what shifts the target (see the two
 //     Resonance Modes below). Visual Impact is the big one, on a 25s cooldown.
@@ -153,18 +154,18 @@ const AdditiveColor = lynaeAction("Skill - Additive Color", { animFrames: 75, co
   ]});
 
 const Liberation = lynaeAction("Liberation - Prismatic Overblast", {
-  animFrames: 240, timestop: 240, motionStop: 223, cooldown: 60 * 25,
+  animFrames: 240, prioFrames: 238, timestop: [0, 240], motionStop: [0, 223], cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [
     { hitFrame: 189, mv: 8748, offtune: 4800 },
-    { hitFrame: 195, mv: 8748, offtune: 4800 },
-    { hitFrame: 201, mv: 8748, offtune: 4800 },
-    { hitFrame: 207, mv: 8748, offtune: 4800 },
-    { hitFrame: 213, mv: 8748, offtune: 4800 },
-    { hitFrame: 219, mv: 8748, offtune: 4800 },
-    { hitFrame: 225, mv: 8748, offtune: 4800 },
-    { hitFrame: 231, mv: 8748, offtune: 4800 },
-    { hitFrame: 237, mv: 8748, offtune: 4800 },
-    { hitFrame: 243, commitFrame: 240, mv: 8748, offtune: 4800 },
+    { hitFrame: 195, commitFrame: 189, mv: 8748, offtune: 4800 },
+    { hitFrame: 201, commitFrame: 189, mv: 8748, offtune: 4800 },
+    { hitFrame: 207, commitFrame: 189, mv: 8748, offtune: 4800 },
+    { hitFrame: 213, commitFrame: 189, mv: 8748, offtune: 4800 },
+    { hitFrame: 219, commitFrame: 189, mv: 8748, offtune: 4800 },
+    { hitFrame: 225, commitFrame: 189, mv: 8748, offtune: 4800 },
+    { hitFrame: 231, commitFrame: 189, mv: 8748, offtune: 4800 },
+    { hitFrame: 237, commitFrame: 189, mv: 8748, offtune: 4800 },
+    { hitFrame: 243, commitFrame: 189, mv: 8748, offtune: 4800 },
   ],
   castConcerto: 2000, resetEnergy: true,
   updateBuffs: () => applyTeam(PRISMATIC_OVERBLAST, 1),
@@ -194,7 +195,7 @@ const VividTomorrow = lynaeAction("Basic - To a Vivid Tomorrow!", { animFrames: 
     { hitFrame: 172, commitFrame: 118, mv: 1005, energy: 27, concerto: 97, offtune: 856 },
   ]});
 
-const Intro = lynaeAction("Intro - Time to Show Some Colors!", { animFrames: 76, prioFrames: 44, motionStop: 63, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
+const Intro = lynaeAction("Intro - Time to Show Some Colors!", { animFrames: 76, noSwapFrames: 62, prioFrames: 44, motionStop: [4, 66], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 44, mv: 2248, energy: 134, concerto: 120, offtune: 1064 },
     { hitFrame: 50, commitFrame: 44, mv: 2248, energy: 134, concerto: 120, offtune: 1064 },
     { hitFrame: 56, commitFrame: 44, mv: 2248, energy: 134, concerto: 120, offtune: 1064 },
@@ -221,16 +222,16 @@ const Outro = lynaeAction("Outro - Let's Hit the Road!", {
     { hitFrame: 106, mv: 455 },
     { hitFrame: 110, mv: 455 },
     { hitFrame: 112, mv: 455 },
-    { hitFrame: 116, mv: 455 },
+    { hitFrame: 116, commitFrame: 110, mv: 455 },
     { hitFrame: 118, mv: 455 },
-    { hitFrame: 122, commitFrame: 118, mv: 455 },
-    { hitFrame: 128, commitFrame: 118, mv: 455 },
-    { hitFrame: 134, commitFrame: 118, mv: 455 },
-    { hitFrame: 140, commitFrame: 118, mv: 455 },
-    { hitFrame: 146, commitFrame: 118, mv: 455 },
-    { hitFrame: 152, commitFrame: 118, mv: 455 },
-    { hitFrame: 158, commitFrame: 118, mv: 455 },
-    { hitFrame: 164, commitFrame: 118, mv: 445 },
+    { hitFrame: 122, commitFrame: 110, mv: 455 },
+    { hitFrame: 128, commitFrame: 110, mv: 455 },
+    { hitFrame: 134, commitFrame: 110, mv: 455 },
+    { hitFrame: 140, commitFrame: 110, mv: 455 },
+    { hitFrame: 146, commitFrame: 110, mv: 455 },
+    { hitFrame: 152, commitFrame: 110, mv: 455 },
+    { hitFrame: 158, commitFrame: 110, mv: 455 },
+    { hitFrame: 164, commitFrame: 110, mv: 445 },
   ], minConcerto: 10000, castConcerto: -10000,
   updateBuffs: () => queueOutro(LYNAE_OUTRO),
 });
@@ -305,7 +306,7 @@ const LYNAE_OUTRO = new Buff({
 const SPECTRAL_ANALYSIS_TBB = new Buff({
   name: "Lynae: Visual Impact",
   duration: 60 * 30,
-  stats: [[Stat.Tbb, 40]],
+  stats: [[Stat.TBB, 40]],
 });
 
 /* --------------------------------------------------------------------------- kit and loadout */
@@ -338,7 +339,7 @@ const LYNAE_RESONATOR = new Resonator({
   stats: [
     [Stat.BaseHp, 12237.5], [Stat.BaseAtk, 375], [Stat.BaseDef, 1197.7756],
     // the flat 10 every tune-break-era resonator carries (nanoka's own weakness_mastery)
-    [Stat.Tbb, 10],
+    [Stat.TBB, 10],
   ],
 });
 
@@ -380,14 +381,14 @@ const LY_S5 = new Sequence({
   applyStats: () => { if (runningAction(Liberation)) addStat(Stat.MulMv, 70); },
 });
 
-/** Color of Soul (S6): a stack off every Graffiti Blast or Parade Heavy, three at most, each worth
+/** Color of Soul (S6): a stack off every Graffiti Blast or Mid-air Heavy, three at most, each worth
  *  30% more damage taken from Iridescent Splash and Visual Impact; both spend the lot. */
 const COLOR_OF_SOUL = new Buff({
   name: "Lynae S6: Color of Soul", maxStacks: 3,
   applyStats: () => {
     if (runningAction(IridescentSplash) || runningAction(VisualImpact)) addStat(Stat.DamageTaken, 30 * frozenStacks());
   },
-  convertStats: () => {
+  afterAction: () => {
     if (runningAction(IridescentSplash) || runningAction(VisualImpact)) revokeCurrent(COLOR_OF_SOUL);
   },
 });
@@ -396,7 +397,7 @@ const COLOR_OF_SOUL = new Buff({
  *  nothing in this line spends. */
 const LY_S6 = new Sequence({
   name: "Lynae S6: Painted in My True Color",
-  updateBuffs: () => { if (runningAction(GraffitiBlast) || runningAction(KHeavy)) applyCurrent(COLOR_OF_SOUL, 1); },
+  updateBuffs: () => { if (runningAction(KHeavy)) applyCurrent(COLOR_OF_SOUL, 1); },
 });
 
 const LY_SEQUENCES = [LY_S1, LY_S2, LY_S3, LY_S4, LY_S5, LY_S6];

@@ -38,10 +38,9 @@ import {
   frozenStacks,
   revokeCurrent,
   isHeld,
-  forte1,
   forte2,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, ECHO, INTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, INTRO } from "../../engine/rotation.js";
 import { LUX_UMBRA } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
 import { CLAWPRINT_2PC, CORROSAURUS, FLAMEWING_SHADOW_3PC } from "../../echoes/septimont.js";

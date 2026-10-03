@@ -25,12 +25,15 @@ export const enum Stat {
 
   CritRate,
   CritDmg,
-  Er,
-  Tbb,
+  ER,
+  TBB,
   OfftuneBuildup,
   /** Scales what an action regens: `(base energy + AddEnergy) x (1 + this/100)` — Camellya's
    *  Vegetative Universe, Yangyang. Percent; 0 means the ordinary x1. */
   EnergyRegenMult,
+  /** The same for what an action builds of off-tune: `(base off-tune + AddOfftune) x (1 + this/100)`,
+   *  ahead of the Buildup Rate — Suoming's Seal Master stages. Percent; 0 means the ordinary x1. */
+  OfftuneMult,
 
   /** Motion value: `(base mv + AddMv) x (1 + MulMv)` — AddMv is inside the parens, MulMv independent. */
   AddMv,
@@ -94,9 +97,9 @@ export const STAT_NAME: Record<Stat | EnemyStat, string> = {
   [Stat.BaseAtk]: "Base ATK", [Stat.BaseHp]: "Base HP", [Stat.BaseDef]: "Base DEF",
   [Stat.FlatAtk]: "Flat ATK", [Stat.FlatHp]: "Flat HP", [Stat.FlatDef]: "Flat DEF",
   [Stat.BonusAtk]: "ATK%", [Stat.BonusHp]: "HP%", [Stat.BonusDef]: "DEF%",
-  [Stat.CritRate]: "Crit Rate", [Stat.CritDmg]: "Crit Dmg", [Stat.Er]: "Energy Regen",
-  [Stat.Tbb]: "Tune Break Boost", [Stat.OfftuneBuildup]: "Offtune Buildup",
-  [Stat.EnergyRegenMult]: "Energy Regen Multiplier",
+  [Stat.CritRate]: "Crit Rate", [Stat.CritDmg]: "Crit Dmg", [Stat.ER]: "Energy Regen",
+  [Stat.TBB]: "Tune Break Boost", [Stat.OfftuneBuildup]: "Offtune Buildup",
+  [Stat.EnergyRegenMult]: "Energy Regen Multiplier", [Stat.OfftuneMult]: "Offtune Multiplier",
   [Stat.AddMv]: "MV increase", [Stat.MulMv]: "MV multiplier",
   [Stat.DmgBonus]: "Dmg Bonus", [Stat.Amp]: "Amplification", [Stat.TotalDmg]: "Total Damage",
   [Stat.DamageTaken]: "Damage Taken",
@@ -334,8 +337,8 @@ export const SCALING_NAME: Record<Scaling, string> = {
  *  damage per Interfered stack (tunebreak.ts's own Tune Strain - Interfered payout), so it reads as a bare
  *  number everywhere. What divides it into a multiplier does so itself (damage.ts's `tbbFactor`). */
 export const PERCENT_STATS: Set<Stat | EnemyStat> = new Set<Stat | EnemyStat>([
-  Stat.BonusAtk, Stat.BonusHp, Stat.BonusDef, Stat.CritRate, Stat.CritDmg, Stat.Er,
-  Stat.OfftuneBuildup, Stat.EnergyRegenMult,
+  Stat.BonusAtk, Stat.BonusHp, Stat.BonusDef, Stat.CritRate, Stat.CritDmg, Stat.ER,
+  Stat.OfftuneBuildup, Stat.EnergyRegenMult, Stat.OfftuneMult,
   Stat.AddMv, Stat.MulMv,
   Stat.DmgBonus, Stat.Amp, Stat.TotalDmg, Stat.DamageTaken,
   Stat.ResIgnore, Stat.DefIgnoreNew, Stat.DefIgnoreOld,
@@ -378,3 +381,12 @@ export const RESOURCE_NAME: Record<Resource, string> = {
   [Resource.Forte1]: "forte1", [Resource.Forte2]: "forte2", [Resource.Forte3]: "forte3",
   [Resource.Forte4]: "forte4", [Resource.Forte5]: "forte5",
 };
+
+/** Of a stop running `len` frames from animation frame `from`, the frames inside the press's own
+ *  `frames` and those it banks past them — none of either where the press is let go (`played`
+ *  frames in all, its cut's delay included) before the stop begins. */
+export function splitStop(from: number, len: number, frames: number, played: number): { own: number; banked: number } {
+  if (!len || (from > 0 && from >= played)) return { own: 0, banked: 0 };
+  const own = Math.max(0, Math.min(from + len, frames) - from);
+  return { own, banked: len - own };
+}

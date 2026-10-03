@@ -33,7 +33,6 @@ import {
   onAction,
   runningAction,
   addStat,
-  forte1,
   onCast,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, ECHO, INTRO } from "../../engine/rotation.js";
@@ -62,7 +61,7 @@ const BA4 = encoreAction("Basic - Wooly Attack 4", { animFrames: 46, node: Node.
     { hitFrame: 13, mv: 3827, energy: 48, concerto: 96, offtune: 2310, forte1: 1 },
     { hitFrame: 25, mv: 3827, energy: 48, concerto: 96, offtune: 2310, forte1: 1 },
     { hitFrame: 37, mv: 3827, energy: 48, concerto: 96, offtune: 2310, forte1: 1 },
-    { hitFrame: 49, commitFrame: 46, mv: 3827, energy: 48, concerto: 96, offtune: 2310, forte1: 1 },
+    { hitFrame: 49, mv: 3827, energy: 48, concerto: 96, offtune: 2310, forte1: 1 },
   ]});
 const WoolyStrike = encoreAction("Basic - Wooly Strike", { animFrames: 76, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 34, commitFrame: 0, mv: 23857, energy: 300, concerto: 600, offtune: 14400, forte1: 25 }]});
 const HA = encoreAction("Heavy - Wooly Attack", { animFrames: 56, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 24, mv: 18708, energy: 235, concerto: 470, offtune: 11292, forte1: 5 }]});
@@ -87,10 +86,10 @@ const Skill2 = encoreAction("Skill - Energetic Welcome", { animFrames: 48, node:
 // declared cap as a negative delta lands exactly on 0 (maxForte1: 100 below), same as Electro
 // Rover's own Overshock.
 const SPEND_MAYHEM = { minForte1: 100, castForte1: -100 };
-const CloudyFrenzy = encoreAction("Forte Heavy - Cloudy Frenzy", { animFrames: 202, node: Node.Forte, cast: Cast.Heavy, type: Type.Liberation, bullets: [{ hitFrame: 171, commitFrame: 138, mv: 77373, offtune: 46709 }], castConcerto: 1000, ...SPEND_MAYHEM });
+const CloudyFrenzy = encoreAction("Forte Heavy - Cloudy Frenzy", { animFrames: 202, node: Node.Forte, cast: Cast.Heavy, type: Type.Liberation, bullets: [{ hitFrame: 171, commitFrame: 138, mv: 33400, energy: 1000, offtune: 40320 }], castConcerto: 1000, ...SPEND_MAYHEM });
 
 /** No damage of its own, just opens the state. */
-const Liberation = encoreAction("Liberation - Cosmos Rave", { animFrames: 140, timestop: 140, motionStop: 137, cooldown: 60 * 16, node: Node.Liberation, cast: Cast.Liberation, castConcerto: 2000, resetEnergy: true });
+const Liberation = encoreAction("Liberation - Cosmos Rave", { animFrames: 140, prioFrames: 140, timestop: [0, 140], motionStop: [0, 137], cooldown: 60 * 16, node: Node.Liberation, cast: Cast.Liberation, castConcerto: 2000, resetEnergy: true });
 
 // Cosmos Rave's own moveset: Frolicking (Basic), Cosmos Heavy Attack, Cosmos - Rampage (Skill),
 // Cosmos Dodge Counter, Cosmos Rupture (Forte) — all "considered" their Threshold-state damage type
@@ -123,20 +122,20 @@ const USkill = encoreAction("Skill - Cosmos: Rampage", { animFrames: 47, cooldow
     { hitFrame: 35, mv: 6332, energy: 164, concerto: 200, offtune: 1542, forte1: 7 },
   ], castConcerto: 1000});
 const CosmosDodgeCounter = encoreAction("Dodge Counter - Cosmos", { node: Node.Liberation, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 26396, energy: 192, concerto: 1388, offtune: 9360, forte1: 16 }] });
-const FHA = encoreAction("Forte Heavy - Cosmos Rupture", { animFrames: 239, node: Node.Forte, cast: Cast.Heavy, type: Type.Liberation, bullets: [
+const FHA = encoreAction("Forte Heavy - Cosmos Rupture", { animFrames: 239, prioFrames: 239, node: Node.Forte, cast: Cast.Heavy, type: Type.Liberation, bullets: [
     { hitFrame: 42, mv: 4642, offtune: 2803 },
-    { hitFrame: 72, mv: 4642, offtune: 2803 },
-    { hitFrame: 102, mv: 4642, offtune: 2803 },
-    { hitFrame: 132, mv: 4642, offtune: 2803 },
-    { hitFrame: 162, mv: 4642, offtune: 2803 },
-    { hitFrame: 192, mv: 4642, offtune: 2803 },
+    { hitFrame: 72, commitFrame: 42, mv: 4642, offtune: 2803 },
+    { hitFrame: 102, commitFrame: 42, mv: 4642, offtune: 2803 },
+    { hitFrame: 132, commitFrame: 42, mv: 4642, offtune: 2803 },
+    { hitFrame: 162, commitFrame: 42, mv: 4642, offtune: 2803 },
+    { hitFrame: 192, commitFrame: 42, mv: 4642, offtune: 2803 },
     { hitFrame: 203, mv: 49521, offtune: 29891 },
   ], castConcerto: 1000, ...SPEND_MAYHEM, castForte1: -100 });
 
-const Intro = encoreAction("Intro - Woolies Helpers", { animFrames: 80, prioFrames: 92, motionStop: 56, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 60, mv: 19881, energy: 1000, offtune: 15132, forte1: 40 }], castConcerto: 1000});
+const Intro = encoreAction("Intro - Woolies Helpers", { animFrames: 80, noSwapFrames: 75, prioFrames: 92, motionStop: [0, 56], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 60, mv: 19881, energy: 1000, offtune: 15132, forte1: 40 }], castConcerto: 1000});
 /** A burn zone, 4 ticks over 6s, lumped into one action same as every other periodic effect
  *  elsewhere. No handoff buff is described on her own kit page — left as a plain hit. */
-const Outro = encoreAction("Outro - Thermal Field", { animFrames: 0, cast: Cast.Outro, type: Type.Outro, bullets: [{ hitFrame: 0, mv: 17676 }, { hitFrame: 90, commitFrame: 0, mv: 17676 }, { hitFrame: 180, commitFrame: 0, mv: 17676 }, { hitFrame: 270, commitFrame: 0, mv: 17676 }], minConcerto: 10000, castConcerto: -10000});
+const Outro = encoreAction("Outro - Thermal Field", { animFrames: 0, cast: Cast.Outro, type: Type.Outro, bullets: [{ hitFrame: 0, mv: 17676 }, { hitFrame: 90, mv: 17676 }, { hitFrame: 180, mv: 17676 }, { hitFrame: 270, mv: 17676 }], minConcerto: 10000, castConcerto: -10000});
 
 /* ------------------------------------------------------------------------------------ buffs */
 

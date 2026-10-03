@@ -24,7 +24,7 @@ import {
   removeStack,
   revokeCurrent,
   casting,
-  currentAction, pressed,
+  pressed,
   onAction,
   runningAction,
   addStat,
@@ -134,28 +134,28 @@ const ESkill50 = sigrikaAction("Skill - Soliskin to the Aid", { animFrames: 54, 
 // only the time until its own hit, none of the fight's
 const RunicOutburst = sigrikaAction("Forte - Runic Outburst", { tag: ActionTag.Field, animFrames: 68,
    node: Node.Forte, type: Type.Echo, bullets: [
-     { hitFrame: 20, mv: 11767, energy: 200, concerto: 140, offtune: 4960 },
-     { hitFrame: 36, mv: 20592, energy: 350, concerto: 245, offtune: 8680 },
-     { hitFrame: 68, mv: 26475, energy: 450, concerto: 315, offtune: 11160 },
+     { hitFrame: 20, commitFrame: 0, mv: 11767, energy: 200, concerto: 140, offtune: 4960 },
+     { hitFrame: 36, commitFrame: 0, mv: 20592, energy: 350, concerto: 245, offtune: 8680 },
+     { hitFrame: 68, commitFrame: 0, mv: 26475, energy: 450, concerto: 315, offtune: 11160 },
    ]});
 const RunicChainWhip = sigrikaAction("Forte - Runic Chain Whip", { tag: ActionTag.Field, animFrames: 66,
   node: Node.Forte, type: Type.Echo, bullets: [
-    { hitFrame: 6, mv: 4970, energy: 125, concerto: 88, offtune: 3100 },
-    { hitFrame: 12, mv: 4970, energy: 125, concerto: 88, offtune: 3100 },
-    { hitFrame: 18, mv: 4970, energy: 125, concerto: 88, offtune: 3100 },
-    { hitFrame: 24, mv: 4970, energy: 125, concerto: 88, offtune: 3100 },
-    { hitFrame: 54, mv: 6626, energy: 167, concerto: 117, offtune: 4134 },
-    { hitFrame: 60, mv: 6626, energy: 167, concerto: 117, offtune: 4134 },
-    { hitFrame: 66, mv: 6626, energy: 167, concerto: 117, offtune: 4134 },
+    { hitFrame: 6, commitFrame: 0, mv: 4970, energy: 125, concerto: 88, offtune: 3100 },
+    { hitFrame: 12, commitFrame: 0, mv: 4970, energy: 125, concerto: 88, offtune: 3100 },
+    { hitFrame: 18, commitFrame: 0, mv: 4970, energy: 125, concerto: 88, offtune: 3100 },
+    { hitFrame: 24, commitFrame: 0, mv: 4970, energy: 125, concerto: 88, offtune: 3100 },
+    { hitFrame: 54, commitFrame: 0, mv: 6626, energy: 167, concerto: 117, offtune: 4134 },
+    { hitFrame: 60, commitFrame: 0, mv: 6626, energy: 167, concerto: 117, offtune: 4134 },
+    { hitFrame: 66, commitFrame: 0, mv: 6626, energy: 167, concerto: 117, offtune: 4134 },
   ]});
 const RunicSoliskin = sigrikaAction("Forte - Runic Soliskin", { tag: ActionTag.Field, animFrames: 78,
    node: Node.Forte, type: Type.Echo, bullets: [
-     { hitFrame: 18, mv: 3976, energy: 100, concerto: 70, offtune: 2480 },
-     { hitFrame: 36, mv: 5963, energy: 150, concerto: 105, offtune: 3720 },
-     { hitFrame: 45, mv: 5963, energy: 150, concerto: 105, offtune: 3720 },
-     { hitFrame: 54, mv: 5963, energy: 150, concerto: 105, offtune: 3720 },
-     { hitFrame: 63, mv: 5963, energy: 150, concerto: 105, offtune: 3720 },
-     { hitFrame: 78, mv: 11926, energy: 300, concerto: 210, offtune: 7440 },
+     { hitFrame: 18, commitFrame: 0, mv: 3976, energy: 100, concerto: 70, offtune: 2480 },
+     { hitFrame: 36, commitFrame: 0, mv: 5963, energy: 150, concerto: 105, offtune: 3720 },
+     { hitFrame: 45, commitFrame: 0, mv: 5963, energy: 150, concerto: 105, offtune: 3720 },
+     { hitFrame: 54, commitFrame: 0, mv: 5963, energy: 150, concerto: 105, offtune: 3720 },
+     { hitFrame: 63, commitFrame: 0, mv: 5963, energy: 150, concerto: 105, offtune: 3720 },
+     { hitFrame: 78, commitFrame: 0, mv: 11926, energy: 300, concerto: 210, offtune: 7440 },
    ]});
 
 const FHA = sigrikaAction("Forte Heavy - Schemata of Runes", { minForte1: 2,
@@ -177,7 +177,7 @@ function spendRunes(): void {
 
 /** Learn My True Name: at 100 Full Stop, spends it all. */
 const FSkill = sigrikaAction("Forte Skill - Learn My True Name", { minForte2: 100,
-   animFrames: 138, cooldown: 60 * 25,
+   animFrames: 138, noSwapFrames: 132, prioFrames: 132, cooldown: 60 * 25,
    node: Node.Forte, cast: Cast.Skill, type: Type.Echo, bullets: [
      { hitFrame: 86, mv: 30287, energy: 136, concerto: 500, offtune: 25334 },
      { hitFrame: 130, commitFrame: 86, mv: 90861, energy: 407, concerto: 1500, offtune: 76002 },
@@ -185,12 +185,12 @@ const FSkill = sigrikaAction("Forte Skill - Learn My True Name", { minForte2: 10
 });
 
 const Liberation = sigrikaAction("Liberation - Where Trust Leads Me!", {
-  animFrames: 228, timestop: 228, motionStop: 228, cooldown: 60 * 25,
+  animFrames: 228, prioFrames: 206, timestop: [0, 228], motionStop: [0, 228], cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Echo, bullets: [{ hitFrame: 176, mv: 86143, offtune: 50400 }], castConcerto: 2000, resetEnergy: true,
   updateBuffs: () => applyCurrent(DIVERGENT),
 });
 
-const Intro = sigrikaAction("Intro - Solsworn Etymology", { animFrames: 58, prioFrames: 58, motionStop: 38, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 46, mv: 16342, energy: 1000, offtune: 7736 }], castConcerto: 1000});
+const Intro = sigrikaAction("Intro - Solsworn Etymology", { animFrames: 58, noSwapFrames: 48, prioFrames: 58, motionStop: [5, 42], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 46, mv: 16342, energy: 1000, offtune: 7736 }], castConcerto: 1000});
 /** In This Very Moment carries no team buff on her own page (unlike most other kits' outros). */
 const Outro = sigrikaAction("Outro - In This Very Moment", { animFrames: 48, cast: Cast.Outro, type: Type.Outro, bullets: [{ hitFrame: 18, mv: 79500 }], minConcerto: 10000, castConcerto: -10000});
 
@@ -218,7 +218,7 @@ const BLESSING_OF_RUNES = new Buff({
 const SR_INHERENT_2 = new Inherent({
   name: "Inherent: True Names Aligned",
   updateGlobal: () => { if (casting(Cast.Echo)) applyTeam(BLESSING_OF_RUNES, 1); },
-  convertStats: () => addStat(Stat.DmgBonus, Math.min(50, 2 * Math.max(0, Math.floor(getStat(Stat.Er)) - 125)), Type.Echo),
+  convertStats: () => addStat(Stat.DmgBonus, Math.min(50, 2 * Math.max(0, Math.floor(getStat(Stat.ER)) - 125)), Type.Echo),
 });
 /** True Names Invoked (Inherent Skill): casting Intro grants Convergent — the only source of it. */
 const SR_INHERENT_1 = new Inherent({

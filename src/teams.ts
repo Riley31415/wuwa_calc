@@ -8,7 +8,7 @@
 import type { Loadout } from "./engine/gear.js";
 import { teamPlayable } from "./engine/rotation.js";
 import { CARTETHYIA } from "./resonators/aero/cartethyia.js";
-import { CIACCONA } from "./resonators/aero/ciaccona.js";
+import { CIACCONA, CIACCONA_YELLOW } from "./resonators/aero/ciaccona.js";
 import { IUNO, IUNO_MDPS } from "./resonators/aero/iuno.js";
 import { JIANXIN } from "./resonators/aero/jianxin.js";
 import { JIYAN } from "./resonators/aero/jiyan.js";
@@ -46,7 +46,6 @@ import { CHISA } from "./resonators/havoc/chisa.js";
 import { DANJIN } from "./resonators/havoc/danjin.js";
 import { PHRO_12s, PHRO_10s } from "./resonators/havoc/phrolova.js";
 import { ROCCIA, ROCCIA_MDPS } from "./resonators/havoc/roccia.js";
-import { ROVER_HAVOC } from "./resonators/havoc/rover_havoc.js";
 import { XUANLING,  } from "./resonators/havoc/xuanling.js";
 import { JINHSI, JINHSI_FULL, JINHSI_SUPPORT } from "./resonators/spectro/jinhsi.js";
 import { LUCY } from "./resonators/spectro/lucy.js";
@@ -80,7 +79,7 @@ const TEAMS: Slot[][] = [
   // hsin, Unison mode: Suoming or Jinhsi behind her hands over the Unison her Intro answers
   [[SHOREKEEPER, VERINA, MORNYE, SUISUI], [SUOMING], HSIN_UNISON],
   [[BULING], [SUOMING], HSIN_UNISON],
-  [[SUOMING], HSIN_UNISON, [JINHSI_SUPPORT]],
+  [[JINHSI_SUPPORT],[SUOMING], HSIN_UNISON, ],
 
   // jinhsi: spectro skill
   [[SHOREKEEPER, MORNYE, SUISUI, VERINA, BULING], [CANTARELLA, YINLIN, SUOMING], JINHSI],
@@ -192,11 +191,14 @@ const TEAMS: Slot[][] = [
   [[ROVER_AERO, SUISUI, CHISA, CIACCONA, SHOREKEEPER, MORNYE], [SANHUA, ROVER_AERO, CHISA], CARTETHYIA],
 
   // zani: spectro frazzle heavy
-  [[SHOREKEEPER, SUISUI, VERINA, MORNYE, ROVER_SPECTRO, CHISA], [PHOEBE_CONFESSION], ZANI],
+  [[SHOREKEEPER, CHISA, SUISUI, VERINA, MORNYE], [ROVER_SPECTRO, PHOEBE_CONFESSION], ZANI],
+  [[ROVER_SPECTRO, CIACCONA_YELLOW, PHOEBE_CONFESSION], [LYNAE_RUPTURE, MORTEFI, REBECCA], ZANI],
+  [[CIACCONA_YELLOW, ROVER_SPECTRO], [ROVER_SPECTRO, PHOEBE_CONFESSION], ZANI],
 
   // phoebe - spectro frazzle heavy
-  [[SHOREKEEPER, CHISA, SUISUI, VERINA, MORNYE], [ROVER_SPECTRO], PHOEBE_ABSOLUTION],
-  [[ROVER_SPECTRO], [LYNAE_RUPTURE, MORTEFI, REBECCA], PHOEBE_ABSOLUTION],
+  [[SHOREKEEPER, CHISA, SUISUI, VERINA, MORNYE], [ROVER_SPECTRO, CIACCONA_YELLOW], PHOEBE_ABSOLUTION],
+  [[ROVER_SPECTRO, CIACCONA_YELLOW], [LYNAE_RUPTURE, MORTEFI, REBECCA], PHOEBE_ABSOLUTION],
+  [[CIACCONA_YELLOW], [ROVER_SPECTRO ], PHOEBE_ABSOLUTION],
 
   // brant: fusion basic
   [[SHOREKEEPER, DENIA_BURST, MORNYE, VERINA, SUISUI], [SANHUA, DENIA_BURST], BRANT_MDPS],

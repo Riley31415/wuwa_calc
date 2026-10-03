@@ -1095,7 +1095,7 @@ document.addEventListener("click", (e) => {
 /** A bubble's identity across the redraw its own removal starts — its dataset is what makes one,
  *  and Clear Filters has none of its own. */
 const chipSig = (el: HTMLElement): string => (el.classList.contains("clearall") ? "clearall"
-  : [el.dataset.axis, el.dataset.scoped, el.dataset.matrix, el.dataset.kind, el.dataset.resonator, el.dataset.value].join(" "));
+  : [el.dataset.axis, el.dataset.scoped, el.dataset.matrix, el.dataset.kind, el.dataset.resonator, el.dataset.value].join("\0"));
 /** Where to put the focus once the next redraw is done (`renderComparison`): a bubble by its own
  *  `chipSig`, null for the search bar, undefined to leave the focus wherever it already is. Only
  *  the bar's own flows book one — a checkbox toggled or a filter set from a table menu redraws

@@ -10,7 +10,7 @@
  * Numbers from nanoka.cc (character 1505); Base DEF (1100) confirmed there directly, since the
  * migrated sheet this was ported from didn't carry it. Her resonance chain is below the buffs.
  */
-import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, BuffTarget } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   applyTeam,
@@ -75,7 +75,7 @@ const FHA = skAction("Forte Heavy - Illation", { minForte1: 5, animFrames: 48, n
   ], castConcerto: 1100, castForte1: -5});
 
 const Liberation = skAction("Liberation - End Loop", {
-  animFrames: 207, timestop: 207, motionStop: 207, cooldown: 60 * 25,
+  animFrames: 207, prioFrames: 207, timestop: [0, 207], motionStop: [0, 207], cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, castConcerto: 2000, resetEnergy: true,
   // "Generate the Outer Stellarealm": a cast puts up a *new* realm rather than stepping the one
   // already standing, so whatever stage is up is replaced by Outer — which is what puts the realm
@@ -86,7 +86,7 @@ const Liberation = skAction("Liberation - End Loop", {
   },
 });
 
-const Intro = skAction("Intro - Enlightenment", { animFrames: 85, motionStop: 29, node: Node.Intro, cast: Cast.Intro, type: Type.Skill, bullets: [
+const Intro = skAction("Intro - Enlightenment", { animFrames: 85, noSwapFrames: 65, prioFrames: 85, motionStop: [6, 34], node: Node.Intro, cast: Cast.Intro, type: Type.Skill, bullets: [
     { hitFrame: 83, commitFrame: 44, mv: 4530, energy: 200, concerto: 200, offtune: 2279, updateDebuffs: () => applyCurrent(HEALS, 1) },
     { hitFrame: 85, commitFrame: 44, mv: 4530, energy: 200, concerto: 200, offtune: 2279 },
     { hitFrame: 87, commitFrame: 44, mv: 4530, energy: 200, concerto: 200, offtune: 2279 },
@@ -96,7 +96,7 @@ const Intro = skAction("Intro - Enlightenment", { animFrames: 85, motionStop: 29
 // replaces plain Intro under a Supernal Stellarealm (see SHOREKEEPER_RESONATOR's own intro() below); scales
 // off HP, counts as liberation damage, always crits, and ends the realm on resolving
 const EIntro = skAction("Intro - Discernment", {
-  animFrames: 215, timestop: 135, motionStop: 135,
+  animFrames: 215, prioFrames: 215, timestop: [6, 140], motionStop: [6, 140],
   node: Node.Intro, cast: Cast.Intro, type: Type.Liberation, scaling: Scaling.Hp, bullets: [
     { hitFrame: 143, mv: 1964, energy: 334, offtune: 24414, updateDebuffs: () => applyCurrent(HEALS, 1) },
     { hitFrame: 155, commitFrame: 143, mv: 1964, energy: 334, offtune: 24414 },
@@ -161,7 +161,7 @@ const SK_OUTRO = new Buff({
  *  addBuff(), see SK_INHERENT_2 below) so the ER still traces to Shorekeeper on Rover's own row. */
 const SK_ROVER_GRAVITATION = new Buff({
   name: "Inherent: Self Gravitation",
-  applyStats: () => { if (realmStage()) addStat(Stat.Er, 10); },
+  applyStats: () => { if (realmStage()) addStat(Stat.ER, 10); },
 });
 
 /** Self Gravitation (Inherent Skill): +10% ER while inside a Stellarealm — assumed always true
@@ -170,7 +170,7 @@ const SK_ROVER_GRAVITATION = new Buff({
 const SK_INHERENT_2 = new Inherent({
   name: "Inherent: Self Gravitation",
   applyStats: () => {
-    if (realmStage()) addStat(Stat.Er, 10);
+    if (realmStage()) addStat(Stat.ER, 10);
   },
   updateGlobal: () => {
     // gated on the realm being up, not unconditional — otherwise this would re-grant Rover's

@@ -146,9 +146,9 @@ const Skill = jiyanAction("Skill - Windqueller", {
 /** Emerald Storm - Prelude: no damage of its own, just opens Qingloong Mode. */
 // Prelude releases Finale itself whenever the 30 Resolve it spends is banked
 const Liberation = jiyanAction("Liberation - Emerald Storm: Prelude", {
-  animFrames: 60, timestop: 60, motionStop: 60, prioFrames: 60,
+  animFrames: 60, timestop: [0, 60], motionStop: [0, 60], prioFrames: 60,
   cooldown: 60 * 16,
-  node: Node.Liberation, cast: Cast.Liberation, concerto: 2000, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, castConcerto: 2000, resetEnergy: true,
   updateBuffs: () => {
     applyCurrent(QINGLOONG_MODE, 1);
     if (forte1() >= 30) queue(Finale);
@@ -156,7 +156,7 @@ const Liberation = jiyanAction("Liberation - Emerald Storm: Prelude", {
 });
 /** Emerald Storm - Finale, released by Prelude at 30+ Resolve — considered Heavy Attack DMG. */
 // PLACEHOLDER FRAMES
-const Finale = jiyanAction("Liberation - Emerald Storm: Finale", { animFrames: 60, timestop: 60, motionStop: 60, prioFrames: 60, node: Node.Liberation, cast: Cast.Liberation, type: Type.Heavy, bullets: [
+const Finale = jiyanAction("Liberation - Emerald Storm: Finale", { animFrames: 60, timestop: [0, 60], motionStop: [0, 60], prioFrames: 60, node: Node.Liberation, cast: Cast.Liberation, type: Type.Heavy, bullets: [
     { hitFrame: 60, mv: 14291, offtune: 21504 },
     { hitFrame: 60, mv: 14291, offtune: 21504 },
     { hitFrame: 60, mv: 42873, offtune: 64512 },
@@ -355,14 +355,14 @@ const JY_ROTATION = new Rotation([
 
   INTRO, 
   Liberation,
-  Lance1.cancel(), Skill, ECHO,
+  Lance1.cancel(), Skill,
   Lance1.dodgeCancel(),
   Lance1.dodgeCancel(),
   Lance1.dodgeCancel(),
   Lance1.dodgeCancel(),
   Lance1.dodgeCancel(),
   Lance1.dodgeCancel(),
-  Skill.instaSwap(), Outro,
+   ECHO,Skill.instaSwap(), Outro,
 ]);
 
 const JY_ROTATION_S6 = new Rotation([
@@ -370,14 +370,14 @@ const JY_ROTATION_S6 = new Rotation([
 
   INTRO, 
   Liberation,
-  Lance1.cancel(), Skill, ECHO,
+  Lance1.cancel(), Skill, 
   Lance1.dodgeCancel(),
   Lance1.dodgeCancel(),
   Lance1.dodgeCancel(),
   Lance1.dodgeCancel(),
   Lance1.dodgeCancel(),
   Lance1.dodgeCancel(),
-  Skill.instaSwap(), Outro,
+  ECHO,Skill.instaSwap(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

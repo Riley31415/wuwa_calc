@@ -107,7 +107,7 @@ const ForteMidair3 = verinaAction("Forte Mid-air - Starflower Blooms 3",
 
 // Arboreal Flourish places Photosynthesis Mark on the enemy (see file header), heals
 const Liberation = verinaAction("Liberation - Arboreal Flourish", {
-  animFrames: 150, timestop: 106, motionStop: 59, cooldown: 60 * 25,
+  animFrames: 150, prioFrames: 150, timestop: [0, 106], motionStop: [0, 59], cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 58, mv: 19881 }], castConcerto: 2000, resetEnergy: true,
   updateBuffs: () => applyEnemy(PHOTOSYNTHESIS_MARK, 12),
 });
@@ -123,7 +123,7 @@ const PhotosynthesisTick = verinaAction("Liberation - Photosynthesis Mark", {
  *  this copy names no field and stays out of the report's field row. */
 const S6Tick = PhotosynthesisTick.variant("Liberation - Photosynthesis Mark", { field: null });
 
-const Intro = verinaAction("Intro - Verdant Growth", { animFrames: 98, prioFrames: 52, motionStop: 51, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 62, mv: 9941, energy: 1000, offtune: 11230 }], castConcerto: 1000, castForte1: 1});
+const Intro = verinaAction("Intro - Verdant Growth", { animFrames: 98, noSwapFrames: 83, prioFrames: 52, motionStop: [4, 54], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 62, mv: 9941, energy: 1000, offtune: 11230 }], castConcerto: 1000, castForte1: 1});
 /** Blossom: no damage of its own, just the outro handoff, the Gift of Nature/S4 trigger and
  *  (skipped) healing. */
 const Outro = verinaAction("Outro - Blossom", {

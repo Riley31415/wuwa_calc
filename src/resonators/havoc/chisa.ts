@@ -74,16 +74,16 @@ import {
   stacksOfEnemy,
   stacksOfTeam,
   maxStackIncrease,
-  forte1,
   runningAnyOf,
   currentTeam,
   currentFrame,
   runningBullet,
 } from "../../engine/context.js";
-import { Action, ActionGroup, Rotation, NOINTRO, ECHO, START_LAST, ActionTag, INTRO } from "../../engine/rotation.js";
+import { Action, ActionGroup, Rotation, NOINTRO, ECHO, ActionTag, INTRO } from "../../engine/rotation.js";
 import {
-  HEALS, SHIELD, HAVOC_BANE, GLACIO_CHAFE, ELECTRO_FLARE, FUSION_BURST, AERO_EROSION, SPECTRO_FRAZZLE, ELECTRO_RAGE,
-  inflictedNegativeStatusBy, gainShield } from "../../shared/status.js";
+  HEALS, HAVOC_BANE, GLACIO_CHAFE, ELECTRO_FLARE, FUSION_BURST, AERO_EROSION, SPECTRO_FRAZZLE, ELECTRO_RAGE,
+  inflictedNegativeStatusBy, gainShield,
+} from "../../shared/status.js";
 import { KUMOKIRI, WILDFIRE_MARK } from "../../weapons/broadblade.js";
 import { DISCORD, LUSTROUS_RAZOR, NEW_STD_BRAUDBLADE } from "../../weapons/standard.js";
 import { THRENODIAN_LEVIATHAN, THREAD_OF_SEVERED_FATE_3PC } from "../../echoes/septimont.js";
@@ -98,7 +98,7 @@ function chisaAction(id: string, def: object): Action {
 }
 
 const Intro = chisaAction("Intro - Reverberance - Return", {
-  animFrames: 55, prioFrames: 55, motionStop: 32,
+  animFrames: 55, noSwapFrames: 54, prioFrames: 55, motionStop: [5, 36],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 39, mv: 9543, energy: 1000, offtune: 6400 }], castConcerto: 1000, castForte1: 20,
 });
 const Outro = chisaAction("Outro - Unraveling - Law Zero", {
@@ -252,7 +252,7 @@ const SerratedLoopHold = chisaAction("Forte Skill - Serrated Loop (Hold)", { min
 /** Moment of Nihility: 954.29% Havoc, heals the team, banks 40 Ring of Chainsaw and hands herself
  *  Woven Myriad - Convergence (+120% MV to Blitz/Eradication until Eradication resolves it). */
 const Liberation = chisaAction("Liberation - Moment of Nihility", {
-  animFrames: 220, timestop: 220, motionStop: 170, cooldown: 60 * 25,
+  animFrames: 220, prioFrames: 220, timestop: [0, 220], motionStop: [0, 170], cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, resetEnergy: true,
   bullets: [{ hitFrame: 160, mv: 95429, offtune: 96000 }], castConcerto: 2000, castForte1: 40,
   updateDebuffs: () => applyCurrent(HEALS, 1),
@@ -266,9 +266,9 @@ const Blitz1 = chisaAction("Forte Basic - Sawring Blitz 1", { animFrames: 31, no
     { hitFrame: 10, mv: 1149, energy: 17, concerto: 33, offtune: 514, forte2: -3 },
     { hitFrame: 13, mv: 1149, energy: 17, concerto: 33, offtune: 514, forte2: -3 },
     { hitFrame: 19, mv: 1149, energy: 17, concerto: 33, offtune: 514, forte2: -3 },
-    { hitFrame: 21, mv: 1149, energy: 17, concerto: 33, offtune: 514, forte2: -3 },
-    { hitFrame: 24, mv: 1149, energy: 17, concerto: 33, offtune: 514, forte2: -3 },
-    { hitFrame: 26, commitFrame: 24, mv: 1149, energy: 17, concerto: 33, offtune: 514, forte2: -3 },
+    { hitFrame: 21, commitFrame: 24, mv: 1149, energy: 17, concerto: 33, offtune: 514, forte2: -3 },
+    { hitFrame: 24, commitFrame: 13, mv: 1149, energy: 17, concerto: 33, offtune: 514, forte2: -3 },
+    { hitFrame: 26, commitFrame: 19, mv: 1149, energy: 17, concerto: 33, offtune: 514, forte2: -3 },
   ], ...blitz() });
 
 /** Stage 2, as the four inputs that reach it. The Dodge Counter and the After Plunge are the same
@@ -280,20 +280,20 @@ const Blitz1 = chisaAction("Forte Basic - Sawring Blitz 1", { animFrames: 31, no
 const Blitz2 = chisaAction("Forte Basic - Sawring Blitz 2", { animFrames: 52, node: Node.Forte, type: Type.Liberation, bullets: [
     { hitFrame: 19, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -2 },
     { hitFrame: 21, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
-    { hitFrame: 23, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -2 },
-    { hitFrame: 25, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 23, commitFrame: 21, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -2 },
+    { hitFrame: 25, commitFrame: 21, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
     { hitFrame: 33, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
-    { hitFrame: 38, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 38, commitFrame: 33, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
     { hitFrame: 39, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
     { hitFrame: 43, commitFrame: 39, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
   ], ...blitz() });
 const Blitz2DodgeCounter = chisaAction("Forte Dodge Counter - Sawring Blitz 2", { animFrames: 52, node: Node.Forte, cast: Cast.DodgeCounter, type: Type.Liberation, bullets: [
     { hitFrame: 19, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -2 },
     { hitFrame: 21, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
-    { hitFrame: 23, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -2 },
-    { hitFrame: 25, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 23, commitFrame: 21, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -2 },
+    { hitFrame: 25, commitFrame: 21, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
     { hitFrame: 33, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
-    { hitFrame: 38, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 38, commitFrame: 33, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
     { hitFrame: 39, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
     { hitFrame: 43, commitFrame: 39, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
   ], ...blitz(), castConcerto: 1000 });
@@ -301,10 +301,10 @@ const Blitz2AfterPlunge = chisaAction("Forte Basic - Sawring Blitz 2 (After Plun
     { hitFrame: 11, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -2 },
     { hitFrame: 14, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
     { hitFrame: 14, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -2 },
-    { hitFrame: 18, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 18, commitFrame: 14, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
     { hitFrame: 25, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
     { hitFrame: 29, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
-    { hitFrame: 32, commitFrame: 29, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 32, commitFrame: 25, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
     { hitFrame: 35, commitFrame: 29, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
   ], ...blitz() });
 /** What a released Stage 2 can throw out on the way — only where the rotation writes it (`Blitz2D`). */
@@ -319,40 +319,40 @@ const Blitz2Discordance = chisaAction("Forte Basic - Sawring Blitz 2: Discordanc
 const Blitz2Hold = chisaAction("Forte Basic - Sawring Blitz 2 (Hold)", { animFrames: 84, node: Node.Forte, type: Type.Liberation, bullets: [
     { hitFrame: 19, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -2 },
     { hitFrame: 21, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
-    { hitFrame: 23, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -2 },
-    { hitFrame: 25, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 23, commitFrame: 21, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -2 },
+    { hitFrame: 25, commitFrame: 21, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
     { hitFrame: 33, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
-    { hitFrame: 38, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 38, commitFrame: 33, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
     { hitFrame: 39, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
-    { hitFrame: 43, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 43, commitFrame: 39, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
     { hitFrame: 45, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
-    { hitFrame: 51, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 51, commitFrame: 45, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
     { hitFrame: 52, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
-    { hitFrame: 57, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 57, commitFrame: 52, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
     { hitFrame: 60, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
-    { hitFrame: 65, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 65, commitFrame: 60, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
     { hitFrame: 66, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
-    { hitFrame: 71, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 71, commitFrame: 66, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
     { hitFrame: 73, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
     { hitFrame: 78, commitFrame: 73, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
   ], ...blitz() });
 const Blitz2HoldDodgeCounter = chisaAction("Forte Dodge Counter - Sawring Blitz 2 (Hold)", { animFrames: 84, node: Node.Forte, cast: Cast.DodgeCounter, type: Type.Liberation, bullets: [
     { hitFrame: 19, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -2 },
     { hitFrame: 21, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
-    { hitFrame: 23, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -2 },
-    { hitFrame: 25, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 23, commitFrame: 21, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -2 },
+    { hitFrame: 25, commitFrame: 21, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
     { hitFrame: 33, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
-    { hitFrame: 38, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 38, commitFrame: 33, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
     { hitFrame: 39, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
-    { hitFrame: 43, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 43, commitFrame: 39, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
     { hitFrame: 45, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
-    { hitFrame: 51, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 51, commitFrame: 45, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
     { hitFrame: 52, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
-    { hitFrame: 57, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 57, commitFrame: 52, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
     { hitFrame: 60, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
-    { hitFrame: 65, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 65, commitFrame: 60, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
     { hitFrame: 66, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
-    { hitFrame: 71, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 71, commitFrame: 66, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
     { hitFrame: 73, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
     { hitFrame: 78, commitFrame: 73, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
   ], ...blitz(), castConcerto: 1000 });
@@ -360,31 +360,31 @@ const Blitz2HoldAfterPlunge = chisaAction("Forte Basic - Sawring Blitz 2 (Hold A
     { hitFrame: 11, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -2 },
     { hitFrame: 14, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
     { hitFrame: 14, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -2 },
-    { hitFrame: 18, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 18, commitFrame: 14, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
     { hitFrame: 25, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
     { hitFrame: 29, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
-    { hitFrame: 32, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
-    { hitFrame: 35, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 32, commitFrame: 25, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 35, commitFrame: 29, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
     { hitFrame: 37, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
     { hitFrame: 42, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
-    { hitFrame: 42, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 42, commitFrame: 37, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
     { hitFrame: 47, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
-    { hitFrame: 48, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 48, commitFrame: 42, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
     { hitFrame: 53, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
-    { hitFrame: 53, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 53, commitFrame: 47, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 57, commitFrame: 50, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
     { hitFrame: 57, commitFrame: 53, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
-    { hitFrame: 57, commitFrame: 53, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
-    { hitFrame: 62, commitFrame: 53, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
+    { hitFrame: 62, commitFrame: 50, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte2: -3 },
   ], ...blitz() });
 
 const Blitz3 = chisaAction("Forte Basic - Sawring Blitz 3", { animFrames: 67, node: Node.Forte, type: Type.Liberation, bullets: [
     { hitFrame: 32, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -3 },
     { hitFrame: 38, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -3 },
-    { hitFrame: 41, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -3 },
-    { hitFrame: 47, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -3 },
+    { hitFrame: 41, commitFrame: 32, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -3 },
+    { hitFrame: 47, commitFrame: 38, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -3 },
     { hitFrame: 50, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -3 },
     { hitFrame: 56, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -3 },
-    { hitFrame: 62, commitFrame: 56, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -4 },
+    { hitFrame: 62, commitFrame: 50, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -4 },
     { hitFrame: 66, commitFrame: 56, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -4 },
   ], ...blitz() });
 /** What a released Stage 3 can throw out, the same shape as Discordance above (`Blitz3F`). */
@@ -397,16 +397,16 @@ const Blitz3Falltone = chisaAction("Forte Basic - Sawring Blitz 3: Falltone", { 
 const Blitz3Hold = chisaAction("Forte Basic - Sawring Blitz 3 (Hold)", { animFrames: 99, node: Node.Forte, type: Type.Liberation, bullets: [
     { hitFrame: 32, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -3 },
     { hitFrame: 38, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -3 },
-    { hitFrame: 41, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -3 },
-    { hitFrame: 47, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -3 },
+    { hitFrame: 41, commitFrame: 32, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -3 },
+    { hitFrame: 47, commitFrame: 38, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -3 },
     { hitFrame: 50, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -3 },
     { hitFrame: 56, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -3 },
-    { hitFrame: 62, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -4 },
-    { hitFrame: 66, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -4 },
+    { hitFrame: 62, commitFrame: 50, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -4 },
+    { hitFrame: 66, commitFrame: 56, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -4 },
     { hitFrame: 73, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -4 },
-    { hitFrame: 77, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -4 },
+    { hitFrame: 77, commitFrame: 73, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -4 },
     { hitFrame: 84, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -4 },
-    { hitFrame: 88, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -4 },
+    { hitFrame: 88, commitFrame: 84, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -4 },
     { hitFrame: 96, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -4 },
     { hitFrame: 99, commitFrame: 96, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte2: -4 },
   ], ...blitz() });

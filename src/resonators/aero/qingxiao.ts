@@ -48,7 +48,6 @@ import {
   revokeTeam,
   stacksOfEnemy,
   forte1,
-  forte2,
   stacksOf,
   isHeld,
   queue,
@@ -115,10 +114,10 @@ const MA2 = qxAction("Mid-air - Stringblade 2", { animFrames: 45, node: Node.Nor
   ]});
 const MA3 = qxAction("Mid-air - Stringblade 3", { animFrames: 86, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 18, mv: 1114, energy: 20, concerto: 40, offtune: 640, forte2: 107 },
-    { hitFrame: 24, mv: 1114, energy: 20, concerto: 40, offtune: 640, forte2: 107 },
-    { hitFrame: 30, mv: 1114, energy: 20, concerto: 40, offtune: 640, forte2: 107 },
-    { hitFrame: 36, mv: 1114, energy: 20, concerto: 40, offtune: 640, forte2: 107 },
-    { hitFrame: 42, mv: 1114, energy: 20, concerto: 40, offtune: 640, forte2: 107 },
+    { hitFrame: 24, commitFrame: 18, mv: 1114, energy: 20, concerto: 40, offtune: 640, forte2: 107 },
+    { hitFrame: 30, commitFrame: 18, mv: 1114, energy: 20, concerto: 40, offtune: 640, forte2: 107 },
+    { hitFrame: 36, commitFrame: 18, mv: 1114, energy: 20, concerto: 40, offtune: 640, forte2: 107 },
+    { hitFrame: 42, commitFrame: 18, mv: 1114, energy: 20, concerto: 40, offtune: 640, forte2: 107 },
     { hitFrame: 70, mv: 8351, energy: 150, concerto: 300, offtune: 4800, forte2: 802 },
   ]});
 const Plunge = qxAction("Mid-air - Plunging Attack", { animFrames: 63, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 39, mv: 8629, energy: 155, concerto: 310, offtune: 4960 }]});
@@ -133,7 +132,7 @@ const DC = qxAction("Dodge Counter - Stringblade", { animFrames: 48, node: Node.
  *  and opens Ephemeral Transcendence. Under Clarity it also arms the enhanced Heaven's Reckoning,
  *  which is Clarity's own doing (see HEAVENS_CLARITY). */
 const HA = qxAction("Heavy - Stringblade", { minForte1: 10000, minForte2: 10000,
-  animFrames: 137,
+  animFrames: 137, noSwapFrames: 126,
   node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 26, mv: 1462, energy: 18, concerto: 35, offtune: 560 },
     { hitFrame: 35, mv: 1462, energy: 18, concerto: 35, offtune: 560 },
@@ -211,7 +210,7 @@ applyStats: () => { if (forte1() < 10000) addStat(Stat.MulMv, 100); }, castConce
 });
 /** Spends all Heart Sword Intent and takes Heaven's Clarity with it. */
 const FHA = qxAction("Forte Heavy - Heaven's Reckoning", { minForte1: 10000,
-  animFrames: 180, timestop: 180, motionStop: 180,
+  animFrames: 180, noSwapFrames: 180, timestop: [0, 180], motionStop: [0, 180],
   node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 32, mv: 2784, energy: 92, offtune: 320 },
     { hitFrame: 44, mv: 2784, energy: 92, offtune: 320 },
@@ -229,18 +228,18 @@ const FHA = qxAction("Forte Heavy - Heaven's Reckoning", { minForte1: 10000,
 });
 
 const Liberation = qxAction("Liberation - Billows Beneath Heaven", {
-  animFrames: 300, timestop: 300, motionStop: 300, cooldown: 60 * 25,
+  animFrames: 300, prioFrames: 300, timestop: [0, 300], motionStop: [0, 300], cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [
     { hitFrame: 140, mv: 3341, offtune: 160 },
-    { hitFrame: 146, mv: 3341, offtune: 160 },
-    { hitFrame: 152, mv: 3341, offtune: 160 },
-    { hitFrame: 158, mv: 3341, offtune: 160 },
-    { hitFrame: 164, mv: 3341, offtune: 160 },
-    { hitFrame: 170, mv: 3341, offtune: 160 },
-    { hitFrame: 176, mv: 3341, offtune: 160 },
-    { hitFrame: 182, mv: 3341, offtune: 160 },
-    { hitFrame: 188, mv: 3341, offtune: 160 },
-    { hitFrame: 194, mv: 3341, offtune: 160 },
+    { hitFrame: 146, commitFrame: 140, mv: 3341, offtune: 160 },
+    { hitFrame: 152, commitFrame: 140, mv: 3341, offtune: 160 },
+    { hitFrame: 158, commitFrame: 140, mv: 3341, offtune: 160 },
+    { hitFrame: 164, commitFrame: 140, mv: 3341, offtune: 160 },
+    { hitFrame: 170, commitFrame: 140, mv: 3341, offtune: 160 },
+    { hitFrame: 176, commitFrame: 140, mv: 3341, offtune: 160 },
+    { hitFrame: 182, commitFrame: 140, mv: 3341, offtune: 160 },
+    { hitFrame: 188, commitFrame: 140, mv: 3341, offtune: 160 },
+    { hitFrame: 194, commitFrame: 140, mv: 3341, offtune: 160 },
     { hitFrame: 238, mv: 133601, offtune: 6400 },
   ],
   castConcerto: 2000, resetEnergy: true,
@@ -250,7 +249,7 @@ const Liberation = qxAction("Liberation - Billows Beneath Heaven", {
 /** Banks nothing on the table — the page's "restores 30 Sword Cadence" isn't there — and arms
  *  Resonant Chime. */
 const Intro = qxAction("Intro - Tonality Shift", {
-  animFrames: 64, prioFrames: 64, motionStop: 29,
+  animFrames: 64, noSwapFrames: 57, prioFrames: 64, motionStop: [3, 31],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 35, mv: 3979, energy: 300, offtune: 2288 },
     { hitFrame: 43, mv: 4642, energy: 350, offtune: 2669 },
@@ -387,7 +386,7 @@ const QX_STRAIN_PAYOUT = strainPayout();
 
 const QINGXIAO_RESONATOR = new Resonator({
   name: "Qingxiao",
-  stats: [[Stat.BaseHp, 10300], [Stat.BaseAtk, 462.5], [Stat.BaseDef, 1112.2202], [Stat.Tbb, 10]],
+  stats: [[Stat.BaseHp, 10300], [Stat.BaseAtk, 462.5], [Stat.BaseDef, 1112.2202], [Stat.TBB, 10]],
   talent: QINGXIAO_TALENTS,
   inherent1: QX_INHERENT_1,
   inherent2: QX_INHERENT_2,
@@ -395,7 +394,7 @@ const QINGXIAO_RESONATOR = new Resonator({
   weapon: WeaponType.Sword,
   color: "#6cc5b0",
   intro: Intro,
-  tuneBreak: tuneBreak(120, 120, 100, [[64, 10000], [70, 10000], [76, 10000], [82, 10000], [101, 120000]]),
+  tuneBreak: tuneBreak(120, [0, 120], [0, 100], [[64, 10000], [70, 10000, 64], [76, 10000, 64], [82, 10000, 64], [101, 120000]]),
   maxEnergy: 12500,
   forteScale: [0.01, 0.01, 1, 1, 1],
   maxForte1: 10000,
@@ -497,7 +496,7 @@ const QX_S6 = new Sequence({
   applyStats: () => {
     if (runningAction(HA) || runningAction(FHA) || runningAction(Liberation) || runningAction(JuquePerdition)) addStat(Stat.DamageTaken, 40);
   },
-  lateConvertStats: () => addStat(Stat.TotalDmg, 0.2 * 0.12 * getStat(Stat.Tbb) * stacksOfEnemy(TUNE_STRAIN_INTERFERED)),
+  lateConvertStats: () => addStat(Stat.TotalDmg, 0.2 * 0.12 * getStat(Stat.TBB) * stacksOfEnemy(TUNE_STRAIN_INTERFERED)),
 });
 
 const QX_SEQUENCES = [QX_S1, QX_S2, QX_S3, QX_S4, QX_S5, QX_S6];

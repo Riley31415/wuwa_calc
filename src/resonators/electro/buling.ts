@@ -41,7 +41,7 @@ import {
   stacksOfTeam,
   isHeld,
   casting,
-  currentAction, pressed,
+  pressed,
   runningAction,
   addStat,
   revokeCurrent,
@@ -115,9 +115,9 @@ const YIN = {
 };
 const HA_MOUNTAIN_OVER_THUNDER = bulingAction("Heavy - Mountain Over Thunder", { minForte1: 2, animFrames: 70, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 46, commitFrame: 40, mv: 17893, energy: 300, offtune: 8000 }], castConcerto: 1500, castForte1: -2, ...YANG });
 const HA_THUNDER_OVER_MOUNTAIN = bulingAction("Heavy - Thunder Over Mountain", { minForte1: 2, animFrames: 70, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 46, commitFrame: 40, mv: 8947, energy: 300, offtune: 8000 }], castConcerto: 1500, castForte1: -2, ...YANG });
-const HA_TWIN_MOUNTAINS = bulingAction("Heavy - Twin Mountains", { minForte1: 2, animFrames: 60, node: Node.Normal, cast: Cast.Heavy, concerto: 1500, castForte1: -2, ...YIN });
+const HA_TWIN_MOUNTAINS = bulingAction("Heavy - Twin Mountains", { minForte1: 2, animFrames: 60, node: Node.Normal, cast: Cast.Heavy, castConcerto: 1500, castForte1: -2, ...YIN });
 const HA_TWIN_THUNDERS = bulingAction("Heavy - Twin Thunders", { minForte1: 2,
-  animFrames: 60, node: Node.Normal, cast: Cast.Heavy, concerto: 1500, castForte1: -2, ...YIN,
+  animFrames: 60, node: Node.Normal, cast: Cast.Heavy, castConcerto: 1500, castForte1: -2, ...YIN,
   updateBuffs: () => {
     YIN.updateBuffs();
     applyTeam(TWIN_THUNDERS_HEALS, 8);
@@ -163,7 +163,7 @@ const Skill = bulingAction("Skill - In Shadow Thunder Stirs", { animFrames: 53, 
 /** Both Liberation forms draw on the one 24s cooldown. */
 const LIB_CD = new Cooldown({ frames: 60 * 24 });
 const Harmony = bulingAction("Liberation - Flashing Thunder Spell - Harmony", {
-  animFrames: 244, timestop: 231, motionStop: 187,
+  animFrames: 244, prioFrames: 238, timestop: [0, 231], motionStop: [0, 187],
   cooldown: LIB_CD,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 187, mv: 53679, offtune: 72000 }], castConcerto: 2000, resetEnergy: true,
   updateBuffs: () => {
@@ -175,7 +175,7 @@ const Harmony = bulingAction("Liberation - Flashing Thunder Spell - Harmony", {
   },
 });
 const FlashingThunderSpell = bulingAction("Liberation - Flashing Thunder Spell", {
-  animFrames: 244, timestop: 231, motionStop: 187,
+  animFrames: 244, prioFrames: 238, timestop: [0, 231], motionStop: [0, 187],
   cooldown: LIB_CD,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 187, mv: 35786, offtune: 36000 }], castConcerto: 2000, resetEnergy: true,
 });
@@ -195,9 +195,10 @@ const ArrayTick = bulingAction("Liberation - Five Thunders Spell Array", {
 });
 
 const Intro = bulingAction("Intro - Summon and Smite", {
-  animFrames: 80, prioFrames: 70, motionStop: 54,
-  node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 61, mv: 13110, offtune: 8792 }], castConcerto: 1000,
-  updateDebuffs: () => inflictElectroFlare(4),
+  animFrames: 80, noSwapFrames: 59, prioFrames: 70, motionStop: [7, 60],
+  node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
+    { hitFrame: 61, commitFrame: 7, mv: 13110, offtune: 8792, updateDebuffs: () => inflictElectroFlare(4) },
+  ], castConcerto: 1000,
 });
 const Outro = bulingAction("Outro - Exorcism Spell", {
   animFrames: 0,

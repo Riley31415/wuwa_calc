@@ -55,8 +55,6 @@ import {
   resetCooldown,
   revokeCurrent as revokeCurrent,
   revokeTeam,
-  forte1,
-  forte2,
   frozenStacks,
   stacksOfEnemy,
   addToCast,
@@ -165,7 +163,7 @@ const EHA = lucyAction("Heavy - Single Threading", { animFrames: 67, node: Node.
     { hitFrame: 24, mv: 2339, energy: 34, concerto: 135, offtune: 1344, forte2: 620 },
     { hitFrame: 38, mv: 2339, energy: 34, concerto: 135, offtune: 1344, forte2: 620 },
   ]});
-// Payload's charge, Deadlock and Multi-threading each land a Tune Hack
+// every hit of Deadlock and Multi-threading, and both of Payload's charge, lands a Tune Hack (wuwalab's inflict_hack_shifting)
 const HACKS = { updateDebuffs: () => applyHack() };
 // each gauge's own ceiling is applied on the one cast that spends it rather than on every action
 // — so that cast's own -100 lands exactly on empty, and everything before it still reports what
@@ -180,44 +178,60 @@ const DualThreading = lucyAction("Heavy - Dual Threading", { minForte2: 10000,
     { hitFrame: 48, mv: 3341, energy: 60, offtune: 1344 },
   ], castConcerto: 800, castForte2: -10000,
 });
-/** Multi-threading, at its bare values — the SQL form is the same cast with SQL's own additions on
- *  top (see SQL below), which is how nanoka lists it. */
+/** Multi-threading without SQL: the bare cast (its 20% HP cost is no stat). */
 const MultiThreading = lucyAction("Heavy - Multi-threading", { animFrames: 61, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
-    { hitFrame: 38, mv: 5965, energy: 75, offtune: 2520 },
-    { hitFrame: 43, mv: 5965, energy: 75, offtune: 2520 },
-    { hitFrame: 49, mv: 5965, energy: 75, offtune: 2520 },
-    { hitFrame: 55, mv: 5965, energy: 75, offtune: 2520 },
-  ], castConcerto: 800, ...HACKS });
-
-// --- Protocol Breach. Payload is the charge; hitting with it automatically triggers the follow-up,
-//     which is in turn what activates Pulse Interference — so the follow-up is queued off the charge
-//     rather than named by a rotation. Deadlock replaces both Payload and Pulse Interference at 100
-//     TCP and is Heavy Attack DMG rather than Resonance Skill DMG.
-const Skill1 = lucyAction("Skill - Payload (Charge)", {
-  animFrames: 55, bullets: [{ hitFrame: 46, mv: 3008, energy: 150, concerto: 240, offtune: 1512, forte1: 360 }], cooldown: 60 * 15,
-  node: Node.Skill, cast: Cast.Skill, type: Type.Skill,
-  // hitting with the charge triggers the follow-up on its own
-  updateDebuffs: () => {
-    applyHack();
-    queue(Skill2);
-  },
+    { hitFrame: 38, mv: 5965, energy: 75, offtune: 2520, ...HACKS },
+    { hitFrame: 43, mv: 5965, energy: 75, offtune: 2520, ...HACKS },
+    { hitFrame: 49, mv: 5965, energy: 75, offtune: 2520, ...HACKS },
+    { hitFrame: 55, mv: 5965, energy: 75, offtune: 2520, ...HACKS },
+  ], castConcerto: 800 });
+/** Multi-threading spending SQL: nanoka's own rows, 220.68% per hit (x3.7), energy 2.5, off-tune 16920. */
+const MultiThreadingSQL = MultiThreading.variant("Heavy - Multi-threading (SQL)", { bullets: [
+    { hitFrame: 38, mv: 22068, energy: 250, offtune: 16920, ...HACKS },
+    { hitFrame: 43, mv: 22068, energy: 250, offtune: 16920, ...HACKS },
+    { hitFrame: 49, mv: 22068, energy: 250, offtune: 16920, ...HACKS },
+    { hitFrame: 55, mv: 22068, energy: 250, offtune: 16920, ...HACKS },
+  ]});
+/** The same under S2's +560%: nanoka's 393.65% per hit (x6.6), the SQL row's energy and off-tune. */
+const MultiThreadingSQLS2 = MultiThreading.variant("Heavy - Multi-threading (SQL S2)", { bullets: [
+    { hitFrame: 38, mv: 39365, energy: 250, offtune: 16920, ...HACKS },
+    { hitFrame: 43, mv: 39365, energy: 250, offtune: 16920, ...HACKS },
+    { hitFrame: 49, mv: 39365, energy: 250, offtune: 16920, ...HACKS },
+    { hitFrame: 55, mv: 39365, energy: 250, offtune: 16920, ...HACKS },
+  ]});
+/** The Multi-threading a rotation writes: the SQL form while she holds SQL, S2's once S2 is held. */
+const MultiThreadingResolver = new Action("Multi-threading Resolver", {
+  resolve: () => (!isHeld(SQL) ? MultiThreading : isHeld(LC_S2) ? MultiThreadingSQLS2 : MultiThreadingSQL),
 });
-const Skill2 = lucyAction("Skill - Payload (Follow-Up)", { node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [{ hitFrame: 0, mv: 7017, energy: 350, concerto: 560, offtune: 3528, forte1: 840 }] });
+
+// --- Protocol Breach. Payload is the charge (20.05%+10.03%, each laying Hack - Shifting) and the
+//     follow-up it triggers on hit (40.09%+10.03%+20.05%), one press as wuwalab plays it. Deadlock
+//     replaces both Payload and Pulse Interference at 100 TCP and is Heavy Attack DMG.
+const Skill1 = lucyAction("Skill - Payload", {
+  animFrames: 55, cooldown: 60 * 15,
+  node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+    { hitFrame: 16, mv: 2005, energy: 100, concerto: 160, offtune: 1008, forte1: 240, ...HACKS },
+    { hitFrame: 20, mv: 1003, energy: 50, concerto: 80, offtune: 504, forte1: 120, ...HACKS },
+    { hitFrame: 30, mv: 4009, energy: 200, concerto: 320, offtune: 2016, forte1: 480 },
+    { hitFrame: 42, mv: 1003, energy: 50, concerto: 80, offtune: 504, forte1: 120 },
+    { hitFrame: 46, mv: 2005, energy: 100, concerto: 160, offtune: 1008, forte1: 240 },
+  ],
+});
 const Skill3 = lucyAction("Skill - Pulse Interference", {
   animFrames: 156,
   node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 2, mv: 3086, energy: 50, offtune: 1552, forte1: 120 },
     { hitFrame: 12, mv: 3086, energy: 50, offtune: 1552, forte1: 120 },
     { hitFrame: 114, mv: 6172, energy: 100, offtune: 3104, forte1: 240 },
-    { hitFrame: 121, mv: 6172, energy: 100, offtune: 3104, forte1: 240 },
-    { hitFrame: 128, mv: 6172, energy: 100, offtune: 3104, forte1: 240 },
+    { hitFrame: 121, commitFrame: 114, mv: 6172, energy: 100, offtune: 3104, forte1: 240 },
+    { hitFrame: 128, commitFrame: 114, mv: 6172, energy: 100, offtune: 3104, forte1: 240 },
     { hitFrame: 128, mv: 6172, energy: 100, offtune: 3104, forte1: 240 },
   ], castConcerto: 800,
   updateBuffs: () => applyCurrent(DIGITAL_HANDSHAKE, 1),  // DIGITAL_HANDSHAKE grants no stat and nothing reads it
 });
 const Deadlock = lucyAction("Skill - Deadlock", { minForte1: 10000,
-  animFrames: 72, timestop: 60, motionStop: 36, cooldown: 60 * 14,
-  node: Node.Skill, cast: Cast.Skill, type: Type.Heavy, bullets: [{ hitFrame: 35, mv: 5170, energy: 200 }, { hitFrame: 64, mv: 20677, energy: 800 }], castConcerto: 800, castForte1: -10000, ...HACKS,
+  animFrames: 72, prioFrames: 72, timestop: [0, 60], motionStop: [0, 36], cooldown: 60 * 14,
+  node: Node.Skill, cast: Cast.Skill, type: Type.Heavy, bullets: [{ hitFrame: 35, mv: 5170, energy: 200, ...HACKS }, { hitFrame: 64, mv: 20677, energy: 800, ...HACKS }], castConcerto: 800, castForte1: -10000,
   updateBuffs: () => {
     // enters Algorithm Compaction with one SQL; casting it again inside the state grants neither
     if (!isHeld(ALGORITHM_COMPACTION)) { applyCurrent(ALGORITHM_COMPACTION, 1); applyCurrent(SQL, 1); }
@@ -244,12 +258,12 @@ const OVERRIDE = {
   },
 };
 const Lib = lucyAction("Liberation - Netrunner: Override", {
-  animFrames: 262, timestop: 202, motionStop: 202,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Heavy, bullets: [{ hitFrame: 251, mv: 89465, offtune: 43200 }], castConcerto: 2000, resetEnergy: true, ...OVERRIDE, resetForte1: true
+  animFrames: 262, prioFrames: 246, timestop: [0, 202], motionStop: [0, 202],
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Heavy, bullets: [{ hitFrame: 251, commitFrame: 239, mv: 89465, offtune: 43200 }], castConcerto: 2000, resetEnergy: true, ...OVERRIDE, resetForte1: true
 });
 const ELib = lucyAction("Liberation - Old Net Deep Dive: Override", {
-  animFrames: 262, timestop: 262, motionStop: 262,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Heavy, bullets: [{ hitFrame: 251, mv: 178929, offtune: 86400 }], castConcerto: 2000, resetEnergy: true, ...OVERRIDE, resetForte1: true
+  animFrames: 262, prioFrames: 246, timestop: [0, 262], motionStop: [0, 262],
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Heavy, bullets: [{ hitFrame: 251, commitFrame: 239, mv: 178929, offtune: 86400 }], castConcerto: 2000, resetEnergy: true, ...OVERRIDE, resetForte1: true
 });
 // queued off the Liberation rather than played, but active casts all the same — she fires them from
 // inside her own Protocol Interface, on field, and marking them inactive would have her drop every
@@ -261,7 +275,7 @@ const CrippleMovement = lucyAction("Liberation - Spoofing Program: Cripple Movem
 });
 
 const Intro = lucyAction("Intro - Outdated Hallucination", {
-  animFrames: 57, prioFrames: 45, motionStop: 28,
+  animFrames: 57, noSwapFrames: 54, prioFrames: 45, motionStop: [5, 32],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 34, mv: 6914, energy: 500, offtune: 4280 }, { hitFrame: 39, mv: 6914, energy: 500, offtune: 4280 }], castConcerto: 1000,
   updateBuffs: () => applyCurrent(OUTDATED_HALLUCINATION, 1),
 });
@@ -298,25 +312,13 @@ const ALGORITHM_COMPACTION = new Buff({
   afterAction: () => { if (runningAction(CrippleMovement)) revokeCurrent(ALGORITHM_COMPACTION); },
 });
 
-/** SQL: one stack, banked on entering Algorithm Compaction and spent by the next Multi-threading
- *  for +270% of its own DMG Multiplier — nanoka lists the SQL form as its own rows, at x3.7 the
- *  multiplier with its own energy and off-tune, so those two deltas ride here as well. Without it
- *  the cast instead costs 20% of her current HP, which is no stat.
- *
- *  S2 raises that increase to +560%, and nanoka carries both: the cast is four hits, 220.68% each
- *  under SQL (x3.7 its own 238.6%) and 393.65% each under S2's (x6.6). */
+/** SQL: one stack, banked on entering Algorithm Compaction and spent by the next Multi-threading,
+ *  which it turns into the SQL form (+270%, S2's +560%) through MultiThreadingResolver. */
 const SQL = new Buff({
   name: "Lucy: SQL",
-  updateBuffs: () => {
-    if (runningAction(MultiThreading)) addToCast({ energy: 700 });
+  afterAction: () => {
+    if (runningAction(MultiThreadingSQL) || runningAction(MultiThreadingSQLS2)) revokeCurrent(SQL);
   },
-  // the off-tune is the four hits' own, 14,400 apiece
-  applyStats: () => {
-    if (!runningAction(MultiThreading)) return;
-    addStat(Stat.MulMv, isHeld(LC_S2) ? 560 : 270);
-    addStat(Stat.AddOfftune, 14400);
-  },
-  afterAction: () => { if (runningAction(MultiThreading)) revokeCurrent(SQL); },
 });
 
 /** Outdated Hallucination arms it: after her Intro, the *next* Pulse Interference grants 20.6 TCP on
@@ -508,14 +510,14 @@ export const LUCY_RESONATOR = new Resonator({
   stats: [
     [Stat.BaseHp, 11025], [Stat.BaseAtk, 425], [Stat.BaseDef, 1148.8868],
     // the flat 10 every tune-break-era resonator carries (nanoka's own weakness_mastery)
-    [Stat.Tbb, 10],
+    [Stat.TBB, 10],
   ],
 });
 
 /* ---------------------------------------------------------------------------------- rotation */
 
-/** Intro straight into Basics 2-4 (the Intro's own follow-up is Stage 2), then Payload — whose
- *  follow-up triggers itself — and Pulse Interference, which cashes the 20 TCP the Intro armed onto
+/** Intro straight into Basics 2-4 (the Intro's own follow-up is Stage 2), then Payload — charge
+ *  and follow-up in one press — and Pulse Interference, which cashes the 20 TCP the Intro armed onto
  *  it and lands the bar on exactly 100. Deadlock spends that for Algorithm Compaction and an SQL;
  *  Thread Shredding 2-4 bank 100.1 Root Access, Dual Threading spends it, Multi-threading cashes
  *  the SQL and upgrades the Liberation, and Old Net Deep Dive closes the state and drops the
@@ -529,7 +531,7 @@ const LC_ROTATION = new Rotation([
   START_LAST, Lib, ECHO.instaSwap(),
   INTRO, BA234.cancel(), Skill1, Skill3.mashCancel(),
   Deadlock, EBA234.holdCancel(),
-  DualThreading, MultiThreading, ECHO,
+  DualThreading, MultiThreadingResolver, ECHO,
   ELib, HA1, HA2.instaSwap(), Outro,
 ]);
 

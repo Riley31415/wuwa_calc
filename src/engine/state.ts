@@ -481,9 +481,12 @@ export class TeamMember {
   /** The largest requirement any of this member's Liberations has asked for so far — the opener's
    *  included, since a cast the build cannot pay for is wrong wherever in the fight it falls. */
   erWorst = 0;
+  /** Every requirement this member's Liberations asked for, in order (`erWorst` is their largest):
+   *  what `deriveRun` checks another constant ER against, which a constant shift leaves unmoved. */
+  erWants: number[] = [];
   /** Whether a Liberation short of its bar should abandon the run for this member — set only while
    *  they have a higher ER tier left to wear. At the top there is nothing to re-equip, so the run
-   *  finishes and `erFeasible` reports the shortfall instead. */
+   *  finishes and `shortOf` (teamrun.ts) reports the shortfall instead. */
   erGuard = false;
 
   /** How many EVERY_OTHER markers (rotation.ts) this member has reached — the count that decides
@@ -869,20 +872,22 @@ export class State {
    *  shows, every buff duration is stamped against (`Pool.expires`), cooldowns recharge on and
    *  every tick clock runs on. */
   frame = 0;
-  /** Every time stop on the real timer, as [start, end) pairs in order, each one stacked onto the
-   *  window still standing when it was cast (`freeze()`); `frozen` their total length. All but the
-   *  last lie wholly behind. */
+  /** Every time stop on the real timer, as [start, end) pairs in order and merged, each one stacked
+   *  onto the window still standing when it was cast (`freeze()`); `frozen` their total length. A
+   *  stop starting mid-press can lie ahead of the timer. */
   private freezes: number[] = [];
   private frozen = 0;
   /** Where the presses' own time stops run to, on the real timer — what is frozen past it is banked. */
   private freezeOwn = 0;
   /** The same for motion stop (`holdOffField()`). */
   private motionOwn = 0;
-  /** Where off-field time stops being held by motion stop, on the real timer. */
+  /** Where off-field time stops being held by motion stop, on the real timer, and where that hold began. */
   motionUntil = 0;
+  motionFrom = 0;
   /** Hold off-field time from real frame `from` for a press's motion stop, the way `freeze()` stops
    *  the game timer — the real frames it adds to the hold, which every inactive queued hit moves by. */
   holdOffField(from: number, own: number, banked: number): number {
+    if (this.motionUntil < from) this.motionFrom = from;
     const was = Math.max(this.motionUntil, from);
     const end = stackStop(this.motionOwn, this.motionUntil, from, own, banked);
     this.motionOwn = Math.max(this.motionOwn, from + own);
@@ -909,24 +914,72 @@ export class State {
   /** The real frame the game timer reaches `game` on, from now on: past the time stop standing. */
   realOf(game: number): number {
     if (game <= this.frame) return this.real;
-    return this.real + this.frozenAhead() + game - this.frame;
+    let real = this.real, at = this.frame;
+    const list = this.freezes;
+    for (let i = 0; i < list.length; i += 2) {
+      const start = list[i]!, end = list[i + 1]!;
+      if (end <= real) continue;
+      const run = Math.max(start, real) - real;
+      if (at + run >= game) break;
+      at += run;
+      real = end;
+    }
+    return real + game - at;
   }
-  /** Real frames of time stop still standing from the real timer on. */
+  /** Real frames of time stop from real frame `from` on, a stop still to start included. */
   frozenAhead(from = this.real): number {
-    const end = this.freezes.length ? this.freezes[this.freezes.length - 1]! : 0;
-    return Math.max(0, end - from);
+    return this.frozenWithin(from, Infinity);
+  }
+  /** Real frames of time stop inside real frames `[from, to)`. */
+  frozenWithin(from: number, to: number): number {
+    let n = 0;
+    const list = this.freezes;
+    for (let i = list.length - 2; i >= 0; i -= 2) {
+      const start = list[i]!, end = list[i + 1]!;
+      if (end <= from) break;
+      n += Math.max(0, Math.min(end, to) - Math.max(start, from));
+    }
+    return n;
+  }
+  /** The time stop standing at real frame `from`, as the frames until it thaws (0 where none is). */
+  frozenFrom(from: number): number {
+    const list = this.freezes;
+    for (let i = list.length - 2; i >= 0; i -= 2) {
+      if (list[i + 1]! <= from) break;
+      if (list[i]! <= from) return list[i + 1]! - from;
+    }
+    return 0;
+  }
+  /** The first real frame past `from` a time stop starts on, or Infinity. */
+  nextFreezeAfter(from: number): number {
+    let next = Infinity;
+    const list = this.freezes;
+    for (let i = list.length - 2; i >= 0; i -= 2) {
+      if (list[i + 1]! <= from) break;
+      if (list[i]! > from) next = list[i]!;
+    }
+    return next;
   }
   /** Stop the game timer from real frame `from` for a press's time stop: `own` frames over its own
    *  animation, shared with every other press playing then, and `banked` more that outlast it —
    *  those stack, freezing the first frames after everything already frozen. */
   freeze(from: number, own: number, banked: number): void {
-    const end = stackStop(this.freezeOwn, this.frozenAhead(from) + from, from, own, banked);
+    const list = this.freezes, last = list.length ? list[list.length - 1]! : -1;
+    const end = stackStop(this.freezeOwn, Math.max(from, last), from, own, banked);
     this.freezeOwn = Math.max(this.freezeOwn, from + own);
-    const list = this.freezes, n = list.length, last = n ? list[n - 1]! : -1;
-    if (end <= Math.max(last, from)) return;
-    if (last >= from) list[n - 1] = end;
-    else list.push(from, end);
-    this.frozen += end - Math.max(last, from);
+    if (end <= from) return;
+    // merged into what is already frozen: only the frames it newly covers count
+    const covered = this.frozenWithin(from, end);
+    let i = 0;
+    while (i < list.length && list[i + 1]! < from) i += 2;
+    let j = i, start = from, stop = end;
+    while (j < list.length && list[j]! <= stop) {
+      start = Math.min(start, list[j]!);
+      stop = Math.max(stop, list[j + 1]!);
+      j += 2;
+    }
+    list.splice(i, j - i, start, stop);
+    this.frozen += end - from - covered;
     this.frame = this.gameOf(this.real);
     // a wait on the game timer runs on through it
     if (this.waitUntil > this.frame && this.real < this.playsTo) this.playsTo = Math.max(this.playsTo, this.realOf(this.waitUntil));
@@ -1024,7 +1077,6 @@ export class State {
     return -1;
   }
   get slot(): TeamMember { return this.slots[this.active]!; }
-  slotByName(name: string): TeamMember | undefined { return this.slots.find((s) => s.name === name); }
   /** Whichever TeamMember currently holds this Resonator — what addBuff()/removeBuff() resolve
    *  a resonator reference against. Throws rather than returning undefined: a kit reaching for
    *  another resonator by reference is asserting they're on this team, and a silent no-op on a
@@ -1054,19 +1106,6 @@ export class State {
     }
     if (this.globalStacks.get(gear) === next) return next;
     this.globalStacks.set(gear, next, false);
-    return next;
-  }
-  setStacksGlobal(gear: Gear, n: number): number {
-    noteMutation(gear.id, 1e6 + n);
-    const next = Math.max(0, Math.min(gear.maxStacks, n));
-    if (!ctx.dryRun) recordApplied(gear, n - this.stacksOfGlobal(gear));
-    if (next === 0) {
-      if (!this.globalStacks.has(gear)) return 0;
-      this.globalStacks.delete(gear);
-      return 0;
-    }
-    if (this.globalStacks.get(gear) === next) { this.globalStacks.touch(gear); return next; }
-    this.globalStacks.set(gear, next);
     return next;
   }
   revokeGlobal(gear: Gear): void {
@@ -1104,19 +1143,6 @@ export class State {
     }
     if (this.enemyStacks.get(gear) === next) return next;
     this.enemyStacks.set(gear, next, false);
-    return next;
-  }
-  setStacksEnemy(gear: Gear, n: number): number {
-    noteMutation(gear.id, 1e6 + n);
-    const next = Math.max(0, Math.min(this.enemyMax(gear), n));
-    if (!ctx.dryRun) recordApplied(gear, n - this.stacksOfEnemy(gear));
-    if (next === 0) {
-      if (!this.enemyStacks.has(gear)) return 0;
-      this.enemyStacks.delete(gear);
-      return 0;
-    }
-    if (this.enemyStacks.get(gear) === next) { this.enemyStacks.touch(gear); return next; }
-    this.enemyStacks.set(gear, next);
     return next;
   }
   revokeEnemy(gear: Gear): void {

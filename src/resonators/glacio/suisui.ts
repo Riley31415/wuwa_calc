@@ -19,10 +19,9 @@
  * a team buff scaled by the applier's own stats (both want 260% ER, which her build reaches).
  *
  * **Sky Over Water** (Inherent Skill) enhances whichever of Awakening Spring / Intro - Tinkling
- * Jade comes first every 25s: +18 Concerto, +13 Resonance Energy, +80% Crit. Rate, +240% Glacio DMG
- * and nanoka's own enhanced off-tune row (81,600 against the plain 9,600). One cast a rotation, the
- * way every other "once every Ns" in this project is read — Awakening Spring takes it in the
- * opener, the Intro every visit after, and her Outro arms the next one.
+ * Jade hits first every 25s: +18 Concerto, +13 Resonance Energy, +80% Crit. Rate, +240% Glacio DMG
+ * and nanoka's own enhanced off-tune row (81,600 against the plain 9,600) — on that hit, off a 25s
+ * cooldown it starts (SKY_COOLDOWN).
  *
  * Her two stances are the two gauges and nothing else: Zephyr banks **Cloud Breath** (forte1, 120),
  * which Awakening Spring or the Intro spends to drop her into **Drizzle Stance**, where the same
@@ -56,9 +55,8 @@ import {
   applyCurrent,
   applyEnemy,
   applyTeam,
-  concerto,
   consumedAny,
-  consumedByMe,
+  consumedByMember,
   onAction,
   runningAction,
   currentTeam,
@@ -70,14 +68,11 @@ import {
   revokeCurrent,
   revokeTeam,
   stacksOfTeam,
-  
-  forte2,
   isActive,
   casting,
   currentMember,
   ticksOfTeam,
   isHeld,
-  addToCast,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Cooldown, Rotation, NOINTRO, ECHO, INTRO } from "../../engine/rotation.js";
 import {
@@ -100,12 +95,12 @@ function suisuiAction(id: string, def: object): Action {
 //     per-hit table's — wuwalab carries no gauge on those six hits either.
 const BA1 = suisuiAction("Basic - Zephyr Stance 1", { animFrames: 24, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 8, commitFrame: 2, mv: 6315, energy: 100, concerto: 318, offtune: 3176, forte1: 24 }]});
 const BA2 = suisuiAction("Basic - Zephyr Stance 2", { animFrames: 46, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 12, mv: 6100, energy: 96, concerto: 307, offtune: 3068, forte1: 23 },
+    { hitFrame: 12, commitFrame: 9, mv: 6100, energy: 96, concerto: 307, offtune: 3068, forte1: 23 },
     { hitFrame: 30, commitFrame: 27, mv: 6100, energy: 96, concerto: 307, offtune: 3068, forte1: 23 },
   ]});
 const BA3 = suisuiAction("Basic - Zephyr Stance 3", { animFrames: 51, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 22, mv: 4180, energy: 66, concerto: 211, offtune: 2103, forte1: 16 },
-    { hitFrame: 29, mv: 4180, energy: 66, concerto: 211, offtune: 2103, forte1: 16 },
+    { hitFrame: 22, commitFrame: 16, mv: 4180, energy: 66, concerto: 211, offtune: 2103, forte1: 16 },
+    { hitFrame: 29, commitFrame: 23, mv: 4180, energy: 66, concerto: 211, offtune: 2103, forte1: 16 },
     { hitFrame: 41, commitFrame: 35, mv: 5574, energy: 88, concerto: 281, offtune: 2804, forte1: 21 },
   ]});
 const BA4 = suisuiAction("Basic - Zephyr Stance 4", { animFrames: 60, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
@@ -124,7 +119,14 @@ const DC = suisuiAction("Dodge Counter - Zephyr Stance 3", { animFrames: 35, nod
   ], castConcerto: 1000});
 // the Zephyr and Drizzle Stance skills share one 6s cooldown
 const SKILL_CD = new Cooldown({ frames: 60 * 6 });
-const Skill = suisuiAction("Skill - Vernal Screen: Zephyr Stance", { cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [{ hitFrame: 0, mv: 14316, energy: 228, concerto: 720, offtune: 7200, forte1: 40 }] });
+const Skill = suisuiAction("Skill - Vernal Screen: Zephyr Stance", { animFrames: 55, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+    { hitFrame: 25, mv: 2386, energy: 38, concerto: 120, offtune: 1200, forte1: 40 },
+    { hitFrame: 31, mv: 2386, energy: 38, concerto: 120, offtune: 1200 },
+    { hitFrame: 37, mv: 2386, energy: 38, concerto: 120, offtune: 1200 },
+    { hitFrame: 43, mv: 2386, energy: 38, concerto: 120, offtune: 1200 },
+    { hitFrame: 49, mv: 2386, energy: 38, concerto: 120, offtune: 1200 },
+    { hitFrame: 55, mv: 2386, energy: 38, concerto: 120, offtune: 1200 },
+  ] });
 
 /** Awakening Spring: replaces the Zephyr skill at full Cloud Breath, spends the whole bar and drops
  *  her into Drizzle Stance, which clears Floral Epistle on the way in. HP-scaled, and one of the
@@ -143,8 +145,8 @@ const ESkill = suisuiAction("Skill - Awakening Spring", { minForte1: 120,
 // --- Drizzle Stance: the same buttons, banking Floral Epistle (forte2) for the Outro. Illuminating
 //     Dew and Swallow's Cut are the two ways out of the Heavy, so a chain only ever takes one.
 const FBA1 = suisuiAction("Basic - Drizzle Stance 1", { animFrames: 31, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 20, mv: 1957, energy: 31, concerto: 99, offtune: 984, forte2: 21 },
-    { hitFrame: 24, mv: 1957, energy: 31, concerto: 99, offtune: 984, forte2: 21 },
+    { hitFrame: 20, commitFrame: 17, mv: 1957, energy: 31, concerto: 99, offtune: 984, forte2: 21 },
+    { hitFrame: 24, commitFrame: 17, mv: 1957, energy: 31, concerto: 99, offtune: 984, forte2: 21 },
     { hitFrame: 31, commitFrame: 28, mv: 1957, energy: 31, concerto: 99, offtune: 984, forte2: 21 },
     { hitFrame: 34, commitFrame: 28, mv: 1957, energy: 31, concerto: 99, offtune: 984, forte2: 21 },
   ]});
@@ -159,15 +161,15 @@ const FBA2 = suisuiAction("Basic - Drizzle Stance 2", { animFrames: 70, node: No
   ]});
 const FBA3 = suisuiAction("Basic - Drizzle Stance 3", { animFrames: 66, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 11, mv: 1376, energy: 22, concerto: 70, offtune: 692, forte2: 15 },
-    { hitFrame: 16, mv: 1376, energy: 22, concerto: 70, offtune: 692, forte2: 15 },
+    { hitFrame: 16, commitFrame: 11, mv: 1376, energy: 22, concerto: 70, offtune: 692, forte2: 15 },
     { hitFrame: 20, mv: 1376, energy: 22, concerto: 70, offtune: 692, forte2: 15 },
-    { hitFrame: 25, mv: 1376, energy: 22, concerto: 70, offtune: 692, forte2: 15 },
+    { hitFrame: 25, commitFrame: 20, mv: 1376, energy: 22, concerto: 70, offtune: 692, forte2: 15 },
     { hitFrame: 29, mv: 1376, energy: 22, concerto: 70, offtune: 692, forte2: 15 },
-    { hitFrame: 34, mv: 1376, energy: 22, concerto: 70, offtune: 692, forte2: 15 },
+    { hitFrame: 34, commitFrame: 29, mv: 1376, energy: 22, concerto: 70, offtune: 692, forte2: 15 },
     { hitFrame: 38, mv: 1376, energy: 22, concerto: 70, offtune: 692, forte2: 15 },
-    { hitFrame: 43, mv: 1376, energy: 22, concerto: 70, offtune: 692, forte2: 15 },
+    { hitFrame: 43, commitFrame: 38, mv: 1376, energy: 22, concerto: 70, offtune: 692, forte2: 15 },
     { hitFrame: 47, mv: 1376, energy: 22, concerto: 70, offtune: 692, forte2: 15 },
-    { hitFrame: 52, mv: 1376, energy: 22, concerto: 70, offtune: 692, forte2: 15 },
+    { hitFrame: 52, commitFrame: 47, mv: 1376, energy: 22, concerto: 70, offtune: 692, forte2: 15 },
     { hitFrame: 56, mv: 1376, energy: 22, concerto: 70, offtune: 692, forte2: 15 },
     { hitFrame: 61, commitFrame: 56, mv: 1376, energy: 22, concerto: 70, offtune: 692, forte2: 15 },
   ]});
@@ -178,32 +180,32 @@ const FBA4 = suisuiAction("Basic - Drizzle Stance 4", {
 });
 const FHA = suisuiAction("Heavy - Drizzle Stance", { animFrames: 97, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 14, mv: 1193, energy: 19, concerto: 60, offtune: 600, forte2: 13 },
-    { hitFrame: 17, mv: 1193, energy: 19, concerto: 60, offtune: 600, forte2: 13 },
-    { hitFrame: 20, mv: 1193, energy: 19, concerto: 60, offtune: 600, forte2: 13 },
-    { hitFrame: 23, mv: 1193, energy: 19, concerto: 60, offtune: 600, forte2: 13 },
-    { hitFrame: 26, mv: 1193, energy: 19, concerto: 60, offtune: 600, forte2: 13 },
-    { hitFrame: 29, mv: 1193, energy: 19, concerto: 60, offtune: 600, forte2: 13 },
-    { hitFrame: 32, mv: 1193, energy: 19, concerto: 60, offtune: 600, forte2: 13 },
-    { hitFrame: 35, mv: 1193, energy: 19, concerto: 60, offtune: 600, forte2: 13 },
-    { hitFrame: 38, mv: 1193, energy: 19, concerto: 60, offtune: 600, forte2: 13 },
-    { hitFrame: 41, mv: 1193, energy: 19, concerto: 60, offtune: 600, forte2: 13 },
+    { hitFrame: 17, commitFrame: 14, mv: 1193, energy: 19, concerto: 60, offtune: 600, forte2: 13 },
+    { hitFrame: 20, commitFrame: 14, mv: 1193, energy: 19, concerto: 60, offtune: 600, forte2: 13 },
+    { hitFrame: 23, commitFrame: 14, mv: 1193, energy: 19, concerto: 60, offtune: 600, forte2: 13 },
+    { hitFrame: 26, commitFrame: 14, mv: 1193, energy: 19, concerto: 60, offtune: 600, forte2: 13 },
+    { hitFrame: 29, commitFrame: 14, mv: 1193, energy: 19, concerto: 60, offtune: 600, forte2: 13 },
+    { hitFrame: 32, commitFrame: 14, mv: 1193, energy: 19, concerto: 60, offtune: 600, forte2: 13 },
+    { hitFrame: 35, commitFrame: 14, mv: 1193, energy: 19, concerto: 60, offtune: 600, forte2: 13 },
+    { hitFrame: 38, commitFrame: 14, mv: 1193, energy: 19, concerto: 60, offtune: 600, forte2: 13 },
+    { hitFrame: 41, commitFrame: 14, mv: 1193, energy: 19, concerto: 60, offtune: 600, forte2: 13 },
     { hitFrame: 82, mv: 11929, energy: 188, concerto: 600, offtune: 6000, forte2: 128 },
   ]});
 const FHA2 = suisuiAction("Basic - Illuminating Dew", { animFrames: 64, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 30, mv: 10498, energy: 275, concerto: 880, offtune: 8800 }]});
 const FMA = suisuiAction("Basic - Swallow's Cut", { animFrames: 60, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 33, mv: 10765, energy: 282, concerto: 903, offtune: 9024 }]});
 const FSkill = suisuiAction("Skill - Vernal Screen: Drizzle Stance", { animFrames: 54, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 26, mv: 1193, energy: 19, concerto: 60, offtune: 600, forte2: 100 },
-    { hitFrame: 30, mv: 1193, energy: 19, concerto: 60, offtune: 600 },
-    { hitFrame: 35, mv: 1193, energy: 19, concerto: 60, offtune: 600 },
-    { hitFrame: 40, mv: 1193, energy: 19, concerto: 60, offtune: 600 },
-    { hitFrame: 45, mv: 1193, energy: 19, concerto: 60, offtune: 600 },
-    { hitFrame: 50, mv: 1193, energy: 19, concerto: 60, offtune: 600 },
-    { hitFrame: 57, commitFrame: 54, mv: 7158, energy: 113, concerto: 360, offtune: 3600 },
+    { hitFrame: 30, commitFrame: 26, mv: 1193, energy: 19, concerto: 60, offtune: 600 },
+    { hitFrame: 35, commitFrame: 26, mv: 1193, energy: 19, concerto: 60, offtune: 600 },
+    { hitFrame: 40, commitFrame: 26, mv: 1193, energy: 19, concerto: 60, offtune: 600 },
+    { hitFrame: 45, commitFrame: 26, mv: 1193, energy: 19, concerto: 60, offtune: 600 },
+    { hitFrame: 50, commitFrame: 26, mv: 1193, energy: 19, concerto: 60, offtune: 600 },
+    { hitFrame: 57, commitFrame: 26, mv: 7158, energy: 113, concerto: 360, offtune: 3600 },
   ]});
 
 /** Song of Thoroughfare: no damage of its own, just the Landscape and its 20 Concerto. */
 const Liberation = suisuiAction("Liberation - Song of Thoroughfare", {
-  animFrames: 264, timestop: 264, motionStop: 264, cooldown: 60 * 25,
+  animFrames: 264, prioFrames: 264, timestop: [0, 264], motionStop: [0, 264], cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, castConcerto: 2000, resetEnergy: true,
   updateBuffs: () => applyTeam(CEASELESS_LANDSCAPE, 1)
 });
@@ -211,7 +213,7 @@ const Liberation = suisuiAction("Liberation - Song of Thoroughfare", {
 /** Tinkling Jade: the other cast Sky Over Water enhances, and the ordinary way into Drizzle Stance
  *  — it spends whatever Cloud Breath she is holding whether or not the bar is full. */
 const Intro = suisuiAction("Intro - Tinkling Jade", {
-  animFrames: 78, prioFrames: 78, motionStop: 55,
+  animFrames: 78, noSwapFrames: 60, prioFrames: 78, motionStop: [4, 58],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, scaling: Scaling.Hp,
   bullets: [{ hitFrame: 60, mv: 2863, energy: 1000, concerto: 960, offtune: 9600 }], castConcerto: 1000, resetForte1: true, resetForte2: true,
   updateDebuffs: () => {
@@ -269,11 +271,9 @@ const LANDSCAPE_CAPS: [Debuff, Subtype][] = [
  *  hitGlobal the team pool runs behind every slot's own gear, so the very first Chafe of a fight
  *  is still calculated at the unraised cap and everything after it at +3.
  *
- *  The Havoc branch reads the engine's own consumption log (context.ts's `consume()`/`consumedByMe()`)
- *  rather than the target merely carrying a Bane, and from `afterAction` because that is the phase
- *  a kit spends its stacks in — Xuanling's Sword Stance Flow, the only cast in the roster that
- *  spends any, deliberately waits until then so the cast itself still reads the full count. Against
- *  a 30s buff a payout landing on the action after the spend never shows. */
+ *  The Havoc branch reads the engine's own consumption log (context.ts's `consume()`) rather than
+ *  the target merely carrying a Bane, on the hit that spends it (Xuanling's Sword Stance Flow) and
+ *  again at the press's end for a spend made there; paid to whoever spent it. */
 const CEASELESS_LANDSCAPE = new Buff({
   name: "Suisui: Ceaseless Landscape",
   duration: 60 * 30,
@@ -285,9 +285,15 @@ const CEASELESS_LANDSCAPE = new Buff({
       maxStackIncrease(ELECTRO_FLARE, 3);
       maxStackIncrease(ELECTRO_RAGE, 3);
     }
+    voidTide();
   },
-  afterAction: () => { if (consumedByMe(HAVOC_BANE)) applyCurrent(VOID_TIDE, 1); },
+  afterAction: () => voidTide(),
 });
+/** Ceaseless Landscape's Havoc branch, paid to the member who just spent Havoc Bane. */
+function voidTide(): void {
+  const me = currentTeam().slot;
+  if (me.resonator && consumedByMember(HAVOC_BANE, me)) addBuff(me.resonator, VOID_TIDE, 1);
+}
 
 /** Ceaseless Landscape's Havoc branch, held by whoever spends the Bane: 6% DEF ignore and 12%
  *  Havoc RES ignore, both on their Havoc DMG alone. 30s, so it never drops once it is up. */
@@ -424,17 +430,23 @@ const CLOUDS_POUR = new Buff({
 });
 /** S2's watcher, in the team pool so every member's own turn is seen: inside Ceaseless Landscape,
  *  the acting member inflicting one of the five tagged statuses or dealing its damage (the
- *  Landscape's own test), or spending Havoc Bane (its consume branch, from afterAction for the same
- *  reason), hands that member the payout. No `name`, so the watcher itself stays out of the
+ *  Landscape's own test), or spending Havoc Bane (its consume branch, on the spending hit or at the
+ *  press's end), hands that member the payout. No `name`, so the watcher itself stays out of the
  *  held-buffs list — what it hands over is Clouds Pour, which has its own row. */
 const CLOUDS_POUR_WATCH = new Buff({
   hitGlobal: () => {
     if (!stacksOfTeam(CEASELESS_LANDSCAPE)) return;
     const actor = currentTeam().slot;
-    // inflicting Havoc Bane is deliberately not here — only spending it pays, below
-    if (actor.resonator && TAGGED_STATUSES.some(([status, tag]) => appliedByMember(status, actor) || isType(tag))) addBuff(actor.resonator, CLOUDS_POUR, 1);
+    // inflicting Havoc Bane is deliberately not here — only spending it pays
+    if (!actor.resonator) return;
+    if (TAGGED_STATUSES.some(([status, tag]) => appliedByMember(status, actor) || isType(tag)) || consumedByMember(HAVOC_BANE, actor)) {
+      addBuff(actor.resonator, CLOUDS_POUR, 1);
+    }
   },
-  afterAction: () => { if (stacksOfTeam(CEASELESS_LANDSCAPE) && consumedByMe(HAVOC_BANE)) applyCurrent(CLOUDS_POUR, 1); },
+  afterAction: () => {
+    const actor = currentTeam().slot;
+    if (stacksOfTeam(CEASELESS_LANDSCAPE) && actor.resonator && consumedByMember(HAVOC_BANE, actor)) addBuff(actor.resonator, CLOUDS_POUR, 1);
+  },
 });
 const SS_S2 = new Sequence({
   name: "Suisui S2: Clouds Pour Like Molten Gold",
@@ -478,17 +490,29 @@ const SS_SEQUENCES = [SS_S1, SS_S2, SS_S3, SS_S4, SS_S5, SS_S6];
 
 /* --------------------------------------------------------------------------- kit and loadout */
 
-/** Sky Over Water (Inherent Skill): the enhancement above, hers from the first action of a fight.
- *  Spring's Birth, its other half, is a heal-over-time and pays no stat. */
+/** "This effect can be triggered up to once every 25s": nameless, so it stays out of the held list. */
+const SKY_COOLDOWN = new Buff({ duration: 60 * 25 });
+/** The hit Sky Over Water fired on, for its stat hook; cleared once that hit has dealt. */
+const SKY_PROC = new Buff({});
+/** Sky Over Water (Inherent Skill): the enhancement above, on the first Awakening Spring or Tinkling
+ *  Jade hit off cooldown — its gains that hit's own (`AddConcerto`/`AddEnergy`). Spring's Birth, its
+ *  other half, is a heal-over-time and pays no stat. */
 const SS_INHERENT_1 = new Inherent({
   name: "Inherent: Sky Over Water",
-  updateBuffs: () => { if (runningAction(ESkill) || runningAction(Intro)) addToCast({ concerto: 1800, energy: 1300 }); },
+  updateDebuffs: () => {
+    if ((!runningAction(ESkill) && !runningAction(Intro)) || isHeld(SKY_COOLDOWN)) return;
+    applyCurrent(SKY_COOLDOWN, 1);
+    applyCurrent(SKY_PROC, 1);
+  },
   applyStats: () => {
-    if (!runningAction(ESkill) && !runningAction(Intro)) return;
+    if (!isHeld(SKY_PROC) || (!runningAction(ESkill) && !runningAction(Intro))) return;
     addStat(Stat.CritRate, 80);
     addStat(Stat.DmgBonus, 240, Attribute.Glacio);
     addStat(Stat.AddOfftune, 72000);
-  }
+    addStat(Stat.AddConcerto, 1800);
+    addStat(Stat.AddEnergy, 1300);
+  },
+  afterHit: () => revokeCurrent(SKY_PROC),
 });
 
 /** Glimmering Gold (Inherent Skill): a once-per-10-minutes revive, nothing this calculator reads. */

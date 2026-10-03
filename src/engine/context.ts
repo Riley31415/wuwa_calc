@@ -455,7 +455,7 @@ export function menuStats(gear: Gear[]): StatEntry[] {
   // call only ever matched a single pass to begin with, so this is a no-op for those.
   const seen = new Set<string>();
   return slot.entries.filter((e) => {
-    const key = `${e.source} ${e.stat}`;
+    const key = `${e.source}\0${e.stat}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -672,13 +672,6 @@ export function applyTeam(buff: Buff, n = 1): number {
   return ctx.state!.addStackGlobal(buff, n);
 }
 export function removeStackTeam(buff: Buff, n = 1): number { return ctx.state!.removeStackGlobal(buff, n); }
-/** Reset a held team buff's own duration without touching its count — for a buff whose stacks are
- *  capped per granter but whose text says retriggering resets the clock (shared/unison.ts's Boon).
- *  A no-op on a buff nobody holds, and on one with no duration to reset. */
-export function refreshTeam(buff: Buff): void {
-  noteMutation(buff.id, 8e6);
-  ctx.state!.globalStacks.touch(buff);
-}
 /** How many frames a held team buff has left — 0 where it is untimed or nobody holds it. For a
  *  buff granted inside another's window that has to run out with it (xuanling.ts's Tonal Switch). */
 export function leftOnTeam(buff: Buff): number {
@@ -865,17 +858,6 @@ export function applyOn(resonator: Resonator | null, fn: () => void): void {
   insertByDue(ctx.state!.timed, timedEntry(ctx.tickAt, null, slot, queuedBy(), undefined, fn, undefined, undefined, undefined, undefined));
 }
 
-/** The frame the last press in `presses` still playing ends on (its queued end), or null if none is. */
-export function pressEndOf(presses: Set<Action>): number | null {
-  let end: number | null = null;
-  for (const h of ctx.state!.timed) {
-    if (!h.closes) continue;
-    for (let x: Action | null = h.action; x; x = x.cancelOf ?? x.formOf) {
-      if (presses.has(x)) end = Math.max(end ?? h.due, h.due);
-    }
-  }
-  return end;
-}
 
 /** Take back every hit and end still queued of a press in `presses` (or a form of one): an attack
  *  cut off mid-animation keeps what already landed and nothing after (Phrolova's Hecate). */

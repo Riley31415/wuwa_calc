@@ -61,8 +61,9 @@ where the press runs out. a bullet's `commitFrame` (default `hitFrame`) is where
 after it can't stop it. the action itself has no element/type/subtype: a def's own are only what its
 bullets share. no `bullets` = a cast alone that deals as nothing. an action has no `mv` of its own:
 every motion value is a bullet's
-- cuts: `cancel`/`dodgeCancel`/`jump`/`mashCancel`/`holdCancel`/`swapCancel` cut at `cutFrame` — the
-  last bullet's commit, or `prioFrames` where that is later — then the animation runs on past the cut:
+- cuts: `cancel`/`dodgeCancel`/`jump`/`mashCancel`/`holdCancel` cut at `cutFrame` — the last bullet's
+  commit, or `prioFrames` where that is later; `swapCancel` at `swapCutFrame`, the last commit or
+  `noSwapFrames` where that is later, priority aside — then the animation runs on past the cut:
   `CANCEL_DELAY` (12), `MASH_DELAY` (6), none for a swap, whose `SWAP_DELAY` (15) is the incoming
   resonator's. a `holdCancel` instead lets go the moment the bars meet the next press's cast condition
   (`minConcerto`, `maxForte2`, ...) — on its cast or on a bullet — never before `HOLD_DELAY` (15) or its own `prioFrames`, at its last bullet if they never do, and the
@@ -88,9 +89,11 @@ every motion value is a bullet's
   `constantStats`) only write stats: no buff, debuff, gauge, queue or `lostOnSwap()` changes there
   (the engine throws). a buff the press consumes pays in applyStats and is revoked in a guarded
   `afterAction`. nothing is split across a press's hits: each hit has its own resource values and a
-  stat hook's adds pay on every hit in full. a gain the press makes once ("+30 Concerto on cast") is
-  `addToCast()` from a cast hook, never `AddConcerto`/`AddEnergy`/`AddForteN`; a stat hook re-adding a
-  hit's own gain reads `currentAction()` (that hit), not `pressed()`
+  stat hook's adds pay on every hit in full. a gain the press makes once on cast ("+30 Concerto on
+  cast") is `addToCast()` from a cast hook; a gain one hit makes, gated on gear (a sequence's "+30
+  Substance when it hits"), is that gear's stat hook adding `AddForteN`/`AddConcerto`/`AddEnergy` on
+  that bullet alone (`runningBullet(X, k)`), so it pays once and is sourced to the gear. a stat hook
+  re-adding a hit's own gain reads `currentAction()` (that hit), not `pressed()`
 - a gauge a cast converts ("consumes every crystal") is spent in `updateBuffs`, off what the cast
   found — a stat hook re-reads it on every hit
 - two timers: the real timer (`State.real`) runs every animation, bullet and queued hit, time stop
@@ -128,8 +131,7 @@ every gauge value is a whole number: energy and concerto ×100 (`ENERGY_UNIT`, `
 bar 10000), MV ×100 of its percent (`MV_UNIT`, 22.06% = 2206), off-tune ×10000, and forte in its
 Resonator's `forteScale` units (1 by default, 0.01 for a gauge held in hundredths, 0.0001 for Lupa's
 Wolflame). a value that needs decimals means the gauge needs a finer scale, never a fraction
-- a bullet carries only its own hit's gains. a flat "Concerto Regen" row and a dodge counter's hidden
-  +10 go on `castConcerto`, never spread over the bullets
+- a bullet carries only its own hit's gains. a dodge counter's hidden +10 goes on `castConcerto`
 - a cast hook reading the press's gauge (`RING_CONSUMED`'s spend) reads `pressed()`: `currentAction()`
   there is the cast half, which holds only `castForteN`
 
@@ -174,20 +176,25 @@ table the user pastes (the same columns). with neither, list the nanoka row's bu
 `animFrames` and mark the action `// PLACEHOLDER FRAMES`:
 
 - `animFrames` = `total_frames`
-- each bullet's `hitFrame` = `hits[*].frame`; one hitting after `earliest_frame_cancel` commits there
-  (`commitFrame`), landing even if the press is cut before it. its mv/energy/concerto/offtune/forte are
+- one bullet per wuwalab hit, never merged: its `hitFrame` = `hits[*].frame` and its `commitFrame` =
+  `hits[*].commit_frame` (left out where the two agree). its mv/energy/concerto/offtune/forte are
   the kit's own totals shared out by wuwalab's per-hit weights (the kit's numbers stay the source of truth)
-- `timestop` / `motionStop` are frame ranges, start..end inclusive where a start of 0 is frame 1:
-  the span is `end - max(start, 1) + 1` (Qingxiao's Intro motion stop 3-31 = 29, a 0-180 time stop
-  = 180). a table's `5-37F` tag reads the same way (33); a bare `122F` is the whole 122. a zero
-  stop is left out
-- `prioFrames` = where `priority_timeline`'s ("0:11, 60:0") last stretch of priority 11+ ends, or
-  `total_frames` if it never drops (Jingran's Intro 60); left out where it has none. a kit wuwalab
-  lacks takes its `motionStop`
+- `timestop` / `motionStop` are `[start, end)` frame ranges: wuwalab's `time_stop_start`..`time_stop`
+  (`motion_stop_start`..`motion_stop`), `end - start` frames from `start` (`[10, 100]` = 90). a
+  table's `5-37F` tag is `[5, 37]`, a bare `122F` `[0, 122]`; a kit with neither writes `[0, n]` as a
+  placeholder. a zero stop is left out
+- `events[*]` are the ability's non-hit happenings (an infliction, a stack gained, `resource_gain`).
+  one on a hit's frame is part of that hit: its effect goes in that bullet's own `updateDebuffs`, its
+  gauge on that bullet. one between hits stays where the kit already has it, for now
+- `prioFrames` = where `priority_timeline`'s ("0:10, 163:2") last stretch of priority 10+ ends, or
+  `total_frames` if it never drops (Denia's Final Act - Breakdown 163); left out where it has none.
+  priority never holds back a swap: `noSwapFrames` = `no_swap` does, gating a swap cancel the way
+  `prioFrames` gates every other cut (Denia's Final Act - Breakdown 160); left out where it is 0. a kit wuwalab
+  lacks takes its `motionStop`'s end
 - pair an engine action to its ability by name, then check off-tune/MV agree; a row the kit has no
   action for is left alone, and a kit action with no row keeps what it has — say which
 - Tune Break: each weapon class has its own default (tunebreak.ts); a kit whose "Tune Break Skill"
-  differs declares `tuneBreak: tuneBreak(animFrames, timestop, motionStop, bullets)` on its Resonator, or a
+  differs declares `tuneBreak: tuneBreak(animFrames, [ts0, ts1], [ms0, ms1], [[frame, mv, commit?], ...])` on its Resonator, or a
   resolver where it depends on form (Aemeath's Mech, Cartethyia's Fleurdelys)
 - cooldowns: `cooldown: 60 * s` off the ability's `cooldown` (frames) or nanoka's "... Cooldown" row;
   two presses on one button share a `new Cooldown({ frames })`

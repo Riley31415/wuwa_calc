@@ -10,13 +10,12 @@ import {
   addStat,
   applied,
   applyEnemy,
-  currentAction, pressed,
+  currentAction,
   runningAction,
   currentTeam,
   equip,
   getStat,
   isCast,
-  isHeld,
   midActionGroup,
   queue,
   queueEvent,
@@ -54,7 +53,7 @@ export const TUNE_BREAK_COOLDOWN: Debuff = new Debuff({
   // every AddOfftune source has landed. What a kit puts on the bar directly (DirectOfftune,
   // Denia's half-bar surge) is not a gain the cooldown holds off.
   lateConvertStats: () => {
-    const built = currentAction().offtune + getStat(Stat.AddOfftune);
+    const built = (currentAction().offtune + getStat(Stat.AddOfftune)) * (1 + getStat(Stat.OfftuneMult) / 100);
     if (built > 0) addStat(Stat.DirectOfftune, -built * getStat(Stat.OfftuneBuildup) / 100);
   },
 });
@@ -134,7 +133,7 @@ export const TUNE_BREAK = new Action("Tune Break (Auto Generated)", {
   bullets: [{ hitFrame: 90, mv: 160000 }], slot: TUNE_BREAK_ENEMY.name,
   // the world stands still for all of it, so the game timer charges none; it waits for the
   // press playing to run out rather than playing over it
-  animFrames: 90, timestop: 90, motionStop: 70, afterPlay: true,
+  animFrames: 90, prioFrames: 90, timestop: [0, 90], motionStop: [0, 70], afterPlay: true,
   // A cast nobody pressed, so `run()` counts it triggered by its cast: every per-action clock in
   // the fight — the two below, a sonata's own cadence, an inherent counting presses — reads
   // `triggeredAction()` and passes it over, rather than each having to know the break by name.
@@ -143,25 +142,27 @@ export const TUNE_BREAK = new Action("Tune Break (Auto Generated)", {
   castOfftune: -ENEMY_MAX_OFFTUNE,
 });
 
-/** A sword's and a broadblade's break hits (wuwalab), [frame, mv]; the other classes land one. */
-export const SWORD_BREAK: [number, number][] = [[30, 10000], [36, 10000], [42, 10000], [48, 10000], [72, 120000]];
-export const BROADBLADE_BREAK: [number, number][] = [[4, 17334], [26, 22666], [66, 120000]];
+/** A sword's and a broadblade's break hits (wuwalab), [frame, mv, commit?]; the other classes land one. */
+export type TuneBreakHit = [hitFrame: number, mv: number, commitFrame?: number];
+export const SWORD_BREAK: TuneBreakHit[] = [[30, 10000], [36, 10000, 30], [42, 10000, 30], [48, 10000, 30], [72, 120000]];
+export const BROADBLADE_BREAK: TuneBreakHit[] = [[4, 17334], [26, 22666], [66, 120000]];
 
 /** The break as one resonator performs it: its bullets, played over their own frames — a form of
- *  `TUNE_BREAK`, so every `runningAction(TUNE_BREAK)` still reads it. */
-export function tuneBreak(animFrames: number, timestop: number, motionStop: number, bullets: [number, number][]): Action {
-  const out = TUNE_BREAK.variant(TUNE_BREAK.name, { animFrames, timestop, motionStop, bullets: bullets.map(([hitFrame, mv]) => ({ hitFrame, mv })) });
+ *  `TUNE_BREAK`, so every `runningAction(TUNE_BREAK)` still reads it. Its priority holds to its end
+ *  unless the kit's own break drops sooner (`prioFrames`). */
+export function tuneBreak(animFrames: number, timestop: readonly [number, number], motionStop: readonly [number, number], bullets: TuneBreakHit[], prioFrames = animFrames): Action {
+  const out = TUNE_BREAK.variant(TUNE_BREAK.name, { animFrames, prioFrames, timestop, motionStop, bullets: bullets.map(([hitFrame, mv, commitFrame]) => ({ hitFrame, mv, commitFrame })) });
   out.formOf = TUNE_BREAK;
   return out;
 }
 
 /** Each weapon class's own Tune Break (wuwalab's "Tune Break Skill", the class's usual one). */
 const CLASS_TUNE_BREAK: Record<WeaponType, Action> = {
-  [WeaponType.Sword]: tuneBreak(90, 90, 70, SWORD_BREAK),
-  [WeaponType.Broadblade]: tuneBreak(94, 94, 64, BROADBLADE_BREAK),
-  [WeaponType.Rectifier]: tuneBreak(90, 90, 54, [[56, 160000]]),
-  [WeaponType.Pistols]: tuneBreak(96, 96, 70, [[72, 160000]]),
-  [WeaponType.Gauntlets]: tuneBreak(92, 92, 70, [[72, 160000]]),
+  [WeaponType.Sword]: tuneBreak(90, [0, 90], [0, 70], SWORD_BREAK),
+  [WeaponType.Broadblade]: tuneBreak(94, [0, 94], [0, 64], BROADBLADE_BREAK),
+  [WeaponType.Rectifier]: tuneBreak(90, [0, 90], [0, 54], [[56, 160000]]),
+  [WeaponType.Pistols]: tuneBreak(96, [0, 96], [0, 70], [[72, 160000]]),
+  [WeaponType.Gauntlets]: tuneBreak(92, [0, 92], [0, 70], [[72, 160000]]),
 };
 
 /** What a full bar queues: resolved when reached to the on-field resonator's own break — their kit's
@@ -207,7 +208,7 @@ export const strainPayout = (): Buff => new Buff({
 const tuneStrainPayout = (): void => {
   const stacks = stacksOfEnemy(TUNE_STRAIN_INTERFERED);
   if (!stacks) return;
-  addStat(Stat.TotalDmg, 0.12 * getStat(Stat.Tbb) * stacks);
+  addStat(Stat.TotalDmg, 0.12 * getStat(Stat.TBB) * stacks);
 };
 export const TUNE_HACK_INTERFERED = interferedWindow({ name: "Tune Hack - Interfered" });
 

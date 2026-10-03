@@ -23,7 +23,7 @@ import {
   addEnemyStat,
   queue,
 } from "../../engine/context.js";
-import { Action, Rotation, NOINTRO, ECHO, ActionGroup, START_FIRST, INTRO, Cooldown } from "../../engine/rotation.js";
+import { Action, Rotation, NOINTRO, ECHO, ActionGroup, INTRO, Cooldown } from "../../engine/rotation.js";
 import { tuneBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
 import { SPECTRO_FRAZZLE, SHIMMER, HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
@@ -32,7 +32,6 @@ import { REJUV_5PC, HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
-import { ACTION_ADAM_SMASHER_LUCY } from "../../echoes/lahairoi.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -100,7 +99,7 @@ const FBA = roverAction("Basic - Resonating Echoes", { animFrames: 60, node: Nod
 // HEALS is her own healing marker, read by every healing sonata and weapon (statuses.ts) —
 // applied to the healer alone, never the team
 const Liberation = roverAction("Liberation - Echoing Orchestra", {
-  animFrames: 129, timestop: 129, motionStop: 79, cooldown: 60 * 20,
+  animFrames: 129, prioFrames: 129, timestop: [0, 129], motionStop: [0, 79], cooldown: 60 * 20,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [
     {
       hitFrame: 78, mv: 19881, offtune: 13964,
@@ -109,10 +108,10 @@ const Liberation = roverAction("Liberation - Echoing Orchestra", {
         applyEnemy(SPECTRO_FRAZZLE, 6);
       },
     },
-    { hitFrame: 123, mv: 67596, offtune: 47477 },
+    { hitFrame: 123, commitFrame: 78, mv: 67596, offtune: 47477 },
   ], castConcerto: 2000, resetEnergy: true,
 });
-const Intro = roverAction("Intro - Waveshock", { animFrames: 72, prioFrames: 72, motionStop: 48, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 56, mv: 16899, energy: 1000, offtune: 4880 }], castConcerto: 1000, castForte1: 50});
+const Intro = roverAction("Intro - Waveshock", { animFrames: 72, noSwapFrames: 71, prioFrames: 72, motionStop: [4, 51], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 56, mv: 16899, energy: 1000, offtune: 4880 }], castConcerto: 1000, castForte1: 50});
 const Outro = roverAction("Outro - Instant", { animFrames: 0, cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000});
 
 /* ------------------------------------------------------------------------------------ buffs */
@@ -169,7 +168,7 @@ const SPR_S2 = new Sequence({
 
 const SPR_S3 = new Sequence({
   name: "Spectro Rover S3: Visages of Dust",
-  stats: [[Stat.Er, 20]],
+  stats: [[Stat.ER, 20]],
 });
 
 // S4 Resonating Lamella: a heal over time off Liberation — out of scope, a no-op held for the name
@@ -205,7 +204,7 @@ const ROVER_SPECTRO_RESONATOR = new Resonator({
   weapon: WeaponType.Sword,
   color: "#e8d98f",
   intro: Intro,
-  tuneBreak: tuneBreak(91, 91, 70, SWORD_BREAK),
+  tuneBreak: tuneBreak(91, [0, 91], [0, 70], SWORD_BREAK),
   maxEnergy: 12500,
   maxForte1: 100,
   tier: Tier.Free,

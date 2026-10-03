@@ -89,8 +89,8 @@ function yangyangAction(id: string, def: object): Action {
 
 /** Both Sword Stance Flow forms, which are where every stored payout is cashed. Feather Release
  *  inflicts in `updateDebuffs`, the hit's first phase, so the team's own "on inflicting Havoc Bane"
- *  passives see all six stacks this action; the Flow's own "consume 1 stack on hit" waits for
- *  `afterAction` so this cast still reads the full count for Unbroken Vow. */
+ *  passives see all six stacks this action; the Flow's own "consume 1 stack on hit" is its first
+ *  hit's (FLOW_CONSUME, wuwalab's consume_havoc_bane), behind that inflict. */
 const FLOW = {
   updateDebuffs: () => {
     if (!isHeld(ONE_WITH_THE_WIND)) return;
@@ -102,12 +102,10 @@ const FLOW = {
     queue(ShadowOfXuanling);
     revokeCurrent(VOICE_UPON_VOICE);
   },
-  afterAction: () => {
-    // `consume`, not a plain remove: this is the kit spending a stack, and a teammate's own "when
-    // you consume Havoc Bane" passive has no other way to see it (context.ts's own `consumed()`)
-    consume(HAVOC_BANE, 1);
-  },
 };
+// `consume`, not a plain remove: this is the kit spending a stack, and a teammate's own "when you
+// consume Havoc Bane" passive has no other way to see it (context.ts's own `consumed()`)
+const FLOW_CONSUME = { updateDebuffs: () => consume(HAVOC_BANE, 1) };
 
 // --- Succor and Smite: the two four-stage Basic chains, the only ordinary Basic Attack DMG she
 //     has. Stage 4 of each lands a stack of Havoc Bane.
@@ -124,11 +122,10 @@ const BA_A3 = yangyangAction("Basic - Azure Sword Stance 3", { animFrames: 43, n
 const BA_A4 = yangyangAction("Basic - Azure Sword Stance 4", {
   animFrames: 76,
   node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 12, mv: 1857, energy: 30, concerto: 59, offtune: 934,
-      updateDebuffs: () => applyEnemy(HAVOC_BANE, isHeld(XL_S3) ? 2 : 1),
-      forte1: -480, },
+    { hitFrame: 12, mv: 1857, energy: 30, concerto: 59, offtune: 934, forte1: -480 },
     { hitFrame: 21, mv: 1857, energy: 30, concerto: 59, offtune: 934, forte1: -480 },
-    { hitFrame: 41, mv: 14849, energy: 234, concerto: 467, offtune: 7469, forte1: -3840 },
+    { hitFrame: 41, mv: 14849, energy: 234, concerto: 467, offtune: 7469, forte1: -3840,
+      updateDebuffs: () => applyEnemy(HAVOC_BANE, isHeld(XL_S3) ? 2 : 1) },
   ],
 });
 const MA_A = yangyangAction("Mid-air - Azure Sword Stance Plunge", { animFrames: 53, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 34, mv: 9861, energy: 155, concerto: 310, offtune: 4960, forte1: -1200 }]});
@@ -157,11 +154,10 @@ const BA_F3 = yangyangAction("Basic - Feather Sword Stance 3", { animFrames: 33,
 const BA_F4 = yangyangAction("Basic - Feather Sword Stance 4", {
   animFrames: 93,
   node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 50, mv: 7158, energy: 113, concerto: 225, offtune: 3600,
-      updateDebuffs: () => applyEnemy(HAVOC_BANE, isHeld(XL_S3) ? 2 : 1),
-      forte1: -1440, },
+    { hitFrame: 50, mv: 7158, energy: 113, concerto: 225, offtune: 3600, forte1: -1440 },
     { hitFrame: 52, mv: 7158, energy: 113, concerto: 225, offtune: 3600, forte1: -1440 },
-    { hitFrame: 54, mv: 9543, energy: 150, concerto: 300, offtune: 4800, forte1: -1920 },
+    { hitFrame: 54, mv: 9543, energy: 150, concerto: 300, offtune: 4800, forte1: -1920,
+      updateDebuffs: () => applyEnemy(HAVOC_BANE, isHeld(XL_S3) ? 2 : 1) },
   ],
 });
 const MA_F = yangyangAction("Mid-air - Feather Sword Stance Plunge", { animFrames: 53, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 34, mv: 9861, energy: 155, concerto: 310, offtune: 4960, forte1: -1200 }]});
@@ -178,33 +174,46 @@ const SwitchAzure = yangyangAction("Skill - Sword Stance Switch: Azure", { animF
     { hitFrame: 41, mv: 1555, energy: 25, concerto: 49, offtune: 782 },
     { hitFrame: 50, commitFrame: 41, mv: 1555, energy: 25, concerto: 49, offtune: 782 },
     { hitFrame: 59, commitFrame: 41, mv: 1555, energy: 25, concerto: 49, offtune: 782 },
-  ]});
+  ],
+  updateBuffs: () => revokeCurrent(FEATHER_STANCE),
+});
 const SwitchFeather = yangyangAction("Skill - Sword Stance Switch: Feather", { animFrames: 44, node: Node.Skill, cast: Cast.Skill, type: Type.Heavy, bullets: [
     { hitFrame: 28, mv: 3356, energy: 53, concerto: 106, offtune: 1688 },
     { hitFrame: 36, commitFrame: 28, mv: 3356, energy: 53, concerto: 106, offtune: 1688 },
     { hitFrame: 44, commitFrame: 28, mv: 3356, energy: 53, concerto: 106, offtune: 1688 },
-  ]});
+  ],
+  updateBuffs: () => applyCurrent(FEATHER_STANCE, 1),
+});
 
 // --- The Way of Ten Thousand Voices. Sword Stance Flow refills Melody outright rather than
 //     adding to it, so the refill is a set (the bar is at 0 by the time either is castable).
 const FlowAzure = yangyangAction("Skill - Sword Stance Flow: Azure", {
+  // hidden prio frames? wuwalab's priority never reaches 10, yet the press holds to 46 in game
   animFrames: 59, prioFrames: 46,
   node: Node.Forte, cast: Cast.Skill, type: Type.Heavy, bullets: [
-    { hitFrame: 22, mv: 6995, energy: 696, concerto: 600, offtune: 3519 },
+    { hitFrame: 22, mv: 6995, energy: 696, concerto: 600, offtune: 3519, ...FLOW_CONSUME },
     { hitFrame: 41, mv: 1555, energy: 155, concerto: 134, offtune: 782 },
     { hitFrame: 50, commitFrame: 41, mv: 1555, energy: 155, concerto: 134, offtune: 782 },
     { hitFrame: 59, commitFrame: 41, mv: 1555, energy: 155, concerto: 134, offtune: 782 },
   ], castForte2: 1,castForte1: 10000,
   ...FLOW,
+  updateBuffs: () => {
+    revokeCurrent(FEATHER_STANCE);
+    FLOW.updateBuffs();
+  },
 });
 const FlowFeather = yangyangAction("Skill - Sword Stance Flow: Feather", {
   animFrames: 44,
   node: Node.Forte, cast: Cast.Skill, type: Type.Heavy, bullets: [
-    { hitFrame: 28, mv: 3356, energy: 387, concerto: 334, offtune: 1688 },
+    { hitFrame: 28, mv: 3356, energy: 387, concerto: 334, offtune: 1688, ...FLOW_CONSUME },
     { hitFrame: 36, commitFrame: 28, mv: 3356, energy: 387, concerto: 334, offtune: 1688 },
     { hitFrame: 44, commitFrame: 28, mv: 3356, energy: 387, concerto: 334, offtune: 1688 },
   ], castForte2: 1, castForte1: 10000, 
   ...FLOW,
+  updateBuffs: () => {
+    applyCurrent(FEATHER_STANCE, 1);
+    FLOW.updateBuffs();
+  },
 });
 
 const HeavyAzure = yangyangAction("Forte Heavy - Azure Sword Stance", { minForte2: 2,
@@ -221,7 +230,7 @@ const HeavyAzure = yangyangAction("Forte Heavy - Azure Sword Stance", { minForte
     applyCurrent(BATED_BREATH_CD, 1);
   },
   // "consumes all Azure Plume": -100 shows the whole-bar drain; the bar reads empty after it
-  castForte2: -100,
+  castForte2: -2,
 });
 const HeavyFeather = yangyangAction("Forte Heavy - Feather Sword Stance", { minForte2: 2,
   animFrames: 45,
@@ -240,12 +249,12 @@ const FeatherFall = yangyangAction("Forte Mid-air - Feather Fall", { minForte2: 
   animFrames: 76,
   node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, bullets: [
     { hitFrame: 10, mv: 1480, energy: 17, concerto: 42, offtune: 662 },
-    { hitFrame: 19, mv: 1480, energy: 17, concerto: 42, offtune: 662 },
-    { hitFrame: 28, mv: 1480, energy: 17, concerto: 42, offtune: 662 },
+    { hitFrame: 19, commitFrame: 10, mv: 1480, energy: 17, concerto: 42, offtune: 662 },
+    { hitFrame: 28, commitFrame: 10, mv: 1480, energy: 17, concerto: 42, offtune: 662 },
     { hitFrame: 58, mv: 6657, energy: 75, concerto: 186, offtune: 2976 },
   ],
   // Feather Sword Stance itself spends none — this auto-cast follow-up consumes all Azure Plume
-  castForte2: -100,
+  castForte2: -2,
 });
 const HiB1 = yangyangAction("Basic - Havoc in Bloom 1", { animFrames: 38, node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, bullets: [
     { hitFrame: 14, mv: 3979, energy: 45, concerto: 112, offtune: 1779 },
@@ -259,38 +268,45 @@ const HiB2 = yangyangAction("Basic - Havoc in Bloom 2", { animFrames: 69, node: 
   ]});
 const HiB3 = yangyangAction("Basic - Havoc in Bloom 3", { animFrames: 108, node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, bullets: [
     { hitFrame: 6, mv: 2398, energy: 16, concerto: 76, offtune: 640 },
-    { hitFrame: 15, mv: 2398, energy: 16, concerto: 76, offtune: 640 },
-    { hitFrame: 24, mv: 2398, energy: 16, concerto: 76, offtune: 640 },
-    { hitFrame: 33, mv: 2398, energy: 16, concerto: 76, offtune: 640 },
-    { hitFrame: 42, mv: 2398, energy: 16, concerto: 76, offtune: 640 },
+    { hitFrame: 15, commitFrame: 6, mv: 2398, energy: 16, concerto: 76, offtune: 640 },
+    { hitFrame: 24, commitFrame: 6, mv: 2398, energy: 16, concerto: 76, offtune: 640 },
+    { hitFrame: 33, commitFrame: 6, mv: 2398, energy: 16, concerto: 76, offtune: 640 },
+    { hitFrame: 42, commitFrame: 6, mv: 2398, energy: 16, concerto: 76, offtune: 640 },
     { hitFrame: 72, mv: 27969, energy: 187, concerto: 887, offtune: 7465 },
   ]});
 
 // --- Hush of a Thousand Voices. Heavy Attack DMG despite the cast, and it ends holding a plume.
 const Lib = yangyangAction("Liberation - Hush of a Thousand Voices", {
-  animFrames: 300, timestop: 300, motionStop: 300, cooldown: 60 * 25,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Heavy, bullets: [{ hitFrame: 252, mv: 198810, offtune: 136400 }], castConcerto: 2000, resetForte1: true,
+  animFrames: 300, prioFrames: 294, timestop: [0, 300], motionStop: [0, 300], cooldown: 60 * 25,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Heavy, bullets: [
+    // One Life, One Blade's own first line: the hit raises Havoc Bane to the target's limit, which
+    // is the fight's rather than the declared 3 (Chisa's +3 to every Negative Status cap)
+    { hitFrame: 252, mv: 198810, offtune: 136400, updateDebuffs: () => applyEnemy(HAVOC_BANE, currentTeam().enemyMax(HAVOC_BANE)) },
+  ], castConcerto: 2000, resetForte1: true,
   castForte2: 1, resetEnergy: true,
-  // One Life, One Blade's own first line: the hit raises Havoc Bane to the target's limit, which
-  // is the fight's rather than the declared 3 (Chisa's +3 to every Negative Status cap)
-  updateDebuffs: () => applyEnemy(HAVOC_BANE, currentTeam().enemyMax(HAVOC_BANE)),
   updateBuffs: () => applyCurrent(VOICE_UPON_VOICE, 1),
 });
 /** Voice upon Voice cashed on the next Sword Stance Flow. A summon, so it is queued rather than
  *  named by the rotation. */
-const ShadowOfXuanling = yangyangAction("Liberation - Shadow of Xuanling", { tag: ActionTag.Field, animFrames: 12, node: Node.Liberation, type: Type.Heavy, bullets: [{ hitFrame: 12, mv: 33798 }]});
+const ShadowOfXuanling = yangyangAction("Liberation - Shadow of Xuanling", { tag: ActionTag.Field, animFrames: 12, node: Node.Liberation, type: Type.Heavy, bullets: [{ hitFrame: 12, commitFrame: 0, mv: 33798 }]});
 /** The three sequence Shadows — the Liberation's own 337.98% row (no energy/concerto/off-tune of
  *  its own), Heavy DMG, each filed under the cast that summons it. */
 const ShadowUnfaltering = yangyangAction("Liberation - Shadow of Xuanling: Unfaltering (S1)", { tag: ActionTag.Field, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 33798 }] });
 const ShadowStrungNotes = yangyangAction("Liberation - Shadow of Xuanling: Strung Notes (S2)", { tag: ActionTag.Field, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 33798 }] });
 const ShadowWitheredWood = yangyangAction("Liberation - Shadow of Xuanling: Still as Withered Wood (S6)", { tag: ActionTag.Field, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 33798 }] });
 
-const Intro = yangyangAction("Intro - Skybound Feather", {
-  animFrames: 47, prioFrames: 38, motionStop: 31,
-  node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 40, mv: 11659, energy: 1000, offtune: 5864 }], castConcerto: 1000,
+/** Skybound Feather is one Intro with one animation per stance (nanoka's two identical damage
+ *  entries; wuwalab's "Skytouch" and "Aria of the Feather"), picked by the stance she left in. */
+const INTRO = {
+  animFrames: 47, prioFrames: 38, noSwapFrames: 44, motionStop: [5, 35],
+  node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
+    { hitFrame: 40, mv: 11659, energy: 1000, offtune: 5864, updateDebuffs: () => applyEnemy(HAVOC_BANE, 1) },
+  ], castConcerto: 1000,
   castForte2: 1,
-  updateDebuffs: () => applyEnemy(HAVOC_BANE, 1),
-});
+};
+const IntroAzure = yangyangAction("Intro - Skybound Feather (Azure)", INTRO);
+const IntroFeather = yangyangAction("Intro - Skybound Feather (Feather)", INTRO);
+const INTROS = new Set<Action>([IntroAzure, IntroFeather]);
 const Outro = yangyangAction("Outro - As the Wind Wills", {
   animFrames: 0,
   cast: Cast.Outro, type: Type.Outro, bullets: [{ hitFrame: 0, mv: 30000 }], minConcerto: 10000, castConcerto: -10000,
@@ -353,6 +369,10 @@ const WINDBOUND = new Buff({ name: "Xuanling: Windbound", maxStacks: 6 });
 const WINDBOUND_ICD = new Buff({ duration: 60 });
 const OATH_ICD = new Buff({ duration: 60 });
 const ONE_WITH_THE_WIND = new Buff({ name: "Xuanling: One with the Wind" });
+
+/** Feather Sword Stance, entered by either Feather Switch or Flow and left by either Azure one;
+ *  without it she is in Azure, her default. Read only to pick which Intro plays. */
+const FEATHER_STANCE = new Buff({ name: "Xuanling: Feather Sword Stance" });
 
 /** Voice upon Voice: banked by the Liberation, spent by the next Sword Stance Flow for the Shadow
  *  of Xuanling summon. Does not stack, and no stat of its own. */
@@ -417,7 +437,7 @@ const XL_S2 = new Sequence({
  *  Heavies is inside their own inflicts above. */
 const XL_S3 = new Sequence({
   name: "Xuanling S3: My Grief Follows You into the Clouds",
-  updateDebuffs: () => { if (runningAction(Intro) || isFlow()) maxStackIncrease(HAVOC_BANE, 3); },
+  updateDebuffs: () => { if (runningAnyOf(INTROS) || isFlow()) maxStackIncrease(HAVOC_BANE, 3); },
   applyStats: () => { if (runningAction(Lib)) addStat(Stat.Amp, 175); },
 });
 
@@ -431,7 +451,7 @@ const A_LETTER_AND_MY_LONGING = new Buff({
 const XL_S4 = new Sequence({
   name: "Xuanling S4: Across the Miles, a Letter and My Longing",
   updateBuffs: () => {
-    if (runningAction(Intro) || runningAction(SwitchAzure) || runningAction(SwitchFeather) || isFlow()) applyTeam(A_LETTER_AND_MY_LONGING, 1);
+    if (runningAnyOf(INTROS) || runningAction(SwitchAzure) || runningAction(SwitchFeather) || isFlow()) applyTeam(A_LETTER_AND_MY_LONGING, 1);
   },
 });
 
@@ -530,7 +550,8 @@ export const XUANLING_RESONATOR = new Resonator({
   element: Attribute.Havoc,
   weapon: WeaponType.Sword,
   color: "#6140e5",
-  intro: Intro,
+  // resolved when its row is reached: the Skybound Feather of the stance she left in
+  intro: new Action("Intro Resolver", { cast: Cast.Intro, resolve: () => (isHeld(FEATHER_STANCE) ? IntroFeather : IntroAzure) }),
   maxEnergy: 12500,
   forteScale: [0.01, 1, 1, 1, 1],
   maxForte1: 10000,
@@ -549,7 +570,7 @@ export const XUANLING_RESONATOR = new Resonator({
   combatStart: () => setForte1(10000),
 
   applyStats: () => {
-    if (currentAction().node === Node.Normal && forte1() > 0) addStat(Stat.EnergyRegenMult, 20);
+    if (currentAction().node === Node.Normal && forte1() > 0) addStat(Stat.ER, 20);
   },
 
 });

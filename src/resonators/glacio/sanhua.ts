@@ -42,7 +42,7 @@ function sanhuaAction(id: string, def: object): Action {
 // under S5) and arms Blade Mastery (S4) — each marker granted by the cast that makes it, for
 // Detonate to spend below.
 const Intro = sanhuaAction("Intro - Freezing Thorns", {
-  animFrames: 60, motionStop: 52,
+  animFrames: 60, noSwapFrames: 70, motionStop: [0, 52],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 54, mv: 13917, energy: 1000, offtune: 7304 }], castConcerto: 1000,
   updateBuffs: () => applyCurrent(THORN_BUFF, 1),
 });
@@ -58,7 +58,7 @@ const Skill = sanhuaAction("Skill - Eternal Frost", {
   updateBuffs: () => applyCurrent(PRISM_BUFF, 1),
 });
 const Liberation = sanhuaAction("Liberation - Glacial Gaze", {
-  animFrames: 97, timestop: 90, motionStop: 90, cooldown: 60 * 16,
+  animFrames: 97, prioFrames: 93, timestop: [0, 90], motionStop: [0, 90], cooldown: 60 * 16,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 72, mv: 80948, offtune: 61440 }], castConcerto: 2000, resetEnergy: true,
   updateBuffs: () => applyCurrent(GLACIER_BUFF, 1),
 });
@@ -78,9 +78,9 @@ const BA4 = sanhuaAction("Basic - Frigid Light 4", { animFrames: 36, node: Node.
 const BA5 = sanhuaAction("Basic - Frigid Light 5", { animFrames: 109, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 32, mv: 23381, energy: 420, concerto: 1000, offtune: 13440 }]});
 const HA = sanhuaAction("Heavy - Frigid Light", { animFrames: 50, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 10, mv: 2227, energy: 40, concerto: 160, offtune: 1600 },
-    { hitFrame: 14, mv: 2227, energy: 40, concerto: 160, offtune: 1600 },
-    { hitFrame: 18, mv: 2227, energy: 40, concerto: 160, offtune: 1600 },
-    { hitFrame: 22, mv: 2227, energy: 40, concerto: 160, offtune: 1600 },
+    { hitFrame: 14, commitFrame: 10, mv: 2227, energy: 40, concerto: 160, offtune: 1600 },
+    { hitFrame: 18, commitFrame: 10, mv: 2227, energy: 40, concerto: 160, offtune: 1600 },
+    { hitFrame: 22, commitFrame: 10, mv: 2227, energy: 40, concerto: 160, offtune: 1600 },
     { hitFrame: 36, mv: 2227, energy: 40, concerto: 160, offtune: 1600 },
   ]});
 const MA = sanhuaAction("Mid-air - Frigid Light Plunge", { animFrames: 60, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 34, mv: 8629, energy: 51, concerto: 100, offtune: 9520 }]});
@@ -237,7 +237,7 @@ const SANHUA_RESONATOR = new Resonator({
   weapon: WeaponType.Sword,
   color: "#5fc9e8",
   intro: Intro,
-  tuneBreak: tuneBreak(92, 92, 70, SWORD_BREAK),
+  tuneBreak: tuneBreak(92, [0, 92], [0, 70], SWORD_BREAK),
   maxEnergy: 12500,
   tier: Tier.Free,
 

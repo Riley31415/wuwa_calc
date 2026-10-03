@@ -36,11 +36,12 @@ import {
   casting,
   onAction,
   runningAction,
+  currentAction,
   addStat,
   queueOutro,
   forte1,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, ECHO, START_LAST, INTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, ECHO, INTRO } from "../../engine/rotation.js";
 import { tuneBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
 import { HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
@@ -69,35 +70,46 @@ const BA3 = danjinAction("Basic - Execution 3", { animFrames: 28, node: Node.Nor
 const MA = danjinAction("Mid-air - Execution Plunge", { animFrames: 62, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 36, mv: 9861, energy: 51, concerto: 100, offtune: 9600 }]});
 const HA = danjinAction("Heavy - Execution", { animFrames: 40, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 9, mv: 3712, energy: 58, concerto: 70, offtune: 1786 },
-    { hitFrame: 13, mv: 3712, energy: 58, concerto: 70, offtune: 1786 },
+    { hitFrame: 13, commitFrame: 12, mv: 3712, energy: 58, concerto: 70, offtune: 1786 },
     { hitFrame: 17, commitFrame: 16, mv: 3712, energy: 58, concerto: 70, offtune: 1786 },
   ]}); // 37.12% x3
 /** A successful Dodge Counter opens the Skill's own Crimson Erosion form, and grants Crimson Light. */
-const DC = danjinAction("Dodge Counter - Ruby Shades", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 19086, energy: 300, concerto: 1180, offtune: 4800 }] }); // 63.62% x3
+const DC = danjinAction("Dodge Counter - Ruby Shades", { animFrames: 43, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+    { hitFrame: 6, mv: 6362, energy: 100, concerto: 60, offtune: 1600 },
+    { hitFrame: 15, mv: 6362, energy: 100, concerto: 60, offtune: 1600 },
+    { hitFrame: 29, mv: 6362, energy: 100, concerto: 60, offtune: 1600 },
+  ], castConcerto: 1000 }); // 63.62% x3
 
 // three forms depending on the preceding action (see file header)
 const CarmineGleam = danjinAction("Skill - Carmine Gleam", { animFrames: 29, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [{ hitFrame: 12, mv: 3818, energy: 60, offtune: 1480 }, { hitFrame: 21, mv: 3818, energy: 60, offtune: 1480 }], castForte1: 10, castConcerto: 800}); // 38.18% x2
-const CrimsonErosion1 = danjinAction("Skill - Crimson Erosion 1", { animFrames: 37, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [{ hitFrame: 10, mv: 6442, energy: 125, offtune: 2120 }, { hitFrame: 18, mv: 6442, energy: 125, offtune: 2120 }], castForte1: 10, castConcerto: 800}); // 64.42% x2
+// Ruby Blossom and the Concerto Regen land on the hits wuwalab's resource_gain events sit on
+const CrimsonErosion1 = danjinAction("Skill - Crimson Erosion 1", { animFrames: 37, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+    { hitFrame: 10, mv: 6442, energy: 125, concerto: 800, offtune: 2120, forte1: 5 },
+    { hitFrame: 18, mv: 6442, energy: 125, offtune: 2120, forte1: 5 },
+  ]}); // 64.42% x2
 const CrimsonErosion2 = danjinAction("Skill - Crimson Erosion 2", {
   animFrames: 46,
   node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
-    { hitFrame: 11, mv: 5965, energy: 125, offtune: 2000, updateDebuffs: () => applyEnemy(INCINERATING_WILL, 1) },
+    { hitFrame: 11, mv: 5965, energy: 125, concerto: 800, offtune: 2000, forte1: 10, updateDebuffs: () => applyEnemy(INCINERATING_WILL, 1) },
     { hitFrame: 20, mv: 5965, energy: 125, offtune: 2000 },
-  ], castForte1: 10, castConcerto: 800,
+  ],
 });
 
 // NOTE 40.5 forte for sanguine pulse 123, not sure on individual
-const SanguinePulse1 = danjinAction("Skill - Sanguine Pulse 1", { animFrames: 33, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [{ hitFrame: 8, mv: 5607, energy: 150, offtune: 1880 }, { hitFrame: 20, mv: 5607, energy: 150, offtune: 1880 }], castForte1: 10, castConcerto: 800}); // 56.07% x2
+const SanguinePulse1 = danjinAction("Skill - Sanguine Pulse 1", { animFrames: 33, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+    { hitFrame: 8, mv: 5607, energy: 150, concerto: 800, offtune: 1880, forte1: 5 },
+    { hitFrame: 20, mv: 5607, energy: 150, offtune: 1880, forte1: 5 },
+  ]}); // 56.07% x2
 const SanguinePulse2 = danjinAction("Skill - Sanguine Pulse 2", { animFrames: 37, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 4, mv: 4295, energy: 100, offtune: 1413 },
-    { hitFrame: 8, mv: 4295, energy: 100, offtune: 1413 },
-    { hitFrame: 24, mv: 4295, energy: 100, offtune: 1413 },
-  ], castForte1: 15, castConcerto: 800}); // 42.95% x3
+    { hitFrame: 8, mv: 4295, energy: 100, offtune: 1413, forte1: 5 },
+    { hitFrame: 24, mv: 4295, energy: 100, offtune: 1413, forte1: 5 },
+  ], castForte1: 5, castConcerto: 800}); // 42.95% x3; the rest lands between hits (frames 6, 9)
 const SanguinePulse3 = danjinAction("Skill - Sanguine Pulse 3", { animFrames: 59, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
-    { hitFrame: 6, mv: 6442, energy: 133, offtune: 2133 },
-    { hitFrame: 16, mv: 6442, energy: 133, offtune: 2133 },
+    { hitFrame: 6, mv: 6442, energy: 133, offtune: 2133, forte1: 5 },
+    { hitFrame: 16, mv: 6442, energy: 133, offtune: 2133, forte1: 5 },
     { hitFrame: 36, mv: 6442, energy: 133, offtune: 2133 },
-  ], castForte1: 15, castConcerto: 800}); // 64.42% x3
+  ], castForte1: 5, castConcerto: 800}); // 64.42% x3; the rest lands off the hits (frames 9, 44)
 
 // Chaoscleave (Heavy Attack DMG, at 60+ Ruby Blossom) into Scatterbloom
 // updateDebuffs on both Chaoscleaves is her own healing marker, read by every healing sonata and
@@ -105,13 +117,13 @@ const SanguinePulse3 = danjinAction("Skill - Sanguine Pulse 3", { animFrames: 59
 const Chaoscleave = danjinAction("Forte Heavy - Chaoscleave", { minForte1: 60,
   animFrames: 72,
   node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
-    { hitFrame: 9, mv: 5965, energy: 200, offtune: 1654,
+    { hitFrame: 9, commitFrame: 8, mv: 5965, energy: 200, offtune: 1654,
       updateDebuffs: () => applyCurrent(HEALS, 1) },
-    { hitFrame: 17, mv: 5965, energy: 200, offtune: 1654 },
-    { hitFrame: 24, mv: 5965, energy: 200, offtune: 1654 },
-    { hitFrame: 31, mv: 5965, energy: 200, offtune: 1654 },
-    { hitFrame: 39, mv: 5965, energy: 200, offtune: 1654 },
-    { hitFrame: 46, mv: 5965, energy: 200, offtune: 1654 },
+    { hitFrame: 17, commitFrame: 15, mv: 5965, energy: 200, offtune: 1654 },
+    { hitFrame: 24, commitFrame: 23, mv: 5965, energy: 200, offtune: 1654 },
+    { hitFrame: 31, commitFrame: 30, mv: 5965, energy: 200, offtune: 1654 },
+    { hitFrame: 39, commitFrame: 38, mv: 5965, energy: 200, offtune: 1654 },
+    { hitFrame: 46, commitFrame: 45, mv: 5965, energy: 200, offtune: 1654 },
     { hitFrame: 62, commitFrame: 61, mv: 5965, energy: 200, offtune: 1654 },
   ], castConcerto: 5000, resetForte1: true
 });
@@ -121,12 +133,12 @@ const Scatterbloom = danjinAction("Forte Heavy - Scatterbloom", { animFrames: 49
 const FullChaoscleave = danjinAction("Forte Heavy - Chaoscleave (Full Energy)", { minForte1: 120,
   animFrames: 72,
   node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
-    { hitFrame: 9, mv: 14315, energy: 200, offtune: 1654,
+    { hitFrame: 9, commitFrame: 8, mv: 14315, energy: 200, offtune: 1654,
       updateDebuffs: () => applyCurrent(HEALS, 1) },
-    { hitFrame: 17, mv: 14315, energy: 200, offtune: 1654 },
-    { hitFrame: 24, mv: 14315, energy: 200, offtune: 1654 },
-    { hitFrame: 31, mv: 14315, energy: 200, offtune: 1654 },
-    { hitFrame: 39, mv: 14315, energy: 200, offtune: 1654 },
+    { hitFrame: 17, commitFrame: 15, mv: 14315, energy: 200, offtune: 1654 },
+    { hitFrame: 24, commitFrame: 23, mv: 14315, energy: 200, offtune: 1654 },
+    { hitFrame: 31, commitFrame: 30, mv: 14315, energy: 200, offtune: 1654 },
+    { hitFrame: 39, commitFrame: 38, mv: 14315, energy: 200, offtune: 1654 },
     { hitFrame: 46, mv: 14315, energy: 200, offtune: 1654 },
     { hitFrame: 62, commitFrame: 61, mv: 14315, energy: 200, offtune: 1654 },
   ], castForte1: -120, castConcerto: 5000,
@@ -134,7 +146,7 @@ const FullChaoscleave = danjinAction("Forte Heavy - Chaoscleave (Full Energy)", 
 const FullScatterbloom = danjinAction("Heavy - Scatterbloom (Full Energy)", { animFrames: 49, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 19, mv: 42943, energy: 600, offtune: 5360 }]});
 
 // consecutive attacks plus one Scarlet Burst, lumped into one hit
-const Liberation = danjinAction("Liberation - Crimson Bloom", { animFrames: 192, timestop: 195, motionStop: 180, cooldown: 60 * 16, node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [
+const Liberation = danjinAction("Liberation - Crimson Bloom", { animFrames: 192, prioFrames: 192, timestop: [0, 195], motionStop: [0, 180], cooldown: 60 * 16, node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [
     { hitFrame: 74, mv: 4909, offtune: 3840 },
     { hitFrame: 80, mv: 4909, offtune: 3840 },
     { hitFrame: 91, mv: 4909, offtune: 3840 },
@@ -146,7 +158,7 @@ const Liberation = danjinAction("Liberation - Crimson Bloom", { animFrames: 192,
     { hitFrame: 169, mv: 39265, offtune: 30720 },
   ], castConcerto: 2000, resetEnergy: true }); // 49.09%x8+392.65%
 
-const Intro = danjinAction("Intro - Vindication", { animFrames: 103, prioFrames: 99, motionStop: 48, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
+const Intro = danjinAction("Intro - Vindication", { animFrames: 103, noSwapFrames: 92, prioFrames: 99, motionStop: [4, 51], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 54, mv: 4971, energy: 250, offtune: 3060 },
     { hitFrame: 64, mv: 4971, energy: 250, offtune: 3060 },
     { hitFrame: 73, mv: 4971, energy: 250, offtune: 3060 },
@@ -186,7 +198,10 @@ const DJ_INHERENT_OVERFLOW = new Inherent({
 const CRIMSON_LIGHT = new Buff({
   name: "Inherent: Crimson Light",
   applyStats: () => {
-    if (runningAction(CrimsonErosion1)) { addStat(Stat.DmgBonus, 20); addStat(Stat.AddForte1, CrimsonErosion1.forte1); }
+    if (!runningAction(CrimsonErosion1)) return;
+    addStat(Stat.DmgBonus, 20);
+    // each hit re-adds its own gain
+    addStat(Stat.AddForte1, currentAction().forte1);
   },
   updateBuffs: () => { if (!runningAction(CrimsonErosion1)) revokeCurrent(CRIMSON_LIGHT); },
 });
@@ -219,7 +234,7 @@ const DANJIN_RESONATOR = new Resonator({
   weapon: WeaponType.Sword,
   color: "#a83250",
   intro: Intro,
-  tuneBreak: tuneBreak(91, 91, 70, SWORD_BREAK),
+  tuneBreak: tuneBreak(91, [0, 91], [0, 70], SWORD_BREAK),
   maxEnergy: 10000,
   maxForte1: 120,
   tier: Tier.Free,

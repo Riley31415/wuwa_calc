@@ -97,6 +97,8 @@ export const ctx: {
   /** How far an off-field resonator's time fell behind the clock over the press just evaluated
    *  (`evaluate()`): + its motion stop, - time stop it didn't cover. `run()` applies it. */
   offFieldShift: number;
+  /** Where that hold starts on the real timer — a motion stop can begin mid-press. */
+  offFieldFrom: number;
   /** The frame that press was cast (`castFrame()`), set with `pressFrames`. */
   pressStart: number;
   /** The real frames the press being evaluated plays: its animation to its cut, and the cut's delay. */
@@ -157,6 +159,7 @@ export const ctx: {
   holdNext: null,
   holdCut: -1,
   offFieldShift: 0,
+  offFieldFrom: 0,
   pressStart: 0,
   actionStamp: 0,
   tracing: false,
@@ -237,7 +240,7 @@ export const noteMutation = (id: number, n: number): void => {
 /** The stats `evaluate()` banks into the running gauges — a variant that moves any of these would
  *  bank differently, so the real build's fight isn't its fight either. */
 export const RESOURCE_STATS: Stat[] = [
-  Stat.AddEnergy, Stat.AddConcerto, Stat.AddOfftune, Stat.DirectOfftune, Stat.OfftuneBuildup, Stat.EnergyRegenMult,
+  Stat.AddEnergy, Stat.AddConcerto, Stat.AddOfftune, Stat.DirectOfftune, Stat.OfftuneBuildup, Stat.EnergyRegenMult, Stat.OfftuneMult,
   Stat.AddForte1, Stat.AddForte2, Stat.AddForte3, Stat.AddForte4, Stat.AddForte5,
 ];
 

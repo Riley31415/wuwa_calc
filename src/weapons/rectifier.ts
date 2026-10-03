@@ -161,7 +161,7 @@ export const SK_SIG = refinements((r, rank) => {
   });
   return new Weapon({
     weaponType: WeaponType.Rectifier, name: `Stellar Symphony${rank}`,
-    stats: [[Stat.BaseAtk, 412.5], [Stat.Er, 77.04], [Stat.BonusHp, [12, 15, 18, 21, 24][r]!]],
+    stats: [[Stat.BaseAtk, 412.5], [Stat.ER, 77.04], [Stat.BonusHp, [12, 15, 18, 21, 24][r]!]],
     combatStart: () => applyCurrent(SK_SIG_CHARGE, 1),
     grants: [
       { on: both(onCast(Cast.Skill), onApplied(HEALS)), buff: SK_SIG_TEAM, to: BuffTarget.Team },
@@ -251,7 +251,7 @@ export const FIRSTLIGHTS_HERALD = refinements((r, rank) => {
   const bothMarks = (): boolean => isHeld(SNOW_TAINT) && isHeld(RIPPLES);
   return new Weapon({
     weaponType: WeaponType.Rectifier, name: `Firstlight's Herald${rank}`,
-    stats: [[Stat.BaseAtk, 412.5], [Stat.Er, 77.04], [Stat.BonusHp, [12, 15, 18, 21, 24][r]!]],
+    stats: [[Stat.BaseAtk, 412.5], [Stat.ER, 77.04], [Stat.BonusHp, [12, 15, 18, 21, 24][r]!]],
     combatStart: () => applyCurrent(SPRING_WREATH, 1),
     grants: [
       { on: onInflict(GLACIO_CHAFE), buff: SNOW_TAINT },

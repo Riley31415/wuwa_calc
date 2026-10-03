@@ -2,7 +2,7 @@
  * Hover panels: the markup every popover is built from (stat traces, action info, held buffs,
  * damage breakdowns, loadouts, the DPR table) and `wireSourcePanels`, which opens them.
  */
-import { Stat, Attribute, Type, Subtype, scopedStat, splitStat, isPercent, statLabel, TAG_NAME, NODE_NAME, statDisplayScale } from "../engine/stats.js";
+import { Stat, Attribute, Type, Subtype, scopedStat, splitStat, isPercent, statLabel, TAG_NAME, NODE_NAME, statDisplayScale, splitStop } from "../engine/stats.js";
 import type { StatKey, Tag } from "../engine/stats.js";
 import type { StatEntry } from "../engine/state.js";
 import { Sonata } from "../engine/gear.js";
@@ -181,7 +181,7 @@ export function framesPopover(snaps: ResolvedSnapshot[]): string {
     // the next resonator coming in, charged to the row that handed the field over
     if (s.swapFrames) rows.push(line("Swap Delay", s.swapFrames));
     total += s.swapFrames ?? 0;
-    banks += Math.max(0, s.action.timestop - cost.timestop);
+    banks += splitStop(press.timestopFrom, press.timestop, cost.action, cost.action + cost.global).banked;
   }
   return lazyPop(`<span class="pop frames"><table><tr class="sec"><td colspan="2">Active Frames</td></tr>`
     + rows.join("")
@@ -291,11 +291,11 @@ function menuStatRows(member: Member, combo: Combo, erRolls: number): { label: s
   push("HP", fold(Stat.BaseHp, Stat.BonusHp, Stat.FlatHp), false);
   push("ATK", fold(Stat.BaseAtk, Stat.BonusAtk, Stat.FlatAtk), false);
   push("DEF", fold(Stat.BaseDef, Stat.BonusDef, Stat.FlatDef), false);
-  push(statLabel(Stat.Er), get(Stat.Er), true);
+  push(statLabel(Stat.ER), get(Stat.ER), true);
   push(statLabel(Stat.CritRate), get(Stat.CritRate), true);
   push(statLabel(Stat.CritDmg), get(Stat.CritDmg), true);
   // Tune Break Boost is a count of points, not a percentage
-  push(statLabel(Stat.Tbb), get(Stat.Tbb), false);
+  push(statLabel(Stat.TBB), get(Stat.TBB), false);
   pushBest(ATTRIBUTE_SCOPES);
   pushBest(CORE_TYPE_SCOPES);
   pushBest(OTHER_SCOPES);

@@ -14,14 +14,12 @@ import {
   stacksOfTeam,
   applyCurrent,
   applyTeam,
-  currentAction,
   runningAction,
   casting,
   queueOutro,
   addStat,
   frozenStacks,
   applied,
-  forte1,
   currentTeam,
   applyOthers,
   elapsed,
@@ -110,13 +108,13 @@ const MSkill = iunoAction("Skill - Arc Beyond the Edge", { animFrames: 85, coold
 
 // --- liberation: shields and grants Blessing
 const Liberation = iunoAction("Liberation - Beneath Lunar Tides", {
-  animFrames: 250, timestop: 240, motionStop: 240, cooldown: 60 * 25,
+  animFrames: 250, prioFrames: 240, timestop: [0, 240], motionStop: [0, 240], cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 196, mv: 109346, offtune: 96000 }], castConcerto: 2000, castForte1: 60, resetEnergy: true,
 });
 
 // --- intro / outro
 const Intro = iunoAction("Intro - Illuminated Manifestation", {
-  animFrames: 81, prioFrames: 81, motionStop: 27,
+  animFrames: 81, noSwapFrames: 84, prioFrames: 81, motionStop: [6, 32],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 48, mv: 1591, energy: 100, offtune: 1040 },
     { hitFrame: 52, mv: 1591, energy: 100, offtune: 1040 },

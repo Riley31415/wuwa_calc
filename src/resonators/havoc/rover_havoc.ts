@@ -16,7 +16,6 @@ import {
   applyEnemy,
   revokeEnemy,
   isHeld,
-  revokeCurrent,
   casting,
   runningAction,
   addStat,
@@ -136,7 +135,7 @@ const ESkill = roverAction("Skill - Umbra: Lifetaker", { animFrames: 66, cooldow
   ], castConcerto: 1500});
 
 // --- liberation: Deadening Abyss — also shreds the target's own Havoc RES (S4)
-const Liberation = roverAction("Liberation - Deadening Abyss", { animFrames: 139, timestop: 139, motionStop: 139, prioFrames: 139, cooldown: 60 * 16, node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 139, mv: 152090, offtune: 53760 }], castConcerto: 2000, resetEnergy: true });
+const Liberation = roverAction("Liberation - Deadening Abyss", { animFrames: 139, timestop: [0, 139], motionStop: [0, 139], prioFrames: 139, cooldown: 60 * 16, node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 139, mv: 152090, offtune: 53760 }], castConcerto: 2000, resetEnergy: true });
 
 // --- intro / outro
 const Intro = roverAction("Intro - Instant of Annihilation", { animFrames: 60, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 60, mv: 19881, energy: 1000, offtune: 1867, forte1: 29 }], castConcerto: 1000 });

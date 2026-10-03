@@ -5,14 +5,14 @@
  * the cast itself does lives on that Action, while a flat equip passive is the Mainslot's `stats`.
  */
 import { Stat, Attribute, Type, Cast, Scaling, BuffTarget } from "../engine/stats.js";
-import { Buff, Sonata, Sonata2pc, Mainslot, coordinatedBuff, handoff } from "../engine/gear.js";
+import { Buff, Sonata, Sonata2pc, Mainslot, handoff } from "../engine/gear.js";
 import {
-  addStat, frozenStacks, casting, applyCurrent, applyTeam, stacksOfTeam, revokeTeam, removeStackTeam, queueOutro, queue,
+  addStat, frozenStacks, casting, applyCurrent, applyTeam, stacksOfTeam, revokeTeam, queueOutro, queue,
    isActive, onCast, onType, onApplied,
   lostOnSwap,
 } from "../engine/context.js";
-import { Action, ActionField, Cooldown } from "../engine/rotation.js";
-import { HEALS, SHIELD, gainShield } from "../shared/status.js";
+import { Action, Cooldown } from "../engine/rotation.js";
+import { HEALS, gainShield } from "../shared/status.js";
 
 /* -------------------------------------------------------------------------- generic, unowned */
 
@@ -79,7 +79,7 @@ export const STONEWALL_BRACER = new Mainslot({
 
 /** Moonlit Clouds, a generic sonata. 2pc: +10% ER flat. 5pc: on Outro, the incoming resonator
  *  gets +22.5% ATK for 15s — same handoff shape as Heron, but unconditional. */
-export const MOONLIT_CLOUDS_2PC = new Sonata2pc({ name: "Moonlit Clouds 2pc", stats: [[Stat.Er, 10]] });
+export const MOONLIT_CLOUDS_2PC = new Sonata2pc({ name: "Moonlit Clouds 2pc", stats: [[Stat.ER, 10]] });
 
 export const MOONLIT_CLOUDS_5PC = new Sonata({
   name: "Moonlit Clouds 5pc",
@@ -253,29 +253,27 @@ export const SIERRA_GALE_INTRO = new Buff({
   stats: [[Stat.DmgBonus, 30, Attribute.Aero]],
 });
 
-/** Jué — a Calamity Class Spectro mainslot echo. Its cast grants the wearer Blessing of Time,
- *  the 15s window as a self-held coordinated countdown (`coordinatedBuff`, owner null — an echo
- *  has no resonator to name): every active, non-triggered action anywhere lands one 16% tick on
- *  the wearer's own slot, considered their Resonance Skill DMG, and while any stack remains they
- *  keep the +16% Resonance Skill DMG Bonus. The echo's own 20s cooldown means a rotation re-banks
- *  it about once a loop, so the bonus is live for the burst it was pressed for and gone after.
- *  A tick is an active row: it is the wearer's own hit, not a swap, so none of their "lost on
- *  switching out" buffs (an outro handoff they just adopted) should drop on it. */
+/** Jué — a Calamity Class Spectro mainslot echo. Its cast grants the wearer Blessing of Time for
+ *  15s: +16% Resonance Skill DMG Bonus, and a 16% tick once a second on the wearer's own slot,
+ *  considered their Resonance Skill DMG — one action, its fifteen ticks its own bullets. The
+ *  echo's own 20s cooldown means a rotation re-banks it about once a loop. */
 export const ACTION_JUE = new Action("Echo - Jué", { animFrames: 8,
   cooldown: 60 * 20,
   // the soar, five thunderbolts, then the two hits of the spiral down: three 48.64% hits, not two
   cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 4864 * 3 + 1946 * 5, energy: 76 * 3 + 30 * 5 }], 
-  updateBuffs: () => applyCurrent(JUE_BLESSING, 15),
+  updateBuffs: () => {
+    applyCurrent(JUE_BLESSING, 1);
+    queue(ACTION_JUE_TICK);
+  },
 });
-/** Blessing of Time's own summon — the field it fires from, named for the report (rotation.ts's
- *  `ActionField`); JUE_BLESSING below is the buff whose grant puts it out. */
-const JUE_FIELD = new ActionField("Jué: Blessing of Time");
-// no energy: the tick has a damage row of its own and it pays nothing
+// no energy: the ticks have a damage row of their own and pay nothing
 export const ACTION_JUE_TICK = new Action("Echo - Jué: Blessing of Time", {
-  element: Attribute.Spectro, scaling: Scaling.Atk, type: Type.Skill, bullets: [{ hitFrame: 0, mv: 1600 }], field: JUE_FIELD,
+  element: Attribute.Spectro, scaling: Scaling.Atk, type: Type.Skill,
+  bullets: Array.from({ length: 15 }, (_, k) => ({ hitFrame: 60 * (k + 1), mv: 1600 })),
 });
-export const JUE_BLESSING = coordinatedBuff("Jué: Blessing of Time", 15, null, ACTION_JUE_TICK, {
-  applyStats: () => addStat(Stat.DmgBonus, 16, Type.Skill),
+export const JUE_BLESSING = new Buff({
+  name: "Jué: Blessing of Time", duration: 60 * 15,
+  stats: [[Stat.DmgBonus, 16, Type.Skill]],
 });
 export const JUE = new Mainslot({
   name: "Jué",
@@ -406,5 +404,5 @@ export const FALLACY = new Mainslot({
   name: "Fallacy of No Return",
   action: ACTION_FALLACY,
   updateBuffs: () => { if (casting(Cast.Intro)) revokeTeam(FALLACY_TEAM); },
-  applyStats: () => { if (stacksOfTeam(FALLACY_TEAM)) addStat(Stat.Er, 10); },
+  applyStats: () => { if (stacksOfTeam(FALLACY_TEAM)) addStat(Stat.ER, 10); },
 });

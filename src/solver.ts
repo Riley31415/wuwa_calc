@@ -253,6 +253,16 @@ function derived(teamKey: string, members: Member[], combo: Combo[], variants: (
   }
   return null;
 }
+/** A real run of `combo` with everyone's main stats as variants, kept as a base: a main stat moving
+ *  the substat tier can't be read off the build's first run, but the next one on this tier can. */
+function baseRun(teamKey: string, members: Member[], picks: Pick[], combo: Combo[]): TeamRun {
+  const variants = members.map((m, i) => m.loadout.mainstats.map((_, k) => k).filter((k) => k !== picks[i]!.mainstat)
+    .map((k) => comboOf(m.loadout, { ...picks[i]!, mainstat: k })));
+  const run = runTeam(teamKey, members, combo, false, variants);
+  const at = buildKey(teamKey, combo);
+  bases.set(at, [...(bases.get(at) ?? []), run]);
+  return run;
+}
 /** `scoreMainstats()` answers, keyed the same plus which members were scored. */
 let scoreCache = new Map<string, Map<number, TeamRun[]>>();
 
@@ -263,7 +273,7 @@ function trialRun(teamKey: string, members: Member[], picks: Pick[]): TeamRun {
   const key = trialKey(teamKey, combo);
   let hit = trialCache.get(key);
   if (!hit) {
-    hit = derived(teamKey, members, combo, null) ?? runTeam(teamKey, members, combo);
+    hit = derived(teamKey, members, combo, null) ?? baseRun(teamKey, members, picks, combo);
     // the fight itself is runTeam's alone, and the cache keeps a team's runs across its states
     hit.state = null;
     trialCache.set(key, hit);
@@ -414,13 +424,6 @@ function bestMainstats(teamKey: string, members: Member[], picks: Pick[], who: n
   });
 }
 
-/** One member's best main stat under one build, and the team total of that run — nobody else's
- *  damage moves with it, so that run is also the team's best under this build. */
-function bestMainstatFor(teamKey: string, members: Member[], picks: Pick[], i: number): { mainstat: number; total: number } {
-  const best = rankedMainstats(scoreMainstats(teamKey, members, picks, [i]).get(i)!, mainstatFills(teamKey, members, picks, i))[0];
-  return best ? { mainstat: best.mainstat, total: best.total } : { mainstat: picks[i]!.mainstat, total: 0 };
-}
-
 /**
  * The team's best build: every weapon and echo set the cost allows on every member — and, where the
  * cost's grant goes to one main DPS, every choice of who holds it (or nobody) — each with every
@@ -530,7 +533,7 @@ function buildsOf(m: Member, home: Pick, f: Filters, sig: boolean): Pick[] {
   }
   // a pick whose gear cannot fill this member's Energy bar is no build at all — drop it and let the
   // sonatas and mainslots that carry ER stand. Everything dropped means the kit itself is short, so
-  // the home pick stays and the row reads on whatever it can reach (teamrun.ts's `erFeasible`)
+  // the home pick stays and the row reads on whatever it can reach (teamrun.ts's `shortOf`)
   return picks;
 }
 
@@ -566,13 +569,8 @@ function rowPicks(
   const pinEchoes = (picks: Pick[]): Pick[] => {
     let out = picks;
     const closedEchoes = members.map((_, i) => i).filter((i) => !compares(members[i]!, filters, "echoes", gateOf(members[i]!.loadout, picks[i]!)));
-    // with a compare open somewhere every closed member is re-rolled per trial (hidden rows are
-    // then compare baselines); otherwise only the wearer, a third the cost
+    // every closed member is re-rolled per trial: the hidden rows are compare baselines
     const reroll = (trial: Pick[], i: number): { picks: Pick[]; total: number } => {
-      if (!compared) {
-        const one = bestMainstatFor(teamKey, members, trial, i);
-        return { picks: trial.map((p, j) => (j === i ? { ...p, mainstat: one.mainstat } : p)), total: one.total };
-      }
       const rolled = bestMainstats(teamKey, members, trial, members.map((_, k) => k).filter((k) => !mainstatsOpen(trial).includes(k)));
       return { picks: rolled, total: trialRun(teamKey, members, rolled).total };
     };
@@ -595,7 +593,6 @@ function rowPicks(
   };
 
   const holder = sigHolder(members, best);
-  const homeCombo = members.map((m, i) => comboOf(m.loadout, best[i]!));
   const builds = cartesian(members.map((m, i) => buildsOf(m, best[i]!, filters, sigAllowed(i, holder, filters.cost))));
   const seen = new Map<string, Pick[]>();
   for (const picks of builds) {
@@ -605,16 +602,12 @@ function rowPicks(
 
   // with nothing compared the hidden rows are never read, and the one build is the search's own
   // converged answer: re-searching its sonatas would only repeat the sweep that just settled it
-  const isBest = (build: Pick[]): boolean => build.every((p, i) => {
-    const b = best[i]!;
-    return p.weapon === b.weapon && p.echo === b.echo && p.sequence === b.sequence && p.refine === b.refine && p.highSubs === b.highSubs;
-  });
   const rows: Pick[][] = [];
   const baselines = new Set<string>();
   let built = 0;
   for (const build of seen.values()) {
     onProgress?.(built++ / seen.size);
-    const settled = settle(!compared && isBest(build) ? build : pinEchoes(build));
+    const settled = settle(compared ? pinEchoes(build) : build);
     // a compared row measures against its axis's baseline in *its own* settled sets — the
     // re-search settles each build apart, so that twin is not otherwise guaranteed to be run:
     // the baseline level at R1 for a level or rank row, every non-limited weapon (at the rank

@@ -176,22 +176,21 @@ export const LAW_OF_HARMONY_3PC = new Sonata3pc({
  *
  *  Its own passive is Core of Collapse: another 24.57% Havoc hit whenever the active resonator
  *  deals damage, 0.5s apart, up to 8 times over the summon's 15s, and doubled against a target
- *  carrying Havoc Bane. The 0.5s cadence runs on a clock this engine has none of, so all eight are
- *  bundled into one triggered hit — the whole 196.56% at once, queued off the summon's own hit
- *  and resolved on the wearer's own slot and stats. */
+ *  carrying Havoc Bane — one action, its eight hits its own bullets 0.5s apart, queued off the
+ *  summon's own hit and resolved on the wearer's own slot and stats. */
 export const ACTION_THRENODIAN_LEVIATHAN = new Action("Echo - Reminiscence: Leviathan", { animFrames: 8,
   cooldown: 60 * 25,
   cast: Cast.Echo, element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo,
   bullets: [{ hitFrame: 0, mv: 13104 * 2, energy: 91 * 2 }], 
   updateDebuffs: () => queue(ACTION_CORE_OF_COLLAPSE),
 });
-/** The bundle: eight 24.57% hits as one row, with the Havoc Bane doubling as its own Damage Taken
- *  ("Enemies with Havoc Bane take 100% more DMG from this effect") rather than folded into the
- *  motion value, so the report names what it is. Carries no energy or
- *  concerto — nanoka gives the summon one damage row and these hits none of their own. */
+/** The eight 24.57% hits, with the Havoc Bane doubling as its own Damage Taken ("Enemies with
+ *  Havoc Bane take 100% more DMG from this effect") rather than folded into the motion value, so
+ *  the report names what it is. Carries no energy or concerto — nanoka gives the summon one damage
+ *  row and these hits none of their own. */
 export const ACTION_CORE_OF_COLLAPSE = new Action("Echo - Core of Collapse", {
-  element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo, animFrames: 16,
-  bullets: [{ hitFrame: 5, mv: 2457 * 8 }],
+  element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo,
+  bullets: Array.from({ length: 8 }, (_, k) => ({ hitFrame: 30 * (k + 1), mv: 2457 })),
   applyStats: () => { if (stacksOfEnemy(HAVOC_BANE) > 0) addStat(Stat.DamageTaken, 100); },
 });
 

@@ -15,9 +15,7 @@ import {
   applyTeam,
   revokeTeam,
   stacksOfTeam,
-  
   removeStackTeam,
-  isHeld,
   casting,
   currentAction,
   onAction,
@@ -82,7 +80,7 @@ const FSkill = mortefiAction("Forte Skill - Fury Fugue", { minForte1: 100, animF
 //     (10s / 0.35s), the window itself and its firing rules in BURNING_RHAPSODY below. A fresh
 //     window is a fresh Rhythmic Vibrato ramp, so the old one is wiped here.
 const Liberation = mortefiAction("Liberation - Violent Finale", {
-  animFrames: 120, timestop: 120, motionStop: 64, cooldown: 60 * 20,
+  animFrames: 120, prioFrames: 120, timestop: [0, 120], motionStop: [0, 64], cooldown: 60 * 20,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 62, mv: 15905, offtune: 96000 }], castConcerto: 2000, resetEnergy: true,
   updateBuffs: () => { revokeCurrent(VIBRATO); applyTeam(BURNING_RHAPSODY, 28); },
 });
@@ -107,7 +105,7 @@ const ACTION_S5_MARCATO = mortefiAction("Liberation - Marcato (S5 Funerary Quart
 });
 
 // --- intro / outro
-const Intro = mortefiAction("Intro - Dissonance", { animFrames: 90, prioFrames: 90, motionStop: 46, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 44, mv: 16899, energy: 1000, offtune: 8000, forte1: 60 }], castConcerto: 1000});
+const Intro = mortefiAction("Intro - Dissonance", { animFrames: 90, noSwapFrames: 90, prioFrames: 90, motionStop: [4, 49], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 44, mv: 16899, energy: 1000, offtune: 8000, forte1: 60 }], castConcerto: 1000});
 const Outro = mortefiAction("Outro - Rage Transposition", {
   animFrames: 0,
   cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000,

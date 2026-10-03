@@ -4,11 +4,11 @@
  * Intro, and spent all three at once on Heavy Attack - Quadruple Downbeat. Nearly everything she
  * casts inflicts a stack of Aero Erosion, which is what her set and her weapon both key off.
  *
- * Recital, off the Liberation, is her field: a Symphonic Poem: Tonic every 1.63s (wuwalab's own
- * frame data — 98 frames apart, twenty of them, ~33s) for 6.12% ATK and one Aero Erosion each,
- * green by default since nothing is pressed while she is off field. Ended by her own next Intro
- * (switching back in) or a fresh Liberation. The manual Tonic's own +10 Concerto needs a press
- * she never makes here, so no Tonic banks any.
+ * Recital is the Liberation's own 2240 frames (wuwalab): the big hit at 200, then twenty Symphonic
+ * Poem: Tonics from 246 to 2090 for 6.12% ATK and one Aero Erosion each, green by default since
+ * nothing is pressed while she is off field. She swap-cancels out where its time stop ends (the
+ * Tonics commit there), and switching her back in cuts whatever is left. The manual Tonic's own
+ * +10 Concerto needs a press she never makes here, so no Tonic banks any.
  *
  * Numbers from nanoka.cc (character 1407, https://ww.nanoka.cc/character/1407) — no migrated-sheet
  * row exists for her, so MVs are the Skill Attributes tables and energy/concerto/offtune come off
@@ -16,13 +16,13 @@
  * skill states its own Concerto Regen outright, which wins.
  */
 import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, Subtype } from "../../engine/stats.js";
-import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence, coordinatedBuff } from "../../engine/gear.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
   asSource,
-  applyCurrent,
   applyTeam,
   applyEnemy,
   revokeTeam,
+  cancelHits,
   runningAction,
   currentTeam,
   addStat,
@@ -31,9 +31,9 @@ import {
   isHeld,
   addToCast,
 } from "../../engine/context.js";
-import { ActionGroup, Action, ActionField, Cooldown, Rotation, NOINTRO, ECHO, INTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, NOINTRO, ECHO, INTRO } from "../../engine/rotation.js";
 import { tuneBreak } from "../../shared/tunebreak.js";
-import { AERO_EROSION, SHIELD, gainShield } from "../../shared/status.js";
+import { AERO_EROSION, SPECTRO_FRAZZLE, gainShield } from "../../shared/status.js";
 import { WOODLAND_ARIA } from "../../weapons/pistol.js";
 import { NM_KELPIE } from "../../echoes/rinascita.js";
 import { GUSTS_OF_WELKIN_5PC } from "../../echoes/rinascita.js";
@@ -60,7 +60,7 @@ const BA2 = ciacconaAction("Basic - Quadruple Time Steps 2", { animFrames: 63, n
 const BA3 = ciacconaAction("Basic - Quadruple Time Steps 3", { animFrames: 42, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 3302, energy: 51, concerto: 162, offtune: 1620 },
     { hitFrame: 28, mv: 3302, energy: 51, concerto: 162, offtune: 1620 },
-    { hitFrame: 34, commitFrame: 30, mv: 3302, energy: 51, concerto: 162, offtune: 1620 },
+    { hitFrame: 34, commitFrame: 28, mv: 3302, energy: 51, concerto: 162, offtune: 1620 },
     { hitFrame: 36, commitFrame: 30, mv: 3302, energy: 51, concerto: 162, offtune: 1620 },
   ]});
 // Stage 4, Harmonic Allegro, Quadruple Downbeat and the Intro each lay one Aero Erosion
@@ -68,11 +68,10 @@ const EROSION = { updateDebuffs: () => applyEnemy(AERO_EROSION, 1) };
 const BA4 = ciacconaAction("Basic - Quadruple Time Steps 4", {
   animFrames: 90,
   node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 18, commitFrame: 0, mv: 6114, energy: 94, concerto: 300, offtune: 3000,
-      ...EROSION },
+    { hitFrame: 18, commitFrame: 0, mv: 6114, energy: 94, concerto: 300, offtune: 3000 },
     { hitFrame: 26, commitFrame: 0, mv: 6114, energy: 94, concerto: 300, offtune: 3000 },
     { hitFrame: 34, commitFrame: 0, mv: 6114, energy: 94, concerto: 300, offtune: 3000 },
-    { hitFrame: 67, commitFrame: 0, mv: 6114, energy: 94, concerto: 300, offtune: 3000 },
+    { hitFrame: 67, commitFrame: 0, mv: 6114, energy: 94, concerto: 300, offtune: 3000, ...EROSION },
   ], castForte1: 1,
   updateBuffs: () => applyTeam(SOLO_CONCERT, 1),
 });
@@ -84,8 +83,16 @@ const SoloConcertS6 = ciacconaAction("Basic - Solo Concert (S6)", { node: Node.N
 const HA = ciacconaAction("Heavy - Attack", { node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 10760, energy: 165, concerto: 528, offtune: 5280 }] });
 const AimedShot = ciacconaAction("Heavy - Aimed Shot", { node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 3261, energy: 50, concerto: 160, offtune: 1600 }] });
 const ChargedShot = ciacconaAction("Heavy - Fully Charged Aimed Shot", { node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 7337, energy: 113, concerto: 360, offtune: 3600 }] });
-const MA1 = ciacconaAction("Mid-air - Attack 1", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 11086, energy: 170, concerto: 544, offtune: 5440 }] });
-const MA2 = ciacconaAction("Mid-air - Attack 2", { animFrames: 60, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 60, mv: 9784, energy: 152, concerto: 480, offtune: 4800 }] });
+const MA1 = ciacconaAction("Mid-air - Attack 1", { animFrames: 33, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 10, mv: 5543, energy: 85, concerto: 272, offtune: 2720 },
+    { hitFrame: 26, mv: 5543, energy: 85, concerto: 272, offtune: 2720 },
+  ] });
+const MA2 = ciacconaAction("Mid-air - Attack 2", { animFrames: 43, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 36, mv: 2446, energy: 38, concerto: 120, offtune: 1200 },
+    { hitFrame: 41, commitFrame: 36, mv: 2446, energy: 38, concerto: 120, offtune: 1200 },
+    { hitFrame: 48, commitFrame: 36, mv: 2446, energy: 38, concerto: 120, offtune: 1200 },
+    { hitFrame: 53, commitFrame: 36, mv: 2446, energy: 38, concerto: 120, offtune: 1200 },
+  ] });
 const DC = ciacconaAction("Dodge Counter - Quadruple Time Steps", { animFrames: 42, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 5717, energy: 51, concerto: 162, offtune: 1620 },
     { hitFrame: 28, mv: 5717, energy: 51, concerto: 162, offtune: 1620 },
@@ -105,8 +112,7 @@ const Skill = ciacconaAction("Skill - Harmonic Allegro", { animFrames: 39, coold
 
 /** Forte Circuit: replaces the Heavy Attack at 3 segments and spends all of them. */
 const Downbeat = ciacconaAction("Forte Heavy - Quadruple Downbeat", { minForte1: 3, animFrames: 75, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
-    { hitFrame: 45, mv: 3141, energy: 75, offtune: 468,
-      ...EROSION },
+    { hitFrame: 45, mv: 3141, energy: 75, offtune: 468 },
     { hitFrame: 57, commitFrame: 45, mv: 3141, energy: 75, offtune: 468 },
     { hitFrame: 69, commitFrame: 45, mv: 3141, energy: 75, offtune: 468 },
     { hitFrame: 81, commitFrame: 45, mv: 3141, energy: 75, offtune: 468 },
@@ -116,27 +122,62 @@ const Downbeat = ciacconaAction("Forte Heavy - Quadruple Downbeat", { minForte1:
     { hitFrame: 129, commitFrame: 45, mv: 3141, energy: 75, offtune: 468 },
     { hitFrame: 141, commitFrame: 45, mv: 3141, energy: 75, offtune: 468 },
     { hitFrame: 153, commitFrame: 45, mv: 3141, energy: 75, offtune: 468 },
-    { hitFrame: 165, commitFrame: 45, mv: 31403, energy: 747, offtune: 4680 },
+    { hitFrame: 165, commitFrame: 45, mv: 31403, energy: 747, offtune: 4680, ...EROSION },
   ], castConcerto: 2500, castForte1: -3});
 
-// --- liberation / intro / outro. The Liberation opens Recital (see file header); a fresh cast
-//     starts it over, and switching her back in ends it.
-const Liberation = ciacconaAction("Liberation - Singer's Triple Cadenza", {
-  cooldown: 60 * 20,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 0, mv: 110042, offtune: 48000 }], castConcerto: 2000, resetEnergy: true,
-  updateDebuffs: () => gainShield(), // Interlude Tune
-  updateBuffs: () => { revokeTeam(RECITAL); applyTeam(RECITAL, RECITAL.maxStacks); },
-});
-/** One Tonic of the twenty (nanoka's "6.12%*20" is the whole Recital), on her own slot whoever
- *  is on field. Off-tune is the row's 43640 split the same way. */
-const RECITAL_FIELD = new ActionField("Ciaccona: Recital");
-const GreenTonic = ciacconaAction("Liberation - Symphonic Poem: Tonic (green)", {
-  node: Node.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 0, mv: 612, offtune: 2182 }], field: RECITAL_FIELD, ...EROSION,
-});
+// --- liberation / intro / outro. The Liberation is Recital (see file header): its Tonics are its
+//     own bullets, committed where the time stop ends so she can swap out there.
+/** Recital's whole press: the Improvised Symphonic Poem, then twenty Tonics of one colour, the last
+ *  of which ends Recital (nanoka's "6.12%*20"; off-tune the row's split the same way). */
+function cadenza(name: string, inflict: () => void): Action {
+  const TONIC = { updateDebuffs: inflict };
+  return ciacconaAction(name, {
+    animFrames: 2240, prioFrames: 2240, timestop: [0, 220], motionStop: [0, 215], cooldown: 60 * 20,
+    node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [
+      { hitFrame: 200, mv: 110042, offtune: 48000, updateDebuffs: () => gainShield() }, // Interlude Tune
+      { hitFrame: 246, commitFrame: 220, mv: 612, offtune: 2182, ...TONIC },
+      { hitFrame: 326, commitFrame: 220, mv: 612, offtune: 2182, ...TONIC },
+      { hitFrame: 424, commitFrame: 220, mv: 612, offtune: 2182, ...TONIC },
+      { hitFrame: 522, commitFrame: 220, mv: 612, offtune: 2182, ...TONIC },
+      { hitFrame: 620, commitFrame: 220, mv: 612, offtune: 2182, ...TONIC },
+      { hitFrame: 718, commitFrame: 220, mv: 612, offtune: 2182, ...TONIC },
+      { hitFrame: 816, commitFrame: 220, mv: 612, offtune: 2182, ...TONIC },
+      { hitFrame: 914, commitFrame: 220, mv: 612, offtune: 2182, ...TONIC },
+      { hitFrame: 1012, commitFrame: 220, mv: 612, offtune: 2182, ...TONIC },
+      { hitFrame: 1110, commitFrame: 220, mv: 612, offtune: 2182, ...TONIC },
+      { hitFrame: 1208, commitFrame: 220, mv: 612, offtune: 2182, ...TONIC },
+      { hitFrame: 1306, commitFrame: 220, mv: 612, offtune: 2182, ...TONIC },
+      { hitFrame: 1404, commitFrame: 220, mv: 612, offtune: 2182, ...TONIC },
+      { hitFrame: 1502, commitFrame: 220, mv: 612, offtune: 2182, ...TONIC },
+      { hitFrame: 1600, commitFrame: 220, mv: 612, offtune: 2182, ...TONIC },
+      { hitFrame: 1698, commitFrame: 220, mv: 612, offtune: 2182, ...TONIC },
+      { hitFrame: 1796, commitFrame: 220, mv: 612, offtune: 2182, ...TONIC },
+      { hitFrame: 1894, commitFrame: 220, mv: 612, offtune: 2182, ...TONIC },
+      { hitFrame: 1992, commitFrame: 220, mv: 612, offtune: 2182, ...TONIC },
+      {
+        hitFrame: 2090, commitFrame: 220, mv: 612, offtune: 2182,
+        updateDebuffs: () => {
+          inflict();
+          revokeTeam(RECITAL);
+        },
+      },
+    ], castConcerto: 2000, resetEnergy: true,
+    updateBuffs: () => applyTeam(RECITAL, 1),
+  });
+}
+const Liberation = cadenza("Liberation - Singer's Triple Cadenza", () => applyEnemy(AERO_EROSION, 1));
+/** The same cast with the yellow button pressed before she leaves: every Tonic after the swap
+ *  matches it, so the whole Recital lays Spectro Frazzle instead (wuwalab's "Select Yellow Tonic"). */
+const LiberationYellow = cadenza("Liberation - Singer's Triple Cadenza (Yellow Tonic)", () => applyEnemy(SPECTRO_FRAZZLE, 1));
+const CADENZAS = new Set<Action>([Liberation, LiberationYellow]);
 const Intro = ciacconaAction("Intro - Roaming with the Wind", {
-  animFrames: 54, prioFrames: 54, motionStop: 39,
-  node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 40, mv: 18911, energy: 1000, offtune: 9280 }], castConcerto: 1000, castForte1: 1, ...EROSION,
-  updateBuffs: () => revokeTeam(RECITAL), // switching back in exits Recital
+  animFrames: 54, noSwapFrames: 61, prioFrames: 54, motionStop: [6, 44],
+  node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 40, mv: 18911, energy: 1000, offtune: 9280, ...EROSION }], castConcerto: 1000, castForte1: 1,
+  // switching back in exits Recital, cutting whatever Tonics are left
+  updateBuffs: () => {
+    cancelHits(CADENZAS);
+    revokeTeam(RECITAL);
+  },
 });
 const Outro = ciacconaAction("Outro - Windcalling Tune", {
   animFrames: 0,
@@ -154,10 +195,9 @@ const SOLO_CONCERT = new Buff({
   stats: [[Stat.DmgBonus, 24, Attribute.Aero]],
 });
 
-/** Recital standing: 33 of the engine's seconds, a Tonic every 1.65 of them (gear.ts's `coordinatedBuff`
- *  field window), ticking onto her slot however far the field has moved on. */
-const RECITAL = coordinatedBuff("Ciaccona: Recital", 33, () => CIACCONA_RESONATOR, GreenTonic, {
-  every: 1.65,
+/** Recital standing, from the Liberation's cast to its last Tonic or her next Intro. */
+const RECITAL = new Buff({
+  name: "Ciaccona: Recital",
   // S2: +40% Aero DMG Bonus to the team for as long as the Cadenza plays — read off her own slot,
   // since the node is her local gear and this buff pays whoever acts
   applyStats: () => {
@@ -204,41 +244,12 @@ const CIACCONA_RESONATOR = new Resonator({
   weapon: WeaponType.Pistols,
   color: "#5ac46b",
   intro: Intro,
-  tuneBreak: tuneBreak(97, 97, 70, [[72, 160000]]),
+  tuneBreak: tuneBreak(97, [0, 97], [0, 70], [[72, 160000]]),
   maxEnergy: 12500,
   maxForte1: 3,
 
   stats: [[Stat.BaseHp, 12237.5], [Stat.BaseAtk, 375], [Stat.BaseDef, 1197.7756]],
 });
-
-// Intro plus two Basic Stage 4s are the three Musical Essence Quadruple Downbeat spends; the Skill
-// chains straight back into Basic Stage 2, which is how the second stage-4 comes around without
-// restarting the string. She's never the team's own lead, so this covers opener and loop both.
-
-const MA12 = new ActionGroup("Mid-air - Attack 12", [MA1, MA2]);
-const BA34 = new ActionGroup("Basic - Quadruple Time Steps 34", [BA3, BA4]);
-const BA234 = new ActionGroup("Basic - Quadruple Time Steps 234", [BA2, BA3, BA4]);
-
-const CI_ROTATION = new Rotation([
-  NOINTRO, 
-  Skill, BA234.instaJump(), MA12, BA4.instaJump(), MA12, BA4.instaCancel(), 
-  Downbeat.cancel(), Liberation, ECHO.instaSwap(), Outro,
-
-  INTRO, BA34.instaJump(),
-  MA12, BA4.instaCancel(),
-  Skill, Downbeat.cancel(), Liberation, ECHO.instaSwap(), Outro,
-]);
-
-/** From S3 on Harmonic Allegro has two charges, so both go before the Downbeat; the second
- *  segment Stage 4 banks changes nothing here, the Downbeat spends the capped three either way. */
-const CI_ROTATION_S3 = new Rotation([
-  NOINTRO,
-  Skill, BA234.instaJump(), MA12, BA4.instaCancel(), 
-  Skill, Downbeat.cancel(), Liberation, ECHO.instaSwap(), Outro,
-
-  INTRO, BA34.instaCancel(),
-  Skill, Downbeat.cancel(), Liberation, Skill, ECHO.instaSwap(), Outro,
-]);
 
 /* --------------------------------------------------------------------------------- sequences */
 
@@ -291,11 +302,51 @@ const CI_S6 = new Sequence({
 
 const CI_SEQUENCES = [CI_S1, CI_S2, CI_S3, CI_S4, CI_S5, CI_S6];
 
+
+// Intro plus two Basic Stage 4s are the three Musical Essence Quadruple Downbeat spends; the Skill
+// chains straight back into Basic Stage 2, which is how the second stage-4 comes around without
+// restarting the string. She's never the team's own lead, so this covers opener and loop both.
+
+const MA12 = new ActionGroup("Mid-air - Attack 12", [MA1, MA2]);
+const BA34 = new ActionGroup("Basic - Quadruple Time Steps 34", [BA3, BA4]);
+const BA234 = new ActionGroup("Basic - Quadruple Time Steps 234", [BA2, BA3, BA4]);
+
+const CI_ROTATION = new Rotation([
+  NOINTRO, 
+  Skill, BA234.instaJump(), MA12, BA4.instaJump(), MA12, BA4.instaCancel(), 
+  Downbeat.cancel(), ECHO.instaDodge(), Liberation.swapCancel(), Outro,
+
+  INTRO, BA34.instaJump(),
+  MA12, BA4.instaCancel(),
+  Skill, Downbeat.cancel(), ECHO.instaDodge(), Liberation.swapCancel(), Outro,
+]);
+
+/** The same loop with the yellow Tonic picked, for a Spectro Frazzle team. */
+const CI_ROTATION_YELLOW = new Rotation([
+  NOINTRO,
+  Skill, BA234.instaJump(), MA12, BA4.instaJump(), MA12, BA4.instaCancel(),
+  Downbeat.cancel(), ECHO.instaDodge(), LiberationYellow.swapCancel(), Outro,
+
+  INTRO, BA34.instaJump(),
+  MA12, BA4.instaCancel(),
+  Skill, Downbeat.cancel(), ECHO.instaDodge(), LiberationYellow.swapCancel(), Outro,
+]);
+
+/** From S3 on Harmonic Allegro has two charges, so both go before the Downbeat; the second
+ *  segment Stage 4 banks changes nothing here, the Downbeat spends the capped three either way. */
+const CI_ROTATION_S3 = new Rotation([
+  NOINTRO,
+  Skill, BA234.instaJump(), MA12, BA4.instaCancel(), 
+  Skill, Downbeat.cancel(), ECHO.instaDodge(), Liberation.swapCancel(), Outro,
+
+  INTRO, BA34.instaCancel(),
+  Skill, Downbeat.cancel(), Skill, ECHO.instaDodge(), Liberation.swapCancel(), Outro,
+]);
 /* ----------------------------------------------------------------------------------- loadout */
 
 // her real build: resonator + talents + both Inherent Skills, her own weapon, her own mainslot
 // echo and the one sonata that pays for the Aero Erosion she frozenStacks, mainstat/substat
-export const CIACCONA = new Loadout({
+const CIACCONA_BUILD = {
   resonator: CIACCONA_RESONATOR,
   weapons: [WOODLAND_ARIA, NEW_STD_PISTOL, STATIC_MIST],
   echoLoadouts: [new EchoLoadout(NM_KELPIE, GUSTS_OF_WELKIN_5PC),
@@ -304,7 +355,12 @@ export const CIACCONA = new Loadout({
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
   substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Heavy),
   highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Heavy),
+  sequences: CI_SEQUENCES,
+};
+export const CIACCONA = new Loadout({
+  ...CIACCONA_BUILD,
   rotation: { 0: CI_ROTATION, // 3: CI_ROTATION_S3 disabled for er and extension issue
    },
-  sequences: CI_SEQUENCES,
 });
+/** Recital on the yellow Tonic: Spectro Frazzle instead of Aero Erosion off all twenty. */
+export const CIACCONA_YELLOW = new Loadout({ ...CIACCONA_BUILD, rotation: { 0: CI_ROTATION_YELLOW } });

@@ -12,7 +12,7 @@
  *   (10s cooldown, and it does not reset the basic cycle).
  * - Incarnation - Basic Attack 4 ends Incarnation and opens **Ordination Glow** (5s), in which the
  *   Resonance Skill is **Illuminous Epiphany**: Solar Flare's six taps, and Stella Glamor's
- *   detonation queued at the press, landing 128 frames into its animation.
+ *   detonation as its last hit, 128 frames into its animation.
  * - Casting Illuminous Epiphany grants **Unison**, once every 25s (shared/unison.ts — swapping out
  *   spends it in place of the Concerto bar, handed back on the outro row itself).
  *
@@ -48,6 +48,8 @@ import {
   currentAction,
   onAction,
   runningAction,
+  runningAnyOf,
+  runningBullet,
   frozenStacks,
   isHeld,
   isType,
@@ -100,10 +102,10 @@ const BA4 = jinhsiAction("Basic - Slash of Breaking Dawn 4", { animFrames: 74, n
   ]});
 const HA = jinhsiAction("Heavy - Slash of Breaking Dawn", { animFrames: 106, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 15, mv: 2386, energy: 40, concerto: 80, offtune: 1280 },
-    { hitFrame: 22, mv: 2386, energy: 40, concerto: 80, offtune: 1280 },
-    { hitFrame: 29, mv: 2386, energy: 40, concerto: 80, offtune: 1280 },
-    { hitFrame: 37, mv: 2386, energy: 40, concerto: 80, offtune: 1280 },
-    { hitFrame: 44, mv: 2386, energy: 40, concerto: 80, offtune: 1280 },
+    { hitFrame: 22, commitFrame: 15, mv: 2386, energy: 40, concerto: 80, offtune: 1280 },
+    { hitFrame: 29, commitFrame: 15, mv: 2386, energy: 40, concerto: 80, offtune: 1280 },
+    { hitFrame: 37, commitFrame: 15, mv: 2386, energy: 40, concerto: 80, offtune: 1280 },
+    { hitFrame: 44, commitFrame: 15, mv: 2386, energy: 40, concerto: 80, offtune: 1280 },
     { hitFrame: 75, mv: 3579, energy: 60, concerto: 120, offtune: 1920 },
     { hitFrame: 90, mv: 8351, energy: 140, concerto: 280, offtune: 4480 },
   ]});
@@ -159,7 +161,7 @@ const IncBA2 = jinhsiAction("Basic - Incarnation 2", { animFrames: 41, node: Nod
   ]});
   // theoretical commit from 18-24, but window is small
 const IncBA3 = jinhsiAction("Basic - Incarnation 3", { animFrames: 54, node: Node.Forte, cast: Cast.Basic, type: Type.Skill, bullets: [
-    { hitFrame: 26, mv: 9944, energy: 139, concerto: 139, offtune: 4445 },
+    { hitFrame: 26, commitFrame: 18, mv: 9944, energy: 139, concerto: 139, offtune: 4445 },
     { hitFrame: 31, mv: 6630, energy: 93, concerto: 93, offtune: 2964 },
   ]});
 /** Stage 4 ends Incarnation and hands her Ordination Glow, the window Illuminous Epiphany lives in. */
@@ -187,47 +189,44 @@ const IncDodge = jinhsiAction("Dodge Counter - Incarnation", { animFrames: 87, n
     { hitFrame: 71, mv: 10971, concerto: 154, offtune: 4904 },
   ], castConcerto: 1000});
 const Skill3 = jinhsiAction("Skill - Crescent Divinity", { animFrames: 87, cooldown: SKILL_CD, cooldownFrames: 60 * 10, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, bullets: [
-    { hitFrame: 20, mv: 10076, energy: 64, offtune: 2028 },
+    { hitFrame: 20, commitFrame: 29, mv: 10076, energy: 64, offtune: 2028 },
     { hitFrame: 53, mv: 7557, energy: 48, offtune: 1521 },
     { hitFrame: 60, mv: 7557, energy: 48, offtune: 1521 },
     { hitFrame: 71, mv: 25190, energy: 159, offtune: 5068 },
   ], castConcerto: 800});
 
-/** Illuminous Epiphany, the one press: Solar Flare's six taps, with Stella Glamor's detonation
- *  queued at the cast — the row every Incandescence held pays out on (see INCANDESCENCE below). */
-const Skill4 = jinhsiAction("Forte Skill - Illuminous Epiphany: Solar Flare", {
-  animFrames: 174, timestop: 132, motionStop: 174,
+/** Illuminous Epiphany, the one press: Solar Flare's six taps, then Stella Glamor's detonation —
+ *  the hit every Incandescence held pays out on (see INCANDESCENCE below). */
+const Skill4 = jinhsiAction("Forte Skill - Illuminous Epiphany", {
+  animFrames: 174, prioFrames: 174, timestop: [0, 132], motionStop: [0, 174],
   node: Node.Forte, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 87, mv: 1989, energy: 33, offtune: 2400 },
-    { hitFrame: 93, mv: 1989, energy: 33, offtune: 2400 },
-    { hitFrame: 99, mv: 1989, energy: 33, offtune: 2400 },
-    { hitFrame: 105, mv: 1989, energy: 33, offtune: 2400 },
-    { hitFrame: 111, mv: 1989, energy: 33, offtune: 2400 },
-    { hitFrame: 117, mv: 1989, energy: 33, offtune: 2400 },
+    { hitFrame: 93, commitFrame: 87, mv: 1989, energy: 33, offtune: 2400 },
+    { hitFrame: 99, commitFrame: 87, mv: 1989, energy: 33, offtune: 2400 },
+    { hitFrame: 105, commitFrame: 87, mv: 1989, energy: 33, offtune: 2400 },
+    { hitFrame: 111, commitFrame: 87, mv: 1989, energy: 33, offtune: 2400 },
+    { hitFrame: 117, commitFrame: 87, mv: 1989, energy: 33, offtune: 2400 },
+    { hitFrame: 128, mv: 34792, energy: 567, offtune: 42002 },
   ], castConcerto: 2000,
-  // the detonation is queued at the press, landing 128 frames into its animation — inside its time
-  // stop, so on the same clock frame as the taps, behind them
-  updateBuffs: () => {
-    revokeCurrent(ORDINATION_GLOW);
-    queue(StellaGlamor, 128);
-  },
+  updateBuffs: () => revokeCurrent(ORDINATION_GLOW),
 });
-const Skill4_Unison = Skill4.variant("Forte Skill - Illuminous Epiphany: Solar Flare", { 
+const Skill4_Unison = Skill4.variant("Forte Skill - Illuminous Epiphany", {
   updateBuffs: () => {
     revokeCurrent(ORDINATION_GLOW);
-    queue(StellaGlamor, 128);
     applyCurrent(UNISON, 1);
   }
 });
-const StellaGlamor = jinhsiAction("Forte Skill - Illuminous Epiphany: Stella Glamor", { node: Node.Forte, type: Type.Skill, bullets: [{ hitFrame: 0, mv: 34792, energy: 567, offtune: 42002 }] });
+/** Both forms of the press, and its last hit: Stella Glamor. */
+const EPIPHANY = new Set<Action>([Skill4, Skill4_Unison]);
+const stellaGlamor = (): boolean => runningBullet(Skill4, -1) || runningBullet(Skill4_Unison, -1);
 
 const Liberation = jinhsiAction("Liberation - Purge of Light", {
-  animFrames: 231, timestop: 231, motionStop: 231, cooldown: 60 * 24,
+  animFrames: 231, prioFrames: 203, timestop: [0, 231], motionStop: [0, 231], cooldown: 60 * 24,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 106, mv: 49981, offtune: 25200 }, { hitFrame: 114, mv: 116622, offtune: 58800 }], castConcerto: 2000, resetEnergy: true,
 });
 
 const Intro = jinhsiAction("Intro - Loong's Halo", {
-  animFrames: 60, prioFrames: 60, motionStop: 34,
+  animFrames: 60, noSwapFrames: 78, prioFrames: 60, motionStop: [4, 37],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 49, mv: 15905, energy: 1000, offtune: 8000 }], castConcerto: 1000,
 });
 /** Temporal Bender hands the incoming resonator nothing of their own: it opens her own 20s window,
@@ -299,8 +298,8 @@ const ERAS_IN_UNITY = new Buff({
  *  reads on every row of the log; the Stella Glamor gate keeps the payout hers alone. */
 const INCANDESCENCE = new Buff({
   name: "Jinhsi: Incandescence", maxStacks: 50,
-  applyStats: () => { if (runningAction(StellaGlamor)) addStat(Stat.AddMv, 4454 * frozenStacks()); },
-  afterAction: () => { if (runningAction(StellaGlamor)) revokeTeam(INCANDESCENCE); },
+  applyStats: () => { if (stellaGlamor()) addStat(Stat.AddMv, 4454 * frozenStacks()); },
+  afterAction: () => { if (runningAnyOf(EPIPHANY)) revokeTeam(INCANDESCENCE); },
 });
 
 /** Radiant Surge (Inherent Skill): +20% Spectro DMG Bonus, genuinely unconditional. */
@@ -325,9 +324,9 @@ const CONVERGED_FLASH = new Inherent({
 const HERALD_OF_REVIVAL = new Buff({
   name: "Jinhsi S1: Herald of Revival", maxStacks: 4, duration: 60 * 6,
   applyStats: () => {
-    if (runningAction(Skill4) || runningAction(StellaGlamor)) addStat(Stat.DmgBonus, 20 * frozenStacks());
+    if (runningAnyOf(EPIPHANY)) addStat(Stat.DmgBonus, 20 * frozenStacks());
   },
-  afterAction: () => { if (runningAction(StellaGlamor)) revokeCurrent(HERALD_OF_REVIVAL); },
+  afterAction: () => { if (runningAnyOf(EPIPHANY)) revokeCurrent(HERALD_OF_REVIVAL); },
 });
 
 const JX_S1 = new Sequence({
@@ -368,9 +367,8 @@ const JX_S4_TEAM = new Buff({
 
 const JX_S4 = new Sequence({
   name: "Jinhsi S4: Benevolent Grace",
-  // Solar Flare is the press; Stella Glamor is the detonation behind it, not a second cast
   updateBuffs: () => {
-    if (runningAction(Liberation) || runningAction(Skill4)) applyTeam(JX_S4_TEAM, 1);
+    if (runningAction(Liberation) || runningAnyOf(EPIPHANY)) applyTeam(JX_S4_TEAM, 1);
   },
 });
 
@@ -386,7 +384,7 @@ const JX_S5 = new Sequence({
 const JX_S6 = new Sequence({
   name: "Jinhsi S6: Thawing Triumph",
   applyStats: () => {
-    if (runningAction(Skill4) || runningAction(StellaGlamor)) addStat(Stat.MulMv, 45);
+    if (runningAnyOf(EPIPHANY)) addStat(Stat.MulMv, 45);
   },
 });
 
@@ -440,10 +438,6 @@ const OutroResolver = new Action("Outro Resolver", { cast: Cast.Outro, resolve: 
 const JX_ROTATION_FULL = new Rotation([
   START_LAST, Liberation, Skill.instaSwap(),
 
-  NOINTRO, BA1234.cancel(), Skill2.instaDodge(), ECHO, 
-  IncBA1, IncBA2.instaJump(), IncBA3.instaJump(), IncBA4.instaCancel(), 
-  Skill4_Unison, OutroResolver,
-
   DOUBLE_INTRO, Skill2, 
   IncBA12.cancel(), Skill3, IncBA34.instaCancel(),
   ECHO, Skill4_Unison, OutroResolver,
@@ -461,25 +455,25 @@ const JX_ROTATION_FULL = new Rotation([
 const JX_ROTATION_EVERY_OTHER = new Rotation([
   START_LAST, EVERY_OTHER, Liberation, Skill.instaSwap(),
 
-  NOINTRO, BA1234.cancel(), Skill2.instaDodge(), ECHO, 
+  NOINTRO, BA1234.instaCancel(), Skill2.instaCancel(), ECHO, EVERY_OTHER, Liberation,
   IncBA1, IncBA2.instaJump(), IncBA3.instaJump(), IncBA4.instaCancel(), 
   Skill4_Unison, OutroResolver,
 
   DOUBLE_INTRO, Skill2.instaDodge(), 
   IncBA12.cancel(), Skill3, IncBA34.instaCancel(),
-  ECHO, Skill4_Unison, OutroResolver,
+  ECHO, Skill4_Unison, EVERY_OTHER, Liberation, OutroResolver,
 
   INTRO, Skill2.instaDodge(),
   IncBA12.cancel(), Skill3, IncBA34.instaCancel(),
-  Skill4, EVERY_OTHER, Liberation, OutroResolver,
+  Skill4, OutroResolver,
 ]);
 
 const JX_ROTATION_SUPPORT = new Rotation([
   START_LAST, EVERY_OTHER, Liberation, Skill.instaSwap(),
 
-  NOINTRO, BA1234.cancel(), Skill2.instaDodge(), ECHO, 
+  NOINTRO, BA1234.instaCancel(), Skill2.instaCancel(), ECHO, EVERY_OTHER, Liberation, 
   IncBA1, IncBA2.instaJump(), IncBA3.instaJump(), IncBA4.instaCancel(), 
-  Skill4_Unison, EVERY_OTHER, Liberation, OutroResolver,
+  Skill4_Unison, OutroResolver,
 
   INTRO, Skill2.instaDodge(), ECHO, 
   IncBA12.cancel(), Skill3, IncBA34.instaCancel(),

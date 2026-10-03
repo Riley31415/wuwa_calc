@@ -94,8 +94,12 @@ const CHAFE_FIELD = new ActionField("Lucilla: Glacio Chafe");
 const CHAFE_WINDOW = new Buff({ field: CHAFE_FIELD });
 const CHAFE_RUNGS: (Action | null)[] = GLACIO_CHAFE_ACTIONS.map((a) => a?.variant(a.name, { field: CHAFE_FIELD }) ?? null);
 const Intro = lucillaAction("Intro - Clip It", {
-  animFrames: 81, prioFrames: 42, motionStop: 74, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 38, mv: 9742, energy: 1175, concerto: 413, offtune: 5600, forte1: 100 }], castConcerto: 1000,
-  ...CHAFES,
+  animFrames: 81, noSwapFrames: 82, prioFrames: 42, motionStop: [6, 79], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 38, mv: 9742, energy: 1175, concerto: 413, offtune: 5600, forte1: 100, ...CHAFES }], castConcerto: 1000,
+  updateBuffs: () => applyCurrent(CHAFE_WINDOW, 1),
+});
+/** Clip It's Reminiscence form: its own hit and Chafe stack, no Trace (only Clip It restores any). */
+const HardCut = lucillaAction("Intro - Clip It: Hard Cut", {
+  animFrames: 52, noSwapFrames: 52, prioFrames: 52, motionStop: [5, 51], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 27, mv: 14941, energy: 1209, concerto: 493, offtune: 6680, ...CHAFES }], castConcerto: 1000,
   updateBuffs: () => applyCurrent(CHAFE_WINDOW, 1),
 });
 // mutually exclusive: Echo hands off MONTAGE_HANDOFF, Chafe grants MONTAGE_CHAFE team-wide
@@ -131,35 +135,38 @@ const Compensate = lucillaAction("Skill - Compensate", {
   animFrames: 60, cooldown: SKILL_CD,
   node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 16, mv: 1326, energy: 42, concerto: 69, offtune: 1334 },
-    { hitFrame: 22, mv: 1326, energy: 42, concerto: 69, offtune: 1334 },
-    { hitFrame: 28, mv: 1326, energy: 42, concerto: 69, offtune: 1334 },
+    { hitFrame: 22, commitFrame: 16, mv: 1326, energy: 42, concerto: 69, offtune: 1334 },
+    { hitFrame: 28, commitFrame: 16, mv: 1326, energy: 42, concerto: 69, offtune: 1334 },
     { hitFrame: 53, mv: 24907, energy: 931, concerto: 308, offtune: 4176, forte1: 25 },
   ],
   updateBuffs: () => reduceCooldown(SKILL_CD, 60 * 8),
 });
-// Spotlight lays a Chafe stack too, but only in Glacio Chafe mode
+// Spotlight lays a Chafe stack too, but only in Glacio Chafe mode, on the big shot (wuwalab's frame 101)
 const Spotlight = lucillaAction("Skill - Spotlight", {
-  animFrames: 107, cooldown: SKILL_CD, castConcerto: 2000,
+  animFrames: 107, noSwapFrames: 101, cooldown: SKILL_CD, castConcerto: 2000,
   node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
-    { hitFrame: 16, mv: 1326, energy: 42, concerto: 69, offtune: 1334,
-      updateDebuffs: () => { if (isHeld(MODE_CHAFE)) applyEnemy(GLACIO_CHAFE, 1); } },
-    { hitFrame: 22, mv: 1326, energy: 42, concerto: 69, offtune: 1334 },
-    { hitFrame: 28, mv: 1326, energy: 42, concerto: 69, offtune: 1334 },
+    { hitFrame: 16, mv: 1326, energy: 42, concerto: 69, offtune: 1334 },
+    { hitFrame: 22, commitFrame: 16, mv: 1326, energy: 42, concerto: 69, offtune: 1334 },
+    { hitFrame: 28, commitFrame: 16, mv: 1326, energy: 42, concerto: 69, offtune: 1334 },
     { hitFrame: 57, mv: 8235, energy: 419, concerto: 102, offtune: 1381 },
     { hitFrame: 70, mv: 8235, energy: 419, concerto: 102, offtune: 1381 },
-    { hitFrame: 101, mv: 27448, energy: 1394, concerto: 340, offtune: 4602, forte1: 50 },
-    { hitFrame: 143, commitFrame: 107, mv: 10980, energy: 558, concerto: 136, offtune: 1841 },
+    { hitFrame: 101, mv: 27448, energy: 1394, concerto: 340, offtune: 4602, forte1: 50,
+      updateDebuffs: () => {
+        if (isHeld(MODE_CHAFE)) applyEnemy(GLACIO_CHAFE, 1);
+      } },
+    { hitFrame: 143, commitFrame: 101, mv: 10980, energy: 558, concerto: 136, offtune: 1841 },
   ],
 });
 
 // Echo Skill DMG under Echo mode; Chafe mode's own typeOverride makes it Basic Attack DMG instead
 // (see MODE_CHAFE) — one action, not one per mode
 const Liberation = lucillaAction("Liberation - Clear As Day", { minForte1: 150,
-  animFrames: 266, timestop: 264, motionStop: 264, cooldown: 60 * 25,
+  animFrames: 266, prioFrames: 266, timestop: [3, 266], motionStop: [3, 266], cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Echo, bullets: [{ hitFrame: 204, mv: 14274, offtune: 38400 }], castConcerto: 2000, castForte1: -150,
   applyStats: () => { addStat(Stat.AddForte1, 150); },
   updateBuffs: () => {
     applyCurrent(LIB_SELF_DMG, 1);
+    applyCurrent(REMINISCENCE, 1);
     if (isHeld(MODE_CHAFE)) applyTeam(FILM_ROLL, 4); else applyTeam(ZOOM, 1);
   },
 });
@@ -205,12 +212,14 @@ const OblivionChafe = lucillaAction("Forte - Oblivion (Chafe)", { animFrames: 0,
 // concerto is 7.88 off its own 3 Damage Data hits, plus a separate flat +20 the page states
 // Letting It Go "additionally restores" — both folded into the one number below.
 // Echo Skill DMG, retagged Basic Attack DMG by Chafe mode the same way the Liberation is
-const LettingGo = lucillaAction("Basic - Letting It Go", { animFrames: 77, node: Node.Liberation, type: Type.Echo, bullets: [
+const LettingGo = lucillaAction("Basic - Letting It Go", { animFrames: 77, noSwapFrames: 90, node: Node.Liberation, type: Type.Echo, bullets: [
     { hitFrame: 0, mv: 8481, energy: 34, concerto: 79, offtune: 3652 },
-    { hitFrame: 12, mv: 8481, energy: 34, concerto: 79, offtune: 3652 },
-    { hitFrame: 24, mv: 8481, energy: 34, concerto: 79, offtune: 3652 },
+    { hitFrame: 12, commitFrame: 0, mv: 8481, energy: 34, concerto: 79, offtune: 3652 },
+    { hitFrame: 24, commitFrame: 0, mv: 8481, energy: 34, concerto: 79, offtune: 3652 },
     { hitFrame: 54, mv: 59364, energy: 234, concerto: 551, offtune: 25558 },
   ], castConcerto: 2000,
+  // casting it ends Reminiscence
+  updateBuffs: () => revokeCurrent(REMINISCENCE),
  });
 
 /* ------------------------------------------------------------------------------------ buffs */
@@ -290,6 +299,10 @@ const LIB_SELF_DMG = new Buff({
   applyStats: () => addStat(Stat.DmgBonus, 30, isHeld(MODE_CHAFE) ? Type.Basic : Type.Echo),
 });
 
+/** Reminiscence: entered by Clear As Day, ended by Letting It Go. Only which Clip It her Intro
+ *  casts reads it. */
+const REMINISCENCE = new Buff({ name: "Lucilla: Reminiscence" });
+
 /** Montage (Outro Skill), Echo mode: the incoming resonator gets +50% Echo Skill DMG
  *  Amplification for 14s. */
 const MONTAGE_HANDOFF = new Buff({
@@ -322,7 +335,7 @@ const LUCILLA_RESONATOR = new Resonator({
   element: Attribute.Glacio,
   weapon: WeaponType.Rectifier,
   color: "#4f74c2",
-  intro: Intro,
+  intro: new Action("Intro Resolver", { cast: Cast.Intro, resolve: () => (isHeld(REMINISCENCE) ? HardCut : Intro) }),
   maxEnergy: 0,
   maxForte1: 150,
 

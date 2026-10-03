@@ -7,13 +7,13 @@ import type { Gear } from "../engine/gear.js";
 import { menuStats } from "../engine/context.js";
 import { TUNE_BREAK_ENEMY } from "../shared/tunebreak.js";
 import type { ChainGroup, ResolvedSnapshot } from "../engine/evaluate.js";
-import { columnOf, gaugeSuffix, fmt, digitsOf, PAD_DIGITS_COLUMNS, GROUPED_COLUMNS, OFFTUNE_RATE, ENERGY_RATE } from "../display.js";
-import type { Report, Column, ReportRow, ReportPart, TraceEntry } from "../display.js";
+import { gaugeSuffix, fmt, digitsOf, PAD_DIGITS_COLUMNS, GROUPED_COLUMNS, OFFTUNE_RATE, ENERGY_RATE } from "../display.js";
+import type { Report, Column, ReportRow, ReportPart } from "../display.js";
 import type { TeamRun } from "../teamrun.js";
 import { hitsOf, erRollsFor } from "../teamrun.js";
 import { ER_TOLERANCE } from "../shared/substats.js";
 import { results, detailFor, FALLBACK_HUE } from "./model.js";
-import { esc, lazyPop, rect, zoom, clearPops, panelRow, popover, infoPopover, buffsPopover, framesPopover, equippedGear, dprTable, loadoutTable, wireDistribution, drivePanel, dropPanel, holdPanels } from "./panels.js";
+import { esc, lazyPop, rect, zoom, clearPops, popover, infoPopover, buffsPopover, framesPopover, equippedGear, dprTable, loadoutTable, wireDistribution, drivePanel, dropPanel, holdPanels } from "./panels.js";
 import { rememberTableScroll } from "./table.js";
 
 const app = document.getElementById("app")!;
@@ -282,7 +282,7 @@ function erRequirement(flat: ChainGroup[], resetIdx: number, member: string, max
       if (s.action.resetEnergy) break walk;
       if (s.endsLoop) continue;
       const gain = (s.action.energy + s.stat(Stat.AddEnergy) + (s.castGain?.[0] ?? 0)) * (1 + s.stat(Stat.EnergyRegenMult) / 100);
-      buffed += gain * (s.stat(Stat.Er) - constant);
+      buffed += gain * (s.stat(Stat.ER) - constant);
     }
   }
   return (maxEnergy * 100 - buffed) / before;
@@ -304,14 +304,13 @@ function energyRequirements(run: TeamRun, lines: ChainGroup[][]): Map<string, Ma
     const maxEnergy = m.loadout.resonator.maxEnergy;
     const combo = run.combo[idx]!;
     const constantSources = menuStats(m.loadout.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs, erOf[idx]!))
-      .filter((e) => e.stat === Stat.Er);
+      .filter((e) => e.stat === Stat.ER);
     const constant = constantSources.reduce((n, e) => n + e.value, 0);
 
     // the fight's very first Liberation runs on the bar `combatStart` hands over, so it asks nothing
     const casts = resetIndices(flat, 0, flat.length, m.name).slice(1);
     const asked = casts.map((i) => erRequirement(flat, i, m.name, maxEnergy, constant)).filter((v): v is number => v != null);
     const bar = asked.length ? Math.max(...asked) : null;
-    const name = m.loadout.resonator.name;
     // One hover line per requirement, its figure green where the build's character screen covers it
     // and red where it falls short; the label carries the higher of them.
     const line = (what: string, need: number, held: number): { html: string; met: boolean } => {
@@ -328,7 +327,7 @@ function energyRequirements(run: TeamRun, lines: ChainGroup[][]): Map<string, Ma
       if (bar != null) lines.push(line("Energy Regen requirement", bar, constant));
       if (minEr) lines.push(line("Energy Regen requirement for kit", minEr, constant));
       const need = Math.max(bar ?? 0, minEr);
-      own.set(statLabel(Stat.Er), tag(need, need <= constant + ER_TOLERANCE, lines.map((l) => l.html)));
+      own.set(statLabel(Stat.ER), tag(need, need <= constant + ER_TOLERANCE, lines.map((l) => l.html)));
     }
     // and the kit's own Crit Rate minimum, against what the character screen shows
     const minCr = m.loadout.minCritRate;

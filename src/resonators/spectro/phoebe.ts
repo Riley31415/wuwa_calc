@@ -35,7 +35,8 @@
  * of ATK, and wuwalab's frame data resolves that into the eight 66.06% hits used here. The stance
  * multipliers are read off nanoka's own S-chain twin rows: 401.60% x 3.55 is the Absolution
  * Liberation, x 5.8 that same cast at S1, so each "increase the DMG Multiplier by N%" is a
- * multiplier on the row rather than points added to it. Base stats from the same nanoka file.
+ * multiplier on the row rather than points added to it — the Liberation plays each row as its own
+ * form, off-tune and all. Base stats from the same nanoka file.
  */
 import { Stat, EnemyStat, Attribute, WeaponType, Type, Subtype, Cast, Node, Scaling, BuffTarget } from "../../engine/stats.js";
 import { Buff, Debuff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
@@ -59,9 +60,8 @@ import { Action, ActionGroup, Rotation, ECHO, NOINTRO, ActionTag, INTRO } from "
 import { FRAZZLE_SLOWED, SPECTRO_FRAZZLE } from "../../shared/status.js";
 import { LUMINOUS_HYMN, STRINGMASTER } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
-import { NM_MOURNING_AIX, ETERNAL_RADIANCE_5PC, CAPITANEUS } from "../../echoes/rinascita.js";
-import { CELESTIAL_LIGHT_5PC, HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
-import { JUE } from "../../echoes/jinzhou.js";
+import { ETERNAL_RADIANCE_5PC, CAPITANEUS } from "../../echoes/rinascita.js";
+import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
@@ -159,9 +159,10 @@ const Refracted = phoebeAction("Skill - Ring of Mirrors: Refracted Holy Light", 
 // --- Radiant Invocation: the two stance casts, and the Starflash that spends what they restore.
 const HeavyAbs = phoebeAction("Forte Heavy - Absolution Litany", {
   animFrames: 66,
-  node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 48, commitFrame: 0, mv: 63819, energy: 1000, offtune: 32872 }], castConcerto: 1000,
+  node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+    { hitFrame: 48, commitFrame: 0, mv: 63819, energy: 1000, offtune: 32872, updateDebuffs: () => applyEnemy(SPECTRO_FRAZZLE, 1) },
+  ], castConcerto: 1000,
   castForte2: 60,
-  updateDebuffs: () => applyEnemy(SPECTRO_FRAZZLE, 1),
   updateBuffs: () => {
     revokeCurrent(CONFESSION);
     applyCurrent(ABSOLUTION, 1);
@@ -169,9 +170,10 @@ const HeavyAbs = phoebeAction("Forte Heavy - Absolution Litany", {
 });
 const SkillConf = phoebeAction("Forte Skill - Utter Confession", {
   animFrames: 66,
-  node: Node.Forte, cast: Cast.Skill, type: Type.Skill, bullets: [{ hitFrame: 48, commitFrame: 0, mv: 18788, energy: 1800, offtune: 24720 }], castConcerto: 4000,
+  node: Node.Forte, cast: Cast.Skill, type: Type.Skill, bullets: [
+    { hitFrame: 48, commitFrame: 0, mv: 18788, energy: 1800, offtune: 24720, updateDebuffs: () => applyEnemy(SPECTRO_FRAZZLE, 1) },
+  ], castConcerto: 4000,
   castForte2: 60,
-  updateDebuffs: () => applyEnemy(SPECTRO_FRAZZLE, 1),
   updateBuffs: () => {
     revokeCurrent(ABSOLUTION);
     applyCurrent(CONFESSION, 1);
@@ -191,39 +193,60 @@ const FHA = phoebeAction("Forte Heavy - Starflash", {
   ],
   castForte2: -30,
 });
+/** S3's Confession Starflash: nanoka's own twin row (288.56%), whose off-tune is 0.1467 against
+ *  the base row's 0.6467 — a separate entry, so a form of its own rather than a multiplier. */
+const FHA_S3 = FHA.variant("Forte Heavy - Starflash (S3 Confession)", { bullets: [
+    { hitFrame: 28, mv: 28856, energy: 153, concerto: 138, offtune: 1467, updateDebuffs: () => applyEnemy(SPECTRO_FRAZZLE, 5) },
+    { hitFrame: 34, commitFrame: 28, mv: 28856, energy: 153, concerto: 138, offtune: 1467 },
+    { hitFrame: 40, commitFrame: 28, mv: 28856, energy: 153, concerto: 138, offtune: 1467 },
+  ]});
+/** The Starflash a rotation writes: the S3 form in Confession once S3 is held. */
+const Starflash = new Action("Starflash Resolver", { resolve: () => (isHeld(PHOEBE_S3) && isHeld(CONFESSION) ? FHA_S3 : FHA) });
 /** S6's extra Starflash at the ring's location: no Divine Voice, and not a Heavy Attack cast —
  *  so it can never open or close anything that counts her presses. */
 const StarflashFree = FHA.variant("Forte Heavy - Starflash (Ring of Mirrors)", {
-  cast: null, forte2: 0, tag: ActionTag.Field,
+  cast: null, castForte2: 0, tag: ActionTag.Field,
+});
+const StarflashFreeS3 = FHA_S3.variant("Forte Heavy - Starflash (Ring of Mirrors, S3 Confession)", {
+  cast: null, castForte2: 0, tag: ActionTag.Field,
 });
 
-const Liberation = phoebeAction("Liberation - Dawn of Enlightenment", {
-  animFrames: 220, timestop: 220, motionStop: 218,
+/** Dawn of Enlightenment's one hit, by stance and S1: each its own nanoka row (encore 1506202092-095),
+ *  off-tune included — 4.8 plain, 8.4 in Absolution, 4.8 in Absolution at S1, 8.4 in Confession at S1. */
+const libHit = (mv: number, offtune: number) => [{ hitFrame: 186, mv, offtune, updateDebuffs: () => {
+  if (!isHeld(CONFESSION)) return;
+  // S1 puts on the most the target can hold instead of the flat eight
+  applyEnemy(SPECTRO_FRAZZLE, isHeld(PHOEBE_S1) ? currentTeam().enemyMax(SPECTRO_FRAZZLE) : 8);
+} }];
+const LibPlain = phoebeAction("Liberation - Dawn of Enlightenment", {
+  animFrames: 220, prioFrames: 220, timestop: [0, 220], motionStop: [0, 218],
   cooldown: 60 * 25,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, 
-  bullets: [{ hitFrame: 186, mv: 40160, offtune: 48000 }], castConcerto: 2000, resetEnergy: true,
-  updateDebuffs: () => {
-    if (!isHeld(CONFESSION)) return;
-    // S1 puts on the most the target can hold instead of the flat eight
-    applyEnemy(SPECTRO_FRAZZLE, isHeld(PHOEBE_S1) ? currentTeam().enemyMax(SPECTRO_FRAZZLE) : 8);
-  },
-  applyStats: () => {
-    if (isHeld(ABSOLUTION)) addStat(Stat.MulMv, isHeld(PHOEBE_S1) ? 480 : 255);
-    else if (isHeld(CONFESSION) && isHeld(PHOEBE_S1)) addStat(Stat.MulMv, 90);
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation,
+  bullets: libHit(40160, 48000), castConcerto: 2000, resetEnergy: true,
+});
+const LibAbsolution = LibPlain.variant("Liberation - Dawn of Enlightenment (Absolution)", { prioFrames: 220, bullets: libHit(142567, 84000) });
+const LibAbsolutionS1 = LibPlain.variant("Liberation - Dawn of Enlightenment (Absolution S1)", { bullets: libHit(232926, 48000) });
+const LibConfessionS1 = LibPlain.variant("Liberation - Dawn of Enlightenment (Confession S1)", { prioFrames: 220, bullets: libHit(76304, 84000) });
+/** The Liberation a rotation writes: the row her stance and S1 call for, read at the cast. */
+const Liberation = new Action("Liberation Resolver", {
+  cast: Cast.Liberation,
+  resolve: () => {
+    if (isHeld(ABSOLUTION)) return isHeld(PHOEBE_S1) ? LibAbsolutionS1 : LibAbsolution;
+    return isHeld(CONFESSION) && isHeld(PHOEBE_S1) ? LibConfessionS1 : LibPlain;
   },
 });
 
 const Intro = phoebeAction("Intro - Golden Grace", {
-  animFrames: 98, prioFrames: 69, motionStop: 43,
+  animFrames: 98, noSwapFrames: 69, prioFrames: 69, motionStop: [4, 46],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 45, mv: 19881, energy: 1000, offtune: 8000 }], castConcerto: 1000,
 });
 
 /** Attentive Heart: 528.41% of ATK, x3.55 in Absolution, and in Confession Silent Prayer onto the
  *  whole team, with the slowed tick interval onto the target. */
 const Outro = phoebeAction("Outro - Attentive Heart", {
-  animFrames: 180,
+  animFrames: 180, prioFrames: 180,
   cast: Cast.Outro, type: Type.Outro, bullets: [
-    { hitFrame: 30, mv: 6606 },
+    { hitFrame: 30, commitFrame: 3, mv: 6606 },
     { hitFrame: 45, mv: 6606 },
     { hitFrame: 60, mv: 6606 },
     { hitFrame: 75, mv: 6606 },
@@ -311,14 +334,13 @@ const PHOEBE_S1 = new Sequence({ name: "Phoebe S1: Warm Light and Bedside Wishes
  *  Prayer. Both halves live on the casts that grant them (the Outro above). */
 const PHOEBE_S2 = new Sequence({ name: "Phoebe S2: A Boat Adrift in Tears" });
 
-/** S3: Starflash's multiplier, x1.91 in Absolution and x3.49 in Confession — nanoka's own twin
- *  rows for that hit (82.69% -> 157.92% and 288.56%). */
+/** S3: Starflash's multiplier x1.91 in Absolution — nanoka's twin row (82.69% -> 157.92%). In
+ *  Confession it is FHA_S3, which the rotation's Starflash resolves to while this is held. */
 const PHOEBE_S3 = new Sequence({
   name: "Phoebe S3: Daisy Wreaths and Dreams",
   applyStats: () => {
     if (!runningAction(FHA) && !runningAction(StarflashFree)) return;
     if (isHeld(ABSOLUTION)) addStat(Stat.MulMv, 91);
-    else if (isHeld(CONFESSION)) addStat(Stat.MulMv, 249);
   },
 });
 
@@ -355,7 +377,7 @@ const PHOEBE_S6 = new Sequence({
   updateBuffs: () => {
     if (!runningAction(Skill) || !(isHeld(ABSOLUTION) || isHeld(CONFESSION))) return;
     applyCurrent(S6_ATK, 1);
-    queue(StarflashFree);
+    queue(isHeld(PHOEBE_S3) && isHeld(CONFESSION) ? StarflashFreeS3 : StarflashFree);
   },
 });
 
@@ -393,9 +415,15 @@ const PHOEBE_RESONATOR = new Resonator({
  *  Confession to refill it and re-enter the stance, the Liberation's eight stacks, and the Outro
  *  that hands Silent Prayer on. 101.5 Concerto over the visit, so the Outro fires. */
 const PHOEBE_CONFESSION_ROTATION = new Rotation([
+  // leading, she has no Intro's 10 Concerto: two more chains make up the Outro's 100
+  NOINTRO, SkillConf.instaCancel(), Liberation, Skill.instaDodge(),
+  CBA123.instaDodge(), Starflash.dodgeCancel(),
+  CBA123.instaDodge(), 
+  CBA123.instaDodge(), Starflash, ECHO.instaSwap(), Outro,
+
   INTRO, SkillConf.instaCancel(), Liberation, Skill.instaDodge(),
-  CBA123.instaDodge(), FHA,
-  CBA123.instaDodge(), FHA,
+  CBA123.instaDodge(), Starflash.dodgeCancel(),
+  CBA123.instaDodge(), Starflash,
   ECHO.instaSwap(), Outro,
 ]);
 
@@ -404,10 +432,10 @@ const PHOEBE_CONFESSION_ROTATION = new Rotation([
  *  Confession's 40, which is exactly why this loop needs the two extra chains to reach 100. */
 const PHOEBE_ABSOLUTION_ROTATION = new Rotation([
   INTRO, HeavyAbs.instaCancel(), Liberation, Skill.instaDodge(),
-  CBA123.instaDodge(), FHA,
-  CBA123.instaDodge(), FHA,
-  CBA123.instaDodge(), FHA,
-  CBA123.instaDodge(), FHA,
+  CBA123.instaDodge(), Starflash.dodgeCancel(),
+  CBA123.instaDodge(), Starflash.dodgeCancel(),
+  CBA123.instaDodge(), Starflash.dodgeCancel(),
+  CBA123.instaDodge(), Starflash.cancel(),
   ECHO.instaSwap(), Outro,
 ]);
 

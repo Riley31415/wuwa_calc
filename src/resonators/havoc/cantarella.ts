@@ -88,9 +88,9 @@ const FBA2 = cantaAction("Forte Basic - Phantom Sting 2", { minForte1: 1, animFr
     { hitFrame: 32, mv: 6293, energy: 80, concerto: 159, offtune: 2532 },
   ]}); // 62.93%x2
 const FBA3 = cantaAction("Forte Basic - Phantom Sting 3", { minForte1: 1, animFrames: 82, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 19, mv: 6462, energy: 82, concerto: 163, offtune: 2600, forte2: 1, subtype: Subtype.Coordinated, updateDebuffs: () => applyCurrent(HEALS, 1), forte1: -1 },
-    { hitFrame: 25, mv: 6462, energy: 82, concerto: 163, offtune: 2600, subtype: Subtype.Coordinated },
-    { hitFrame: 27, mv: 6462, energy: 82, concerto: 163, offtune: 2600, subtype: Subtype.Coordinated },
+    { hitFrame: 19, commitFrame: 0, mv: 6462, energy: 82, concerto: 163, offtune: 2600, forte2: 1, subtype: Subtype.Coordinated, updateDebuffs: () => applyCurrent(HEALS, 1), forte1: -1 },
+    { hitFrame: 25, commitFrame: 8, mv: 6462, energy: 82, concerto: 163, offtune: 2600, subtype: Subtype.Coordinated },
+    { hitFrame: 27, commitFrame: 15, mv: 6462, energy: 82, concerto: 163, offtune: 2600, subtype: Subtype.Coordinated },
     { hitFrame: 45, mv: 6462, energy: 82, concerto: 163, offtune: 2600, subtype: null },
   ],
   updateBuffs: () => dreamweavers(StingDreamweaver),
@@ -114,7 +114,7 @@ const FSkill = cantaAction("Forte Skill - Perception Drain", { minForte2: 3,
 });
 
 const Liberation = cantaAction("Liberation - Beneath the Sea", {
-  animFrames: 214, timestop: 214, motionStop: 170, cooldown: 60 * 25, // Flowing Suffocation Cooldown
+  animFrames: 214, prioFrames: 214, timestop: [0, 214], motionStop: [0, 170], cooldown: 60 * 25, // Flowing Suffocation Cooldown
   node: Node.Liberation, cast: Cast.Liberation, subcast: Cast.Echo, type: Type.Basic, bullets: [{ hitFrame: 170, mv: 37600, offtune: 48000 }], castConcerto: 2000, castForte1: 3, resetEnergy: true,
   updateBuffs: () => applyTeam(DIFFUSION_WINDOW, isHeld(CA_S5) ? 26 : 21), // S5: five more Dreamweavers
 });
@@ -128,12 +128,12 @@ const ACTION_DIFFUSION = cantaAction("Liberation - Diffusion", { node: Node.Libe
  *  press's follow-up rather than that window's, so they carry neither its field nor its stacks;
  *  one action per trigger, so the report names each run after the cast it came off. */
 const DREAMWEAVER = { tag: ActionTag.Field, type: Type.Basic, subtype: Subtype.Coordinated };
-const IntroDreamweaver = cantaAction("Intro - Dreamweaver", { animFrames: 5, node: Node.Liberation, ...DREAMWEAVER, bullets: [{ hitFrame: 5, mv: 1454 }] });
-const StingDreamweaver = cantaAction("Basic - Dreamweaver", { animFrames: 5, node: Node.Liberation, ...DREAMWEAVER, bullets: [{ hitFrame: 5, mv: 1454 }] });
+const IntroDreamweaver = cantaAction("Intro - Dreamweaver", { animFrames: 5, node: Node.Liberation, ...DREAMWEAVER, bullets: [{ hitFrame: 5, commitFrame: 0, mv: 1454 }] });
+const StingDreamweaver = cantaAction("Basic - Dreamweaver", { animFrames: 5, node: Node.Liberation, ...DREAMWEAVER, bullets: [{ hitFrame: 5, commitFrame: 0, mv: 1454 }] });
 function dreamweavers(tick: Action): void { for (let i = 0; i < 3; i++) queue(tick); }
 
 const Intro = cantaAction("Intro - Ripple", {
-  animFrames: 76, prioFrames: 76, motionStop: 27,
+  animFrames: 76, noSwapFrames: 80, prioFrames: 76, motionStop: [4, 30],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 36, mv: 4225, energy: 250, offtune: 2528 },
     { hitFrame: 42, mv: 4225, energy: 250, offtune: 2528 },
@@ -146,7 +146,7 @@ const Intro = cantaAction("Intro - Ripple", {
  *  three Coordinated Attacks on top. Her Mirage runs 8s and is gone by her own outro, so nothing
  *  in the loop below actually reaches this — it is what a quicker swap back in would cast. */
 const EIntro = cantaAction("Intro - Tidal Surge", {
-  animFrames: 83, prioFrames: 83, motionStop: 46,
+  animFrames: 83, noSwapFrames: 80, prioFrames: 83, motionStop: [4, 49],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 26, mv: 1690, energy: 100, offtune: 1064, subtype: Subtype.Coordinated },
     { hitFrame: 32, mv: 1690, energy: 100, offtune: 1064, subtype: Subtype.Coordinated },

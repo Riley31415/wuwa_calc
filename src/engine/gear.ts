@@ -786,7 +786,7 @@ export class Resonator extends Gear {
         if (!def.enemy) {
           addStat(Stat.CritRate, 5);
           addStat(Stat.CritDmg, 150);
-          addStat(Stat.Er, 100);
+          addStat(Stat.ER, 100);
           addStat(Stat.OfftuneBuildup, 100);
         }
         def.constantStats?.();
@@ -861,7 +861,7 @@ export class Mainslot extends Gear {
     const a = def.action;
     this.onfield = a;
     // a swap cut inside the insta window is the insta swap, which keeps every hit committed that early
-    this.outro = a.cutFrame > INSTA_DELAY ? a.swapCancel() : a.instaSwap();
+    this.outro = a.swapCutFrame > INSTA_DELAY ? a.swapCancel() : a.instaSwap();
     // an echo under 18 frames cancels without a dodge at all
     this.cancel = a.instaForm(a.animFrames < 18 ? ActionTag.InstaCancel : ActionTag.InstaDodge);
     this.instaOut = a.instaSwap();

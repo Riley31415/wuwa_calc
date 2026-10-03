@@ -109,7 +109,7 @@ export const DRAGON_OF_DIRGE = new Mainslot({
   stats: [[Stat.DmgBonus, 12, Attribute.Fusion], [Stat.DmgBonus, 12, Type.Basic]],
 });
 
-export const TIDEBREAKING_2PC = new Sonata2pc({ name: "Tidebreaking Courage 2pc", stats: [[Stat.Er, 10]] });
+export const TIDEBREAKING_2PC = new Sonata2pc({ name: "Tidebreaking Courage 2pc", stats: [[Stat.ER, 10]] });
 
 /** +15% ATK flat, and +30% (unscoped) DMG Bonus once Energy Regen reaches 250% — read via
  *  convertStats() so every ER contribution has already landed this action. */
@@ -117,7 +117,7 @@ export const TIDEBREAKING_5PC = new Sonata({
   name: "Tidebreaking Courage 5pc",
   sonata2pc: TIDEBREAKING_2PC,
   stats: [[Stat.BonusAtk, 15]],
-  convertStats: () => { if (getStat(Stat.Er) >= 250) addStat(Stat.DmgBonus, 30); },
+  convertStats: () => { if (getStat(Stat.ER) >= 250) addStat(Stat.DmgBonus, 30); },
 });
 
 /* --------------------------------------------------------------------------------- Phrolova */
@@ -160,7 +160,7 @@ export const HECATE = new Mainslot({
 /** Empyrean Anthem, Zhezhi's own sonata. 2pc: +10% ER flat. 5pc: +80% Coordinated Attack DMG
  *  Bonus, self only. A Coordinated Attack crit also grants the whole team +20% ATK for 4s,
  *  assumed permanent uptime once one lands (a real source re-triggers well past 21s). */
-export const EMPYREAN_ANTHEM_2PC = new Sonata2pc({ name: "Empyrean Anthem 2pc", stats: [[Stat.Er, 10]] });
+export const EMPYREAN_ANTHEM_2PC = new Sonata2pc({ name: "Empyrean Anthem 2pc", stats: [[Stat.ER, 10]] });
 export const EMPYREAN_ANTHEM_5PC = new Sonata({
   name: "Empyrean Anthem 5pc",
   sonata2pc: EMPYREAN_ANTHEM_2PC,

@@ -41,7 +41,7 @@ import {
   reduceCooldown,
   addToCast,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, NOINTRO, ECHO, INTRO, START, START_LAST } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, NOINTRO, ECHO, INTRO, START_LAST } from "../../engine/rotation.js";
 import { HEALS, heal } from "../../shared/status.js";
 import {
   TUNE_BREAK, TUNE_RUPTURE_INTERFERED, TUNE_STRAIN_INTERFERED, tuneRuptureResponse, strainPayout,
@@ -127,7 +127,7 @@ const GeopotentialShift = mornyeAction("Forte Heavy - Geopotential Shift", { min
     { hitFrame: 80, mv: 9902, energy: 208, concerto: 665, offtune: 6640 },
   ], castForte1: -10000, updateBuffs: () => queue(SyntonyFieldHit) });
 const Inversion = mornyeAction("Forte Heavy - Inversion", { minForte2: 10000,
-  animFrames: 76, motionStop: 76,
+  animFrames: 76, noSwapFrames: 76, motionStop: [0, 76],
   node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 76, mv: 25846, energy: 325, concerto: 1196, offtune: 10400 }], castForte2: -10000,
   updateDebuffs: () => applyEnemy(OBSERVATION_MARKER, 1),
 });
@@ -170,16 +170,16 @@ const OptimalSolution = mornyeAction("Skill - Optimal Solution", {
   updateBuffs: () => reduceCooldown(Skill, 60 * 2),
 });
 const DistributedArray = mornyeAction("Skill - Distributed Array", { animFrames: 60, cooldown: 60 * 16, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
-    { hitFrame: 46, mv: 3977, energy: 463, offtune: 2000, forte2: 1500,
+    { hitFrame: 46, commitFrame: 22, mv: 3977, energy: 463, offtune: 2000, forte2: 1500,
       ...SKILL_HEAL },
-    { hitFrame: 46, mv: 3977, energy: 463, offtune: 2000, forte2: 1500 },
-    { hitFrame: 60, mv: 3977, energy: 463, offtune: 2000, forte2: 1500 },
-    { hitFrame: 60, mv: 3977, energy: 463, offtune: 2000, forte2: 1500 },
+    { hitFrame: 46, commitFrame: 22, mv: 3977, energy: 463, offtune: 2000, forte2: 1500 },
+    { hitFrame: 60, commitFrame: 36, mv: 3977, energy: 463, offtune: 2000, forte2: 1500 },
+    { hitFrame: 60, commitFrame: 36, mv: 3977, energy: 463, offtune: 2000, forte2: 1500 },
   ], castConcerto: 1000});
 
 /** Critical Protocol scales off DEF, not ATK. */
 const Liberation = mornyeAction("Liberation - Critical Protocol", {
-  animFrames: 300, timestop: 300, motionStop: 300, cooldown: 60 * 25,
+  animFrames: 300, prioFrames: 300, timestop: [0, 300], motionStop: [0, 300], cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, scaling: Scaling.Def,
   bullets: [{ hitFrame: 272, mv: 52233, offtune: 72000 }], castConcerto: 2000, resetEnergy: true,
   // trades the field up to its High stage, if one is standing
@@ -193,7 +193,7 @@ const Liberation = mornyeAction("Liberation - Critical Protocol", {
   },
 });
 
-const Intro = mornyeAction("Intro - Convergence", { animFrames: 105, prioFrames: 80, motionStop: 76, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 38, mv: 20279, energy: 1000, offtune: 13600 }], castConcerto: 1000, updateBuffs: () => queue(SyntonyFieldHit, 12) });
+const Intro = mornyeAction("Intro - Convergence", { animFrames: 105, prioFrames: 80, motionStop: [4, 79], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 38, mv: 20279, energy: 1000, offtune: 13600 }], castConcerto: 1000, updateBuffs: () => queue(SyntonyFieldHit, 12) });
 const Outro = mornyeAction("Outro - Recursion", {
   animFrames: 0,
   cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000,
@@ -247,7 +247,7 @@ const CRITICAL_PROTOCOL = new Buff({
   name: "Mornye: Critical Protocol",
   convertStats: () => {
     if (!runningAction(Liberation)) return;
-    const converted = getStat(Stat.Er) - 100;
+    const converted = getStat(Stat.ER) - 100;
     addStat(Stat.CritRate, Math.min(80, 0.5 * converted));
     addStat(Stat.CritDmg, Math.min(160, converted));
   },
@@ -351,7 +351,7 @@ const MO_SEQUENCES = [MO_S1, MO_S2, MO_S3, MO_S4, MO_S5, MO_S6];
  *  every 20s, which over a 2-minute rotation is once each per loop. */
 const MO_INHERENT_1 = new Inherent({
   name: "Inherent: Blueprint",
-  stats: [[Stat.Er, 10]],
+  stats: [[Stat.ER, 10]],
   updateBuffs: () => {
     if (runningAction(Intro) || runningAction(WBA3)) addToCast({ concerto: 2000 });
   },
@@ -389,7 +389,7 @@ const MORNYE_RESONATOR = new Resonator({
   stats: [
     [Stat.BaseHp, 15375], [Stat.BaseAtk, 287.5], [Stat.BaseDef, 1356.6642],
     // the flat 10 every tune-break-era resonator carries (nanoka's own weakness_mastery)
-    [Stat.Tbb, 10],
+    [Stat.TBB, 10],
   ],
 });
 

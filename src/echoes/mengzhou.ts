@@ -82,18 +82,17 @@ export const HEART_OF_EVILS_PURGE_BUFF = new Buff({
 /** Thousand-Puppet Pavilion, Yangyang: Xuanling's own mainslot echo. The cast itself is one 60.80%
  *  Havoc hit that also summons 4 Blades of Thousand Memories for 15s; while any are out, the
  *  wearer inflicting Havoc Bane spends one for a 22.80% Havoc hit — `appliedByMe`, so a stack
- *  Chisa's Thread of Bane hands out off the wearer's swing is hers and spends no blade. The blade's
- *  own 1s cooldown isn't modelled — nothing here has a clock — but the four blades are, as the
- *  buff's own stacks, so a visit only ever cashes what the cast actually summoned, and never off a
- *  triggered action, which is what stops one blade's own hit from spending the next three beside a
- *  kit that inflicts on every hit. */
+ *  Chisa's Thread of Bane hands out off the wearer's swing is hers and spends no blade. The four
+ *  blades are one action, its hits its own bullets at the blade's 1s cooldown — the wearer's kit
+ *  inflicts Bane often enough to spend each the moment it is ready. */
 export const ACTION_THOUSAND_PUPPET_PAVILION = new Action("Echo - Thousand-Puppet Pavilion", {
   cooldown: 60 * 20, animFrames: 16,
   cast: Cast.Echo, element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 5, mv: 10944, energy: 152 }], 
   updateBuffs: () => queue(ACTION_BLADE_OF_THOUSAND_MEMORIES),
 });
-export const ACTION_BLADE_OF_THOUSAND_MEMORIES = new Action("Echo - Blade of Thousand Memories x4", {
-  element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 4104*4, energy: 57*4 }], 
+export const ACTION_BLADE_OF_THOUSAND_MEMORIES = new Action("Echo - Blade of Thousand Memories", {
+  element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo,
+  bullets: Array.from({ length: 4 }, (_, k) => ({ hitFrame: 60 * (k + 1), mv: 4104, energy: 57 })),
 });
 export const THOUSAND_PUPPET_PAVILION = new Mainslot({
   name: "Thousand-Puppet Pavilion", 
@@ -111,7 +110,7 @@ export const THOUSAND_PUPPET_PAVILION = new Mainslot({
  *  Starry Radiance takes its. Both branches are "when *you* inflict" payouts (`onInflict`), so a
  *  stack one of the markers that inflict off somebody else's cast adds (Chisa's Thread of Bane,
  *  Lucilla's Film Roll) belongs to that marker's owner, not to the wearer. */
-export const FEATHERED_TRACE_2PC = new Sonata2pc({ name: "Song of Feathered Trace 2pc", stats: [[Stat.Er, 10]] });
+export const FEATHERED_TRACE_2PC = new Sonata2pc({ name: "Song of Feathered Trace 2pc", stats: [[Stat.ER, 10]] });
 export const FEATHERED_TRACE_5PC = new Sonata({
   name: "Song of Feathered Trace 5pc",
   sonata2pc: FEATHERED_TRACE_2PC,
@@ -251,7 +250,7 @@ export const ACTION_FORMLESS_DEMON = new Action("Echo - Formrender", { animFrame
 export const FORMLESS_DEMON = new Mainslot({
   name: "Formrender",
   action: ACTION_FORMLESS_DEMON,
-  stats: [[Stat.Er, 10]],
+  stats: [[Stat.ER, 10]],
 });
 
 /** Flower of Tinged Yearning. 2pc: +10% Healing Bonus flat. 5pc: healing a teammate grants the

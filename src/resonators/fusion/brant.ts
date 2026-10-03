@@ -20,26 +20,25 @@ import {
   applyCurrent, isHeld,
   revokeCurrent,
   casting,
-  currentAction, pressed,
+  currentAction,
   runningAction,
   addStat,
   getStat,
   queue,
   queueOutro,
-  forte1,
   removeStack,
   queueOn,
   onType,
   elapsed,
 } from "../../engine/context.js";
 import { Action, Rotation, ECHO, ActionGroup, INTRO, DOUBLE_INTRO } from "../../engine/rotation.js";
-import { SHIELD, HEALS, gainShield } from "../../shared/status.js";
+import { HEALS, gainShield } from "../../shared/status.js";
 import { UNFLICKERING_VALOR } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS, NEW_STD_SWORD, BLOODPACTS_PLEDGE } from "../../weapons/standard.js";
 import { DRAGON_OF_DIRGE, TIDEBREAKING_5PC } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
-import { HERON, MOONLIT_CLOUDS_5PC, NM_INFERNO_RIDER, MOLTEN_RIFT_5PC } from "../../echoes/jinzhou.js";
+import { NM_INFERNO_RIDER, MOLTEN_RIFT_5PC } from "../../echoes/jinzhou.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -74,7 +73,7 @@ const Skill = brantAction("Skill - Anchors Aweigh!", { animFrames: 46, cooldown:
   ], castConcerto: 1000});
 // PLACEHOLDER FRAMES
 const Liberation = brantAction("Liberation - To the Horizon", {
-  animFrames: 247, timestop: 247, motionStop: 247, prioFrames: 247,
+  animFrames: 247, timestop: [0, 247], motionStop: [0, 247], prioFrames: 247,
   cooldown: 60 * 24,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [
     { hitFrame: 247, mv: 8506, offtune: 6000 },
@@ -244,12 +243,12 @@ const AFLAME = new Buff({
  *  them as it comes and goes — so neither has to look at Aflame itself mid-phase. */
 const THEATRICAL_MOMENT = new Buff({
   name: "Brant: Theatrical Moment",
-  convertStats: () => addStat(Stat.FlatAtk, Math.min(1560, 12 * Math.max(0, getStat(Stat.Er) - 150))),
+  convertStats: () => addStat(Stat.FlatAtk, Math.min(1560, 12 * Math.max(0, getStat(Stat.ER) - 150))),
 });
 /** The Aflame rate: +20 a point, capped at +2600. */
 const MY_MOMENT = new Buff({
   name: "Brant: \"My\" Moment",
-  convertStats: () => addStat(Stat.FlatAtk, Math.min(2600, 20 * Math.max(0, getStat(Stat.Er) - 150))),
+  convertStats: () => addStat(Stat.FlatAtk, Math.min(2600, 20 * Math.max(0, getStat(Stat.ER) - 150))),
 });
 
 /** The outro handoff. */

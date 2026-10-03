@@ -8,11 +8,11 @@ import { Stat, Attribute, Type, Cast, Scaling, BuffTarget } from "../engine/stat
 import { Buff, Sonata, Sonata2pc, Sonata1pc, Mainslot, handoff } from "../engine/gear.js";
 import {
   isType, addStat, applyCurrent, casting, getStat, queueOutro, revokeCurrent, frozenStacks, isHeld, currentMember,
-  currentAction, pressed, extendCurrent, stacksOf,
+  extendCurrent, stacksOf,
   onType, onCast, onApplied, onInflict, both,
 } from "../engine/context.js";
 import { Action } from "../engine/rotation.js";
-import { SHIELD, FUSION_BURST, HEALS, GLACIO_CHAFE, gainShield } from "../shared/status.js";
+import { FUSION_BURST, HEALS, GLACIO_CHAFE, gainShield } from "../shared/status.js";
 import { TUNE_HACK_SHIFTING, TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
 
 /* ------------------------------------------------------------------------------ Sigrika, 3.2 */
@@ -78,7 +78,7 @@ export const ACTION_REACTOR_HUSK = new Action("Echo - Reactor Husk", {
 export const REACTOR_HUSK = new Mainslot({
   name: "Reactor Husk",
   action: ACTION_REACTOR_HUSK,
-  stats: [[Stat.Er, 10]],
+  stats: [[Stat.ER, 10]],
 });
 
 /** Spacetrek Explorer: a 10%-of-Max-HP team shield and nothing else — no damage of its own, so
@@ -202,7 +202,7 @@ export const NEONLIGHT_LEAP_HANDOFF = new Buff({
   // Reel of Spliced Memories' +20, and Denia's Etched Colors, which grants from its own
   // convertStats() and an ordinary convertStats() here would race
   lateConvertStats: () => {
-    addStat(Stat.BonusAtk, Math.min(15, 0.3 * getStat(Stat.Tbb)));
+    addStat(Stat.BonusAtk, Math.min(15, 0.3 * getStat(Stat.TBB)));
   },
 });
 
@@ -345,7 +345,7 @@ export const REEL_5PC = new Sonata({
   sonata2pc: REEL_2PC,
   grants: [{ on: onInflict(TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING), buff: () => REEL_TEAM, to: BuffTarget.Team }],
 });
-export const REEL_TEAM = new Buff({ name: "Reel of Spliced Memories 5pc", duration: 60 * 30, stats: [[Stat.Tbb, 20]] });
+export const REEL_TEAM = new Buff({ name: "Reel of Spliced Memories 5pc", duration: 60 * 30, stats: [[Stat.TBB, 20]] });
 
 /* ---------------------------------------------------------------- Rebecca and Lucy, the collab */
 

@@ -36,8 +36,8 @@ import {
   isType,
   queue,
   removeStackEnemy,
-  revokeCurrent,
   revokeEnemy,
+  consume,
   frozenStacks,
   stacksOfEnemy,
   queueOn,
@@ -171,7 +171,8 @@ export const FUSION_BURST = new Debuff({
   updateDebuffs: () => {
     if (frozenStacks() < currentTeam().enemyMax(FUSION_BURST)) return;
     queue(FUSION_BURST_ACTIONS[frozenStacks()]!);
-    revokeEnemy(FUSION_BURST);
+    // a consume, which a "when you consume" passive reads (Suisui's Undulating Mist)
+    consume(FUSION_BURST, stacksOfEnemy(FUSION_BURST));
   },
 });
 

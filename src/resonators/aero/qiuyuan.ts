@@ -27,7 +27,6 @@ import {
   applyTeam,
   revokeCurrent,
   addStat,
-  frozenStacks,
   isActive,
   isHeld,
   queue,
@@ -35,7 +34,7 @@ import {
   addToCast,
   runningBullet,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, START_LAST, NOINTRO, ECHO, INTRO_LAST, INTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, START_LAST, NOINTRO, ECHO, INTRO } from "../../engine/rotation.js";
 import { EMERALD_SENTENCE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { REJUV_2PC, HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC, SIERRA_GALE_2PC, BELL_BORNE_GEOCHELONE } from "../../echoes/jinzhou.js";
@@ -99,29 +98,29 @@ const SkillHold = qiuyuanAction("Skill - Undaunted Wayfarer (Hold)", { animFrame
     { hitFrame: 25, commitFrame: 17, mv: 3233, energy: 231, offtune: 641 },
     { hitFrame: 46, commitFrame: 17, mv: 3233, energy: 231, offtune: 641 },
     { hitFrame: 67, commitFrame: 17, mv: 3233, energy: 231, offtune: 641 },
-    { hitFrame: 85, commitFrame: 17, mv: 8621, energy: 614, offtune: 1709 },
+    { hitFrame: 85, commitFrame: 0, mv: 8621, energy: 614, offtune: 1709 },
   ], castConcerto: 1000});
 
 const Liberation = qiuyuanAction("Liberation - Sundering Strike", {
-  animFrames: 230, timestop: 230, motionStop: 230, cooldown: 60 * 25,
+  animFrames: 230, prioFrames: 230, timestop: [0, 230], motionStop: [0, 230], cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Echo, bullets: [{ hitFrame: 210, mv: 79524, offtune: 96000 }], castConcerto: 2000, resetEnergy: true,
   updateBuffs: () => applyTeam(SUNDERING_STRIKE, 1),
 });
 
 const Intro = qiuyuanAction("Intro - Attack the Must-Defend", {
-  animFrames: 74, prioFrames: 74, motionStop: 49,
+  animFrames: 74, noSwapFrames: 70, prioFrames: 74, motionStop: [6, 54],
   node: Node.Intro, cast: Cast.Intro, type: Type.Heavy, bullets: [
     { hitFrame: 68, mv: 14315, energy: 600, offtune: 5760 },
-    { hitFrame: 73, mv: 955, energy: 40, offtune: 384 },
-    { hitFrame: 86, commitFrame: 74, mv: 955, energy: 40, offtune: 384 },
-    { hitFrame: 98, commitFrame: 74, mv: 955, energy: 40, offtune: 384 },
-    { hitFrame: 111, commitFrame: 74, mv: 955, energy: 40, offtune: 384 },
-    { hitFrame: 124, commitFrame: 74, mv: 955, energy: 40, offtune: 384 },
-    { hitFrame: 133, commitFrame: 74, mv: 4772, energy: 200, offtune: 1920 },
+    { hitFrame: 73, commitFrame: 66, mv: 955, energy: 40, offtune: 384 },
+    { hitFrame: 86, commitFrame: 66, mv: 955, energy: 40, offtune: 384 },
+    { hitFrame: 98, commitFrame: 66, mv: 955, energy: 40, offtune: 384 },
+    { hitFrame: 111, commitFrame: 66, mv: 955, energy: 40, offtune: 384 },
+    { hitFrame: 124, commitFrame: 66, mv: 955, energy: 40, offtune: 384 },
+    { hitFrame: 133, commitFrame: 66, mv: 4772, energy: 200, offtune: 1920 },
   ], castConcerto: 1000, castForte1: 400,
 });
 const Outro = qiuyuanAction("Outro - Strike Before Ready", {
-  animFrames: 65,
+  animFrames: 65, prioFrames: 65,
   cast: Cast.Outro, type: Type.Echo, bullets: [{ hitFrame: 82, commitFrame: 40, mv: 10000 }], minConcerto: 10000, castConcerto: -10000,
   updateBuffs: () => queueOutro(QIUYUAN_OUTRO),
 });
@@ -137,14 +136,14 @@ const StrawCape = qiuyuanAction("Skill - Straw Cape in Drizzly Rain (S3)", {
     { hitFrame: 25, commitFrame: 16, mv: 7500, energy: 231, offtune: 641 },
     { hitFrame: 46, commitFrame: 16, mv: 7500, energy: 231, offtune: 641 },
     { hitFrame: 67, commitFrame: 16, mv: 7500, energy: 231, offtune: 641 },
-    { hitFrame: 85, commitFrame: 16, mv: 20000, energy: 614, offtune: 1709 },
+    { hitFrame: 85, commitFrame: 0, mv: 20000, energy: 614, offtune: 1709 },
   ], minConcerto: 10000, castConcerto: -6000, castForte1: 400,
   updateBuffs: () => { revokeCurrent(QUIETUDE_WITHIN); applyCurrent(STRAW_CAPE, 1); },
 });
 /** The Outro Straw Cape leaves him: 500% as Echo Skill DMG (its own chain row) in place of Strike
  *  Before Ready's 100%, the handoff unchanged. */
 const OutroS3 = qiuyuanAction("Outro - Sheath Fallen, New Shoots Revealed (S3)", {
-  animFrames: 65,
+  animFrames: 65, prioFrames: 65,
   cast: Cast.Outro, type: Type.Echo, bullets: [{ hitFrame: 82, commitFrame: 40, mv: 50000 }], minConcerto: 10000, castConcerto: -10000,
   updateBuffs: () => { queueOutro(QIUYUAN_OUTRO); revokeCurrent(STRAW_CAPE); },
 });
@@ -171,10 +170,10 @@ const FHA1 = qiuyuanAction("Forte Heavy - Thus Spoke the Blade: To Teach", { min
 const FHA2 = qiuyuanAction("Forte Heavy - Thus Spoke the Blade: To Save", { animFrames: 57, node: Node.Forte, cast: Cast.Heavy, subcast: Cast.Echo, type: Type.Heavy, bullets: [
     { hitFrame: 40, mv: 3844, energy: 65, concerto: 124, offtune: 1031 },
     { hitFrame: 40, mv: 3844, energy: 65, concerto: 124, offtune: 1031 },
-    { hitFrame: 46, mv: 3145, energy: 53, concerto: 102, offtune: 844 },
-    { hitFrame: 58, commitFrame: 57, mv: 3145, energy: 53, concerto: 102, offtune: 844 },
-    { hitFrame: 64, commitFrame: 57, mv: 3844, energy: 65, concerto: 124, offtune: 1031 },
-    { hitFrame: 70, commitFrame: 57, mv: 3145, energy: 53, concerto: 102, offtune: 844 },
+    { hitFrame: 46, commitFrame: 40, mv: 3145, energy: 53, concerto: 102, offtune: 844 },
+    { hitFrame: 58, commitFrame: 40, mv: 3145, energy: 53, concerto: 102, offtune: 844 },
+    { hitFrame: 64, commitFrame: 40, mv: 3844, energy: 65, concerto: 124, offtune: 1031 },
+    { hitFrame: 70, commitFrame: 40, mv: 3145, energy: 53, concerto: 102, offtune: 844 },
   ], castEnergy: 800, castForte1: -200, ...BLADE_ECHO });
 const FHA3 = qiuyuanAction("Forte Heavy - Thus Spoke the Blade: To Sacrifice", { animFrames: 47, node: Node.Forte, cast: Cast.Heavy, subcast: Cast.Echo, type: Type.Heavy, bullets: [{ hitFrame: 32, mv: 21770, energy: 365, concerto: 701, offtune: 5840 }], castEnergy: 800, castForte1: -200, ...BLADE_ECHO });
 

@@ -2,7 +2,7 @@
  * Running an action: the phase order, the snapshot each one resolves into, and `run()`, which
  * walks a rotation and drains whatever the casts queued behind them.
  */
-import { Stat, EnemyStat, Type, Cast, ActionTag, INSTA_DELAY, SWAP_DELAY, FULL_CONCERTO } from "./stats.js";
+import { Stat, EnemyStat, Type, Cast, ActionTag, INSTA_DELAY, SWAP_DELAY, FULL_CONCERTO, splitStop } from "./stats.js";
 import type { Action, ActionGroup, ActionField, CancelledStep, DashMarker } from "./rotation.js";
 import type { CastAdd } from "./runtime.js";
 import { ctx, pendingQueue, tagWordOf, RESOURCE_STATS, replay, readAny, READ_APPLY, READ_CONVERT, READ_AFTER, applied as appliedRecord, resolving, hookReads, moved } from "./runtime.js";
@@ -74,7 +74,7 @@ export interface Result {
    *  on every traced run. solver.ts sums these the way it sums the real `avg`. */
   variantAvg: number[] | null;
   /** This action's motion value and average damage, computed here so an untraced run never
-   *  builds the stat snapshot the report reads them back from (damage.ts's `mvPercent`/`damageAvg`
+   *  builds the stat snapshot the report reads them back from (damage.ts's `mvPercent`/`damageFactors`
    *  give the same numbers off a traced one). */
   mv: number;
   avg: number;
@@ -340,10 +340,11 @@ export function evaluate(state: State, action: Action, triggered = false, source
     charged = action.holdCost(ctx.holdCut);
   }
   // the press plays its real frames whatever stops; its time stop freezes the game timer from its
-  // cast, over its animation alongside any other, and what outlasts that stacks behind it all
-  const ownStop = Math.min(action.timestop, charged.action);
-  if (castSide && action.timestop) state.freeze(realStart, ownStop, action.timestop - ownStop);
-  const realLen = charged.action + charged.global, frozenIn = Math.min(realLen, state.frozenAhead(realStart));
+  // own start frame, over its animation alongside any other, and what outlasts that stacks behind it all
+  const realLen = charged.action + charged.global;
+  const stop = splitStop(action.timestopFrom, action.timestop, charged.action, realLen);
+  if (castSide && stop.own + stop.banked) state.freeze(realStart + action.timestopFrom, stop.own, stop.banked);
+  const frozenIn = Math.min(realLen, state.frozenWithin(realStart, realStart + realLen));
   const timestopBanked = Math.max(0, frozenIn - charged.timestop);
   ctx.actFrames = realLen - frozenIn;
   ctx.actReal = realLen;
@@ -353,8 +354,9 @@ export function evaluate(state: State, action: Action, triggered = false, source
   const frames = ctx.actFrames;
   // its motion stop holds every inactive resonator's animations and clocks from its cast the same
   // way, pushing their queued hits back (`shiftOffField()`)
-  const ownHold = Math.min(action.motionStop, charged.action);
-  ctx.offFieldShift = castSide && action.motionStop ? state.holdOffField(realStart, ownHold, action.motionStop - ownHold) : 0;
+  const hold = splitStop(action.motionStopFrom, action.motionStop, charged.action, realLen);
+  ctx.offFieldFrom = realStart + action.motionStopFrom;
+  ctx.offFieldShift = castSide && hold.own + hold.banked ? state.holdOffField(ctx.offFieldFrom, hold.own, hold.banked) : 0;
 
   // Every hit: the action's own updateDebuffs() and the hit's, every held Gear's, then the same for
   // hitGlobal(), then the grants its inflictions trigger
@@ -592,7 +594,7 @@ export function evaluate(state: State, action: Action, triggered = false, source
   // DirectOfftune (a Tune Break's own drain, Denia's half-bar surge) is already the amount the bar
   // moves, so it goes on untouched. A declared negative would come off in full for the same reason.
   // Unclamped, unlike energy/concerto: a break can leave the bar below empty (see tunebreak.ts).
-  const built = action.offtune + effective[Stat.AddOfftune]!;
+  const built = (action.offtune + effective[Stat.AddOfftune]!) * (1 + effective[Stat.OfftuneMult]! / 100);
   state.offtune += (built < 0 ? built : built * (effective[Stat.OfftuneBuildup]! / 100)) + effective[Stat.DirectOfftune]!;
 
   // RealEnergy (TeamMember.realEnergy): the same gain as the real Energy bar above, each holder
@@ -621,6 +623,7 @@ export function evaluate(state: State, action: Action, triggered = false, source
         ? ((slot.resonator?.maxEnergy ?? 0) * 100 - (slot.erGainEr - slot.constEr * slot.erGain)) / realEnergyBefore
         : 0;
       if (want > slot.erWorst) slot.erWorst = want;
+      slot.erWants.push(want);
       // Nothing after this point can make the bar have been full, so the rest of the fight is run
       // on a build that cannot cast what its rotation lists. Bail here and let teamrun re-equip.
       if (slot.erGuard && want > slot.constEr + ER_TOLERANCE + 1e-9) {
@@ -634,7 +637,7 @@ export function evaluate(state: State, action: Action, triggered = false, source
     slot.realEnergy = 0;
   } else if (!endsLoop) {
     slot.erGain += energyGain;
-    slot.erGainEr += energyGain * effective[Stat.Er]!;
+    slot.erGainEr += energyGain * effective[Stat.ER]!;
   }
 
   // same shape, for whichever forte gauges this action declares a delta on — a kit assigns its
@@ -1125,8 +1128,9 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
     const checked = !dash && action.half === null;
     if (checked && LENGTH_CHECKED.has(kind)) checkCutLength(pressed.cancelOf ?? pressed, kind);
     // a marker resolving to presses of either kind can't be written insta for the hitless one alone
-    if (checked && !step.action.resolveFn && SLOW_CUTS.has(kind) && action.cutFrame <= INSTA_DELAY) {
-      throw new Error(`${action.name}: cuts at frame ${action.cutFrame}, inside an insta cut's ${INSTA_DELAY} — write it as ${INSTA_OF[kind as ActionTag]} instead of ${kind}`);
+    const cutAt = kind === ActionTag.SwapCancel ? action.swapCutFrame : action.cutFrame;
+    if (checked && !step.action.resolveFn && SLOW_CUTS.has(kind) && cutAt <= INSTA_DELAY) {
+      throw new Error(`${action.name}: cuts at frame ${cutAt}, inside an insta cut's ${INSTA_DELAY} — write it as ${INSTA_OF[kind as ActionTag]} instead of ${kind}`);
     }
     // a press that takes time casts now and queues each hit on the time-ordered queue at its own
     // frame, and its end where it runs out
@@ -1187,7 +1191,7 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
     }
     // what this evaluation dealt, at the frame it landed: what the rotations' damage is summed from
     if (result.avg !== 0 || result.variantAvg) state.hits.push({ at: result.starts, slot: result.slot, member: result.member, avg: result.avg, variantAvg: result.variantAvg });
-    if (ctx.offFieldShift !== 0) shiftOffField(state, ctx.offFieldShift, now);
+    if (ctx.offFieldShift !== 0) shiftOffField(state, ctx.offFieldShift, Math.max(now, ctx.offFieldFrom));
     // each hit carries its press's length, and the end — where what a swap cancel loses goes — is
     // where the press runs out, never ahead of a hit it committed
     if (split) {
@@ -1343,11 +1347,14 @@ function walk(state: State, steps: StepQueue, spillGroup: ActionGroup | null): b
     // the earliest due: a tick's hits join the queue unsorted
     let next = Infinity;
     for (const h of state.timed) next = Math.min(next, h.due);
-    const from = state.real, to = next < state.playsTo ? Math.max(from, next) : state.playsTo;
+    const from = state.real;
+    // a stop starting ahead (mid-press) ends the stretch there, so each one stands from its start
+    const ahead = Math.min(state.nextFreezeAfter(from), state.motionFrom > from ? state.motionFrom : Infinity);
+    const to = Math.min(next < state.playsTo ? Math.max(from, next) : state.playsTo, ahead);
     // the clocks run on the game timer, which time stop stands still from `from` to where it
     // thaws; an off-field one also loses whatever of the rest motion stop still holds
-    const thaw = Math.min(to, from + state.frozenAhead(from)), gameFrom = state.frame;
-    const stop = Math.max(0, Math.min(to, state.motionUntil) - thaw);
+    const thaw = Math.min(to, from + state.frozenFrom(from)), gameFrom = state.frame;
+    const stop = Math.max(0, Math.min(to, state.motionUntil) - Math.max(thaw, state.motionFrom));
     ctx.state = state;
     ctx.slot = state.slot;
     state.runTicks(gameFrom, state.gameOf(to), stop, (game) => thaw + game - gameFrom);
@@ -1549,7 +1556,7 @@ const RESOURCE_LIST = Int32Array.from(RESOURCE_STATS);
  *  real build deals. */
 const DAMAGE_READS: boolean[][] = (() => {
   const atk = [Stat.BaseAtk, Stat.BonusAtk, Stat.FlatAtk], hp = [Stat.BaseHp, Stat.BonusHp, Stat.FlatHp], def = [Stat.BaseDef, Stat.BonusDef, Stat.FlatDef];
-  const never = [Stat.Er, Stat.HealingBonus, Stat.HealingReceived, BASIC_DMG_BONUS_INDEX, ...RESOURCE_STATS];
+  const never = [Stat.ER, Stat.HealingBonus, Stat.HealingReceived, BASIC_DMG_BONUS_INDEX, ...RESOURCE_STATS];
   const reads = (...skip: number[]): boolean[] => {
     const row = Array.from(ZERO_STATS, () => true);
     for (const i of [...never, ...skip]) row[i] = false;
@@ -1657,8 +1664,9 @@ function constBaseOf(slot: TeamMember, from: Gear | null, to: Gear | null, from2
  *  else — so a roster, a tag word and the pieces stood in name it. Replays what a real call leaves
  *  behind too: the writes it counts (`ctx.wrote`) and the last Gear it ran as current. */
 interface CachedBase { row: StatRow; wrote: number; buff: Gear | null; stacks: number }
-/** Per constant roster (keyed by its Gear ids and counts), its bases by tag word and stand-ins. */
-interface Roster { any: boolean; bases: Map<string, CachedBase> }
+/** Per constant roster (keyed by its Gear ids and counts), its bases by tag word and stand-ins —
+ *  `plain` the ones with no stand-in, by tag word alone, the commonest lookup by far. */
+interface Roster { any: boolean; bases: Map<string, CachedBase>; plain: Map<number, CachedBase> }
 const ROSTERS = new Map<string, Roster>();
 let rosterBases = 0;
 /** A slot's constant roster only moves when `ctx.constVersion` does, so it is looked up once per version. */
@@ -1678,19 +1686,21 @@ function rosterOf(slot: TeamMember): Roster {
     rosterBases = 0;
   }
   let roster = ROSTERS.get(key);
-  if (!roster) ROSTERS.set(key, (roster = { any, bases: new Map() }));
+  if (!roster) ROSTERS.set(key, (roster = { any, bases: new Map(), plain: new Map() }));
   SLOT_ROSTERS.set(slot, { version: ctx.constVersion, roster });
   return roster;
 }
 function cachedBase(slot: TeamMember, from: Gear | null, to: Gear | null, from2: Gear | null, to2: Gear | null): StatRow {
   const roster = rosterOf(slot);
-  const key = `${ctx.tagWord}#${from?.id ?? 0}>${to?.id ?? 0}#${from2?.id ?? 0}>${to2?.id ?? 0}`;
-  let hit = roster.bases.get(key);
+  const plain = from === null && to === null && from2 === null && to2 === null;
+  const key = plain ? "" : `${ctx.tagWord}#${from?.id ?? 0}>${to?.id ?? 0}#${from2?.id ?? 0}>${to2?.id ?? 0}`;
+  let hit = plain ? roster.plain.get(ctx.tagWord) : roster.bases.get(key);
   if (hit === undefined) {
     const wrote = ctx.wrote;
     const row = constBaseOf(slot, from, to, from2, to2);
     hit = { row, wrote: ctx.wrote - wrote, buff: roster.any ? ctx.buff : null, stacks: ctx.stacks };
-    roster.bases.set(key, hit);
+    if (plain) roster.plain.set(ctx.tagWord, hit);
+    else roster.bases.set(key, hit);
     rosterBases++;
     return row;
   }

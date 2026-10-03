@@ -27,17 +27,15 @@ import {
   runningAction,
   casting,
   revokeCurrent,
-  addStat,
   queueOutro,
   applyTeam,
   isHeld,
   queue,
-  
   currentTeam,
   queueOn,
   addToCast,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, ActionField, NOINTRO, ECHO, START_LAST, INTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, ActionField, NOINTRO, ECHO, INTRO } from "../../engine/rotation.js";
 import { RIME_DRAPED_SPROUTS, STRINGMASTER, LETHEAN_ELEGY, WHISPERS_OF_SIRENS } from "../../weapons/rectifier.js";
 import { VARIATION, NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { EMPYREAN_ANTHEM_5PC, NM_LAMPY } from "../../echoes/rinascita.js";
@@ -53,7 +51,7 @@ function zhezhiAction(id: string, def: object): Action {
 
 // --- basics, mid-air, dodge counter (Dimming Brush)
 const BA1 = zhezhiAction("Basic - Dimming Brush 1", { animFrames: 36, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 18, mv: 4176, energy: 75, concerto: 240, offtune: 2400, forte1: 500 },
+    { hitFrame: 18, commitFrame: 12, mv: 4176, energy: 75, concerto: 240, offtune: 2400, forte1: 500 },
     { hitFrame: 34, commitFrame: 28, mv: 4176, energy: 75, concerto: 240, offtune: 2400, forte1: 500 },
   ]});
 const BA2 = zhezhiAction("Basic - Dimming Brush 2", { animFrames: 44, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
@@ -96,11 +94,11 @@ const FHA = zhezhiAction("Forte Heavy - Conjuration", {
   ], castForte1: -3000,
 });
 const FSkill = zhezhiAction("Skill - Stroke of Genius", {
-  animFrames: 52, motionStop: 12,
+  animFrames: 52, prioFrames: 20, motionStop: [0, 12],
   node: Node.Forte, cast: Cast.Skill, type: Type.Basic, bullets: [{ hitFrame: 46, commitFrame: 18, mv: 29822, energy: 700, offtune: 7464, updateDebuffs: () => { if (isHeld(ZZ_S6)) queue(ACTION_HERALD_S6); } }], castConcerto: 1300, castForte2: 1,
 });
 const FSkill3 = zhezhiAction("Forte Skill - Creation's Zenith", { minForte2: 2,
-  animFrames: 72, motionStop: 52,
+  animFrames: 72, prioFrames: 32, motionStop: [0, 52],
   node: Node.Forte, cast: Cast.Skill, type: Type.Basic, bullets: [
     { hitFrame: 56, commitFrame: 28, mv: 11929, energy: 234, offtune: 3467, updateDebuffs: () => { if (isHeld(ZZ_S6)) queue(ACTION_HERALD_S6); } },
     { hitFrame: 68, commitFrame: 28, mv: 11929, energy: 234, offtune: 3467 },
@@ -111,7 +109,7 @@ const FSkill3 = zhezhiAction("Forte Skill - Creation's Zenith", { minForte2: 2,
 
 // opens the Inklit Spirit window, no damage of its own — the window itself is INKLIT_SPIRITS below
 const Liberation = zhezhiAction("Liberation - Living Canvas", {
-  animFrames: 166, timestop: 166, motionStop: 166, cooldown: 60 * 25,
+  animFrames: 166, prioFrames: 166, timestop: [0, 166], motionStop: [0, 166], cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, castConcerto: 2000, resetEnergy: true,
   updateBuffs: () => applyTeam(INKLIT_SPIRITS, isHeld(ZZ_S2) ? 27 : 21),
 });
@@ -125,7 +123,7 @@ const ACTION_INKLIT = zhezhiAction("Liberation - Inklit Spirit", {
 /** S5's extra spirit: 140% of one Inklit Spirit, its own row on the kit page (91.30%, and no
  *  off-tune of its own) — Basic Attack DMG, and it never summons a spirit of its own. */
 const ACTION_INKLIT_S5 = zhezhiAction("Liberation - Inklit Spirit (S5)", {
-  node: Node.Liberation, type: Type.Basic, subtype: Subtype.Coordinated, bullets: [{ hitFrame: 37, mv: 9130, offtune: 4572 }], field: INKLIT_FIELD,
+  node: Node.Liberation, type: Type.Basic, subtype: Subtype.Coordinated, bullets: [{ hitFrame: 37, mv: 9130 }], field: INKLIT_FIELD,
 });
 /** S6's extra Herald: 120% of Stroke of Genius, likewise its own row (357.86%, no energy, concerto
  *  or off-tune) — Basic Attack DMG, summoned rather than cast. */
@@ -134,11 +132,11 @@ const ACTION_HERALD_S6 = zhezhiAction("Skill - Ivory Herald (S6)", {
 });
 
 const Intro = zhezhiAction("Intro - Radiant Ruin", {
-  animFrames: 80, prioFrames: 80, motionStop: 55,
+  animFrames: 80, noSwapFrames: 80, prioFrames: 80, motionStop: [5, 59],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
-    { hitFrame: 66, mv: 8616, energy: 334, offtune: 3467 },
-    { hitFrame: 72, mv: 8616, energy: 334, offtune: 3467 },
-    { hitFrame: 78, mv: 8616, energy: 334, offtune: 3467 },
+    { hitFrame: 66, commitFrame: 36, mv: 8616, energy: 334, offtune: 3467 },
+    { hitFrame: 72, commitFrame: 36, mv: 8616, energy: 334, offtune: 3467 },
+    { hitFrame: 78, commitFrame: 36, mv: 8616, energy: 334, offtune: 3467 },
   ], castConcerto: 1000, castForte1: 4500,
 });
 const Outro = zhezhiAction("Outro - Carve and Draw", {

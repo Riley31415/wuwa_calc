@@ -65,11 +65,6 @@ export const unisonOutro = (outro: Action): Action => {
   return out;
 };
 
-/** Is the chain being played a DOUBLE_INTRO pre-visit — the short visit that leaves on a Unison
- *  outro handing the field *backward* (rotation.ts's own `outroDir`)? What a kit that grants
- *  Unison once every 25s checks: only the pre-visit's cast grants, the main visit's pays the bar. */
-export const isDoubleIntro = (): boolean => currentTeam().outroDir === -1;
-
 /** "Upon obtaining Unison" — did the action being evaluated grant it? */
 export const gainedUnison = inflicting(() => applied(UNISON) > 0);
 

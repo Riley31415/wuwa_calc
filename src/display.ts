@@ -213,14 +213,15 @@ const actionInfo = (
   // the frames are the whole press's, however it was cut or swapped out of
   let press = action;
   while (press.cancelOf ?? press.formOf) press = (press.cancelOf ?? press.formOf)!;
+  push("Animation Frames", String(press.animFrames));
+  push("High Priority Frames", press.prioFrames ? String(press.prioFrames) : null);
+  push("No Swap Frames", press.noSwapFrames ? String(press.noSwapFrames) : null);
+  push("Outro Buff Frames", press.qteFrames ? String(press.qteFrames) : null);
+  push("Time Stop Frames", press.timestop ? `${press.timestopFrom}-${press.timestopFrom + press.timestop}` : null);
+  push("Motion Stop Frames", press.motionStop ? `${press.motionStopFrom}-${press.motionStopFrom + press.motionStop}` : null);
   push("Hit Frames", press.bullets.length ? press.bullets.map((h) => h.hitFrame).join(", ") : null);
   // a bullet committing ahead of its hit
   push("Commit Frames", press.bullets.some((h) => h.commitFrame !== h.hitFrame) ? press.bullets.map((h) => h.commitFrame).join(", ") : null);
-  push("Animation Frames", String(press.animFrames));
-  push("High Priority Frames", press.prioFrames ? String(press.prioFrames) : null);
-  push("Outro Buff Frames", press.qteFrames ? String(press.qteFrames) : null);
-  push("Time Stop Frames", press.timestop ? String(press.timestop) : null);
-  push("Motion Stop Frames", press.motionStop ? String(press.motionStop) : null);
   // what queued it — a buff, a piece of gear, the cast it followed — in its owner's colour
   if (source) info.push({ label: "Source", value: source.name, source: source.source });
   return info;
@@ -285,8 +286,6 @@ function tracing(snapshot: ResolvedSnapshot, stats: StatKey[], merge = true): Tr
   }
   return rows.sort((a, b) => tagRank(a.stat ?? 0) - tagRank(b.stat ?? 0));
 }
-
-export const columnOf = (report: Report, key: string): Column | undefined => report.columns.find((c) => c.key === key);
 
 /** A gauge cell's "/cap" — `maxForteN` where the Resonator declares one, and the enemy's own
  *  off-tune ceiling. The cap prints at its own decimals rather than the column's, so a bar capped
@@ -470,10 +469,12 @@ function rowValues(
     sources.energy = [...(sources.energy ?? []), ...rate.map((r) => ({ ...r, section: ENERGY_RATE }))];
     raw["moved:energy"] = (Number(raw["moved:energy"]) || 0) * (1 + snap.stat(Stat.EnergyRegenMult) / 100);
   }
-  // off-tune: built amount x Buildup Rate, then DirectOfftune on top (a drain skips the rate)
-  const buildingOfftune = snap.action.offtune
-    + tracing(snap, keysFor(snap.action, Stat.AddOfftune)).reduce((n, r) => n + r.value, 0);
+  // off-tune: built amount x its multiplier x Buildup Rate, then DirectOfftune on top (a drain skips both)
+  const buildingOfftune = (snap.action.offtune
+    + tracing(snap, keysFor(snap.action, Stat.AddOfftune)).reduce((n, r) => n + r.value, 0)) * (1 + snap.stat(Stat.OfftuneMult) / 100);
   if (buildingOfftune > 0) {
+    const mult = tracing(snap, keysFor(snap.action, Stat.OfftuneMult));
+    if (mult.length) sources.offtune = [...(sources.offtune ?? []), ...mult.map((r) => ({ ...r, section: ENERGY_RATE }))];
     const rate = tracing(snap, keysFor(snap.action, Stat.OfftuneBuildup));
     if (rate.length) sources.offtune = [...(sources.offtune ?? []), ...rate.map((r) => ({ ...r, section: OFFTUNE_RATE }))];
   }

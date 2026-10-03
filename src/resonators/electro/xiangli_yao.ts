@@ -26,7 +26,6 @@ import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, BuffTarget } fr
 import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence, matrix } from "../../engine/gear.js";
 import {
   applyCurrent,
-  currentAction,
   onAction,
   runningAction,
   casting,
@@ -88,7 +87,7 @@ const Skill = xlyAction("Skill - Deduction", { animFrames: 41, cooldown: 60 * 5,
 /** Decipher: spends the full 100 Capacity, considered Resonance Liberation DMG. */
 const FSkill = xlyAction("Forte Skill - Decipher", { minForte1: 100, animFrames: 45, node: Node.Forte, cast: Cast.Skill, type: Type.Liberation, bullets: [{ hitFrame: 45, mv: 39782, energy: 167, offtune: 5336 }], castConcerto: 700, castForte1: -100});
 
-const Liberation = xlyAction("Liberation - Cogitation Model", { animFrames: 191, timestop: 270, motionStop: 191, prioFrames: 191, cooldown: 60 * 25, node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 191, mv: 146606, offtune: 67200 }], castConcerto: 2000, resetEnergy: true });
+const Liberation = xlyAction("Liberation - Cogitation Model", { animFrames: 191, timestop: [0, 270], motionStop: [0, 191], prioFrames: 191, cooldown: 60 * 25, node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 191, mv: 146606, offtune: 67200 }], castConcerto: 2000, resetEnergy: true });
 
 // Intuition's own moveset — Pivot - Impale basics, Divergence, Unfathomed; Performance Capacity
 // (forte2) deltas are the kit text's own numbers
