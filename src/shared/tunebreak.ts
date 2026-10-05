@@ -10,7 +10,8 @@ import {
   addStat,
   applied,
   applyEnemy,
-  currentAction,
+  currentCast,
+  currentHit,
   runningAction,
   currentTeam,
   equip,
@@ -24,9 +25,9 @@ import {
   triggeredAction,
   isActive,
   pressCut,
-  replaceNextDash,
+  replaceCut,
 } from "../engine/context.js";
-import { Action, nextIsPlainDodge } from "../engine/rotation.js";
+import { Action } from "../engine/rotation.js";
 import { currentMember } from "../engine/context.js";
 
 /* ---------------------------------------------------------------------------- the enemy */
@@ -49,27 +50,66 @@ export const BASE_RESISTANCE = new Gear({
  *  taken straight back off the bar — for the three seconds after the break. */
 export const TUNE_BREAK_COOLDOWN: Debuff = new Debuff({
   name: "Tune Break Cooldown", duration: 60 * 3,
-  // what evaluate() is about to bank of what this action *built*, negated — last of all, once
-  // every AddOfftune source has landed. What a kit puts on the bar directly (DirectOfftune,
-  // Denia's half-bar surge) is not a gain the cooldown holds off.
-  lateConvertStats: () => {
-    const built = (currentAction().offtune + getStat(Stat.AddOfftune)) * (1 + getStat(Stat.OfftuneMult) / 100);
-    if (built > 0) addStat(Stat.DirectOfftune, -built * getStat(Stat.OfftuneBuildup) / 100);
-  },
+  // the Buildup Rate down to nothing, last of all, so nothing this action *builds* reaches the bar.
+  // What a kit puts on the bar directly (direct off-tune, Denia's half-bar surge) and a drain skip
+  // the rate, so neither is a gain the cooldown holds off.
+  lateConvertStats: () => addStat(Stat.OfftuneBuildup, -getStat(Stat.OfftuneBuildup)),
 });
 
-/** The cuts a break may come out behind: none at all (or a press beside the fight), and a plain,
- *  insta, on-hit or mash cancel. */
-const BREAK_AFTER = new Set<string>([ActionTag.Default, ActionTag.Field, ActionTag.Cancel, ActionTag.InstaCancel, ActionTag.HitCancel, ActionTag.MashCancel]);
+/** The cuts a break may come out behind at the press's end: none at all, or a press beside the
+ *  fight. A plain, on-hit or insta cancel is read on its cut frame instead (`atCut`), where the break
+ *  has to be castable; a hold or mash cancel gives it no opening at all. */
+const BREAK_AFTER = new Set<string>([ActionTag.Default, ActionTag.Field]);
 
-/** The dodge cuts a break may replace the plain dodge of, and the cut each becomes. */
-const DODGE_CUTS = new Map<string, string>([
+/** The cuts a break may go in behind on the frame what follows would start — taking a plain dodge's
+ *  or a swap cancel's swap's place, or ahead of the next press after a plain one — and the cut each
+ *  becomes. */
+const BREAK_CUTS = new Map<string, string>([
   [ActionTag.DodgeCancel, ActionTag.Cancel], [ActionTag.InstaDodge, ActionTag.InstaCancel], [ActionTag.DodgeOnHit, ActionTag.HitCancel],
+  [ActionTag.SwapCancel, ActionTag.Cancel],
+  [ActionTag.Cancel, ActionTag.Cancel], [ActionTag.HitCancel, ActionTag.HitCancel], [ActionTag.InstaCancel, ActionTag.InstaCancel],
 ]);
 
-/** A break queued and waiting for the press playing to run out (`ActionDef.afterPlay`): the bar
+/** A break queued and waiting for the press playing to run out (`queueEvent()`): the bar
  *  stays full until it is cast, and this keeps a second one from queuing behind it meanwhile. */
 const TUNE_BREAK_QUEUED: Debuff = new Debuff({ name: "Tune Break Queued", hidden: true });
+
+/** The target can be Rupture, Strain or Hack shifted: put on it at the start of the fight by each
+ *  kit that lays a Shifting, and while it stands only a shifted target breaks. */
+export const TUNE_SHIFTABLE: Debuff = new Debuff({ name: "Tune Shiftable", hidden: true });
+
+/** On the target from an Intro or Liberation the on-field resonator casts until they land a damaging
+ *  hit of another press of their own — not a FIELD tick, nor an Intro's or Liberation's: no break
+ *  while it stands. */
+const BREAK_HELD: Debuff = new Debuff({ name: "Tune Break Held", hidden: true });
+
+/** A break was castable on the frame the press behind it was cut (`atCut`): what the takeover after
+ *  the cut's delay acts on, that delay being only the input. */
+const READY_AT_CUT: Debuff = new Debuff({ name: "Tune Break Ready At Cut", hidden: true });
+
+/** Whether a full bar breaks behind `behind`, whatever cut it: every gate but the cut's own, which
+ *  a press's end and a plain dodge's place each read their own way. Only reads. */
+function breakReady(behind: Readonly<Action>): boolean {
+  if (currentTeam().offtune < ENEMY_MAX_OFFTUNE || stacksOfEnemy(TUNE_BREAK_QUEUED) || stacksOfEnemy(BREAK_HELD)) return false;
+  // a team that can shift the target waits for one of theirs to be on it
+  if (stacksOfEnemy(TUNE_SHIFTABLE) && !SHIFTINGS.some((s) => stacksOfEnemy(s) > 0)) return false;
+  // not while the last break's own Rupture/Hack Interfered is still up: a target already
+  // interfered with can't be broken again until that window is out. The bar just stays full
+  // meanwhile, so the break lands on the first action after the window ends.
+  if (stacksOfEnemy(TUNE_RUPTURE_INTERFERED) > 0 || stacksOfEnemy(TUNE_HACK_INTERFERED) > 0) return false;
+  // ...and never behind an Intro or a Liberation: the bar waits for the press after it
+  if (isCast(behind, Cast.Intro) || isCast(behind, Cast.Liberation)) return false;
+  // ...nor behind a wait (`waitFor()`'s rows, every one named "Wait ..."): it is no press at all
+  if (behind.name.startsWith("Wait ")) return false;
+  // ...nor behind a mid-air press (every one named "Mid-air ..."): the break waits for one on the ground
+  if (behind.name.startsWith("Mid-air")) return false;
+  // ...nor behind one the rotation marks as none (`noTb()`), its cut and swap forms included
+  for (let a: Readonly<Action> | null = behind; a; a = a.cancelOf ?? a.formOf) if (a.tag === ActionTag.NoTb) return false;
+  // ...nor behind a dodge or a jump, played out or not: the bar waits for the press after it
+  if (isCast(behind, Cast.Dodge) || isCast(behind, Cast.Jump)) return false;
+  // ...nor inside a time stop, standing or still to come: the first press ending past it fires it
+  return currentTeam().frozenAhead() === 0;
+}
 
 /** The enemy, as the dummy resonator every fight has: its name is the bucket the break's damage
  *  reports under (a break is nobody's turn) and its colour the hue that bucket wears, and it holds
@@ -86,6 +126,7 @@ export const TUNE_BREAK_ENEMY = new Resonator({
   // A break drops whatever the bar overshot by and starts the cooldown as it is cast, so its own
   // `castOfftune` drain lands the bar on empty exactly — the same `>=` that queues a break below.
   updateBuffs: () => {
+    if (isActive() && (isCast(currentCast(), Cast.Intro) || isCast(currentCast(), Cast.Liberation))) applyEnemy(BREAK_HELD, 1);
     if (!runningAction(TUNE_BREAK)) return;
     revokeEnemy(TUNE_BREAK_QUEUED);
     const state = currentTeam();
@@ -98,29 +139,41 @@ export const TUNE_BREAK_ENEMY = new Resonator({
   // Only a real on-field press can set one off: a queued follow-up (`triggeredAction()`) and an
   // inactive action both top the bar up without breaking it, and a break — triggered itself — never
   // sets off another. The bar stays full either way, so the next action that *is* one fires it.
+  // the on-field resonator's own damaging hit lifts the hold an Intro or Liberation put up
+  afterHit: () => {
+    if (!stacksOfEnemy(BREAK_HELD) || !isActive() || currentHit().mv <= 0) return;
+    const press = currentCast();
+    if (press.tag === ActionTag.Field || isCast(press, Cast.Intro) || isCast(press, Cast.Liberation)) return;
+    revokeEnemy(BREAK_HELD);
+  },
   afterAction: () => {
     if (triggeredAction() || !isActive()) return;
-    // a press cut by the plain dodge can have the break take that dodge's place, the cut becoming
-    // its non-dodge form — the group the dodge closed ends on the press
-    const dodgeCut = DODGE_CUTS.get(pressCut());
-    const replacesDodge = !!dodgeCut && nextIsPlainDodge();
-    // ...and not part-way through an ActionGroup, which the rotation presses as one beat: the bar
-    // can fill on any cast in it, but the break lands on the one that ends the group (evaluate.ts)
-    if (midActionGroup() && !replacesDodge) return;
-    // and not while the last break's own Rupture/Hack Interfered is still up: a target already
-    // interfered with can't be broken again until that window is out. The bar just stays full
-    // meanwhile, so the break lands on the first action after the window ends.
-    if (stacksOfEnemy(TUNE_RUPTURE_INTERFERED) > 0 || stacksOfEnemy(TUNE_HACK_INTERFERED) > 0) return;
-    // ...and never behind an Intro or a Liberation: the bar waits for the press after it
-    if (isCast(currentAction(), Cast.Intro) || isCast(currentAction(), Cast.Liberation)) return;
-    // ...nor behind a wait (`waitFor()`'s rows, every one named "Wait ..."): it is no press at all
-    if (currentAction().name.startsWith("Wait ")) return;
-    // ...and only behind a press that played out or was cancelled outright: a hold, a dash, a jump or
-    // a swap gives the break no opening, so the bar stays full for the next press that does
-    if (!BREAK_AFTER.has(pressCut()) && !replacesDodge) return;
-    if (currentTeam().offtune < ENEMY_MAX_OFFTUNE || stacksOfEnemy(TUNE_BREAK_QUEUED)) return;
+    // not part-way through an ActionGroup, which the rotation presses as one beat: the bar can fill
+    // on any cast in it, but the break lands on the one that ends the group (evaluate.ts)
+    if (midActionGroup()) return;
+    // ...and only behind a press that played out: a cut one is read on its cut frame (`atCut`,
+    // `takesCut` below), and a hold, mash or jump gives the break no opening at all
+    if (!BREAK_AFTER.has(pressCut()) || !breakReady(currentCast())) return;
     applyEnemy(TUNE_BREAK_QUEUED, 1);
-    if (replacesDodge) replaceNextDash(dodgeCut!);
+    queueEvent(TUNE_BREAK_PRESS);
+  },
+  // whether a break is castable on the frame a press is cut, ahead of its bullets still to land
+  atCut: (behind, cut) => {
+    revokeEnemy(READY_AT_CUT);
+    if (BREAK_CUTS.has(cut) && breakReady(behind)) applyEnemy(READY_AT_CUT, 1);
+  },
+  // A break castable on that cut frame plays once the cut's delay is out — in a plain dodge's place,
+  // or ahead of the next step after a swap cancel or a plain cancel — mid-group or not: the cut
+  // becomes a plain one, and a swap cancel's Outro still comes after the break
+  takesCut: (behind, cut) => {
+    const plain = BREAK_CUTS.get(cut), ready = stacksOfEnemy(READY_AT_CUT) > 0;
+    revokeEnemy(READY_AT_CUT);
+    if (!plain || !ready || stacksOfEnemy(TUNE_BREAK_QUEUED) || currentTeam().offtune < ENEMY_MAX_OFFTUNE) return;
+    // ...where it cuts in over what the press still holds on that frame
+    const c = behind.cost(cut as ActionTag);
+    if ((breakPress().castPriority ?? 0) <= behind.priorityAt(c.action + c.global)) return;
+    applyEnemy(TUNE_BREAK_QUEUED, 1);
+    replaceCut(plain);
     queueEvent(TUNE_BREAK_PRESS);
   },
 });
@@ -131,9 +184,8 @@ export const TUNE_BREAK_ENEMY = new Resonator({
 export const TUNE_BREAK = new Action("Tune Break (Auto Generated)", {
   element: Attribute.Physical, scaling: Scaling.Tune, cast: Cast.TuneBreak, type: Type.Break,
   bullets: [{ hitFrame: 90, mv: 160000 }], slot: TUNE_BREAK_ENEMY.name,
-  // the world stands still for all of it, so the game timer charges none; it waits for the
-  // press playing to run out rather than playing over it
-  animFrames: 90, prioFrames: 90, timestop: [0, 90], motionStop: [0, 70], afterPlay: true,
+  // the world stands still for all of it, so the game timer charges none
+  animFrames: 90, castPriority: 11, timestop: [0, 90], motionStop: [0, 70],
   // A cast nobody pressed, so `run()` counts it triggered by its cast: every per-action clock in
   // the fight — the two below, a sonata's own cadence, an inherent counting presses — reads
   // `triggeredAction()` and passes it over, rather than each having to know the break by name.
@@ -149,9 +201,9 @@ export const BROADBLADE_BREAK: TuneBreakHit[] = [[4, 17334], [26, 22666], [66, 1
 
 /** The break as one resonator performs it: its bullets, played over their own frames — a form of
  *  `TUNE_BREAK`, so every `runningAction(TUNE_BREAK)` still reads it. Its priority holds to its end
- *  unless the kit's own break drops sooner (`prioFrames`). */
-export function tuneBreak(animFrames: number, timestop: readonly [number, number], motionStop: readonly [number, number], bullets: TuneBreakHit[], prioFrames = animFrames): Action {
-  const out = TUNE_BREAK.variant(TUNE_BREAK.name, { animFrames, prioFrames, timestop, motionStop, bullets: bullets.map(([hitFrame, mv, commitFrame]) => ({ hitFrame, mv, commitFrame })) });
+ *  unless the kit's own break drops sooner (`animPriority`). */
+export function tuneBreak(animFrames: number, timestop: readonly [number, number], motionStop: readonly [number, number], bullets: TuneBreakHit[], animPriority = TUNE_BREAK.def.animPriority): Action {
+  const out = TUNE_BREAK.variant(TUNE_BREAK.name, { animFrames, animPriority, timestop, motionStop, bullets: bullets.map(([hitFrame, mv, commitFrame]) => ({ hitFrame, mv, commitFrame })) });
   out.formOf = TUNE_BREAK;
   return out;
 }
@@ -167,16 +219,13 @@ const CLASS_TUNE_BREAK: Record<WeaponType, Action> = {
 
 /** What a full bar queues: resolved when reached to the on-field resonator's own break — their kit's
  *  (`ResonatorDef.tuneBreak`, itself resolved where it has one), else their weapon class's. */
-const TUNE_BREAK_PRESS = new Action("Tune Break Placeholder", {
-  // queued, it waits for the press playing to run out like the break it resolves to
-  afterPlay: true,
-  resolve: () => {
-    const resonator = currentMember().resonator;
-    const own = resonator?.tuneBreak;
-    if (own) return own.resolveFn ? own.resolveFn() : own;
-    return resonator ? CLASS_TUNE_BREAK[resonator.weapon] : TUNE_BREAK;
-  },
-});
+function breakPress(): Action {
+  const resonator = currentMember().resonator;
+  const own = resonator?.tuneBreak;
+  if (own) return own.resolveFn ? own.resolveFn()! : own;
+  return resonator ? CLASS_TUNE_BREAK[resonator.weapon] : TUNE_BREAK;
+}
+const TUNE_BREAK_PRESS = new Action("Tune Break Placeholder", { resolve: breakPress });
 
 /* ------------------------------------------------------------- shifting and interfered */
 

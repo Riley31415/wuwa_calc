@@ -51,7 +51,7 @@ import {
   applyTeam,
   casting,
   consume,
-  currentAction,
+  currentCast,
   triggeredAction,
   runningAction,
   currentTeam,
@@ -73,7 +73,7 @@ import {
   onInflict,
   onApplied,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, ECHO, START_LAST, INTRO_LAST, ActionTag } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, ECHO, START_LAST, INTRO_LAST, ActionTag, OUTRO } from "../../engine/rotation.js";
 import { HAVOC_BANE, anyNegativeStatusInflicted } from "../../shared/status.js";
 import { AZURE_OATH, EMERALD_SENTENCE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
@@ -86,6 +86,13 @@ import { substats, highSubs, Substat } from "../../shared/substats.js";
 function yangyangAction(id: string, def: object): Action {
   return new Action(id, { element: Attribute.Havoc, scaling: Scaling.Atk, ...def });
 }
+
+/** The two stances, each entered by its own Switch or Flow and left by the other's; she starts in
+ *  Azure (the Resonator's combatStart). Every stance press requires its own. */
+const AZURE_STANCE = new Buff({ name: "Xuanling: Azure Sword Stance" });
+const FEATHER_STANCE = new Buff({ name: "Xuanling: Feather Sword Stance" });
+/** Hark the Wind: 12s off Feather Fall, Feather basics becoming Havoc in Bloom; Stage 3 ends it. */
+const HARK_THE_WIND = new Buff({ name: "Xuanling: Hark the Wind", duration: 60 * 12 });
 
 /** Both Sword Stance Flow forms, which are where every stored payout is cashed. Feather Release
  *  inflicts in `updateDebuffs`, the hit's first phase, so the team's own "on inflicting Havoc Bane"
@@ -109,18 +116,18 @@ const FLOW_CONSUME = { updateDebuffs: () => consume(HAVOC_BANE, 1) };
 
 // --- Succor and Smite: the two four-stage Basic chains, the only ordinary Basic Attack DMG she
 //     has. Stage 4 of each lands a stack of Havoc Bane.
-const BA_A1 = yangyangAction("Basic - Azure Sword Stance 1", { animFrames: 19, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 14, mv: 4772, energy: 75, concerto: 150, offtune: 2400, forte1: -1200 }]});
-const BA_A2 = yangyangAction("Basic - Azure Sword Stance 2", { animFrames: 44, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA_A1 = yangyangAction("Basic - Azure Sword Stance 1", { requireBuff: AZURE_STANCE, animFrames: 19, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 14, mv: 4772, energy: 75, concerto: 150, offtune: 2400, forte1: -1200 }]});
+const BA_A2 = yangyangAction("Basic - Azure Sword Stance 2", { requireBuff: AZURE_STANCE, animFrames: 44, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 6, mv: 2014, energy: 32, concerto: 64, offtune: 1013, forte1: -480 },
     { hitFrame: 15, mv: 2014, energy: 32, concerto: 64, offtune: 1013, forte1: -480 },
     { hitFrame: 37, mv: 6041, energy: 95, concerto: 190, offtune: 3039, forte1: -1440 },
   ]});
-const BA_A3 = yangyangAction("Basic - Azure Sword Stance 3", { animFrames: 43, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA_A3 = yangyangAction("Basic - Azure Sword Stance 3", { requireBuff: AZURE_STANCE, animFrames: 43, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 3021, energy: 48, concerto: 95, offtune: 1520, forte1: -780 },
     { hitFrame: 35, mv: 7048, energy: 111, concerto: 222, offtune: 3545, forte1: -1820 },
   ]});
-const BA_A4 = yangyangAction("Basic - Azure Sword Stance 4", {
-  animFrames: 76,
+const BA_A4 = yangyangAction("Basic - Azure Sword Stance 4", { requireBuff: AZURE_STANCE,
+  animFrames: 76, castPriority: 2,
   node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 12, mv: 1857, energy: 30, concerto: 59, offtune: 934, forte1: -480 },
     { hitFrame: 21, mv: 1857, energy: 30, concerto: 59, offtune: 934, forte1: -480 },
@@ -128,31 +135,31 @@ const BA_A4 = yangyangAction("Basic - Azure Sword Stance 4", {
       updateDebuffs: () => applyEnemy(HAVOC_BANE, isHeld(XL_S3) ? 2 : 1) },
   ],
 });
-const MA_A = yangyangAction("Mid-air - Azure Sword Stance Plunge", { animFrames: 53, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 34, mv: 9861, energy: 155, concerto: 310, offtune: 4960, forte1: -1200 }]});
-const DC_A = yangyangAction("Dodge Counter - Azure Sword Stance 2", { animFrames: 44, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const MA_A = yangyangAction("Mid-air - Azure Sword Stance Plunge", { requireBuff: AZURE_STANCE, animFrames: 53, animPriority: { 53: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 34, mv: 9861, energy: 155, concerto: 310, offtune: 4960, forte1: -1200 }]});
+const DC_A = yangyangAction("Dodge Counter - Azure Sword Stance 2", { requireBuff: AZURE_STANCE, animFrames: 44, animPriority: { 0: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 6, mv: 3923, energy: 62, concerto: 124, offtune: 1973, forte1: -480 },
     { hitFrame: 15, mv: 3923, energy: 62, concerto: 124, offtune: 1973, forte1: -480 },
     { hitFrame: 37, mv: 11767, energy: 185, concerto: 370, offtune: 5919, forte1: -1440 },
   ], castConcerto: 1000});
 
-const BA_F1 = yangyangAction("Basic - Feather Sword Stance 1", { animFrames: 33, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA_F1 = yangyangAction("Basic - Feather Sword Stance 1", { requireBuff: FEATHER_STANCE, animFrames: 33, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 16, mv: 3977, energy: 63, concerto: 125, offtune: 2000, forte1: -600 },
     { hitFrame: 27, mv: 3977, energy: 63, concerto: 125, offtune: 2000, forte1: -600 },
   ]});
-const BA_F2 = yangyangAction("Basic - Feather Sword Stance 2", { animFrames: 42, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA_F2 = yangyangAction("Basic - Feather Sword Stance 2", { requireBuff: FEATHER_STANCE, animFrames: 42, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 12, mv: 3356, energy: 53, concerto: 106, offtune: 1688, forte1: -800 },
     { hitFrame: 20, commitFrame: 12, mv: 3356, energy: 53, concerto: 106, offtune: 1688, forte1: -800 },
     { hitFrame: 29, commitFrame: 12, mv: 3356, energy: 53, concerto: 106, offtune: 1688, forte1: -800 },
   ]});
-const BA_F3 = yangyangAction("Basic - Feather Sword Stance 3", { animFrames: 33, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA_F3 = yangyangAction("Basic - Feather Sword Stance 3", { requireBuff: FEATHER_STANCE, animFrames: 33, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 16, mv: 1486, energy: 24, concerto: 47, offtune: 748, forte1: -2600 },
     { hitFrame: 16, mv: 743, energy: 12, concerto: 24, offtune: 374 },
     { hitFrame: 25, commitFrame: 16, mv: 743, energy: 12, concerto: 24, offtune: 374 },
     { hitFrame: 34, commitFrame: 16, mv: 743, energy: 12, concerto: 24, offtune: 374 },
     { hitFrame: 54, commitFrame: 16, mv: 3714, energy: 59, concerto: 117, offtune: 1868 },
   ]});
-const BA_F4 = yangyangAction("Basic - Feather Sword Stance 4", {
-  animFrames: 93,
+const BA_F4 = yangyangAction("Basic - Feather Sword Stance 4", { requireBuff: FEATHER_STANCE,
+  animFrames: 93, castPriority: 2,
   node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 50, mv: 7158, energy: 113, concerto: 225, offtune: 3600, forte1: -1440 },
     { hitFrame: 52, mv: 7158, energy: 113, concerto: 225, offtune: 3600, forte1: -1440 },
@@ -160,8 +167,8 @@ const BA_F4 = yangyangAction("Basic - Feather Sword Stance 4", {
       updateDebuffs: () => applyEnemy(HAVOC_BANE, isHeld(XL_S3) ? 2 : 1) },
   ],
 });
-const MA_F = yangyangAction("Mid-air - Feather Sword Stance Plunge", { animFrames: 53, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 34, mv: 9861, energy: 155, concerto: 310, offtune: 4960, forte1: -1200 }]});
-const DC_F = yangyangAction("Dodge Counter - Feather Sword Stance 2", { animFrames: 42, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const MA_F = yangyangAction("Mid-air - Feather Sword Stance Plunge", { requireBuff: FEATHER_STANCE, animFrames: 53, animPriority: { 53: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 34, mv: 9861, energy: 155, concerto: 310, offtune: 4960, forte1: -1200 }]});
+const DC_F = yangyangAction("Dodge Counter - Feather Sword Stance 2", { requireBuff: FEATHER_STANCE, animFrames: 42, animPriority: { 0: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 12, mv: 6537, energy: 103, concerto: 206, offtune: 3288, forte1: -800 },
     { hitFrame: 20, commitFrame: 12, mv: 6537, energy: 103, concerto: 206, offtune: 3288, forte1: -800 },
     { hitFrame: 29, commitFrame: 12, mv: 6537, energy: 103, concerto: 206, offtune: 3288, forte1: -800 },
@@ -169,27 +176,34 @@ const DC_F = yangyangAction("Dodge Counter - Feather Sword Stance 2", { animFram
 
 // --- Feather's Edge: the plain stance switch, castable any time and worth nothing but its own
 //     hit — the Flow forms below replace it the moment Melody empties.
-const SwitchAzure = yangyangAction("Skill - Sword Stance Switch: Azure", { animFrames: 59, node: Node.Skill, cast: Cast.Skill, type: Type.Heavy, bullets: [
+// Melody empty replaces either Switch with its Flow
+const SwitchAzure = yangyangAction("Skill - Sword Stance Switch: Azure", { requireBuff: FEATHER_STANCE, minForte1: 1, animFrames: 59, animPriority: { 46: 2 }, castPriority: 4, node: Node.Skill, cast: Cast.Skill, type: Type.Heavy, bullets: [
     { hitFrame: 22, mv: 6995, energy: 110, concerto: 220, offtune: 3519 },
     { hitFrame: 41, mv: 1555, energy: 25, concerto: 49, offtune: 782 },
     { hitFrame: 50, commitFrame: 41, mv: 1555, energy: 25, concerto: 49, offtune: 782 },
     { hitFrame: 59, commitFrame: 41, mv: 1555, energy: 25, concerto: 49, offtune: 782 },
   ],
-  updateBuffs: () => revokeCurrent(FEATHER_STANCE),
+  updateBuffs: () => {
+    revokeCurrent(FEATHER_STANCE);
+    applyCurrent(AZURE_STANCE, 1);
+  },
 });
-const SwitchFeather = yangyangAction("Skill - Sword Stance Switch: Feather", { animFrames: 44, node: Node.Skill, cast: Cast.Skill, type: Type.Heavy, bullets: [
+const SwitchFeather = yangyangAction("Skill - Sword Stance Switch: Feather", { requireBuff: AZURE_STANCE, minForte1: 1, animFrames: 44, animPriority: { 44: 2 }, castPriority: 4, node: Node.Skill, cast: Cast.Skill, type: Type.Heavy, bullets: [
     { hitFrame: 28, mv: 3356, energy: 53, concerto: 106, offtune: 1688 },
     { hitFrame: 36, commitFrame: 28, mv: 3356, energy: 53, concerto: 106, offtune: 1688 },
     { hitFrame: 44, commitFrame: 28, mv: 3356, energy: 53, concerto: 106, offtune: 1688 },
   ],
-  updateBuffs: () => applyCurrent(FEATHER_STANCE, 1),
+  updateBuffs: () => {
+    revokeCurrent(AZURE_STANCE);
+    applyCurrent(FEATHER_STANCE, 1);
+  },
 });
 
 // --- The Way of Ten Thousand Voices. Sword Stance Flow refills Melody outright rather than
 //     adding to it, so the refill is a set (the bar is at 0 by the time either is castable).
-const FlowAzure = yangyangAction("Skill - Sword Stance Flow: Azure", {
-  // hidden prio frames? wuwalab's priority never reaches 10, yet the press holds to 46 in game
-  animFrames: 59, prioFrames: 46,
+// "When Melody is depleted while in Feather Sword Stance" (Azure for the Feather Flow)
+const FlowAzure = yangyangAction("Skill - Sword Stance Flow: Azure", { requireBuff: FEATHER_STANCE, maxForte1: 0,
+  animFrames: 59, animPriority: { 46: 2 }, castPriority: 4,
   node: Node.Forte, cast: Cast.Skill, type: Type.Heavy, bullets: [
     { hitFrame: 22, mv: 6995, energy: 696, concerto: 600, offtune: 3519, ...FLOW_CONSUME },
     { hitFrame: 41, mv: 1555, energy: 155, concerto: 134, offtune: 782 },
@@ -199,11 +213,12 @@ const FlowAzure = yangyangAction("Skill - Sword Stance Flow: Azure", {
   ...FLOW,
   updateBuffs: () => {
     revokeCurrent(FEATHER_STANCE);
+    applyCurrent(AZURE_STANCE, 1);
     FLOW.updateBuffs();
   },
 });
-const FlowFeather = yangyangAction("Skill - Sword Stance Flow: Feather", {
-  animFrames: 44,
+const FlowFeather = yangyangAction("Skill - Sword Stance Flow: Feather", { requireBuff: AZURE_STANCE, maxForte1: 0,
+  animFrames: 44, animPriority: { 44: 2 }, castPriority: 4,
   node: Node.Forte, cast: Cast.Skill, type: Type.Heavy, bullets: [
     { hitFrame: 28, mv: 3356, energy: 387, concerto: 334, offtune: 1688, ...FLOW_CONSUME },
     { hitFrame: 36, commitFrame: 28, mv: 3356, energy: 387, concerto: 334, offtune: 1688 },
@@ -211,16 +226,18 @@ const FlowFeather = yangyangAction("Skill - Sword Stance Flow: Feather", {
   ], castForte2: 1, castForte1: 10000, 
   ...FLOW,
   updateBuffs: () => {
+    revokeCurrent(AZURE_STANCE);
     applyCurrent(FEATHER_STANCE, 1);
     FLOW.updateBuffs();
   },
 });
 
-const HeavyAzure = yangyangAction("Forte Heavy - Azure Sword Stance", { minForte2: 2,
-  animFrames: 105,
+const HeavyAzure = yangyangAction("Forte Heavy - Azure Sword Stance", { minForte2: 2, requireBuff: AZURE_STANCE,
+  animFrames: 105, animPriority: { 105: 2 }, castPriority: 4,
   node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
-    { hitFrame: 52, mv: 13516, energy: 280, concerto: 450, offtune: 3200,
+    { hitFrame: 50, element: null, type: null, subtype: null,
       updateDebuffs: () => applyEnemy(HAVOC_BANE, isHeld(XL_S3) ? 3 : 2) },
+    { hitFrame: 52, mv: 13516, energy: 280, concerto: 450, offtune: 3200 },
     { hitFrame: 60, mv: 13516, energy: 280, concerto: 450, offtune: 3200 },
     { hitFrame: 70, mv: 18021, energy: 374, concerto: 600, offtune: 4266 },
   ],
@@ -232,11 +249,12 @@ const HeavyAzure = yangyangAction("Forte Heavy - Azure Sword Stance", { minForte
   // "consumes all Azure Plume": -100 shows the whole-bar drain; the bar reads empty after it
   castForte2: -2,
 });
-const HeavyFeather = yangyangAction("Forte Heavy - Feather Sword Stance", { minForte2: 2,
-  animFrames: 45,
+const HeavyFeather = yangyangAction("Forte Heavy - Feather Sword Stance", { minForte2: 2, requireBuff: FEATHER_STANCE,
+  animFrames: 45, castPriority: 4,
   node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
-    { hitFrame: 36, mv: 2171, energy: 19, concerto: 47, offtune: 747,
+    { hitFrame: 34, element: null, type: null, subtype: null,
       updateDebuffs: () => applyEnemy(HAVOC_BANE, isHeld(XL_S3) ? 3 : 2) },
+    { hitFrame: 36, mv: 2171, energy: 19, concerto: 47, offtune: 747 },
     { hitFrame: 45, mv: 19534, energy: 168, concerto: 420, offtune: 6718 },
   ],
   updateBuffs: () => {
@@ -245,8 +263,8 @@ const HeavyFeather = yangyangAction("Forte Heavy - Feather Sword Stance", { minF
     applyCurrent(STREAMING_STORM_CD, 1);
   },
 });
-const FeatherFall = yangyangAction("Forte Mid-air - Feather Fall", { minForte2: 2,
-  animFrames: 76,
+const FeatherFall = yangyangAction("Forte Mid-air - Feather Fall", { minForte2: 2, requireBuff: FEATHER_STANCE,
+  animFrames: 76, animPriority: { 76: 2 }, castPriority: 6,
   node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, bullets: [
     { hitFrame: 10, mv: 1480, energy: 17, concerto: 42, offtune: 662 },
     { hitFrame: 19, commitFrame: 10, mv: 1480, energy: 17, concerto: 42, offtune: 662 },
@@ -255,29 +273,32 @@ const FeatherFall = yangyangAction("Forte Mid-air - Feather Fall", { minForte2: 
   ],
   // Feather Sword Stance itself spends none — this auto-cast follow-up consumes all Azure Plume
   castForte2: -2,
+  updateBuffs: () => applyCurrent(HARK_THE_WIND, 1),
 });
-const HiB1 = yangyangAction("Basic - Havoc in Bloom 1", { animFrames: 38, node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, bullets: [
+const HiB1 = yangyangAction("Basic - Havoc in Bloom 1", { requireBuff: HARK_THE_WIND, animFrames: 38, animPriority: { 44: 2 }, castPriority: 6, node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, bullets: [
     { hitFrame: 14, mv: 3979, energy: 45, concerto: 112, offtune: 1779 },
     { hitFrame: 20, commitFrame: 14, mv: 3979, energy: 45, concerto: 112, offtune: 1779 },
     { hitFrame: 26, commitFrame: 14, mv: 3979, energy: 45, concerto: 112, offtune: 1779 },
   ]});
-const HiB2 = yangyangAction("Basic - Havoc in Bloom 2", { animFrames: 69, node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, bullets: [
+const HiB2 = yangyangAction("Basic - Havoc in Bloom 2", { requireBuff: HARK_THE_WIND, animFrames: 69, animPriority: { 79: 2 }, castPriority: 6, node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, bullets: [
     { hitFrame: 36, mv: 8925, energy: 100, concerto: 250, offtune: 3991 },
     { hitFrame: 48, mv: 6694, energy: 75, concerto: 188, offtune: 2993 },
     { hitFrame: 60, mv: 6694, energy: 75, concerto: 188, offtune: 2993 },
   ]});
-const HiB3 = yangyangAction("Basic - Havoc in Bloom 3", { animFrames: 108, node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, bullets: [
+const HiB3 = yangyangAction("Basic - Havoc in Bloom 3", { requireBuff: HARK_THE_WIND, animFrames: 108, animPriority: { 108: 2 }, castPriority: 6, node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, bullets: [
     { hitFrame: 6, mv: 2398, energy: 16, concerto: 76, offtune: 640 },
     { hitFrame: 15, commitFrame: 6, mv: 2398, energy: 16, concerto: 76, offtune: 640 },
     { hitFrame: 24, commitFrame: 6, mv: 2398, energy: 16, concerto: 76, offtune: 640 },
     { hitFrame: 33, commitFrame: 6, mv: 2398, energy: 16, concerto: 76, offtune: 640 },
     { hitFrame: 42, commitFrame: 6, mv: 2398, energy: 16, concerto: 76, offtune: 640 },
     { hitFrame: 72, mv: 27969, energy: 187, concerto: 887, offtune: 7465 },
-  ]});
+  ],
+  updateBuffs: () => revokeCurrent(HARK_THE_WIND),
+});
 
 // --- Hush of a Thousand Voices. Heavy Attack DMG despite the cast, and it ends holding a plume.
 const Lib = yangyangAction("Liberation - Hush of a Thousand Voices", {
-  animFrames: 300, prioFrames: 294, timestop: [0, 300], motionStop: [0, 300], cooldown: 60 * 25,
+  animFrames: 300, animPriority: { 294: 2 }, castPriority: 10, timestop: [0, 300], motionStop: [0, 300], cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Heavy, bullets: [
     // One Life, One Blade's own first line: the hit raises Havoc Bane to the target's limit, which
     // is the fight's rather than the declared 3 (Chisa's +3 to every Negative Status cap)
@@ -298,14 +319,14 @@ const ShadowWitheredWood = yangyangAction("Liberation - Shadow of Xuanling: Stil
 /** Skybound Feather is one Intro with one animation per stance (nanoka's two identical damage
  *  entries; wuwalab's "Skytouch" and "Aria of the Feather"), picked by the stance she left in. */
 const INTRO = {
-  animFrames: 47, prioFrames: 38, noSwapFrames: 44, motionStop: [5, 35],
+  animFrames: 47, animPriority: { 38: 2 }, castPriority: 11, noSwapFrames: 44, motionStop: [5, 35],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 40, mv: 11659, energy: 1000, offtune: 5864, updateDebuffs: () => applyEnemy(HAVOC_BANE, 1) },
   ], castConcerto: 1000,
   castForte2: 1,
 };
-const IntroAzure = yangyangAction("Intro - Skybound Feather (Azure)", INTRO);
-const IntroFeather = yangyangAction("Intro - Skybound Feather (Feather)", INTRO);
+const IntroAzure = yangyangAction("Intro - Skybound Feather (Azure)", { ...INTRO, requireBuff: AZURE_STANCE });
+const IntroFeather = yangyangAction("Intro - Skybound Feather (Feather)", { ...INTRO, requireBuff: FEATHER_STANCE });
 const INTROS = new Set<Action>([IntroAzure, IntroFeather]);
 const Outro = yangyangAction("Outro - As the Wind Wills", {
   animFrames: 0,
@@ -370,10 +391,6 @@ const WINDBOUND_ICD = new Buff({ duration: 60 });
 const OATH_ICD = new Buff({ duration: 60 });
 const ONE_WITH_THE_WIND = new Buff({ name: "Xuanling: One with the Wind" });
 
-/** Feather Sword Stance, entered by either Feather Switch or Flow and left by either Azure one;
- *  without it she is in Azure, her default. Read only to pick which Intro plays. */
-const FEATHER_STANCE = new Buff({ name: "Xuanling: Feather Sword Stance" });
-
 /** Voice upon Voice: banked by the Liberation, spent by the next Sword Stance Flow for the Shadow
  *  of Xuanling summon. Does not stack, and no stat of its own. */
 const VOICE_UPON_VOICE = new Buff({ 
@@ -416,7 +433,7 @@ const XL_S1 = new Sequence({
 const STRUNG_NOTES = new Buff({
   name: "Xuanling S2: Strung Notes",
   updateBuffs: () => {
-    if (!casting(Cast.Basic) || currentAction().node !== Node.Normal) return;
+    if (!casting(Cast.Basic) || currentCast().node !== Node.Normal) return;
     revokeCurrent(STRUNG_NOTES);
     queue(ShadowStrungNotes);
   },
@@ -551,7 +568,8 @@ export const XUANLING_RESONATOR = new Resonator({
   weapon: WeaponType.Sword,
   color: "#6140e5",
   // resolved when its row is reached: the Skybound Feather of the stance she left in
-  intro: new Action("Intro Resolver", { cast: Cast.Intro, resolve: () => (isHeld(FEATHER_STANCE) ? IntroFeather : IntroAzure) }),
+  intro: () => (isHeld(FEATHER_STANCE) ? IntroFeather : IntroAzure),
+  outro: Outro,
   maxEnergy: 12500,
   forteScale: [0.01, 1, 1, 1, 1],
   maxForte1: 10000,
@@ -566,11 +584,14 @@ export const XUANLING_RESONATOR = new Resonator({
     applyCurrent(FEATHERED_OATH, 1);
   },
 
-  /* Melody starts a fight full, unlike every other gauge in this engine. */
-  combatStart: () => setForte1(10000),
+  /* Melody starts a fight full, unlike every other gauge in this engine; Azure is her default stance. */
+  combatStart: () => {
+    setForte1(10000);
+    applyCurrent(AZURE_STANCE, 1);
+  },
 
   applyStats: () => {
-    if (currentAction().node === Node.Normal && forte1() > 0) addStat(Stat.ER, 20);
+    if (currentCast().node === Node.Normal && forte1() > 0) addStat(Stat.ER, 20);
   },
 
 });
@@ -595,7 +616,7 @@ const XUANLING_ROTATION = new Rotation([
 
   INTRO_LAST, BA_F1234.cancel(), FlowAzure.holdCancel(), HeavyAzure.cancel(),
   Lib, FlowFeather.cancel(), ECHO, HeavyFeather, FeatherFall, HiB123.swapCancel(),
-  Outro,
+  OUTRO,
 ]);
 
 const XUANLING_ROTATION_S1 = new Rotation([
@@ -603,7 +624,7 @@ const XUANLING_ROTATION_S1 = new Rotation([
 
   INTRO_LAST, BA_F1234.cancel(), FlowAzure.holdCancel(), HeavyAzure.cancel(),
   Lib, FlowFeather.cancel(), ECHO, HeavyFeather, FeatherFall, HiB123.swapCancel(),
-  Outro,
+  OUTRO,
 ]);
 
 const XUANLING_ECHOES = [
@@ -616,7 +637,7 @@ export const XUANLING = new Loadout({
   echoLoadouts: XUANLING_ECHOES,
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
   substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Heavy, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Heavy, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Heavy, Substat.AtkPct, Substat.FlatAtk, Substat.Basic, Substat.Liberation),
   rotation: { 0: XUANLING_ROTATION, 1: XUANLING_ROTATION_S1 },
   sequences: XL_SEQUENCES,
 });

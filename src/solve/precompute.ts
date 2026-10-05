@@ -15,7 +15,7 @@ import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "nod
 import { createHash } from "node:crypto";
 import { cpus } from "node:os";
 import { fileURLToPath } from "node:url";
-import { ALL_TEAMS, teamKey } from "./teams.js";
+import { ALL_TEAMS, teamKey } from "../resonators/teams.js";
 import { teamFromKey, solveTeam, defaultFilters, bestKey, picksKey, filterSignature, hasBuild, TEAM_COSTS } from "./solver.js";
 import type { Filters, Pick, Solved } from "./solver.js";
 
@@ -37,7 +37,7 @@ if (!isMainThread) {
     parentPort!.postMessage({ key, solved });
   });
 } else {
-  const bundle = new URL("../bundle/", import.meta.url);
+  const bundle = new URL("../../bundle/", import.meta.url);
   const hash = createHash("sha1");
   for (const f of readdirSync(bundle).sort()) if (f.endsWith(".js")) hash.update(readFileSync(new URL(f, bundle)));
   const stamp = hash.digest("hex").slice(0, 16);
@@ -113,7 +113,7 @@ if (!isMainThread) {
   });
 
   // keyed by filter signature, the same string the page looks up; rebuilt from scratch each run
-  const dir = new URL("../solves/", import.meta.url);
+  const dir = new URL("../../solves/", import.meta.url);
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
   const index: { stamp: string; states: Record<string, string[]> } = { stamp, states: {} };

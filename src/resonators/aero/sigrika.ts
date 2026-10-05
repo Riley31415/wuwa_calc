@@ -3,13 +3,15 @@
  * her real kit tags `type: Echo` even though most casts (Elucidated, BIG BOOMY BOOM!, etc.) aren't
  * literal Echo casts.
  * Her Runes are a real store (RUNES below, Phrolova's Volatile Notes shape): four two-bit slots
- * oldest-first, 1 Trust and 2 Answer — two of them without Full Stop, all four from 50. A Rune
- * gained at capacity shifts the rest left and drops the leftmost. Elucidated and Dodge Counter -
+ * filled left to right, 1 Trust, 2 Answer, 3 Full Stop. Only the two after the Full Stops take
+ * Runes: slots 3-4 stay locked until a Schemata turns 1-2 into its 50 Full Stop. A Rune gained
+ * with both full shifts the pair left and drops the older. Elucidated and Dodge Counter -
  * Decipher hits bank Trust, BIG BOOMY BOOM! and Soliskin to the Aid hits bank Answer; Convergent
  * (Intro) doubles the next gain and Divergent (Liberation) mirrors it, neither at 100 Full Stop.
- * Schemata of Runes is one press: it spends the two leftmost and its follow-up is theirs — Trust
- * and Answer for Runic Outburst, two Trusts for Chain Whip, two Answers for Soliskin. forte1 is
- * the count the store holds (cap 4), so a Schemata pressed without a pair reads red; Full Stop is
+ * Schemata of Runes is one press: it spends the pair, filling its slots with Full Stop, and its
+ * follow-up is theirs — Trust and Answer for Runic Outburst, two Trusts for Chain Whip, two
+ * Answers for Soliskin. forte1 is the count the store holds (cap 2), so a Schemata pressed
+ * without a pair reads red; Full Stop is
  * forte2 (cap 100, +50 a Schemata, all of it for Learn My True Name), and Soliskin Vitality a real
  * 0-60 gauge fed by any team member's Echo cast.
  */
@@ -24,7 +26,7 @@ import {
   removeStack,
   revokeCurrent,
   casting,
-  pressed,
+  addGain,
   onAction,
   runningAction,
   addStat,
@@ -37,7 +39,7 @@ import {
   forte2,
   lostOnSwap,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, ECHO, INTRO, ActionTag } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, ECHO, INTRO, OUTRO, ActionTag, START_LAST, INTRO_LAST } from "../../engine/rotation.js";
 import { SOLSWORN_CIPHERS } from "../../weapons/gauntlet.js";
 import { NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
 import { NAMELESS_EXPLORER, SOUND_OF_TRUE_NAME_5PC } from "../../echoes/lahairoi.js";
@@ -50,23 +52,34 @@ function sigrikaAction(id: string, def: object): Action {
   return new Action(id, { element: Attribute.Aero, scaling: Scaling.Atk, ...def });
 }
 
-// a hit that banks a Rune (gainRune() below): the store takes the kind, forte1 the count
-const RUNE_TRUST = { updateDebuffs: () => gainRune(1) };
-const RUNE_ANSWER = { updateDebuffs: () => gainRune(2) };
+/** Decipher: opened by Basic Attack Stage 4 for 5s, left on casting whichever finisher grants a
+ *  Rune. While up, Basic Attack becomes Elucidated and the Skill and Dodge Counter their own. */
+const DECIPHER = new Buff({
+  name: "Sigrika: Decipher",
+  duration: 60 * 5,
+  lostOnSwap: true,
+  updateBuffs: () => { if (gainsRune()) revokeCurrent(DECIPHER); },
+});
+
+// a hit that banks a Rune: its own forte1 is the count, gainRune() below the store's kind; the
+// doubled form's carries Convergent's or Divergent's extra Rune too (DOUBLED below)
+const RUNE_TRUST = { forte1: 1, updateDebuffs: () => gainRune(1, null) };
+const RUNE_ANSWER = { forte1: 1, updateDebuffs: () => gainRune(2, null) };
 
 // --- basics, mid-air, dodge counter (One, Two, Three) — Stage 4 opens Decipher
-const BA1 = sigrikaAction("Basic - One, Two, Three 1", { animFrames: 22, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 14, mv: 5297, energy: 84, concerto: 167, offtune: 2664 }]});
-const BA2 = sigrikaAction("Basic - One, Two, Three 2", { animFrames: 41, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+// "with at least 50 points of Full Stop, her Basic Attack cycle starts from Stage 2"
+const BA1 = sigrikaAction("Basic - One, Two, Three 1", { animFrames: 22, castPriority: 2, maxForte2: 49, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 14, mv: 5297, energy: 84, concerto: 167, offtune: 2664 }]});
+const BA2 = sigrikaAction("Basic - One, Two, Three 2", { animFrames: 41, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 18, mv: 5034, energy: 80, concerto: 159, offtune: 2532 },
     { hitFrame: 30, mv: 5034, energy: 80, concerto: 159, offtune: 2532 },
   ]});
-const BA3 = sigrikaAction("Basic - One, Two, Three 3", { animFrames: 44, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = sigrikaAction("Basic - One, Two, Three 3", { animFrames: 44, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 8, mv: 3341, energy: 53, concerto: 105, offtune: 1680 },
     { hitFrame: 16, mv: 3341, energy: 53, concerto: 105, offtune: 1680 },
     { hitFrame: 34, mv: 4454, energy: 70, concerto: 140, offtune: 2240 },
   ]});
 const BA4 = sigrikaAction("Basic - One, Two, Three 4", {
-  animFrames: 78,
+  animFrames: 78, animPriority: { 72: 1 }, castPriority: 2,
   node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 22, mv: 4136, energy: 65, concerto: 130, offtune: 2080 },
     { hitFrame: 28, mv: 5170, energy: 82, concerto: 163, offtune: 2600 },
@@ -75,30 +88,30 @@ const BA4 = sigrikaAction("Basic - One, Two, Three 4", {
   ],
   updateBuffs: () => applyCurrent(DECIPHER, 1),
 });
-const MA = sigrikaAction("Mid-air - One, Two, Three Plunge", { animFrames: 44, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 38, mv: 10478, energy: 155, concerto: 310, offtune: 4960 }]});
-const MDC = sigrikaAction("Dodge Counter - One, Two, Three (Mid-Air)", { animFrames: 44, bullets: [{ hitFrame: 38, mv: 20617, energy: 305, concerto: 610, offtune: 9920 }], node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, castConcerto: 1000});
-const DC = sigrikaAction("Dodge Counter - One, Two, Three", { animFrames: 42, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const MA = sigrikaAction("Mid-air - One, Two, Three Plunge", { animFrames: 44, animPriority: { 36: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 38, mv: 10478, energy: 155, concerto: 310, offtune: 4960 }]});
+const MDC = sigrikaAction("Dodge Counter - One, Two, Three (Mid-Air)", { animFrames: 44, animPriority: { 0: 6, 36: 2 }, castPriority: 8, bullets: [{ hitFrame: 38, mv: 20617, energy: 305, concerto: 610, offtune: 9920 }], node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, castConcerto: 1000});
+const DC = sigrikaAction("Dodge Counter - One, Two, Three", { animFrames: 42, animPriority: { 0: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 8, mv: 6591, energy: 98, concerto: 195, offtune: 3008 },
     { hitFrame: 16, mv: 6591, energy: 98, concerto: 195, offtune: 3008 },
     { hitFrame: 34, mv: 8788, energy: 130, concerto: 260, offtune: 4010 },
   ], castConcerto: 1000});
-const HA = sigrikaAction("Heavy - One, Two, Three", { animFrames: 42, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+const HA = sigrikaAction("Heavy - One, Two, Three", { animFrames: 42, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 32, mv: 5814, energy: 92, concerto: 183, offtune: 2924 },
     { hitFrame: 32, mv: 5814, energy: 92, concerto: 183, offtune: 2924 },
   ]});
 
 // --- Decipher-gated finishers: both grant a Rune: Trust and exit Decipher, both Echo Skill DMG
 //     (the migrated sheet only carries one row for the pair — same numbers used for both here)
-const EBA = sigrikaAction("Basic - Elucidated", { animFrames: 66, node: Node.Normal, cast: Cast.Basic, type: Type.Echo, bullets: [
-    { hitFrame: 8, mv: 6156, energy: 52, concerto: 104, offtune: 1652,
-      ...RUNE_TRUST },
+const EBA = sigrikaAction("Basic - Elucidated", { animFrames: 66, animPriority: { 66: 2 }, castPriority: 1, requireBuff: DECIPHER, node: Node.Normal, cast: Cast.Basic, type: Type.Echo, bullets: [
+    { hitFrame: 8, mv: 6156, energy: 52, concerto: 104, offtune: 1652, ...RUNE_TRUST ,
+       },
     { hitFrame: 16, mv: 6156, energy: 52, concerto: 104, offtune: 1652 },
     { hitFrame: 24, mv: 6156, energy: 52, concerto: 104, offtune: 1652 },
     { hitFrame: 66, commitFrame: 26, mv: 12311, energy: 104, concerto: 207, offtune: 3303 },
   ]});
-const EDC = sigrikaAction("Dodge Counter - Decipher", { animFrames: 66, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Echo, bullets: [
-    { hitFrame: 8, mv: 6156, energy: 52, concerto: 104, offtune: 1652,
-      ...RUNE_TRUST },
+const EDC = sigrikaAction("Dodge Counter - Decipher", { animFrames: 66, animPriority: { 66: 2 }, castPriority: 8, requireBuff: DECIPHER, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Echo, bullets: [
+    { hitFrame: 8, mv: 6156, energy: 52, concerto: 104, offtune: 1652, ...RUNE_TRUST ,
+       },
     { hitFrame: 16, mv: 6156, energy: 52, concerto: 104, offtune: 1652 },
     { hitFrame: 24, mv: 6156, energy: 52, concerto: 104, offtune: 1652 },
     { hitFrame: 66, commitFrame: 26, mv: 12311, energy: 104, concerto: 207, offtune: 3303 },
@@ -106,31 +119,56 @@ const EDC = sigrikaAction("Dodge Counter - Decipher", { animFrames: 66, node: No
 
 // --- resonance skill: BOOMY BOOM! (base), or — while in Decipher — BIG BOOMY BOOM! / Soliskin to
 //     the Aid (the latter needs 50 Full Stop held, spends none), both banking a Rune: Answer
-const Skill = sigrikaAction("Skill - BOOMY BOOM!", { animFrames: 56, cooldown: 60 * 10, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+const Skill = sigrikaAction("Skill - BOOMY BOOM!", { animFrames: 56, animPriority: { 56: 2 }, castPriority: 3, cooldown: 60 * 10, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 10, mv: 2863, energy: 45, concerto: 90, offtune: 1440 },
     { hitFrame: 16, mv: 2863, energy: 45, concerto: 90, offtune: 1440 },
     { hitFrame: 36, mv: 2863, energy: 45, concerto: 90, offtune: 1440 },
     { hitFrame: 48, mv: 5726, energy: 90, concerto: 180, offtune: 2880 },
   ]});
-const ESkill = sigrikaAction("Skill - BIG BOOMY BOOM!", { animFrames: 56, node: Node.Skill, cast: Cast.Skill, type: Type.Echo, bullets: [
-    { hitFrame: 6, mv: 2881, energy: 25, concerto: 49, offtune: 773,
-      ...RUNE_ANSWER },
+const ESkill = sigrikaAction("Skill - BIG BOOMY BOOM!", { animFrames: 56, animPriority: { 56: 2 }, castPriority: 2, requireBuff: DECIPHER, node: Node.Skill, cast: Cast.Skill, type: Type.Echo, bullets: [
+    { hitFrame: 6, mv: 2881, energy: 25, concerto: 49, offtune: 773, ...RUNE_ANSWER,},
     { hitFrame: 18, mv: 2881, energy: 25, concerto: 49, offtune: 773 },
     { hitFrame: 30, mv: 2881, energy: 25, concerto: 49, offtune: 773 },
     { hitFrame: 42, mv: 2881, energy: 25, concerto: 49, offtune: 773 },
-    { hitFrame: 54, mv: 17285, energy: 145, concerto: 290, offtune: 4637 },
+    { hitFrame: 54, mv: 17285, energy: 145, concerto: 290, offtune: 4637, ...RUNE_ANSWER }, // TODO unknown if this late
   ]});
-const ESkill50 = sigrikaAction("Skill - Soliskin to the Aid", { animFrames: 54, node: Node.Skill, cast: Cast.Skill, type: Type.Echo, bullets: [
-    { hitFrame: 6, mv: 2783, energy: 24, concerto: 47, offtune: 747,
-      ...RUNE_ANSWER },
+const ESkill50 = sigrikaAction("Skill - Soliskin to the Aid", { animFrames: 54, animPriority: { 54: 2 }, castPriority: 2, requireBuff: DECIPHER, minForte2: 50, node: Node.Skill, cast: Cast.Skill, type: Type.Echo, bullets: [
+    { hitFrame: 6, mv: 2783, energy: 24, concerto: 47, offtune: 747, ...RUNE_ANSWER,},
     { hitFrame: 16, mv: 2783, energy: 24, concerto: 47, offtune: 747 },
     { hitFrame: 24, mv: 2783, energy: 24, concerto: 47, offtune: 747 },
     { hitFrame: 50, mv: 19477, energy: 164, concerto: 327, offtune: 5225 },
   ]});
 
+/** `press` with its first Rune hit (of `kind`) banking `by`'s extra Rune too — Convergent's the same
+ *  kind, Divergent's the opposite — at two forte1, so a hold into Schemata of Runes sees both. */
+function doubled(press: Action, kind: number, by: "Convergent" | "Divergent"): Action {
+  const k = press.bullets.findIndex((b) => b.forte1);
+  const rune = { forte1: 2, updateDebuffs: () => gainRune(kind, by) };
+  return press.variant(`${press.name} (${by})`, { bullets: press.bullets.map((b, i) => (i === k ? { ...b, ...rune } : b)) });
+}
+const EBA_C = doubled(EBA, 1, "Convergent"), EBA_D = doubled(EBA, 1, "Divergent");
+const EDC_C = doubled(EDC, 1, "Convergent"), EDC_D = doubled(EDC, 1, "Divergent");
+const ESkill_C = doubled(ESkill, 2, "Convergent"), ESkill_D = doubled(ESkill, 2, "Divergent");
+const ESkill50_C = doubled(ESkill50, 2, "Convergent"), ESkill50_D = doubled(ESkill50, 2, "Divergent");
+/** Every Rune-banking press: what Decipher ends on, and what S1 multiplies. */
+const RUNE_PRESSES = [EBA, EDC, ESkill, ESkill50, EBA_C, EDC_C, ESkill_C, ESkill50_C, EBA_D, EDC_D, ESkill_D, ESkill50_D];
+
+/** Which form of a Rune press comes out: Convergent's while it stands, else Divergent's, short of
+ *  100 Full Stop (where neither doubles), else the plain one. */
+function runeForm(plain: Action, convergent: Action, divergent: Action): Action {
+  if (forte2() >= 100) return plain;
+  return isHeld(CONVERGENT) ? convergent : isHeld(DIVERGENT) ? divergent : plain;
+}
+/** What Decipher's Basic Attack, Dodge Counter and Skill come out as (`runeForm()`), the Skill's
+ *  Soliskin to the Aid from 50 Full Stop and BIG BOOMY BOOM! below it. */
+const EBASIC = new Action("Elucidated Resolver", { cast: Cast.Basic, resolve: () => runeForm(EBA, EBA_C, EBA_D) });
+const DecipherCounter = new Action("Decipher Dodge Counter Resolver", { cast: Cast.DodgeCounter, resolve: () => runeForm(EDC, EDC_C, EDC_D) });
+const ESKILL = new Action("Decipher Skill Resolver", { cast: Cast.Skill,
+  resolve: () => (forte2() >= 50 ? runeForm(ESkill50, ESkill50_C, ESkill50_D) : runeForm(ESkill, ESkill_C, ESkill_D)) });
+
 // --- forte circuit: Schemata of Runes lands its own hit and banks 50 Full Stop, spends the two
 //     leftmost Runes, and its follow-up is whichever pair they were (spendRunes() below)
-// ...each a FIELD follow-up of Schemata's hit (cast as it lands, its cancel frame): its frames are
+// ...each a FIELD follow-up of its own commit on Schemata (25/31/35): its frames are
 // only the time until its own hit, none of the fight's
 const RunicOutburst = sigrikaAction("Forte - Runic Outburst", { tag: ActionTag.Field, animFrames: 68,
    node: Node.Forte, type: Type.Echo, bullets: [
@@ -158,39 +196,67 @@ const RunicSoliskin = sigrikaAction("Forte - Runic Soliskin", { tag: ActionTag.F
      { hitFrame: 78, commitFrame: 0, mv: 11926, energy: 300, concerto: 210, offtune: 7440 },
    ]});
 
-const FHA = sigrikaAction("Forte Heavy - Schemata of Runes", { minForte1: 2,
-  animFrames: 76,
-  node: Node.Forte, cast: Cast.Heavy, type: Type.Echo, bullets: [{ hitFrame: 12, mv: 13251, energy: 334, concerto: 50, offtune: 2664, forte2: 50 }], castForte1: -2,
-  // on hit: the spend and the follow-up it plays
-  updateDebuffs: spendRunes,
+/** Schemata of Runes with no pair to spend: its own hit alone, no follow-up. */
+const FHA_BARE = sigrikaAction("Forte Heavy - Schemata of Runes", { minForte1: 2,
+  animFrames: 76, animPriority: { 0: 5, 40: 4, 58: 2 }, castPriority: 9,
+  node: Node.Forte, cast: Cast.Heavy, type: Type.Echo, bullets: [
+    { hitFrame: 12, mv: 13251, energy: 334, concerto: 50, offtune: 2664, forte2: 50 },
+  ],
 });
+/** Each form commits its own follow-up at wuwalab's event frame (commit_outburst 25,
+ *  commit_soliskin 31, commit_chain_whip 35), which is where a cancel can cut it. */
+const schemata = (label: string, frame: number, follow: () => Action): Action =>
+  FHA_BARE.variant(`Forte Heavy - Schemata of Runes (${label})`, { bullets: [
+    ...FHA_BARE.bullets,
+    { hitFrame: frame, element: null, type: null, subtype: null, updateDebuffs: () => spendRunes(follow()) },
+  ]});
+const FHA_OUTBURST = schemata("Outburst", 25, () => RunicOutburst);
+const FHA_SOLISKIN = schemata("Soliskin", 31, () => RunicSoliskin);
+const FHA_CHAIN_WHIP = schemata("Chain Whip", 35, () => RunicChainWhip);
+/** The Schemata a rotation writes: the form the two leftmost Runes make as it is cast. */
+const FHA = new Action("Schemata of Runes Resolver", { cast: Cast.Heavy, resolve: () => {
+  const follow = followUp();
+  return follow === RunicOutburst ? FHA_OUTBURST : follow === RunicSoliskin ? FHA_SOLISKIN : follow === RunicChainWhip ? FHA_CHAIN_WHIP : FHA_BARE;
+} });
 
-/** Schemata of Runes spends the two leftmost Runes and plays the follow-up they make: Trust and
- *  Answer for Runic Outburst, two Trusts for Chain Whip, two Answers for Soliskin. Without a pair
- *  nothing follows, and the action's own -2 leaves forte1 red. */
-function spendRunes(): void {
-  const word = stacksOf(RUNES), a = word & 3, b = (word >> 2) & 3;
-  setStacksSelf(RUNES, (word & ~0xff) | ((word & 0xff) >> 4));
-  if (!a || !b) return;
-  queue(a !== b ? RunicOutburst : a === 1 ? RunicChainWhip : RunicSoliskin);
+/** The follow-up the two leftmost Runes make — Trust and Answer for Runic Outburst, two Trusts
+ *  for Chain Whip, two Answers for Soliskin — or null without a pair. */
+function followUp(): Action | null {
+  const word = stacksOf(RUNES), at = 2 * fullStops(word), a = (word >> at) & 3, b = (word >> (at + 2)) & 3;
+  if (at >= 8 || !a || !b) return null;
+  return a !== b ? RunicOutburst : a === 1 ? RunicChainWhip : RunicSoliskin;
+}
+/** Schemata's commit for `follow`: where the pair still makes it, spends it (two forte1) and plays it. */
+function spendRunes(follow: Action): void {
+  if (followUp() !== follow) return;
+  // the pair's two slots become the Full Stop it banked
+  const word = stacksOf(RUNES), at = 2 * fullStops(word);
+  setStacksSelf(RUNES, (word & ~(0xf << at)) | (0xf << at));
+  addGain({ forte1: -2 });
+  queue(follow);
 }
 
 /** Learn My True Name: at 100 Full Stop, spends it all. */
 const FSkill = sigrikaAction("Forte Skill - Learn My True Name", { minForte2: 100,
-   animFrames: 138, noSwapFrames: 132, prioFrames: 132, cooldown: 60 * 25,
+   animFrames: 138, noSwapFrames: 132, animPriority: { 0: 10, 132: 9, 138: 2 }, castPriority: 5, cooldown: 60 * 25,
    node: Node.Forte, cast: Cast.Skill, type: Type.Echo, bullets: [
      { hitFrame: 86, mv: 30287, energy: 136, concerto: 500, offtune: 25334 },
      { hitFrame: 130, commitFrame: 86, mv: 90861, energy: 407, concerto: 1500, offtune: 76002 },
-   ], castConcerto: 1000, castForte2: -100
+   ], castConcerto: 1000, castForte2: -100,
+  // the Full Stop it spends leaves the store, the Runes after it moving up
+  updateBuffs: () => {
+    const word = stacksOf(RUNES);
+    setStacksSelf(RUNES, (word & ~0xff) | ((word & 0xff) >> (2 * fullStops(word))));
+  },
 });
 
 const Liberation = sigrikaAction("Liberation - Where Trust Leads Me!", {
-  animFrames: 228, prioFrames: 206, timestop: [0, 228], motionStop: [0, 228], cooldown: 60 * 25,
+  animFrames: 228, animPriority: { 206: 2 }, castPriority: 10, timestop: [0, 228], motionStop: [0, 228], cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Echo, bullets: [{ hitFrame: 176, mv: 86143, offtune: 50400 }], castConcerto: 2000, resetEnergy: true,
   updateBuffs: () => applyCurrent(DIVERGENT),
 });
 
-const Intro = sigrikaAction("Intro - Solsworn Etymology", { animFrames: 58, noSwapFrames: 48, prioFrames: 58, motionStop: [5, 42], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 46, mv: 16342, energy: 1000, offtune: 7736 }], castConcerto: 1000});
+const Intro = sigrikaAction("Intro - Solsworn Etymology", { animFrames: 58, noSwapFrames: 48, animPriority: { 58: 2 }, castPriority: 11, motionStop: [5, 42], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 46, mv: 16342, energy: 1000, offtune: 7736 }], castConcerto: 1000});
 /** In This Very Moment carries no team buff on her own page (unlike most other kits' outros). */
 const Outro = sigrikaAction("Outro - In This Very Moment", { animFrames: 48, cast: Cast.Outro, type: Type.Outro, bullets: [{ hitFrame: 18, mv: 79500 }], minConcerto: 10000, castConcerto: -10000});
 
@@ -229,17 +295,8 @@ const SR_INHERENT_1 = new Inherent({
 /** Whether the current action grants Sigrika a Rune — Elucidated/Decipher's own Dodge Counter
  *  variant (Trust), or BIG BOOMY BOOM!/Soliskin to the Aid (Answer). */
 function gainsRune(): boolean {
-  return runningAction(EBA) || runningAction(EDC) || runningAction(ESkill) || runningAction(ESkill50);
+  return RUNE_PRESSES.some((a) => runningAction(a));
 }
-
-/** Decipher: opened by Basic Attack Stage 4, closed by whichever finisher next grants a Rune.
- *  While up, Basic Attack becomes Elucidated and Dodge Counter its own Decipher variant. */
-const DECIPHER = new Buff({
-  name: "Sigrika: Decipher",
-  duration: 60 * 5,
-  lostOnSwap: true,
-  afterAction: () => { if (gainsRune()) revokeCurrent(DECIPHER); },
-});
 
 /** Convergent (Intro, 20s) doubles the next Rune gained, Divergent (Liberation, 20s) adds one of
  *  the opposite kind; Convergent takes priority when both stand, and neither takes effect at 100
@@ -247,40 +304,50 @@ const DECIPHER = new Buff({
 const CONVERGENT = new Buff({ name: "Sigrika: Convergent", duration: 60 * 20 });
 const DIVERGENT = new Buff({ name: "Sigrika: Divergent", duration: 60 * 20 });
 
-/** The Rune store, one packed word: bits 0-7 are four two-bit slots oldest-first (1 Trust,
- *  2 Answer), bit 8 always set so an empty store is still a held buff. Hers from combat start;
- *  the display reads the slots off as she stands. */
+/** The Rune store, one packed word: bits 0-7 are four two-bit slots left to right (1 Trust,
+ *  2 Answer, 3 Full Stop), bit 8 always set so an empty store is still a held buff. Hers from
+ *  combat start; the display reads the slots off as she stands. */
 const RUNES = new Buff({
   name: "Sigrika: Runes", maxStacks: 0x1ff,
   display: (): string => {
+    const word = frozenStacks();
     let slots = "";
-    for (let shift = 0; shift < 8; shift += 2) slots += "-TA"[(frozenStacks() >> shift) & 3]!;
+    for (let k = 0; k < 4; k++) slots += "-TAF"[(word >> (2 * k)) & 3]!;
     return `Sigrika: Runes [${slots}]`;
   },
 });
-
-/** Bank one Rune — 1 Trust, 2 Answer — into the store's first empty slot, and the count into
- *  forte1. Gated on a landed hit ("hitting a target directly with..."). Capacity is two Runes
- *  without Full Stop and four from 50: a gain at capacity shifts every Rune left, dropping the
- *  leftmost, and takes the last slot — the count stands. Convergent/Divergent, unless Full Stop is
- *  at 100, make the gain two: the same kind again, or the opposite. */
-function gainRune(kind: number): void {
-  if (!pressed().bullets.length) return;
-  let extra = 0;
-  if (forte2() < 100) {
-    if (isHeld(CONVERGENT)) { extra = kind; revokeCurrent(CONVERGENT); }
-    else if (isHeld(DIVERGENT)) { extra = 3 - kind; revokeCurrent(DIVERGENT); }
-  }
-  pushRune(kind);
-  if (extra) pushRune(extra);
+/** How many slots of `word` are Full Stop: 0, 2 or 4, always leading. */
+function fullStops(word: number): number {
+  let n = 0;
+  while (n < 4 && ((word >> (2 * n)) & 3) === 3) n++;
+  return n;
 }
-function pushRune(kind: number): void {
-  const cap = forte2() >= 50 ? 4 : 2;
-  const word = stacksOf(RUNES);
-  let runes = word & 0xff, n = 0;
-  while (n < 4 && (runes >> (2 * n)) & 3) n++;
-  if (n >= cap) { runes >>= 2; n--; } else addStat(Stat.AddForte1, 1);
-  setStacksSelf(RUNES, (word & ~0xff) | runes | (kind << (2 * n)));
+
+/** Bank one Rune — 1 Trust, 2 Answer — into the first empty slot after the Full Stops, on the hit
+ *  that lands it ("hitting a target directly with..."), whose own +1 forte1 is the count. Two take
+ *  Runes at a time: a gain with both full shifts the older out and takes the second — the count
+ *  stands; with all four Full Stop there is no room. Convergent/Divergent, unless Full Stop is
+ *  at 100, make the gain two: the same kind again, or the opposite. */
+function gainRune(kind: number, by: "Convergent" | "Divergent" | null): void {
+  const doubler = by === "Convergent" ? CONVERGENT : by === "Divergent" ? DIVERGENT : null;
+  let extra = 0;
+  if (doubler && isHeld(doubler)) {
+    extra = doubler === CONVERGENT ? kind : 3 - kind;
+    revokeCurrent(doubler);
+  } else if (doubler) addGain({ forte1: -1 });
+  // the hit's own forte1 counts these: a Rune pushed at capacity takes its one back
+  if (!pushRune(kind)) addGain({ forte1: -1 });
+  if (extra && !pushRune(extra)) addGain({ forte1: -1 });
+}
+/** Push a Rune into the store; false where both its slots were full (or none is open), so the
+ *  count stands. */
+function pushRune(kind: number): boolean {
+  const word = stacksOf(RUNES), at = 2 * fullStops(word);
+  if (at >= 8) return false;
+  const a = (word >> at) & 3, b = (word >> (at + 2)) & 3;
+  const pair = !a ? kind : !b ? a | (kind << 2) : b | (kind << 2);
+  setStacksSelf(RUNES, (word & ~(0xf << at)) | (pair << at));
+  return !a || !b;
 }
 
 /** Innate Gift?: up to 2 frozenStacks (4 from S3), each +30% Echo Skill DMG Amplification — granted
@@ -355,8 +422,9 @@ const SIGRIKA_RESONATOR = new Resonator({
   weapon: WeaponType.Gauntlets,
   color: "#e0aa7e",
   intro: Intro,
+  outro: Outro,
   maxEnergy: 12500,
-  maxForte1: 4,
+  maxForte1: 2,
   maxForte2: 100,
 
   // the Rune store, empty (its always-set bit alone; see RUNES)
@@ -374,7 +442,7 @@ const SIGRIKA_RESONATOR = new Resonator({
 const SR_S1 = new Sequence({
   name: "Sigrika S1: The Gleam Meant for Radiance",
   applyStats: () => {
-    if (runningAction(EBA) || runningAction(EDC) || runningAction(ESkill) || runningAction(ESkill50)) addStat(Stat.MulMv, 70);
+    if (RUNE_PRESSES.some((a) => runningAction(a))) addStat(Stat.MulMv, 70);
   },
 });
 
@@ -422,34 +490,55 @@ const BA34 = new ActionGroup("Basic - One, Two, Three 34", [BA3, BA4]);
 
 const SR_ROTATION = new Rotation([
   INTRO, ECHO, 
-  BA234, EBA.cancel(), FHA.cancel(), Liberation,
-  BA234, EBA.cancel(), FHA.cancel(), FSkill,
-  Skill, BA34, EBA.instaSwap(),
-  Outro,
+  BA234, EBASIC.cancel(), FHA.cancel(), Liberation,
+  BA234, EBASIC.cancel(), FHA.holdCancel(), FSkill,
+  Skill, BA34, EBASIC.instaSwap(),
+  OUTRO,
 ]);
+
+const SR_ROTATION_DOUBLE = new Rotation([
+  START_LAST, Liberation, 
+  Skill, BA34, EBASIC.instaSwap(),
+
+  INTRO_LAST, ECHO, FHA.dodgeCancel(),
+  BA234, ESKILL, BA234, EBASIC.hitCancel(), Liberation, FHA.holdCancel(), FSkill, 
+  Skill, BA34, EBASIC.instaSwap(),
+  OUTRO,
+]);
+
+// TODO s2+ rotation
 
 const SR_ROTATION_FAST = new Rotation([
   INTRO, ECHO, 
-  BA234, EBA.cancel(), FHA.cancel(), Liberation,
-  BA234, EBA.cancel(), FHA.cancel(), FSkill,
-  Outro,
+  BA234, EBASIC.cancel(), FHA.cancel(), Liberation,
+  BA234, EBASIC.cancel(), FHA.holdCancel(), FSkill,
+  OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
 // her real 43311 build: resonator + talents + both Inherent Skills + Forte Circuit, weapon,
 // mainslot echo, sonata pieces, mainstat/substat
-export const SIGRIKA = new Loadout({
+export const SIGRIKA_EBA = new Loadout({
   resonator: SIGRIKA_RESONATOR,
   weapons: [SOLSWORN_CIPHERS, NEW_STD_GAUNTLET, ABYSS_SURGES],
   echoLoadouts: [new EchoLoadout(NAMELESS_EXPLORER, SOUND_OF_TRUE_NAME_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ER3, Mainstat.ATK1),
   substat: substats(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.AtkPct, Substat.FlatAtk, Substat.Basic, Substat.Skill),
   rotation: SR_ROTATION,
   sequences: SR_SEQUENCES,
 });
-
+export const SIGRIKA_DOUBLE = new Loadout({
+  resonator: SIGRIKA_RESONATOR,
+  weapons: [SOLSWORN_CIPHERS, NEW_STD_GAUNTLET, ABYSS_SURGES],
+  echoLoadouts: [new EchoLoadout(NAMELESS_EXPLORER, SOUND_OF_TRUE_NAME_5PC)],
+  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ER3, Mainstat.ATK1),
+  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.AtkPct, Substat.FlatAtk, Substat.Basic, Substat.Skill),
+  rotation: SR_ROTATION_DOUBLE,
+  sequences: SR_SEQUENCES,
+});
 // her real 43311 build: resonator + talents + both Inherent Skills + Forte Circuit, weapon,
 // mainslot echo, sonata pieces, mainstat/substat
 export const SIGRIKA_FAST = new Loadout({
@@ -458,7 +547,7 @@ export const SIGRIKA_FAST = new Loadout({
   echoLoadouts: [new EchoLoadout(NAMELESS_EXPLORER, SOUND_OF_TRUE_NAME_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ER3, Mainstat.ATK1),
   substat: substats(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.AtkPct, Substat.FlatAtk, Substat.Basic, Substat.Skill),
   rotation: SR_ROTATION_FAST,
   sequences: SR_SEQUENCES,
 });

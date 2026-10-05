@@ -28,10 +28,10 @@ export const enum Stat {
   ER,
   TBB,
   OfftuneBuildup,
-  /** Scales what an action regens: `(base energy + AddEnergy) x (1 + this/100)` — Camellya's
+  /** Scales what an action regens: `base energy x (1 + this/100)`, a hook's flat `addGain()` aside — Camellya's
    *  Vegetative Universe, Yangyang. Percent; 0 means the ordinary x1. */
   EnergyRegenMult,
-  /** The same for what an action builds of off-tune: `(base off-tune + AddOfftune) x (1 + this/100)`,
+  /** The same for what an action builds of off-tune: `(base off-tune + added) x (1 + this/100)`,
    *  ahead of the Buildup Rate — Suoming's Seal Master stages. Percent; 0 means the ordinary x1. */
   OfftuneMult,
 
@@ -61,21 +61,6 @@ export const enum Stat {
    *  or a panel. */
   HealingBonus,
   HealingReceived,
-
-  /** Resource deltas a buff contributes on top of an action's own declared energy/concerto/
-   *  offtune/forte — banked into the running counters by evaluate(), not read back by a formula. */
-  AddEnergy,
-  AddConcerto,
-  AddOfftune,
-  /** Off-tune that lands on the bar directly rather than being built up — Denia's half-bar
-   *  surge, and the drain a Tune Break takes back off. Unlike AddOfftune, Off-Tune Buildup Rate
-   *  doesn't scale it: it is already the amount the bar moves. */
-  DirectOfftune,
-  AddForte1,
-  AddForte2,
-  AddForte3,
-  AddForte4,
-  AddForte5,
 }
 
 /** Stats that describe the *enemy* itself — a real debuff on the target that every attacker reads
@@ -85,7 +70,7 @@ export const enum Stat {
  *  so a kit can't reach for the wrong pool by mistake. Numbered on from `Stat`'s last member so
  *  the two share one index space (see the header). */
 export const enum EnemyStat {
-  ResReduce = Stat.AddForte5 + 1,
+  ResReduce = Stat.HealingReceived + 1,
   DefReduce,
 }
 
@@ -105,10 +90,6 @@ export const STAT_NAME: Record<Stat | EnemyStat, string> = {
   [Stat.DamageTaken]: "Damage Taken",
   [Stat.ResIgnore]: "Res Ignore", [Stat.DefIgnoreNew]: "Def Ignore (new)", [Stat.DefIgnoreOld]: "Def Ignore (old)",
   [Stat.HealingBonus]: "Healing Bonus", [Stat.HealingReceived]: "Healing Received",
-  [Stat.AddEnergy]: "Energy", [Stat.AddConcerto]: "Concerto", [Stat.AddOfftune]: "Offtune",
-  [Stat.DirectOfftune]: "DirectOfftune",
-  [Stat.AddForte1]: "Forte1", [Stat.AddForte2]: "Forte2", [Stat.AddForte3]: "Forte3",
-  [Stat.AddForte4]: "Forte4", [Stat.AddForte5]: "Forte5",
   [EnemyStat.ResReduce]: "Res Reduce", [EnemyStat.DefReduce]: "Def Reduce",
 };
 
@@ -239,9 +220,9 @@ export const enum BuffTarget { Self, Team, Enemy, Next }
 
 /** Cast identities with no damage type of their own (a Dodge Counter deals whatever `type` says);
  *  kept out of `Type` so they can't be reached for `type`/`subtype` by mistake. */
-/** Frames an animation runs on past the point it was cut: an insta cut's, a mash cancel's and a
- *  plain (dodge, jump, on-hit) cancel's — and the handoff a swap costs the resonator coming in.
- *  `HOLD_DELAY` is the least a hold cancel plays of its press before letting go. */
+/** Frames an animation runs on past the point it was cut: an insta cut's and a plain (dodge, jump,
+ *  on-hit) cancel's — and the handoff a swap costs the resonator coming in. `HOLD_DELAY` and
+ *  `MASH_DELAY` are the least a hold and a mash cancel play of their press before letting go. */
 export const INSTA_DELAY = 6, MASH_DELAY = 6, HOLD_DELAY = 15, CANCEL_DELAY = 12, SWAP_DELAY = 12;
 
 /** The units every number of these is held in, whole: energy and concerto in hundredths of a point,
@@ -250,10 +231,9 @@ export const INSTA_DELAY = 6, MASH_DELAY = 6, HOLD_DELAY = 15, CANCEL_DELAY = 12
 export const ENERGY_UNIT = 100, CONCERTO_UNIT = 100, MV_UNIT = 100;
 /** A full Concerto bar. */
 export const FULL_CONCERTO = 100 * CONCERTO_UNIT;
-/** What a stat's value is divided by to read in points (or percent): the ones held in a resource's
- *  own units — AddMv, AddEnergy, AddConcerto. 1 for every other. */
-export const statDisplayScale = (stat: Stat | EnemyStat): number =>
-  stat === Stat.AddMv ? MV_UNIT : stat === Stat.AddEnergy ? ENERGY_UNIT : stat === Stat.AddConcerto ? CONCERTO_UNIT : 1;
+/** What a stat's value is divided by to read in points (or percent): AddMv, held in MV's own units.
+ *  1 for every other. */
+export const statDisplayScale = (stat: Stat | EnemyStat): number => (stat === Stat.AddMv ? MV_UNIT : 1);
 
 /** An action's one tag — the one its row carries, and what `cancelCost()` charges. Whether its
  *  owner is on field is the engine's (`State.onField`), not the tag's: a `Field` row reads FIELD
@@ -261,10 +241,11 @@ export const statDisplayScale = (stat: Stat | EnemyStat): number =>
 export enum ActionTag {
   Default = "",
   Field = "field",
+  NoTb = "no tb", // invisible on the row: a plain press no Tune Break comes out behind (`Action.noTb()`)
   Cancel = "cancel",
   
-  MashCancel = "mash cancel", // the next press mashed in on the cancel frame
-  HoldCancel = "hold cancel", // the next press held through it, coming out once the bars pay for it
+  MashCancel = "mash cancel", // a hold cancel mashed in: coming out once the next press can be cast
+  HoldCancel = "hold cancel", // the next press held through it, coming out once it can be cast
   DodgeCancel = "dodge cancel",
   JumpCancel = "jump cancel",
   SwapCancel = "swap cancel",
@@ -290,12 +271,14 @@ export const enum Cast {
   Outro,
   Echo,
   TuneBreak,
+  Dodge,
+  Jump,
 }
 
 export const CAST_NAME: Record<Cast, string> = {
   [Cast.DodgeCounter]: "Dodge Counter", [Cast.Basic]: "Basic", [Cast.Heavy]: "Heavy", [Cast.Skill]: "Skill",
   [Cast.Liberation]: "Liberation", [Cast.Intro]: "Intro", [Cast.Outro]: "Outro", [Cast.Echo]: "Echo",
-  [Cast.TuneBreak]: "Tune Break",
+  [Cast.TuneBreak]: "Tune Break", [Cast.Dodge]: "Dodge", [Cast.Jump]: "Jump",
 };
 
 /** Which branch of the kit a cast comes from (forte circuit vs liberation vs ordinary attacks),

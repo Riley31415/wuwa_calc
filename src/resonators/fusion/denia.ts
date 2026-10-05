@@ -22,7 +22,7 @@
  *
  * Gauges: Void Particle is forte1 (0-100) and Conformal Charge forte2 (0-100); Dark Cores are an
  * ordinary stacking buff (DARK_CORE), which is what lets S3 raise their ceiling. Per-cast gains are declared on the actions; the Void Particle spend and the Liberation
- * retag ride the VOID_PARTICLE buff (evaluate.ts's typeOverride) rather than a second set of actions
+ * retag ride the BREAKDOWN_FORM buff (evaluate.ts's typeOverride) rather than a second set of actions
  * — nanoka's enhanced rows are the plain ones at x1.5 MV with identical energy/concerto/off-tune.
  * Only Dark Cores are read back (Banish Stage 2's multiplier). An Entropy Shift's own time-based
  * regen — 1 Void Particle a second, a Dark Core every 12s — is banked on her Outro instead, over
@@ -57,7 +57,7 @@ import {
   applyCurrent,
   applyTeam,
   casting,
-  currentAction,
+  currentCast, currentHit,
   runningAction,
   isHeld,
   maxStackIncrease,
@@ -70,15 +70,15 @@ import {
   getStat,
   stacksOf,
   stacksOfTeam,
-  addToCast,
+  addGain,
   runningBullet,
 } from "../../engine/context.js";
-import { Action, Cooldown, Rotation, NOINTRO, ECHO, ActionGroup, INTRO } from "../../engine/rotation.js";
+import { Action, Cooldown, Rotation, NOINTRO, ECHO, ActionGroup, INTRO, OUTRO } from "../../engine/rotation.js";
 import type { BulletDef } from "../../engine/rotation.js";
 import { applied, applyEnemy } from "../../engine/context.js";
-import { FUSION_BURST, FUSION_BURST_ACTIONS } from "../../shared/status.js";
+import { FUSION_BURST, FUSION_BURST_ACTIONS, queueOnApplier } from "../../shared/status.js";
 import { ENEMY_MAX_OFFTUNE, TUNE_STRAIN_SHIFTING } from "../../shared/tunebreak.js";
-import { applyStrain, TUNE_STRAIN_INTERFERED, strainPayout } from "../../shared/tunebreak.js";
+import { applyStrain, TUNE_STRAIN_INTERFERED, TUNE_SHIFTABLE, strainPayout } from "../../shared/tunebreak.js";
 import { FORGED_DWARF_STAR, STRINGMASTER } from "../../weapons/rectifier.js";
 import { COSMIC_RIPPLES, NEW_STD_RECTIFIER } from "../../weapons/standard.js";
 import {
@@ -91,8 +91,50 @@ import {
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { CLAWPRINT_5PC, LIONESS_OF_GLORY } from "../../echoes/septimont.js";
+import { AEMEATH_RESONATOR } from "./aemeath.js";
+import { LUUK_RESONATOR } from "../spectro/luuk.js";
+import { QINGXIAO_RESONATOR } from "../aero/qingxiao.js";
 
 /* ----------------------------------------------------------------------------------- actions */
+
+/** Stagecraft Form: the form she enters combat in, which every Stagecraft press needs. Final Act -
+ *  Stagecraft leaves it for Breakdown; Final Act - Breakdown comes back. */
+const STAGECRAFT_FORM = new Buff({ name: "Denia: Stagecraft Form" });
+
+/** Breakdown Form holding Void Particle: each Normal Attack (whose own declared forte1 is the
+ *  spend) is Resonance Liberation DMG at x1.5 the plain multiplier and banks Conformal Charge
+ *  twice over — the retag through typeOverride (first phase of the action, so Forged Dwarf Star's
+ *  Liberation bonus, the liberation substats and every isType() check all see it), the x1.5 as
+ *  MulMv, and the double Charge as a second copy of whatever Charge the action itself declares.
+ *  A Breakdown attack is recognised by its own gauges — it spends Void Particle and banks Charge —
+ *  so nothing here lists them; the dodge counter is Stage 3 and carries Stage 3's, so it enhances
+ *  like any other. Held from Final Act - Stagecraft until Final Act - Breakdown flips her back. */
+const BREAKDOWN_FORM = new Buff({
+  name: "Denia: Breakdown Form",
+  // the retag has to land in the first phase, before anything reads the type (see typeOverride)
+  updateDebuffs: () => {
+    if (!spendsVoid()) return;
+    typeOverride(Type.Liberation);
+    addGain({ forte2: currentHit().forte2 });
+  },
+  applyStats: () => { if (spendsVoid()) addStat(Stat.MulMv, 50); },
+});
+const STAGE = { requireBuff: STAGECRAFT_FORM };
+const BREAK = { requireBuff: BREAKDOWN_FORM };
+
+/** Banish Stage 2 spends every Dark Core held for +150% of its base multiplier apiece — read off
+ *  the gauge before the cast's own -3 lands (deltas bank once the action has resolved). */
+const DARK_CORE = new Buff({
+  name: "Denia: Dark Core", maxStacks: 5,
+  // declared at S3's own five and held down to three without it — a local buff's cap can't be
+  // raised the way an enemy debuff's can (context.ts's own maxStackIncrease)
+  updateBuffs: () => {
+    const over = stacksOf(DARK_CORE) - (isHeld(DN_S3) ? 5 : 3);
+    if (over > 0) removeStack(DARK_CORE, over);
+  },
+  applyStats: () => { if (runningAction(Banish2)) addStat(Stat.MulMv, 150 * frozenStacks()); },
+  afterAction: () => { if (runningAction(Banish2)) revokeCurrent(DARK_CORE); },
+});
 
 function deniaAction(id: string, def: object): Action {
   return new Action(id, { element: Attribute.Fusion, scaling: Scaling.Atk, ...def });
@@ -100,26 +142,26 @@ function deniaAction(id: string, def: object): Action {
 
 // --- Stagecraft Form. Normal Attacks bank Void Particle (forte1). Dodge Counter carries the
 //     hidden +10 Concerto every dodge counter gets (CLAUDE.md).
-const BA1 = deniaAction("Basic - Stagecraft Form 1", { animFrames: 16, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 9, commitFrame: 3, mv: 3269, energy: 69, concerto: 137, offtune: 2192, forte1: 4 }]});
-const BA2 = deniaAction("Basic - Stagecraft Form 2", { animFrames: 33, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = deniaAction("Basic - Stagecraft Form 1", { ...STAGE, animFrames: 16, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 9, commitFrame: 3, mv: 3269, energy: 69, concerto: 137, offtune: 2192, forte1: 4 }]});
+const BA2 = deniaAction("Basic - Stagecraft Form 2", { ...STAGE, animFrames: 33, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 16, commitFrame: 4, mv: 3018, energy: 64, concerto: 127, offtune: 2024, forte1: 4 },
     { hitFrame: 24, commitFrame: 4, mv: 3018, energy: 64, concerto: 127, offtune: 2024, forte1: 4 },
   ]});
-const BA3 = deniaAction("Basic - Stagecraft Form 3", { animFrames: 38, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = deniaAction("Basic - Stagecraft Form 3", { ...STAGE, animFrames: 38, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 20, commitFrame: 4, mv: 2549, energy: 54, concerto: 107, offtune: 1710, forte1: 3, updateDebuffs: () => deniaLays(1) },
     { hitFrame: 29, commitFrame: 4, mv: 2549, energy: 54, concerto: 107, offtune: 1710, forte1: 3 },
     { hitFrame: 38, commitFrame: 4, mv: 2549, energy: 54, concerto: 107, offtune: 1710, forte1: 3 },
   ]});
-const BA4 = deniaAction("Basic - Stagecraft Form 4", { animFrames: 57, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 18, commitFrame: 0, mv: 12800, energy: 69, concerto: 537, offtune: 8584, forte1: 30, updateDebuffs: () => deniaLays(1) }]});
-const HA = deniaAction("Heavy - Stagecraft Form", { animFrames: 94, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+const BA4 = deniaAction("Basic - Stagecraft Form 4", { ...STAGE, animFrames: 57, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 18, commitFrame: 0, mv: 12800, energy: 69, concerto: 537, offtune: 8584, forte1: 30, updateDebuffs: () => deniaLays(1) }]});
+const HA = deniaAction("Heavy - Stagecraft Form", { ...STAGE, animFrames: 94, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 42, mv: 8076, energy: 170, concerto: 339, offtune: 5416, forte1: 10 },
     { hitFrame: 54, commitFrame: 42, mv: 8076, energy: 170, concerto: 339, offtune: 5416, forte1: 10 },
   ]});
-const MA = deniaAction("Mid-air - Stagecraft Form Plunge", { animFrames: 41, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MA = deniaAction("Mid-air - Stagecraft Form Plunge", { ...STAGE, animFrames: 41, animPriority: { 32: 2 }, castPriority: 4, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 22, mv: 2959, energy: 62, concerto: 124, offtune: 1984, forte1: 4 },
     { hitFrame: 37, mv: 4438, energy: 93, concerto: 186, offtune: 2976, forte1: 6 },
   ]});
-const DC = deniaAction("Dodge Counter - Stagecraft Form 3", { animFrames: 38, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const DC = deniaAction("Dodge Counter - Stagecraft Form 3", { ...STAGE, animFrames: 38, animPriority: { 33: 2 }, castPriority: 4, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 20, commitFrame: 4, mv: 4935, energy: 104, concerto: 207, offtune: 1710, forte1: 6 },
     { hitFrame: 29, commitFrame: 4, mv: 4935, energy: 104, concerto: 207, offtune: 1710, forte1: 6 },
     { hitFrame: 38, commitFrame: 4, mv: 4935, energy: 104, concerto: 207, offtune: 1710, forte1: 6 },
@@ -128,35 +170,35 @@ const DC = deniaAction("Dodge Counter - Stagecraft Form 3", { animFrames: 38, no
 // --- Breakdown Form: Basic Attack DMG, banking Conformal Charge (forte2). Each also declares the
 //     Void Particle (forte1) it spends when she holds any — the sheet's own figures, declared here
 //     rather than on the buff so the gauge shows the spend, and how far past 0 it runs.
-const UBA1 = deniaAction("Basic - Breakdown Form 1", { animFrames: 21, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 13, mv: 3651, energy: 77, concerto: 153, offtune: 2448, forte2: 3 }], castForte1: -18});
-const UBA2 = deniaAction("Basic - Breakdown Form 2", { animFrames: 52, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const UBA1 = deniaAction("Basic - Breakdown Form 1", { ...BREAK, animFrames: 21, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 13, mv: 3651, energy: 77, concerto: 153, offtune: 2448, forte2: 3 }], castForte1: -18});
+const UBA2 = deniaAction("Basic - Breakdown Form 2", { ...BREAK, animFrames: 52, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 3751, energy: 79, concerto: 158, offtune: 2516, forte2: 4 },
     { hitFrame: 26, commitFrame: 14, mv: 1407, energy: 30, concerto: 59, offtune: 944, forte2: 2 },
     { hitFrame: 32, commitFrame: 14, mv: 1407, energy: 30, concerto: 59, offtune: 944, forte2: 2 },
     { hitFrame: 38, commitFrame: 14, mv: 1407, energy: 30, concerto: 59, offtune: 944, forte2: 2 },
     { hitFrame: 44, commitFrame: 14, mv: 1407, energy: 30, concerto: 59, offtune: 944, forte2: 2 },
   ], castForte1: -46});
-const UBA3 = deniaAction("Basic - Breakdown Form 3", { animFrames: 36, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 23, mv: 6239, energy: 131, concerto: 262, offtune: 4184, forte2: 6, updateDebuffs: () => deniaLays(1) }], castForte1: -30});
-const UBA4 = deniaAction("Basic - Breakdown Form 4", { animFrames: 63, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const UBA3 = deniaAction("Basic - Breakdown Form 3", { ...BREAK, animFrames: 36, animPriority: { 32: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 23, mv: 6239, energy: 131, concerto: 262, offtune: 4184, forte2: 6, updateDebuffs: () => deniaLays(1) }], castForte1: -30});
+const UBA4 = deniaAction("Basic - Breakdown Form 4", { ...BREAK, animFrames: 63, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 3554, energy: 75, concerto: 149, offtune: 2384, updateDebuffs: () => deniaLays(1), forte2: 3 },
     { hitFrame: 36, commitFrame: 30, mv: 8292, energy: 174, concerto: 348, offtune: 5561, forte2: 8 },
   ], castForte1: -58});
 // the mid-air chain: every hit the ground one's, its Stage 4 a shorter 57 frames (wuwalab)
-const UMBA1 = deniaAction("Mid-air - Breakdown Form 1", { animFrames: 21, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 13, mv: 3651, energy: 77, concerto: 153, offtune: 2448, forte2: 3 }], castForte1: -18});
-const UMBA2 = deniaAction("Mid-air - Breakdown Form 2", { animFrames: 52, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const UMBA1 = deniaAction("Mid-air - Breakdown Form 1", { ...BREAK, animFrames: 21, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 13, mv: 3651, energy: 77, concerto: 153, offtune: 2448, forte2: 3 }], castForte1: -18});
+const UMBA2 = deniaAction("Mid-air - Breakdown Form 2", { ...BREAK, animFrames: 52, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 3751, energy: 79, concerto: 158, offtune: 2516, forte2: 4 },
     { hitFrame: 26, commitFrame: 14, mv: 1407, energy: 30, concerto: 59, offtune: 944, forte2: 2 },
     { hitFrame: 32, commitFrame: 14, mv: 1407, energy: 30, concerto: 59, offtune: 944, forte2: 2 },
     { hitFrame: 38, commitFrame: 14, mv: 1407, energy: 30, concerto: 59, offtune: 944, forte2: 2 },
     { hitFrame: 44, commitFrame: 14, mv: 1407, energy: 30, concerto: 59, offtune: 944, forte2: 2 },
   ], castForte1: -46});
-const UMBA3 = deniaAction("Mid-air - Breakdown Form 3", { animFrames: 36, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 23, mv: 6239, energy: 131, concerto: 262, offtune: 4184, forte2: 6, updateDebuffs: () => deniaLays(1) }], castForte1: -30});
-const UMBA4 = deniaAction("Mid-air - Breakdown Form 4", { animFrames: 57, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const UMBA3 = deniaAction("Mid-air - Breakdown Form 3", { ...BREAK, animFrames: 36, animPriority: { 32: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 23, mv: 6239, energy: 131, concerto: 262, offtune: 4184, forte2: 6, updateDebuffs: () => deniaLays(1) }], castForte1: -30});
+const UMBA4 = deniaAction("Mid-air - Breakdown Form 4", { ...BREAK, animFrames: 57, animPriority: { 44: 2 }, castPriority: 4, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 3554, energy: 75, concerto: 149, offtune: 2384, updateDebuffs: () => deniaLays(1), forte2: 3 },
     { hitFrame: 36, commitFrame: 30, mv: 8292, energy: 174, concerto: 348, offtune: 5561, forte2: 8 },
   ], castForte1: -58});
-const UHA = deniaAction("Heavy - Breakdown Form", { animFrames: 74, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 63, mv: 13706, energy: 288, concerto: 575, offtune: 9192, forte2: 13 }], castForte1: -66});
-const UMHA = deniaAction("Heavy - Breakdown Form (Mid-Air)", { animFrames: 48, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+const UHA = deniaAction("Heavy - Breakdown Form", { ...BREAK, animFrames: 74, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 63, mv: 13706, energy: 288, concerto: 575, offtune: 9192, forte2: 13 }], castForte1: -66});
+const UMHA = deniaAction("Heavy - Breakdown Form (Mid-Air)", { ...BREAK, animFrames: 48, animPriority: { 32: 2 }, castPriority: 4, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
     { hitFrame: 22, mv: 2959, energy: 62, concerto: 124, offtune: 1984, forte2: 3 },
     { hitFrame: 34, mv: 4438, energy: 93, concerto: 186, offtune: 2976, forte2: 4 },
   ], castForte1: -37});
@@ -165,13 +207,13 @@ const UMHA = deniaAction("Heavy - Breakdown Form (Mid-Air)", { animFrames: 48, n
 // hidden +10 Concerto every dodge counter carries (CLAUDE.md); the mid-air one plays 65 frames to
 // the ground one's 36. nanoka has a single 108.08% "Dodge Counter - Breakdown Form" row instead,
 // matching neither.
-const UDC = deniaAction("Dodge Counter - Breakdown Form 3", { animFrames: 36, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 23, mv: 6239, energy: 131, concerto: 262, offtune: 4184, forte2: 6, updateDebuffs: () => deniaLays(1) }], castForte1: -30, castConcerto: 1000});
-const UMDC = deniaAction("Dodge Counter - Breakdown Form 3 (Mid-Air)", { animFrames: 65, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 23, mv: 6239, energy: 131, concerto: 262, offtune: 4184, forte2: 6, updateDebuffs: () => deniaLays(1) }], castForte1: -30, castConcerto: 1000});
+const UDC = deniaAction("Dodge Counter - Breakdown Form 3", { ...BREAK, animFrames: 36, animPriority: { 32: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 23, mv: 6239, energy: 131, concerto: 262, offtune: 4184, forte2: 6, updateDebuffs: () => deniaLays(1) }], castForte1: -30, castConcerto: 1000});
+const UMDC = deniaAction("Dodge Counter - Breakdown Form 3 (Mid-Air)", { ...BREAK, animFrames: 65, animPriority: { 32: 4, 52: 2 }, castPriority: 4, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 23, mv: 6239, energy: 131, concerto: 262, offtune: 4184, forte2: 6, updateDebuffs: () => deniaLays(1) }], castForte1: -30, castConcerto: 1000});
 
 // --- Resonance Skill: Phantom Bubble in Stagecraft (its 24.4 Concerto is what makes her loop),
 //     Beckon in Breakdown, or Banish in its place while a Dark Core is held. Stage 2 spends every
 //     core for +150% of its base multiplier apiece (see BANISH_CORES) and is Liberation DMG.
-const Skill = deniaAction("Skill - Phantom Bubble", { animFrames: 64, cooldown: 60 * 20, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+const Skill = deniaAction("Skill - Phantom Bubble", { ...STAGE, animFrames: 64, animPriority: { 60: 2 }, castPriority: 4, cooldown: 60 * 20, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 5, mv: 1742, energy: 4, concerto: 407, offtune: 1168 },
     { hitFrame: 14, commitFrame: 5, mv: 1742, energy: 4, concerto: 407, offtune: 1168 },
     { hitFrame: 23, commitFrame: 5, mv: 1742, energy: 4, concerto: 407, offtune: 1168 },
@@ -179,7 +221,7 @@ const Skill = deniaAction("Skill - Phantom Bubble", { animFrames: 64, cooldown: 
   ], castForte1: 25});
 /** Beckon and Banish draw on one 4s cooldown. */
 const BECKON_CD = new Cooldown({ frames: 60 * 4 });
-const Beckon = deniaAction("Skill - Beckon", { animFrames: 60, cooldown: BECKON_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+const Beckon = deniaAction("Skill - Beckon", { ...BREAK, animFrames: 60, animPriority: { 45: 2 }, castPriority: 5, cooldown: BECKON_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 0, mv: 3110, energy: 66, concerto: 131, offtune: 2086, forte2: 3 },
     { hitFrame: 9, commitFrame: 0, mv: 1452, energy: 31, concerto: 61, offtune: 974, forte2: 2 },
     { hitFrame: 24, commitFrame: 0, mv: 1452, energy: 31, concerto: 61, offtune: 974, forte2: 2 },
@@ -187,29 +229,33 @@ const Beckon = deniaAction("Skill - Beckon", { animFrames: 60, cooldown: BECKON_
     { hitFrame: 54, commitFrame: 0, mv: 1452, energy: 31, concerto: 61, offtune: 974, forte2: 2 },
     { hitFrame: 69, commitFrame: 0, mv: 1452, energy: 31, concerto: 61, offtune: 974, forte2: 2 },
   ]});
-const Banish1 = deniaAction("Skill - Banish 1", { animFrames: 57, cooldown: BECKON_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+// Breakdown Form is Banish 2's to check, which always follows: Banish 1 is the Dark Core's
+const Banish1 = deniaAction("Skill - Banish 1", { requireBuff: DARK_CORE, animFrames: 57, castPriority: 5, cooldown: BECKON_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 28, commitFrame: 10, mv: 3468, energy: 73, concerto: 146, offtune: 2326 },
     { hitFrame: 35, commitFrame: 10, mv: 3468, energy: 73, concerto: 146, offtune: 2326 },
     { hitFrame: 42, commitFrame: 10, mv: 3468, energy: 73, concerto: 146, offtune: 2326 },
   ]});
-const Banish2 = deniaAction("Skill - Banish 2", { animFrames: 71, cooldown: 30, node: Node.Skill, cast: Cast.Skill, type: Type.Liberation, bullets: [{ hitFrame: 23, commitFrame: 0, mv: 11201, energy: 235, concerto: 1470, offtune: 7512 }], castForte2: 40});
+const Banish2 = deniaAction("Skill - Banish 2", { ...BREAK, animFrames: 71, animPriority: { 53: 2 }, castPriority: 5, cooldown: 30, node: Node.Skill, cast: Cast.Skill, type: Type.Liberation, bullets: [{ hitFrame: 23, commitFrame: 0, mv: 11201, energy: 235, concerto: 1470, offtune: 7512 }], castForte2: 40});
 
 // --- Final Act. Stagecraft spends the Energy bar (125); Breakdown spends the full Conformal
 //     Charge and every Void Particle instead (zeroed in DENIA_RESONATOR's update — "all", not a fixed
 //     delta), and sets the Erosion Field at its frame 0: one field action whose eight 136.33%
 //     Liberation pulls are its own bullets, 158 to 1838 (wuwalab), each its own cast to the modes
 //     below.
-const Lib1 = deniaAction("Liberation - Final Act (Stagecraft)", {
-  animFrames: 259, prioFrames: 255, timestop: [0, 251], motionStop: [0, 251], cooldown: 60 * 25,
+const Lib1 = deniaAction("Liberation - Final Act (Stagecraft)", { ...STAGE,
+  animFrames: 259, animPriority: { 255: 2 }, castPriority: 10, timestop: [0, 251], motionStop: [0, 251], cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 257, commitFrame: 251, mv: 39762, offtune: 48000, updateDebuffs: () => deniaLays(2) }],
-  castConcerto: 2000, resetEnergy: true, 
-  updateBuffs: () => { 
-    revokeCurrent(ENTROPY_STAGECRAFT); applyCurrent(ENTROPY_BREAKDOWN);
+  castConcerto: 2000, resetEnergy: true,
+  updateBuffs: () => {
+    revokeCurrent(ENTROPY_STAGECRAFT);
+    applyCurrent(ENTROPY_BREAKDOWN);
+    revokeCurrent(STAGECRAFT_FORM);
+    applyCurrent(BREAKDOWN_FORM, 1);
   },
 });
 /** Spends every Void Particle and all the Conformal Charge, and shifts back to Stagecraft. */
-const Lib2 = deniaAction("Liberation - Final Act (Breakdown)", { minForte2: 100,
-  animFrames: 171, noSwapFrames: 160, timestop: [0, 131], motionStop: [0, 131], cooldown: 60 * 25, prioFrames: 163,
+const Lib2 = deniaAction("Liberation - Final Act (Breakdown)", { ...BREAK, minForte2: 100,
+  animFrames: 171, noSwapFrames: 160, timestop: [0, 131], motionStop: [0, 131], cooldown: 60 * 25, animPriority: { 163: 2 }, castPriority: 10,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [
     {
       hitFrame: 104, commitFrame: 98, mv: 19881, energy: 750, offtune: 13132,
@@ -223,6 +269,8 @@ const Lib2 = deniaAction("Liberation - Final Act (Breakdown)", { minForte2: 100,
   // the Breakdown shift's +30% ATK pays into this cast: the shift takes itself off next action
   updateBuffs: () => {
     applyCurrent(ENTROPY_STAGECRAFT);
+    revokeCurrent(BREAKDOWN_FORM);
+    applyCurrent(STAGECRAFT_FORM, 1);
     // only one field of hers at a time: a fresh cast sets it again, whatever the last had left
     cancelHits(FIELDS);
     applyTeam(EROSION_SET, 1);
@@ -255,14 +303,14 @@ const FIELDS = new Set<Action>([ErosionField]);
 const EROSION_SET = new Buff({ name: "Denia: Erosion Field" });
 
 // --- Intros, one per form. Both bank a Dark Core and 25 Void Particle.
-const Intro = deniaAction("Intro - It's Been A While!", {
-  animFrames: 53, noSwapFrames: 47, prioFrames: 50, motionStop: [5, 46],
+const Intro = deniaAction("Intro - It's Been A While!", { ...STAGE,
+  animFrames: 53, noSwapFrames: 47, animPriority: { 50: 2 }, castPriority: 11, motionStop: [5, 46],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 28, mv: 10462, energy: 1000, offtune: 7016, updateDebuffs: () => deniaLays(2) }], castConcerto: 1000, castForte1: 25,
   updateBuffs: () => applyCurrent(DARK_CORE),
 });
-// Knock Knock is the Breakdown-form Intro, so it shifts form as well as banking its own Dark Core
-const EIntro = deniaAction("Intro - Knock Knock", {
-  animFrames: 81, noSwapFrames: 75, prioFrames: 77, motionStop: [5, 43],
+// Knock Knock is the Breakdown-form Intro: it grants the Breakdown shift and banks its own Dark Core
+const EIntro = deniaAction("Intro - Knock Knock", { ...BREAK,
+  animFrames: 81, noSwapFrames: 75, animPriority: { 77: 2 }, castPriority: 11, motionStop: [5, 43],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 73, commitFrame: 49, mv: 5174, energy: 334, offtune: 3470, updateDebuffs: () => deniaLays(2) },
     { hitFrame: 80, commitFrame: 49, mv: 5174, energy: 334, offtune: 3470 },
@@ -312,42 +360,35 @@ const MODE_STRAIN = new ResonanceMode({
   combatStart: () => {
     maxStackIncrease(TUNE_STRAIN_INTERFERED, 1); applyCurrent(DE_STRAIN_PAYOUT, 1);
     applyTeam(OFFTUNE_SURGE, 1);
+    applyEnemy(TUNE_SHIFTABLE, 1);
   },
 });
 
 /** Strain mode's one-shot: the team's first Tune Strain - Shifting raises the target's Off-Tune
- *  Level by half the bar flat (DirectOfftune, so no buildup rate scales it), once a fight. Team-wide rather than hers: a team
- *  buff's applyStats() runs on whoever is acting, so whichever member's Shifting cast comes first pays
- *  it out on their own action (a locally-held buff only ever sees Denia's turns). Spent once the hit that fires it is in. */
+ *  Level by half the bar flat (direct off-tune, so no buildup rate scales it), once a fight. Team-wide rather than hers: a team
+ *  buff's hitGlobal() runs on whoever is acting, after every infliction of the hit, so whichever member's Shifting cast comes
+ *  first pays it out on their own action. Spent once the hit that fires it is in. */
 const OFFTUNE_SURGE = new Buff({
   name: "Resonance Mode - Tune Strain",
   // S2 takes the same one-shot to the whole bar
-  applyStats: () => {
+  hitGlobal: () => {
     if (!applied(TUNE_STRAIN_SHIFTING)) return;
-    addStat(Stat.DirectOfftune, ENEMY_MAX_OFFTUNE / 2);
+    addGain({ directOfftune: ENEMY_MAX_OFFTUNE / 2 });
     // S2 takes the opening surge from half the bar to the whole — the other half is its own
-    if (isHeld(DN_S2)) asSource(DN_S2, () => addStat(Stat.DirectOfftune, ENEMY_MAX_OFFTUNE / 2));
+    if (isHeld(DN_S2)) asSource(DN_S2, () => addGain({ directOfftune: ENEMY_MAX_OFFTUNE / 2 }));
   },
   afterHit: () => { if (applied(TUNE_STRAIN_SHIFTING)) revokeTeam(OFFTUNE_SURGE); },
 });
 
 /* ------------------------------------------------------------------------------------- buffs */
 
-/** Breakdown Form holding Void Particle: each Normal Attack (whose own declared forte1 is the
- *  spend) is Resonance Liberation DMG at x1.5 the plain multiplier and banks Conformal Charge
- *  twice over — the retag through typeOverride (first phase of the action, so Forged Dwarf Star's
- *  Liberation bonus, the liberation substats and every isType() check all see it), the x1.5 as
- *  MulMv, and the double Charge as a second copy of whatever Charge the action itself declares.
- *  A Breakdown attack is recognised by its own gauges — it spends Void Particle and banks Charge —
- *  so nothing here lists them; the dodge counter is Stage 3 and carries Stage 3's, so it enhances
- *  like any other. Held from Final Act - Stagecraft (which opens Breakdown Form) until
- *  Final Act - Breakdown spends everything and flips her back. */
-const pressed = (): Action => currentAction().formOf ?? currentAction();
-/** On a queued hit the press's own cast has already paid its Void Particle, so it is added back. */
+/** What BREAKDOWN_FORM reads on a hit: does its press spend a Void Particle and bank Breakdown.
+ *  Every Breakdown press takes time and so lands its hits after its cast, which has already paid
+ *  its Void Particle — added back. */
 const spendsVoid = (): boolean => {
-  const a = pressed();
-  const paid = currentAction().half === "hit" ? a.castForte[0]! : 0;
-  return a.forte1 < 0 && a.forte2 > 0 && forte1() - paid > 0;
+  const press = currentCast();
+  const paid = press.castForte[0]!;
+  return paid < 0 && press.bullets.some((b) => b.forte2 > 0) && forte1() - paid > 0;
 };
 
 /** Entropy Shift: Breakdown Form — +30% ATK for 12s, granted by Final Act - Stagecraft and Knock
@@ -359,18 +400,10 @@ const ENTROPY_BREAKDOWN = new Buff({
   duration: 60 * 12,
   stats: [[Stat.BonusAtk, 30]],
 
-  // the retag has to land in the first phase, before anything reads the type (see typeOverride)
-  updateDebuffs: () => { if (spendsVoid()) typeOverride(Type.Liberation); },
-
   // S3 has Final Act - Breakdown hand back 30 Concerto; S6's own standing pair is on its node
   updateBuffs: () => {
     if (isHeld(ENTROPY_STAGECRAFT) && !runningAction(Lib2)) revokeCurrent(ENTROPY_BREAKDOWN);
-    if (isHeld(DN_S3) && runningAction(Lib2)) asSource(DN_S3, () => addToCast({ concerto: 3000 }));
-  },
-  applyStats: () => {
-    if (!spendsVoid()) return;
-    addStat(Stat.MulMv, 50);
-    addStat(Stat.AddForte2, currentAction().forte2 - currentAction().castForte[1]!);
+    if (isHeld(DN_S3) && runningAction(Lib2)) asSource(DN_S3, () => addGain({ concerto: 3000 }));
   },
 });
 
@@ -386,9 +419,9 @@ const ENTROPY_STAGECRAFT = new Buff({
   updateBuffs: () => {
     if (!casting(Cast.Outro)) return;
     applyCurrent(DARK_CORE, isHeld(DN_S3) ? 4 : 2);
-    addToCast({ forte1: 20 });
+    addGain({ forte1: 20 });
     // S3 takes the regen to 4 a second, so the same off-field window banks 60 more
-    if (isHeld(DN_S3)) asSource(DN_S3, () => addToCast({ forte1: 60 }));
+    if (isHeld(DN_S3)) asSource(DN_S3, () => addGain({ forte1: 60 }));
   },
 });
 
@@ -420,20 +453,6 @@ const DN_INHERENT_2 = new Inherent({
   updateBuffs: () => {
     if (runningAction(Lib1) || runningAction(EIntro)) applyTeam(isHeld(MODE_BURST) ? ETCHED_COLORS_BURST : ETCHED_COLORS_STRAIN, 1);
   },
-});
-
-/** Banish Stage 2 spends every Dark Core held for +150% of its base multiplier apiece — read off
- *  the gauge before the cast's own -3 lands (deltas bank once the action has resolved). */
-const DARK_CORE = new Buff({
-  name: "Denia: Dark Core", maxStacks: 5,
-  // declared at S3's own five and held down to three without it — a local buff's cap can't be
-  // raised the way an enemy debuff's can (context.ts's own maxStackIncrease)
-  updateBuffs: () => {
-    const over = stacksOf(DARK_CORE) - (isHeld(DN_S3) ? 5 : 3);
-    if (over > 0) removeStack(DARK_CORE, over);
-  },
-  applyStats: () => { if (runningAction(Banish2)) addStat(Stat.MulMv, 150 * frozenStacks()); },
-  afterAction: () => { if (runningAction(Banish2)) revokeCurrent(DARK_CORE); },
 });
 
 /** Unfinished Lies (Outro), Fusion Burst mode: Fusion Burst DMG against targets near the active
@@ -529,11 +548,6 @@ const DN_S2 = new Sequence({
 const DN_S3 = new Sequence({
   name: "Denia S3: Through Dark and Wind, the Erlking Follows",
   combatStart: () => { applyCurrent(DARK_CORE, 5); setForte1(100); },
-  // the 30 Concerto is paid here rather than on the shift the node enhances: Final Act -
-  // Breakdown revokes that shift in its own updateBuffs
-  updateBuffs: () => {
-    if (runningAction(Lib2)) addToCast({ concerto: 3000 });
-  },
   // the retag has to land in the first phase, before anything reads the type (see typeOverride)
   updateDebuffs: () => {
     if ((runningAction(BA4) || runningAction(Skill)) && stacksOf(DARK_CORE) >= 5) typeOverride(Type.Liberation);
@@ -580,7 +594,7 @@ const DN_S6 = new Sequence({
   // every pull of the field: each is a hit of its one action
   updateDebuffs: () => {
     if (!isHeld(MODE_BURST) || !runningAction(ErosionField)) return;
-    queue(FUSION_BURST_ACTIONS[currentTeam().enemyMax(FUSION_BURST)]!);
+    queueOnApplier(FUSION_BURST, FUSION_BURST_ACTIONS[currentTeam().enemyMax(FUSION_BURST)]!);
   },
   hitGlobal: () => {
     if (isHeld(MODE_BURST) || !isType(Type.Break)) return;
@@ -616,10 +630,12 @@ const DENIA_RESONATOR = new Resonator({
   // is the Intro she enters with; Knock Knock (the Breakdown-form one) is kept for completeness
   color: "#ecabe3",
   // resolved when its row is reached: whichever Intro the kit's state calls for there
-  intro: new Action("Intro Resolver", { cast: Cast.Intro, resolve: () => stacksOf(ENTROPY_BREAKDOWN) ? EIntro : Intro }),
+  intro: () => stacksOf(BREAKDOWN_FORM) ? EIntro : Intro,
+  outro: Outro,
   maxEnergy: 12500,
   maxForte1: 100,
   maxForte2: 100,
+  combatStart: () => applyCurrent(STAGECRAFT_FORM, 1),
 
   stats: [
     [Stat.BaseHp, 11025], [Stat.BaseAtk, 425], [Stat.BaseDef, 1148.8868],
@@ -645,21 +661,21 @@ const USkill12 = new ActionGroup("Skill - Banish 12", [Banish1, Banish2]);
 const DN_ROTATION_BURST = new Rotation([
   NOINTRO, Skill.instaCancel(), Lib1,
   UBA12.jumpCancel(), UMBA1234.cancel(), 
-  USkill12.instaCancel(), Lib2, 
-  ECHO.instaSwap(), Outro,
+  USkill12.mashCancel(), Lib2, 
+  ECHO.instaSwap(), OUTRO,
 
   INTRO, BA4.instaCancel(), Skill.instaCancel(), Lib1,
   UBA1234.cancel(), 
-  USkill12.instaCancel(), Lib2, 
-  ECHO.instaSwap(), Outro,
+  USkill12.mashCancel(), Lib2, 
+  ECHO.instaSwap(), OUTRO,
 ]);
 
 const DN_ROTATION_BURST_S3 = new Rotation([
   NOINTRO,
   INTRO, Lib1,
   UBA1234.cancel(), 
-  USkill12.instaCancel(), Lib2,
-  ECHO.instaSwap(), Outro,
+  USkill12.mashCancel(), Lib2,
+  ECHO.instaSwap(), OUTRO,
 ]);
 
 /** One loadout per Resonance Mode, each with the echo set built for it: Trickster + Chromatic Foam
@@ -675,7 +691,7 @@ export const DENIA_BURST = new Loadout({
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
   substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Basic),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Skill, Substat.Basic),
   rotation: { 0: DN_ROTATION_BURST, 3: DN_ROTATION_BURST_S3 },
   sequences: DN_SEQUENCES,
   mode: MODE_BURST,
@@ -684,33 +700,34 @@ export const DENIA_BURST = new Loadout({
 const DN_ROTATION_STRAIN = new Rotation([
   NOINTRO, Skill.instaCancel(), Lib1,
   UBA12.dodgeCancel(), UBA12.jumpCancel(), UMBA12.cancel(),
-  USkill12.instaCancel(), Lib2,
-  ECHO.instaSwap(), Outro,
+  USkill12.mashCancel(), Lib2,
+  ECHO.instaSwap(), OUTRO,
 
   INTRO, BA4.instaCancel(), Skill.instaCancel(), Lib1,
   UBA12.jumpCancel(), UMBA12.cancel(),
-  USkill12.instaCancel(), Lib2,
-  ECHO.instaSwap(), Outro,
+  USkill12.mashCancel(), Lib2,
+  ECHO.instaSwap(), OUTRO,
 ]);
 
 const DN_ROTATION_STRAIN_S3 = new Rotation([
   NOINTRO,
   INTRO, Lib1,
   UBA12.jumpCancel(), UMBA12.cancel(),
-  USkill12.instaCancel(), Lib2,
-  ECHO.instaSwap(), Outro,
+  USkill12.mashCancel(), Lib2,
+  ECHO.instaSwap(), OUTRO,
 ]);
 
 export const DENIA_STRAIN = new Loadout({
   resonator: DENIA_RESONATOR,
   weapons: [FORGED_DWARF_STAR, COSMIC_RIPPLES, NEW_STD_RECTIFIER, STRINGMASTER],
   echoLoadouts: [
-    new EchoLoadout(VOIDWING_MOTH, REEL_5PC),
+    // Reel's team Tune Break Boost only pays a Tune DMG dealer
+    new EchoLoadout(VOIDWING_MOTH, REEL_5PC).requires(AEMEATH_RESONATOR, LUUK_RESONATOR, QINGXIAO_RESONATOR),
     new EchoLoadout(HYVATIA, NEONLIGHT_LEAP_5PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
   substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Skill, Substat.Basic),
   rotation: { 0: DN_ROTATION_STRAIN, 3: DN_ROTATION_STRAIN_S3 },
   sequences: DN_SEQUENCES,
   mode: MODE_STRAIN,

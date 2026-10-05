@@ -5,12 +5,13 @@
  */
 import { Stat, Attribute, Type, Subtype } from "./stats.js";
 import type { Cast } from "./stats.js";
-import type { Action } from "./rotation.js";
+import type { Action, Bullet } from "./rotation.js";
 import type { Gear } from "./gear.js";
 import type { State, TeamMember, HeldBuff } from "./state.js";
 
-/** One `addToCast()` call, for the hover panels: who added what — energy, concerto, forte 1-5. */
-export interface CastAdd { source: string; owner: string | null; gains: number[] }
+/** One `addGain()` call, for the hover panels: who added what — energy, concerto, forte 1-5,
+ *  off-tune, direct off-tune — and whether on the cast or a hit. */
+export interface GainAdd { source: string; owner: string | null; gains: number[]; onCast: boolean }
 
 /** The engine's ambient state: which team, member, gear and action a hook is running for, plus the
  *  per-action scratch every phase writes through. One object rather than a module of `let`s
@@ -61,12 +62,20 @@ export const ctx: {
   inResolve: boolean;
   /** Set while a handoff plans the visit it opens, ahead of its Outro: what that Outro moves hasn't. */
   handoffPending: boolean;
-  /** Set while a cast's hooks run — where `addToCast()` may add to what it banks. */
+  /** Set while a cast's hooks run — where `currentCast()` reads and `addGain()` adds to the cast. */
   inCast: boolean;
-  /** What cast hooks added to this press's cast (`addToCast()`): energy, concerto, forte 1-5. */
-  castGain: number[];
+  /** Set while a hit's own hooks run ahead of its damage (updateDebuffs, hitGlobal, an infliction's
+   *  grant) — where `addGain()` adds to the hit. */
+  inHit: boolean;
+  /** Set while `afterAction` runs: `currentCast()` reads, `currentHit()` doesn't. */
+  inEnd: boolean;
+  /** The bullet landing (`currentHit()`), from the hit's first hook to its last; null on a cast. */
+  hit: Bullet | null;
+  /** What hooks added to the part being evaluated (`addGain()`): energy, concerto, forte 1-5,
+   *  off-tune, direct off-tune. */
+  gain: number[];
   /** ...and who added it, traced only. */
-  castAdds: CastAdd[];
+  adds: GainAdd[];
   /** How many stat writes the action being evaluated has made — zeroed at its start, so the
    *  constant base can be copied in rather than added when the grant phases wrote nothing. */
   wrote: number;
@@ -85,9 +94,6 @@ export const ctx: {
    *  action; read by `isType()`, the tag list, and the snapshot. */
   overrideType: Type | null;
   overrideSubtype: Subtype | null;
-  /** "Lost on swap" buffs a swap cancel keeps paying on: revoked once the press is done
-   *  (`lostOnSwap()`, `BuffDef.lostOnSwap`). Cleared by `evaluate()` for every action. */
-  swapLosses: Set<Gear>;
   /** A second cast this action would otherwise also count as, dropped for this action alone (see
    *  `dropCast()`). Cleared by `evaluate()` every action, like the type overrides above. */
   droppedCast: Cast | null;
@@ -106,12 +112,13 @@ export const ctx: {
   /** The tag the press being evaluated was cut short by (`ActionTag`, "" for none, "field" for a
    *  press beside the fight) — its cast's, and carried to its end (`pressWasCut()`). */
   pressCut: string;
-  /** The step after the press being run, as written (a dash marker, say) — `nextIsPlainDodge()` (rotation.ts). */
-  nextStep: Action | null;
-  /** Set by `replaceNextDash()`: the cut the press is relabelled as, its dodge dropped; "" for none. */
-  dashReplaced: string;
+  /** Set by `replaceCut()`: the cut the press is relabelled as, its dodge or swap dropped; "" for none. */
+  cutReplaced: string;
   /** The press a hold cancel holds into, set by `run()` for evaluate() to read where it lets go. */
   holdNext: Action | null;
+  /** What a hold cancel holds into once the steps run out: the press the next loop would cast after
+   *  the Intro a fight ends on, which it never plays (rotation.ts's `finish()`). */
+  holdBeyond: Action | null;
   /** Where the hold cancel just evaluated let go, in animation frames; -1 for any other press. */
   holdCut: number;
   /** Bumped at the top of every `evaluate()`: what stamps this action's grant records (`applied`,
@@ -140,8 +147,11 @@ export const ctx: {
   inResolve: false,
   handoffPending: false,
   inCast: false,
-  castGain: [0, 0, 0, 0, 0, 0, 0],
-  castAdds: [],
+  inHit: false,
+  inEnd: false,
+  hit: null,
+  gain: [0, 0, 0, 0, 0, 0, 0, 0, 0],
+  adds: [],
   wrote: 0,
   recording: false,
   readPhase: 0,
@@ -149,14 +159,13 @@ export const ctx: {
   constVersion: 0,
   overrideType: null,
   overrideSubtype: null,
-  swapLosses: new Set(),
   droppedCast: null,
   pressFrames: 0,
   actReal: 0,
   pressCut: "",
-  nextStep: null,
-  dashReplaced: "",
+  cutReplaced: "",
   holdNext: null,
+  holdBeyond: null,
   holdCut: -1,
   offFieldShift: 0,
   offFieldFrom: 0,
@@ -239,10 +248,7 @@ export const noteMutation = (id: number, n: number): void => {
 };
 /** The stats `evaluate()` banks into the running gauges — a variant that moves any of these would
  *  bank differently, so the real build's fight isn't its fight either. */
-export const RESOURCE_STATS: Stat[] = [
-  Stat.AddEnergy, Stat.AddConcerto, Stat.AddOfftune, Stat.DirectOfftune, Stat.OfftuneBuildup, Stat.EnergyRegenMult, Stat.OfftuneMult,
-  Stat.AddForte1, Stat.AddForte2, Stat.AddForte3, Stat.AddForte4, Stat.AddForte5,
-];
+export const RESOURCE_STATS: Stat[] = [Stat.OfftuneBuildup, Stat.EnergyRegenMult, Stat.OfftuneMult];
 
 /** What was granted (or spent) during the action being evaluated, by Gear and by whose doing —
  *  what `applied()`/`appliedByMe()`/`consumed()` answer from. Flat arrays indexed by `Gear.id`,

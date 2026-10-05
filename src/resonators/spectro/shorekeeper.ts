@@ -22,12 +22,13 @@ import {
   currentTeam,
   isHeld,
   revokeTeam,
-  addStat,
+  addStat, addGain as addResource,
   casting,
   handoffPending,
+  applyOn,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, START_LAST, NOINTRO, ECHO, INTRO } from "../../engine/rotation.js";
-import { HEALS } from "../../shared/status.js";
+import { ActionGroup, Action, Rotation, START_LAST, NOINTRO, ECHO, INTRO, OUTRO } from "../../engine/rotation.js";
+import { HEALS, heal } from "../../shared/status.js";
 import { SK_SIG } from "../../weapons/rectifier.js";
 import { VARIATION } from "../../weapons/standard.js";
 import { REJUV_5PC } from "../../echoes/jinzhou.js";
@@ -35,6 +36,11 @@ import { FALLACY } from "../../echoes/jinzhou.js";
 import { mainstats, Mainstat } from "../../shared/mainstats.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { SPACETREK_EXPLORER, STARRY_RADIANCE_5PC } from "../../echoes/lahairoi.js";
+import { FORMLESS_DEMON, TINGED_YEARNING_5PC } from "../../echoes/mengzhou.js";
+import { JINGRAN_RESONATOR } from "../fusion/jingran.js";
+import { JINHSI_RESONATOR } from "./jinhsi.js";
+import { SUOMING_RESONATOR } from "../electro/suoming.js";
+import { HSIN_RESONATOR } from "../electro/hsin.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -42,31 +48,72 @@ function skAction(id: string, def: object): Action {
   return new Action(id, { element: Attribute.Spectro, scaling: Scaling.Atk, ...def });
 }
 
+/** The realm, a team-wide buff a stage: Outer (heals only, no stat), Inner (+12.5% Crit Rate),
+ *  Supernal (also +25% Crit Dmg). Evolves on any outro — each stage hands over to the next, and
+ *  Supernal is refreshed — and ends only when Discernment plays (see SHOREKEEPER_RESONATOR's own
+ *  updateBuffs() below). `realmStage()` is which one stands, 1-3, or 0 for none. */
+function stellarealm(stage: string, next: (() => Buff) | null, stats: [Stat, number][]): Buff {
+  const self: Buff = new Buff({
+    name: `Shorekeeper: ${stage} Stellarealm`, duration: 60 * 30, stats,
+    updateBuffs: () => {
+      if (!casting(Cast.Outro)) return;
+      if (next) {
+        revokeTeam(self);
+        applyTeam(next(), 1);
+      } else applyTeam(self, 1);
+    },
+  });
+  return self;
+}
+const SUPERNAL_REALM = stellarealm("Supernal", null, [[Stat.CritRate, 12.5], [Stat.CritDmg, 25]]);
+const INNER_REALM = stellarealm("Inner", () => SUPERNAL_REALM, [[Stat.CritRate, 12.5]]);
+const OUTER_REALM = stellarealm("Outer", () => INNER_REALM, []);
+const REALMS = [OUTER_REALM, INNER_REALM, SUPERNAL_REALM];
+const realmStage = (): number => REALMS.findIndex((realm) => stacksOfTeam(realm) > 0) + 1;
+
+/** The realm's heal, "once every 3s" while any stage stands (wuwalab's on-field Stellarealm heal):
+ *  the first on End Loop's cast, then this clock, which stops itself the first tick it finds none. */
+const REALM_HEALS: Buff = new Buff({
+  name: "Shorekeeper: Stellarealm (heals)",
+  tickOwner: () => SHOREKEEPER_RESONATOR,
+  tick: {
+    every: 60 * 3,
+    fire: () => {
+      if (!realmStage()) {
+        revokeTeam(REALM_HEALS);
+        return;
+      }
+      applyOn(SHOREKEEPER_RESONATOR, heal);
+    },
+  },
+});
+
 // Empirical Data (forte1): 1 a stage, capped at 5 — the engine floors at 0 but imposes no
 // ceiling itself, so BA3's +2/MA's +1 landing on 5 relies on this loop never running a fourth
 // basic before Forte: Illation spends the whole gauge below.
-const BA1 = skAction("Basic - Origin Calculus 1", { animFrames: 23, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 15, mv: 3178, energy: 50, concerto: 160, offtune: 2664, forte1: 1 }]});
-const BA2 = skAction("Basic - Origin Calculus 2", { animFrames: 33, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = skAction("Basic - Origin Calculus 1", { animFrames: 23, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 15, mv: 3178, energy: 50, concerto: 160, offtune: 2664, forte1: 1 }]});
+const BA2 = skAction("Basic - Origin Calculus 2", { animFrames: 33, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 8, mv: 2386, energy: 38, concerto: 120, offtune: 2000, forte1: 1 },
     { hitFrame: 20, mv: 2386, energy: 38, concerto: 120, offtune: 2000 },
   ]});
-const BA3 = skAction("Basic - Origin Calculus 3", { animFrames: 47, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = skAction("Basic - Origin Calculus 3", { animFrames: 47, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 20, mv: 2332, energy: 37, concerto: 118, offtune: 1955 },
     { hitFrame: 29, commitFrame: 20, mv: 2332, energy: 37, concerto: 118, offtune: 1955, forte1: 1 },
     { hitFrame: 38, commitFrame: 20, mv: 2332, energy: 37, concerto: 118, offtune: 1955, forte1: 1 },
   ]});
 
-const MA = skAction("Mid-air - Origin Calculus Plunge", { animFrames: 50, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 46, mv: 7396, energy: 155, concerto: 500, offtune: 4960, forte1: 1 }]});
+const MA = skAction("Mid-air - Origin Calculus Plunge", { animFrames: 50, animPriority: { 50: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 46, mv: 7396, energy: 155, concerto: 500, offtune: 4960, forte1: 1 }]});
 
-const Skill = skAction("Skill - Chaos Theory", { animFrames: 39, cooldown: 60 * 16, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
-    { hitFrame: 55, commitFrame: 17, mv: 3131, energy: 200, concerto: 200, offtune: 1050, updateDebuffs: () => applyCurrent(HEALS, 1) },
+const Skill = skAction("Skill - Chaos Theory", { animFrames: 39, animPriority: { 0: 4, 39: 2 }, castPriority: 5, cooldown: 60 * 16, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+    { hitFrame: 16, element: null, type: null, subtype: null, updateDebuffs: () => applyCurrent(HEALS, 1) }, // its heal, ahead of the hits
+    { hitFrame: 55, commitFrame: 17, mv: 3131, energy: 200, concerto: 200, offtune: 1050 },
     { hitFrame: 57, commitFrame: 17, mv: 3131, energy: 200, concerto: 200, offtune: 1050 },
     { hitFrame: 60, commitFrame: 17, mv: 3131, energy: 200, concerto: 200, offtune: 1050 },
     { hitFrame: 62, commitFrame: 17, mv: 3131, energy: 200, concerto: 200, offtune: 1050 },
     { hitFrame: 65, commitFrame: 17, mv: 3131, energy: 200, concerto: 200, offtune: 1050 },
   ], castConcerto: 2000});
 
-const FHA = skAction("Forte Heavy - Illation", { minForte1: 5, animFrames: 48, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+const FHA = skAction("Forte Heavy - Illation", { minForte1: 5, animFrames: 48, castPriority: 4, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 22, commitFrame: 5, mv: 5626, energy: 99, offtune: 1272 },
     { hitFrame: 34, commitFrame: 5, mv: 5626, energy: 99, offtune: 1272 },
     { hitFrame: 46, commitFrame: 5, mv: 5626, energy: 99, offtune: 1272 },
@@ -75,7 +122,7 @@ const FHA = skAction("Forte Heavy - Illation", { minForte1: 5, animFrames: 48, n
   ], castConcerto: 1100, castForte1: -5});
 
 const Liberation = skAction("Liberation - End Loop", {
-  animFrames: 207, prioFrames: 207, timestop: [0, 207], motionStop: [0, 207], cooldown: 60 * 25,
+  animFrames: 207, castPriority: 10, timestop: [0, 207], motionStop: [0, 207], cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, castConcerto: 2000, resetEnergy: true,
   // "Generate the Outer Stellarealm": a cast puts up a *new* realm rather than stepping the one
   // already standing, so whatever stage is up is replaced by Outer — which is what puts the realm
@@ -83,11 +130,15 @@ const Liberation = skAction("Liberation - End Loop", {
   updateBuffs: () => {
     for (const realm of REALMS) revokeTeam(realm);
     applyTeam(OUTER_REALM, 1);
+    // a new realm restarts the heal clock
+    revokeTeam(REALM_HEALS);
+    applyTeam(REALM_HEALS, 1);
   },
 });
 
-const Intro = skAction("Intro - Enlightenment", { animFrames: 85, noSwapFrames: 65, prioFrames: 85, motionStop: [6, 34], node: Node.Intro, cast: Cast.Intro, type: Type.Skill, bullets: [
-    { hitFrame: 83, commitFrame: 44, mv: 4530, energy: 200, concerto: 200, offtune: 2279, updateDebuffs: () => applyCurrent(HEALS, 1) },
+const Intro = skAction("Intro - Enlightenment", { animFrames: 85, noSwapFrames: 65, animPriority: { 85: 2 }, castPriority: 10, motionStop: [6, 34], node: Node.Intro, cast: Cast.Intro, type: Type.Skill, bullets: [
+    { hitFrame: 38, element: null, type: null, subtype: null, updateDebuffs: () => applyCurrent(HEALS, 1) }, // its heal, ahead of the hits
+    { hitFrame: 83, commitFrame: 44, mv: 4530, energy: 200, concerto: 200, offtune: 2279 },
     { hitFrame: 85, commitFrame: 44, mv: 4530, energy: 200, concerto: 200, offtune: 2279 },
     { hitFrame: 87, commitFrame: 44, mv: 4530, energy: 200, concerto: 200, offtune: 2279 },
     { hitFrame: 90, commitFrame: 44, mv: 4530, energy: 200, concerto: 200, offtune: 2279 },
@@ -96,9 +147,11 @@ const Intro = skAction("Intro - Enlightenment", { animFrames: 85, noSwapFrames: 
 // replaces plain Intro under a Supernal Stellarealm (see SHOREKEEPER_RESONATOR's own intro() below); scales
 // off HP, counts as liberation damage, always crits, and ends the realm on resolving
 const EIntro = skAction("Intro - Discernment", {
-  animFrames: 215, prioFrames: 215, timestop: [6, 140], motionStop: [6, 140],
+  // "When a Supernal Stellarealm is generated, Shorekeeper's first Intro Skill ... is replaced"
+  requireBuff: SUPERNAL_REALM, animFrames: 215, castPriority: 10, timestop: [6, 140], motionStop: [6, 140],
   node: Node.Intro, cast: Cast.Intro, type: Type.Liberation, scaling: Scaling.Hp, bullets: [
-    { hitFrame: 143, mv: 1964, energy: 334, offtune: 24414, updateDebuffs: () => applyCurrent(HEALS, 1) },
+    { hitFrame: 143, mv: 1964, energy: 334, offtune: 24414 },
+    { hitFrame: 144, element: null, type: null, subtype: null, updateDebuffs: () => applyCurrent(HEALS, 1) }, // its heal, a frame behind
     { hitFrame: 155, commitFrame: 143, mv: 1964, energy: 334, offtune: 24414 },
     { hitFrame: 167, commitFrame: 143, mv: 1964, energy: 334, offtune: 24414 },
   ], castConcerto: 2000,
@@ -127,28 +180,6 @@ const Outro = skAction("Outro - Binary Butterfly", {
 
 /* ------------------------------------------------------------------------------------ buffs */
 
-/** The realm, a team-wide buff a stage: Outer (heals only, no stat), Inner (+12.5% Crit Rate),
- *  Supernal (also +25% Crit Dmg). Evolves on any outro — each stage hands over to the next, and
- *  Supernal is refreshed — and ends only when Discernment plays (see SHOREKEEPER_RESONATOR's own
- *  updateBuffs() below). `realmStage()` is which one stands, 1-3, or 0 for none. */
-function stellarealm(stage: string, next: (() => Buff) | null, stats: [Stat, number][]): Buff {
-  const self: Buff = new Buff({
-    name: `Shorekeeper: ${stage} Stellarealm`, duration: 60 * 30, stats,
-    updateBuffs: () => {
-      if (!casting(Cast.Outro)) return;
-      if (next) {
-        revokeTeam(self);
-        applyTeam(next(), 1);
-      } else applyTeam(self, 1);
-    },
-  });
-  return self;
-}
-const SUPERNAL_REALM = stellarealm("Supernal", null, [[Stat.CritRate, 12.5], [Stat.CritDmg, 25]]);
-const INNER_REALM = stellarealm("Inner", () => SUPERNAL_REALM, [[Stat.CritRate, 12.5]]);
-const OUTER_REALM = stellarealm("Outer", () => INNER_REALM, []);
-const REALMS = [OUTER_REALM, INNER_REALM, SUPERNAL_REALM];
-const realmStage = (): number => REALMS.findIndex((realm) => stacksOfTeam(realm) > 0) + 1;
 
 /** Team-wide amplification her outro puts up — permanent uptime once granted, not a handoff. */
 const SK_OUTRO = new Buff({
@@ -208,9 +239,7 @@ const SK_S2 = new Sequence({
 
 const SK_S3 = new Sequence({
   name: "Shorekeeper S3: Infinity Awaits Me",
-  applyStats: () => {
-    if (runningAction(Liberation)) addStat(Stat.AddConcerto, 2000);
-  },
+  updateBuffs: () => { if (runningAction(Liberation)) addResource({ concerto: 2000 }); },
 });
 
 /** S4: Healing Bonus is out of this calculator's formula, so this is tracked for completeness the
@@ -249,14 +278,15 @@ const SHOREKEEPER_RESONATOR = new Resonator({
   color: "#728cf3",
   // resolved when its row is reached: whichever Intro the kit's state calls for there
   // planned ahead of the handoff's Outro, the realm reads a stage on from where it stands
-  intro: new Action("Intro Resolver", { cast: Cast.Intro, resolve: () => (realmStage() + (handoffPending() && realmStage() ? 1 : 0) >= 3 ? EIntro : Intro) }),
+  intro: () => (realmStage() + (handoffPending() && realmStage() ? 1 : 0) >= 3 ? EIntro : Intro),
+  outro: Outro,
   maxEnergy: 17500,
   maxForte1: 5,
   // reads the realm as it stands, already stepped by the preceding outro
 
-  updateDebuffs: () => {
-    // her own healing marker, read by every healing sonata and weapon (statuses.ts) — applied to the
-    // healer alone; Chaos Theory's and both Intros' are their first hits'
+  updateBuffs: () => {
+    // her healing marker, on the healer alone: the realm's first heal on End Loop's cast (it lands no
+    // hit; REALM_HEALS ticks the rest); Chaos Theory's and both Intros' are 0-MV bullets
     if (runningAction(Liberation)) applyCurrent(HEALS, 1);
   },
 
@@ -275,27 +305,27 @@ const SK_LOOP = new Rotation([
   START_LAST, Skill.cancel(), Liberation, ECHO.instaSwap(),
 
   NOINTRO, 
-  BA123.jumpCancel(), MA.holdCancel(), FHA.instaCancel(),
+  BA123.jumpCancel(), MA, FHA.instaCancel(),
   Skill, BA23.dodgeCancel(),
   BA12.holdCancel(), FHA.instaCancel(), 
-  Liberation, ECHO.instaSwap(), Outro,
+  Liberation, ECHO.instaSwap(), OUTRO,
 
   INTRO, 
-  BA123.jumpCancel(), MA.holdCancel(), FHA.instaCancel(), Skill.cancel(),
-  Liberation, ECHO.instaSwap(), Outro,
+  BA123.jumpCancel(), MA, FHA.instaCancel(), Skill.cancel(),
+  Liberation, ECHO.instaSwap(), OUTRO,
 ]);
 
 const SK_LOOP_S3 = new Rotation([
   START_LAST, Skill.cancel(), Liberation, ECHO.instaSwap(),
 
   NOINTRO, 
-  BA123.jumpCancel(), MA.holdCancel(), FHA.instaCancel(),
+  BA123.jumpCancel(), MA, FHA.instaCancel(),
   Skill.cancel(),
-  Liberation, ECHO.instaSwap(), Outro,
+  Liberation, ECHO.instaSwap(), OUTRO,
 
   INTRO, BA1,
   Skill,
-  Liberation, ECHO.instaSwap(), Outro,
+  Liberation, ECHO.instaSwap(), OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
@@ -309,14 +339,16 @@ export const SHOREKEEPER = new Loadout({
   weapons: [SK_SIG, VARIATION],
   echoLoadouts: [
     new EchoLoadout(FALLACY, REJUV_5PC),
-    new EchoLoadout(SPACETREK_EXPLORER, STARRY_RADIANCE_5PC),
+    // worn for Spacetrek's shield, which Jingran's Trace the Vestige feeds on; Tinged Yearning for a Unison
+    new EchoLoadout(SPACETREK_EXPLORER, STARRY_RADIANCE_5PC).requires(JINGRAN_RESONATOR),
+    new EchoLoadout(FORMLESS_DEMON, TINGED_YEARNING_5PC).requires(JINHSI_RESONATOR, SUOMING_RESONATOR, HSIN_RESONATOR),
     //new EchoLoadout(BELL_BORNE_GEOCHELONE, MOONLIT_CLOUDS_5PC),
     //new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
   ],
   sequences: [SK_S1, SK_S2, SK_S3, SK_S4, SK_S5, SK_S6],
   mainstats: [mainstats(Mainstat.HP4, Mainstat.ER3, Mainstat.ER3, Mainstat.HP1, Mainstat.HP1)],
   substat: substats(Substat.Er, Substat.CritDmg, Substat.CritRate, Substat.Liberation, Substat.HpPct, Substat.Heavy),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.Liberation, Substat.HpPct, Substat.Heavy),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.Liberation, Substat.HpPct, Substat.Heavy, Substat.Basic),
     // S3 loop disabled for now: it drops a whole Basic line and cuts her Intro chain to one press,
     // which costs her ~7.2 Energy a window and half of that to whoever she is standing in front of
     // — enough to put twelve teams' Liberations out of reach. Re-point this at SK_LOOP_S3 once that

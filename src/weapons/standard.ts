@@ -7,14 +7,13 @@ import { Buff, Weapon, refinements } from "../engine/gear.js";
 import {
   applyCurrent,
   casting,
-  currentAction,
   stacksOfEnemy,
   isActive,
   revokeCurrent,
   onCast,
   onType,
   onApplied,
-  addToCast,
+  addGain,
 } from "../engine/context.js";
 import { HEALS } from "../shared/status.js";
 import { TUNE_STRAIN_INTERFERED } from "../shared/tunebreak.js";
@@ -35,7 +34,7 @@ function concertoWeapon(name: string, weaponType: WeaponType, tier: Tier = Tier.
       name: `${name}: Ceaseless Aria${rank}`,
       updateBuffs: () => {
         if (!casting(Cast.Skill)) return;
-        addToCast({ concerto: [800, 1000, 1200, 1400, 1600][r]! });
+        addGain({ concerto: [800, 1000, 1200, 1400, 1600][r]! });
         revokeCurrent(CEASELESS_ARIA);
       },
     });
@@ -140,9 +139,9 @@ export const LUSTROUS_RAZOR = refinements((r, rank) => {
  *  the outro like any other short self buff. Two pay off *any team member's* Tune Break cast, so
  *  they watch from updateGlobal() rather than the wielder's own turns. */
 
-/** Whether the action being evaluated is the wielder's own hit on a Tune Strain - Interfered
- *  target — what Radiance Cleaver, Laser Shearer and Pulsation Bracer all trigger on. */
-const hitInterfered = (): boolean => currentAction().bullets.length > 0 && stacksOfEnemy(TUNE_STRAIN_INTERFERED) > 0;
+/** Whether the target is Tune Strain - Interfered, read on the wielder's own hit (`onHit`) — what
+ *  Radiance Cleaver, Laser Shearer and Pulsation Bracer all trigger on. */
+const hitInterfered = (): boolean => stacksOfEnemy(TUNE_STRAIN_INTERFERED) > 0;
 
 /** Radiance Cleaver: Edge Breaker, +12% ATK flat. Hitting a Tune Strain - Interfered target
  *  grants +24% Resonance Liberation DMG Bonus for 3s, retriggered by every hit. */

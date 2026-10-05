@@ -28,8 +28,8 @@ import {
   applyCurrent,
   applyOn,
   casting,
-  castGained,
-  currentAction,
+  gained,
+  currentCast,
   currentTeam,
   frozenStacks,
   getStat,
@@ -60,7 +60,7 @@ export const UNISON = new Buff({
  *  its `outro` fn picks it while Unison is held (`isHeld(UNISON)`), the way an Intro fn picks its
  *  Unison form off `unisonIntro()`. */
 export const unisonOutro = (outro: Action): Action => {
-  const out = outro.variant(`${outro.name} (Unison)`, { concerto: 0, castConcerto: 0, minConcerto: undefined });
+  const out = outro.variant(`${outro.name} (Unison)`, { castConcerto: 0, minConcerto: undefined });
   out.formOf = outro;
   return out;
 };
@@ -102,9 +102,9 @@ export const unisonResponse = inflicting(() => applied(UNISON_RESPONSE) > 0);
  *  outro's own bar is not. Reads the declared field plus whatever a held buff's own conditional
  *  spend (Suoming's Rift Cleaver, Unison held) has already added to the cast by this point — the
  *  action's own updateBuffs runs ahead of every held Gear's in the same phase, so that addition is
- *  in `castGained()` before this is ever checked. */
+ *  in `gained()` before this is ever checked. */
 export const consumedConcerto = (): boolean =>
-  currentAction().concerto + getStat(Stat.AddConcerto) + castGained("concerto") < 0 && !casting(Cast.Outro);
+  currentCast().castConcerto + gained("concerto") < 0 && !casting(Cast.Outro);
 
 /** Suoming's S6 on the team: every stack of Unison Boon pays half again — +4.5% rather than +3%.
  *  Put up team-wide by that sequence's own combatStart. */

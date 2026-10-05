@@ -471,8 +471,11 @@ body {
 @media (max-width: 1100px) {
   .rtrow.dist .c.distbody { min-height: 285px; }
 }
-/* split down the middle, each pie centred in its own half */
-.pies { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+/* split down the middle, each pie centred in its own half. Sized off nothing inside, with the team
+   chart's own floor (`.teampanes .piefig`): the table is as wide whichever figure is open, and the
+   pies scale into it */
+.pies { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; contain: inline-size; min-width: 330px; }
+.pies .chartwrap { min-width: 0; }
 .piefig { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%; }
 /* the table's own heading type — these are two sub-headings inside one row, not content */
 .piefig figcaption { font-size: 12px; font-weight: 650; color: var(--dim); }
@@ -528,7 +531,7 @@ svg.pie text { text-rendering: geometricPrecision; }
 .teampanes .chartwrap { max-width: none; }
 /* sized like the pies beside it, so the team's figures and a resonator's leave the table the same
    width; the chart takes the middle of what its title leaves, the way a pie does */
-/* takes the height the pane leaves between the title and the key, which is pinned under it */
+/* takes the height the pane leaves under the title */
 svg.bars .axis { stroke: var(--line-2); }
 /* every bar of the hovered action lit, a touch taller off the axis it stands on */
 svg.bars rect { transform-box: fill-box; transform-origin: bottom; }
@@ -553,22 +556,6 @@ svg.bars rect.lit { filter: brightness(1.35); transform: scaleY(1.08); }
 .barpop .v { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .barpop .pct { color: var(--dim); font-family: var(--mono); }
 .barpop[hidden] { display: none; }
-/* the chart's key, right under the chart rather than out on the slack below it: one even column
-   per caster, whoever they are */
-.barkey {
-  margin: 0;
-  padding: 0;
-  width: 100%;
-  list-style: none;
-  display: grid;
-  /* a floor of 0, not the names' own width: four names came to more than the chart's minimum and
-     widened the pane — and the table with it — past what the pies beside it hold it at */
-  grid-template-columns: repeat(var(--keys, 4), minmax(0, 1fr));
-  font-size: 12px;
-  color: var(--ink-2);
-}
-.barkey li { display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; }
-.barkey .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
 .nodist { grid-column: 1 / -1; margin: 0; color: var(--dim); font-size: 12px; }
 
 /* ---------------------------------------------------------------------- main */
@@ -853,6 +840,28 @@ main {
   font-family: var(--sans); font-size: 12px; color: var(--ink); cursor: pointer;
 }
 .ctxitem:hover { background: color-mix(in srgb, var(--ink) 8%, var(--surface-3)); }
+
+/* an Equipment cell that opens a menu of other picks (page/pickmenu.ts) — no underline anywhere once
+   one is open */
+.rtable.loadout .c[data-pick] { cursor: pointer; }
+.rtable.loadout .c[data-pick]:hover { text-decoration: underline dotted; text-underline-offset: 3px; }
+body:has(.pickbox) .rtable.loadout .c[data-pick] { text-decoration: none; }
+/* ...its dropdown, every box cut to the cell's own width and look (pickmenu.ts's `dressAs`), with no
+   ring round it to cover the box drawn over the cell */
+.ctxmenu.pickdrop { min-width: 0; box-shadow: var(--sh-drop); }
+.pickdrop .ctxitem { overflow: hidden; text-overflow: ellipsis; }
+/* the cell and every box under it in a thin white edge, each box laid a pixel over the one above so
+   two of them share one line */
+.rtable.loadout .c.picking, .pickdrop > * { outline: 1px solid #fff; outline-offset: -1px; }
+.rtable.loadout .c.picking { z-index: 1; }
+.pickdrop > * + * { margin-top: -1px; }
+/* an option's Compare figure, and the cell's own, grey at the right edge — drawn straight over the
+   name where the name runs that far (pickmenu.ts's `showRatios`) */
+.pickdrop .ctxitem { position: relative; }
+.pickpct { position: absolute; top: 1px; bottom: 1px; right: 1px; display: flex; align-items: center; padding: 0 9px 0 8px; color: var(--dim); }
+/* the blue box the log's own picks wear, on the cell or the option under the pointer — laid over the
+   menu as well, so nothing covers an edge of it */
+.pickbox { position: fixed; z-index: 151; box-sizing: border-box; border: 1px solid var(--accent); pointer-events: none; }
 
 /* a plain `hidden` attribute loses to `.trow`'s own `display: contents` on specificity otherwise
    (an attribute selector and a class selector tie, and author order decides the winner) */
@@ -1155,7 +1164,7 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 
 .grid { min-width: max-content; position: relative; }
 
-/* The white box around a column that has been clicked, or is being dragged: one element laid
+/* The blue box around a column that has been clicked, or is being dragged: one element laid
    over the grid rather than an outline on each of the column's own cells (index.js's own
    columnBox). The cells cannot carry it — a triggered row fades its whole cell, `opacity` taking
    the box-shadow with it, and the 1px rule between rows crosses the column's two sides — so on
@@ -1164,20 +1173,20 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
   position: absolute;
   top: 0;
   bottom: 0;
-  border: 1px solid #fff;
+  border: 1px solid var(--accent);
   pointer-events: none;
   /* over the pinned heading (z-index 40), so the box closes across it rather than under it */
   z-index: 41;
   transition: transform .16s ease;
 }
 
-/* The white box around a block of cells a press ran over (index.js's own cellBox) — the column
+/* The blue box around a block of cells a press ran over (index.js's own cellBox) — the column
    box's reasoning above, bounded to the block's own rows and columns rather than running the
    table's whole height. No transition: it tracks the pointer, and easing it would leave it
    trailing the drag. */
 .cellbox {
   position: absolute;
-  border: 1px solid #fff;
+  border: 1px solid var(--accent);
   pointer-events: none;
   z-index: 41;
 }

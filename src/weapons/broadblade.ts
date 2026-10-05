@@ -7,7 +7,7 @@ import {
   addStat, frozenStacks, casting, currentTeam, currentMember, addBuff, applyCurrent, removeStack, revokeCurrent, applied,
   onCast, onApplied, isActive, isType, setStacksSelf,
   applyTeam, extendCurrent, isHeld,
-  addToCast,
+  addGain,
 } from "../engine/context.js";
 import { SHIELD, HEALS, inflictedNegativeStatusBy } from "../shared/status.js";
 
@@ -164,7 +164,7 @@ export const STARFIELD_CALIBRATOR = refinements((r, rank) => {
     name: `Starfield Calibrator: Definite Solution${rank}`,
     updateBuffs: () => {
       if (!casting(Cast.Skill)) return;
-      addToCast({ concerto: [800, 1000, 1200, 1400, 1600][r]! });
+      addGain({ concerto: [800, 1000, 1200, 1400, 1600][r]! });
       revokeCurrent(DEFINITE_SOLUTION);
     },
   });

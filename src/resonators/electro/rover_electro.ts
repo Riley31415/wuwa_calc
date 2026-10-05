@@ -30,7 +30,6 @@ import {
   addForte2,
   setForte1,
   setForte2,
-  ticksOf,
   onAction,
   runningAction,
   addStat,
@@ -38,7 +37,7 @@ import {
   queueOutro,
   runningAnyOf,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, ECHO, INTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, ECHO, INTRO, OUTRO } from "../../engine/rotation.js";
 import { tuneBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
 import { inflictElectroFlare, inflictedNegativeStatus, HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
@@ -47,6 +46,7 @@ import { STAY_TUNED_3C, SWORN_VIGIL_5PC, ELECTRIC_REFLECTION_5PC, STAY_TUNED } f
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { BLAZING_BRILLIANCE, RED_SPRING, UNSPOKEN_RUE } from "../../weapons/sword.js";
+import { HSIN_RESONATOR } from "./hsin.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -55,12 +55,12 @@ function roverAction(id: string, def: object): Action {
 }
 
 // --- basics (Deterrence) and Resonance Skill, all Electric Surge (forte1) generators
-const BA1 = roverAction("Basic - Deterrence 1", { animFrames: 22, bullets: [{ hitFrame: 14, mv: 5108, energy: 92, concerto: 331, offtune: 2936, forte1: 612 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
-const BA2 = roverAction("Basic - Deterrence 2", { animFrames: 29, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = roverAction("Basic - Deterrence 1", { animFrames: 22, castPriority: 2, bullets: [{ hitFrame: 14, mv: 5108, energy: 92, concerto: 331, offtune: 2936, forte1: 612 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
+const BA2 = roverAction("Basic - Deterrence 2", { animFrames: 29, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 12, mv: 2600, energy: 47, concerto: 169, offtune: 1495, forte1: 312 },
     { hitFrame: 24, mv: 3900, energy: 71, concerto: 253, offtune: 2242, forte1: 468 },
   ]});
-const BA3 = roverAction("Basic - Deterrence 3", { animFrames: 48, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = roverAction("Basic - Deterrence 3", { animFrames: 48, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 30, mv: 1327, energy: 24, concerto: 86, offtune: 763, forte1: 159 },
     { hitFrame: 36, commitFrame: 30, mv: 1327, energy: 24, concerto: 86, offtune: 763, forte1: 159 },
     { hitFrame: 42, commitFrame: 30, mv: 1327, energy: 24, concerto: 86, offtune: 763, forte1: 159 },
@@ -69,23 +69,23 @@ const BA3 = roverAction("Basic - Deterrence 3", { animFrames: 48, node: Node.Nor
     { hitFrame: 60, commitFrame: 30, mv: 1327, energy: 24, concerto: 86, offtune: 763, forte1: 159 },
     { hitFrame: 66, commitFrame: 30, mv: 1327, energy: 24, concerto: 86, offtune: 763, forte1: 159 },
   ]});
-const BA4 = roverAction("Basic - Deterrence 4", { animFrames: 78, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA4 = roverAction("Basic - Deterrence 4", { animFrames: 78, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 54, mv: 7282, energy: 131, concerto: 471, offtune: 4186, forte1: 873 },
     { hitFrame: 67, mv: 10922, energy: 197, concerto: 707, offtune: 6279, forte1: 1309 },
   ]});
 
-const Skill = roverAction("Skill - Thunderclap", { animFrames: 30, cooldown: 60 * 10, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+const Skill = roverAction("Skill - Thunderclap", { animFrames: 30, animPriority: { 32: 2 }, castPriority: 4, cooldown: 60 * 10, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 24, mv: 10020, energy: 567, concerto: 490, offtune: 2134, forte1: 445 },
     { hitFrame: 30, mv: 10020, energy: 567, concerto: 490, offtune: 2134, forte1: 445 },
   ]});
 /** The Normal Attack follow-up off Thunderclap — considered Basic Attack DMG, and a Surge source
  *  in its own right. */
-const Repel = roverAction("Basic - Repel", { animFrames: 64, node: Node.Skill, cast: Cast.Basic, type: Type.Basic, bullets: [
+const Repel = roverAction("Basic - Repel", { animFrames: 64, castPriority: 2, node: Node.Skill, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 36, mv: 5612, energy: 101, concerto: 363, offtune: 3226, forte1: 672 },
     { hitFrame: 49, mv: 8417, energy: 152, concerto: 545, offtune: 4839, forte1: 1008 },
   ]});
 // the plunge: nanoka's Mid-air Attack row; frames and gauges off the game's own frame table
-const MA = roverAction("Mid-air - Deterrence Plunge", { animFrames: 45, bullets: [{ hitFrame: 38, mv: 10494, energy: 189, concerto: 679, offtune: 6032, forte1: 1257 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
+const MA = roverAction("Mid-air - Deterrence Plunge", { animFrames: 45, animPriority: { 45: 2 }, castPriority: 6, bullets: [{ hitFrame: 38, mv: 10494, energy: 189, concerto: 679, offtune: 6032, forte1: 1257 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
 
 // --- forte circuit: Overshock, at full Electric Surge. Press and hold are the same damage and the
 //     same Surge spend, and differ only in what they open — the team ATK buff or Apex Resonance
@@ -98,7 +98,7 @@ const OVERSHOCK = {
   node: Node.Forte, cast: Cast.Skill, type: Type.Skill, minForte1: 12000, castForte1: -12000,
 };
 const Overshock = roverAction("Forte Skill - Overshock",{
-  animFrames: 122, noSwapFrames: 122, motionStop: [0, 122], prioFrames: 122,
+  animFrames: 122, noSwapFrames: 122, motionStop: [0, 122], animPriority: { 122: 1 }, castPriority: 11,
   ...OVERSHOCK, bullets: [
     { hitFrame: 22, mv: 8072, energy: 87, concerto: 105, offtune: 3123 },
     { hitFrame: 28, commitFrame: 22, mv: 8072, energy: 87, concerto: 105, offtune: 3123 },
@@ -117,7 +117,7 @@ const Overshock = roverAction("Forte Skill - Overshock",{
 // to its 100 — a reset ahead of the declared +100, so it lands exactly full however much a
 // previous Apex left (the Outro clears it, so ordinarily none).
 const OvershockHold = roverAction("Forte Skill - Overshock (Hold)", { minConcerto: 6000,
-  animFrames: 122, noSwapFrames: 122, motionStop: [2, 122], prioFrames: 122,
+  animFrames: 122, noSwapFrames: 122, motionStop: [2, 122], animPriority: { 122: 1 }, castPriority: 11,
   ...OVERSHOCK, bullets: [
     { hitFrame: 22, mv: 8072, energy: 87, concerto: 105, offtune: 3123 },
     { hitFrame: 28, commitFrame: 22, mv: 8072, energy: 87, concerto: 105, offtune: 3123 },
@@ -127,43 +127,52 @@ const OvershockHold = roverAction("Forte Skill - Overshock (Hold)", { minConcert
     { hitFrame: 52, commitFrame: 22, mv: 8072, energy: 87, concerto: 105, offtune: 3123 },
     { hitFrame: 58, commitFrame: 22, mv: 8072, energy: 87, concerto: 105, offtune: 3123 },
     { hitFrame: 104, mv: 42377, energy: 453, concerto: 549, offtune: 16392 },
+    // wuwalab's start_thunder_rage_drain: the Rage starts burning here, not on cast
+    { hitFrame: 107, element: null, type: null, subtype: null, updateDebuffs: () => applyCurrent(RAGE_DRAIN, 1) },
     // Decipher: the second heavy hit lays 10 Electro Flare
     { hitFrame: 114, mv: 42377, energy: 453, concerto: 549, offtune: 16392, updateDebuffs: () => inflictElectroFlare(10) },
   ], castConcerto: -6000, resetForte2: true,
   castForte2: 10000,
+  updateBuffs: () => applyCurrent(APEX_RESONANCE, 1),
+});
+
+/** Apex Resonance: unlocks Thrum of All Sounds, entered by holding Overshock and ended by the
+ *  Outro (which also clears Thunder Rage) or by the Rage running dry. No stat of its own — S5 is
+ *  what pays on it. */
+const APEX_RESONANCE = new Buff({
+  name: "Electro Rover: Apex Resonance",
   updateBuffs: () => {
-    applyCurrent(APEX_RESONANCE, 1);
-    applyCurrent(RAGE_DRAIN, 1);
+    if (casting(Cast.Outro)) leaveApex();
   },
 });
 
 // --- Apex Resonance: Thrum of All Sounds, ground chain then the mid-air chain, each stage its own
 //     element and each restoring Thunder Rage (forte2). Nothing in the sub rotation casts these —
 //     they're here because S5/S6 pay out on them.
-const ThrumSpectro1 = roverAction("Skill - Thrum: Spectro 1", { minForte2: 1, animFrames: 21, bullets: [{ hitFrame: 14, mv: 9912, energy: 90, concerto: 323, offtune: 7160, forte2: 394 }], node: Node.Forte, cast: Cast.Skill, type: Type.Skill, element: Attribute.Spectro, hitGlobal: () => queue(ThunderBane) });
-const ThrumSpectro2 = roverAction("Skill - Thrum: Spectro 2", { minForte2: 1, animFrames: 50, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, element: Attribute.Spectro, hitGlobal: () => queue(ThunderBane), bullets: [
+const ThrumSpectro1 = roverAction("Skill - Thrum: Spectro 1", { minForte2: 1, requireBuff: APEX_RESONANCE, animFrames: 21, animPriority: { 21: 2 }, castPriority: 2, bullets: [{ hitFrame: 14, mv: 9912, energy: 90, concerto: 323, offtune: 7160, forte2: 394 }], node: Node.Forte, cast: Cast.Skill, type: Type.Skill, element: Attribute.Spectro, hitGlobal: () => queue(ThunderBane) });
+const ThrumSpectro2 = roverAction("Skill - Thrum: Spectro 2", { minForte2: 1, requireBuff: APEX_RESONANCE, animFrames: 50, animPriority: { 43: 2 }, castPriority: 3, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, element: Attribute.Spectro, hitGlobal: () => queue(ThunderBane), bullets: [
     { hitFrame: 14, mv: 4906, energy: 55, concerto: 197, offtune: 4374, forte2: 241 },
     { hitFrame: 35, mv: 4906, energy: 55, concerto: 197, offtune: 4374, forte2: 241 },
     { hitFrame: 64, commitFrame: 23, mv: 6541, energy: 73, concerto: 263, offtune: 5832, forte2: 321 },
   ]});
-const ThrumSpectro3 = roverAction("Skill - Thrum: Spectro 3", { minForte2: 1, animFrames: 42, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, element: Attribute.Spectro, hitGlobal: () => queue(ThunderBane), bullets: [
+const ThrumSpectro3 = roverAction("Skill - Thrum: Spectro 3", { minForte2: 1, requireBuff: APEX_RESONANCE, animFrames: 42, animPriority: { 50: 0 }, castPriority: 2, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, element: Attribute.Spectro, hitGlobal: () => queue(ThunderBane), bullets: [
     { hitFrame: 7, mv: 10206, energy: 87, concerto: 311, offtune: 6902, forte2: 380 },
     { hitFrame: 35, mv: 15308, energy: 130, concerto: 466, offtune: 10352, forte2: 570 },
   ]});
-const ThrumHavoc1 = roverAction("Skill - Thrum: Havoc 1", { minForte2: 1, animFrames: 47, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, element: Attribute.Havoc, hitGlobal: () => queue(ThunderBane), bullets: [
+const ThrumHavoc1 = roverAction("Skill - Thrum: Havoc 1", { minForte2: 1, requireBuff: APEX_RESONANCE, animFrames: 47, animPriority: { 47: 0 }, castPriority: 2, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, element: Attribute.Havoc, hitGlobal: () => queue(ThunderBane), bullets: [
     { hitFrame: 15, mv: 1498, energy: 20, concerto: 72, offtune: 1592, forte2: 88 },
     { hitFrame: 21, commitFrame: 15, mv: 1498, energy: 20, concerto: 72, offtune: 1592, forte2: 88 },
     { hitFrame: 27, commitFrame: 15, mv: 1498, energy: 20, concerto: 72, offtune: 1592, forte2: 88 },
     { hitFrame: 40, mv: 10482, energy: 140, concerto: 502, offtune: 11144, forte2: 614 },
   ]});
-const ThrumHavoc2 = roverAction("Skill - Thrum: Havoc 2", { minForte2: 1, animFrames: 49, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, element: Attribute.Havoc, hitGlobal: () => queue(ThunderBane), bullets: [
+const ThrumHavoc2 = roverAction("Skill - Thrum: Havoc 2", { minForte2: 1, requireBuff: APEX_RESONANCE, animFrames: 49, animPriority: { 50: 0 }, castPriority: 2, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, element: Attribute.Havoc, hitGlobal: () => queue(ThunderBane), bullets: [
     { hitFrame: 6, mv: 1383, energy: 22, concerto: 79, offtune: 1738, forte2: 96 },
     { hitFrame: 10, commitFrame: 6, mv: 1383, energy: 22, concerto: 79, offtune: 1738, forte2: 96 },
     { hitFrame: 13, commitFrame: 6, mv: 1383, energy: 22, concerto: 79, offtune: 1738, forte2: 96 },
     { hitFrame: 17, commitFrame: 6, mv: 1383, energy: 22, concerto: 79, offtune: 1738, forte2: 96 },
     { hitFrame: 21, mv: 8298, energy: 131, concerto: 470, offtune: 10428, forte2: 574 },
   ]});
-const ThrumHavoc3 = roverAction("Skill - Thrum: Havoc 3", { minForte2: 1, animFrames: 68, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, element: Attribute.Havoc, hitGlobal: () => queue(ThunderBane), bullets: [
+const ThrumHavoc3 = roverAction("Skill - Thrum: Havoc 3", { minForte2: 1, requireBuff: APEX_RESONANCE, animFrames: 68, animPriority: { 68: 1 }, castPriority: 2, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, element: Attribute.Havoc, hitGlobal: () => queue(ThunderBane), bullets: [
     { hitFrame: 8, mv: 6251, energy: 87, concerto: 312, offtune: 6913, forte2: 381 },
     { hitFrame: 49, mv: 6251, energy: 87, concerto: 312, offtune: 6913, forte2: 381 },
     { hitFrame: 67, commitFrame: 49, mv: 2084, energy: 29, concerto: 104, offtune: 2305, forte2: 127 },
@@ -171,7 +180,7 @@ const ThrumHavoc3 = roverAction("Skill - Thrum: Havoc 3", { minForte2: 1, animFr
     { hitFrame: 73, commitFrame: 49, mv: 2084, energy: 29, concerto: 104, offtune: 2305, forte2: 127 },
     { hitFrame: 76, commitFrame: 49, mv: 2084, energy: 29, concerto: 104, offtune: 2305, forte2: 127 },
   ]});
-const SilencingBlade = roverAction("Skill - Thrum: Silencing Blade", { minForte2: 1, animFrames: 102, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, element: Attribute.Aero, hitGlobal: () => queue(ThunderBane), bullets: [
+const SilencingBlade = roverAction("Skill - Thrum: Silencing Blade", { minForte2: 1, requireBuff: APEX_RESONANCE, animFrames: 102, animPriority: { 107: 2 }, castPriority: 2, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, element: Attribute.Aero, hitGlobal: () => queue(ThunderBane), bullets: [
     { hitFrame: 6, mv: 4707, energy: 46, concerto: 165, offtune: 3657, forte2: 202 },
     { hitFrame: 11, mv: 4707, energy: 46, concerto: 165, offtune: 3657, forte2: 202 },
     { hitFrame: 17, mv: 4707, energy: 46, concerto: 165, offtune: 3657, forte2: 202 },
@@ -179,18 +188,18 @@ const SilencingBlade = roverAction("Skill - Thrum: Silencing Blade", { minForte2
     { hitFrame: 27, mv: 4707, energy: 46, concerto: 165, offtune: 3657, forte2: 202 },
     { hitFrame: 77, mv: 23533, energy: 229, concerto: 823, offtune: 18283, forte2: 1006 },
   ]});
-const ThrumAero = roverAction("Skill - Thrum: Aero", { minForte2: 1, animFrames: 28, bullets: [{ hitFrame: 20, mv: 15809, energy: 128, concerto: 459, offtune: 10200, forte2: 561 }], node: Node.Forte, cast: Cast.Skill, type: Type.Skill, element: Attribute.Aero, hitGlobal: () => queue(ThunderBane) });
+const ThrumAero = roverAction("Skill - Thrum: Aero", { minForte2: 1, requireBuff: APEX_RESONANCE, animFrames: 28, animPriority: { 47: 2 }, castPriority: 2, bullets: [{ hitFrame: 20, mv: 15809, energy: 128, concerto: 459, offtune: 10200, forte2: 561 }], node: Node.Forte, cast: Cast.Skill, type: Type.Skill, element: Attribute.Aero, hitGlobal: () => queue(ThunderBane) });
 
-const ThrumMaHavoc1 = roverAction("Skill - Thrum: Havoc Mid-air 1", { minForte2: 1, animFrames: 14, bullets: [{ hitFrame: 12, mv: 5063, energy: 59, concerto: 210, offtune: 4660, forte2: 256 }], node: Node.Forte, cast: Cast.Skill, type: Type.Skill, element: Attribute.Havoc, hitGlobal: () => queue(ThunderBane) });
-const ThrumMaHavoc2 = roverAction("Skill - Thrum: Havoc Mid-air 2", { minForte2: 1, animFrames: 17, bullets: [{ hitFrame: 12, mv: 6382, energy: 67, concerto: 241, offtune: 5340, forte2: 294 }], node: Node.Forte, cast: Cast.Skill, type: Type.Skill, element: Attribute.Havoc, hitGlobal: () => queue(ThunderBane) });
-const ThrumMaHavoc3 = roverAction("Skill - Thrum: Havoc Mid-air 3", { minForte2: 1, animFrames: 48, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, element: Attribute.Havoc, hitGlobal: () => queue(ThunderBane), bullets: [
+const ThrumMaHavoc1 = roverAction("Skill - Thrum: Havoc Mid-air 1", { minForte2: 1, requireBuff: APEX_RESONANCE, animFrames: 14, animPriority: { 14: 1 }, castPriority: 2, bullets: [{ hitFrame: 12, mv: 5063, energy: 59, concerto: 210, offtune: 4660, forte2: 256 }], node: Node.Forte, cast: Cast.Skill, type: Type.Skill, element: Attribute.Havoc, hitGlobal: () => queue(ThunderBane) });
+const ThrumMaHavoc2 = roverAction("Skill - Thrum: Havoc Mid-air 2", { minForte2: 1, requireBuff: APEX_RESONANCE, animFrames: 17, animPriority: { 16: 1 }, castPriority: 2, bullets: [{ hitFrame: 12, mv: 6382, energy: 67, concerto: 241, offtune: 5340, forte2: 294 }], node: Node.Forte, cast: Cast.Skill, type: Type.Skill, element: Attribute.Havoc, hitGlobal: () => queue(ThunderBane) });
+const ThrumMaHavoc3 = roverAction("Skill - Thrum: Havoc Mid-air 3", { minForte2: 1, requireBuff: APEX_RESONANCE, animFrames: 48, animPriority: { 48: 1 }, castPriority: 2, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, element: Attribute.Havoc, hitGlobal: () => queue(ThunderBane), bullets: [
     { hitFrame: 9, mv: 9151, energy: 68, concerto: 243, offtune: 5395, forte2: 297 },
     { hitFrame: 19, mv: 9151, energy: 68, concerto: 243, offtune: 5395, forte2: 297 },
     { hitFrame: 34, mv: 9428, energy: 70, concerto: 251, offtune: 5558, forte2: 306 },
   ]});
-const ThrumMaAero1 = roverAction("Skill - Thrum: Aero Mid-air 1", { minForte2: 1, animFrames: 19, bullets: [{ hitFrame: 11, mv: 8461, energy: 81, concerto: 289, offtune: 6412, forte2: 353 }], node: Node.Forte, cast: Cast.Skill, type: Type.Skill, element: Attribute.Aero, hitGlobal: () => queue(ThunderBane) });
-const ThrumMaAero2 = roverAction("Skill - Thrum: Aero Mid-air 2", { minForte2: 1, animFrames: 21, bullets: [{ hitFrame: 16, mv: 9741, energy: 89, concerto: 319, offtune: 7072, forte2: 389 }], node: Node.Forte, cast: Cast.Skill, type: Type.Skill, element: Attribute.Aero, hitGlobal: () => queue(ThunderBane) });
-const ThrumMaAeroPlunge = roverAction("Skill - Thrum: Aero Plunge", { minForte2: 1, animFrames: 50, bullets: [{ hitFrame: 38, mv: 28248, energy: 208, concerto: 748, offtune: 16613, forte2: 914 }], node: Node.Forte, cast: Cast.Skill, type: Type.Skill, element: Attribute.Aero, hitGlobal: () => queue(ThunderBane) });
+const ThrumMaAero1 = roverAction("Skill - Thrum: Aero Mid-air 1", { minForte2: 1, requireBuff: APEX_RESONANCE, animFrames: 19, animPriority: { 19: 0 }, castPriority: 2, bullets: [{ hitFrame: 11, mv: 8461, energy: 81, concerto: 289, offtune: 6412, forte2: 353 }], node: Node.Forte, cast: Cast.Skill, type: Type.Skill, element: Attribute.Aero, hitGlobal: () => queue(ThunderBane) });
+const ThrumMaAero2 = roverAction("Skill - Thrum: Aero Mid-air 2", { minForte2: 1, requireBuff: APEX_RESONANCE, animFrames: 21, animPriority: { 21: 0 }, castPriority: 2, bullets: [{ hitFrame: 16, mv: 9741, energy: 89, concerto: 319, offtune: 7072, forte2: 389 }], node: Node.Forte, cast: Cast.Skill, type: Type.Skill, element: Attribute.Aero, hitGlobal: () => queue(ThunderBane) });
+const ThrumMaAeroPlunge = roverAction("Skill - Thrum: Aero Plunge", { minForte2: 1, requireBuff: APEX_RESONANCE, animFrames: 50, animPriority: { 50: 1 }, castPriority: 2, bullets: [{ hitFrame: 38, mv: 28248, energy: 208, concerto: 748, offtune: 16613, forte2: 914 }], node: Node.Forte, cast: Cast.Skill, type: Type.Skill, element: Attribute.Aero, hitGlobal: () => queue(ThunderBane) });
 
 /** Thunder Bane: one per Thrum hit, considered Resonance Skill DMG. Queued by every Thrum hit's
  *  own `hitGlobal`, never cast directly. */
@@ -205,8 +214,8 @@ const THRUMS = new Set<Action>([
 ]);
 
 // --- liberation / intro / outro
-const Liberation = roverAction("Liberation - Ultimate Tactics", { animFrames: 224, prioFrames: 224, bullets: [{ hitFrame: 190, mv: 119286, offtune: 57600 }], timestop: [0, 224], motionStop: [0, 224], cooldown: 60 * 25, node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, castConcerto: 2000, resetEnergy: true });
-const Intro = roverAction("Intro - Thunderous Fury", { animFrames: 72, noSwapFrames: 72, motionStop: [5, 37], prioFrames: 72,
+const Liberation = roverAction("Liberation - Ultimate Tactics", { animFrames: 224, castPriority: 10, bullets: [{ hitFrame: 190, mv: 119286, offtune: 57600 }], timestop: [0, 224], motionStop: [0, 224], cooldown: 60 * 25, node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, castConcerto: 2000, resetEnergy: true });
+const Intro = roverAction("Intro - Thunderous Fury", { animFrames: 72, noSwapFrames: 72, motionStop: [5, 37], castPriority: 11,
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 44, mv: 3341, energy: 60, concerto: 216, offtune: 1920, forte1: 1060 },
     { hitFrame: 50, commitFrame: 44, mv: 3341, energy: 60, concerto: 216, offtune: 1920, forte1: 1060 },
@@ -220,21 +229,12 @@ const Outro = roverAction("Outro - Rumbling Thunders", { animFrames: 0,
 
 /* ------------------------------------------------------------------------------------ buffs */
 
-/** Apex Resonance: unlocks Thrum of All Sounds, entered by holding Overshock and ended by the
- *  Outro (which also clears Thunder Rage) or by the Rage running dry. No stat of its own — S5 is
- *  what pays on it. */
-const APEX_RESONANCE = new Buff({
-  name: "Electro Rover: Apex Resonance",
-  updateBuffs: () => {
-    if (casting(Cast.Outro)) leaveApex();
-  },
-});
-/** Thunder Rage's drain: 5 every 0.5s from the hold's frame 107, so its first tick lands 137 in;
+/** Thunder Rage's drain: 5 every 0.5s, laid by the hold's frame-107 bullet (first tick 137 in);
  *  spent from the 100 cap however far Thrum hits overran it. */
 const RAGE_DRAIN: Buff = new Buff({
   name: "Electro Rover: Thunder Rage Drain",
   tick: {
-    every: (): number => (ticksOf(RAGE_DRAIN) ? 30 : 137),
+    every: 30,
     fire: () => {
       if (forte2() > 10000) setForte2(10000);
       if (addForte2(-500) > 0) return;
@@ -353,6 +353,7 @@ const ROVER_ELECTRO_RESONATOR = new Resonator({
   weapon: WeaponType.Sword,
   color: "#b98ce8",
   intro: Intro,
+  outro: Outro,
   // 91 frames of time stop on a 90-frame break: the one over banks into the next press
   tuneBreak: tuneBreak(90, [0, 91], [0, 70], SWORD_BREAK),
   maxEnergy: 12500,
@@ -376,7 +377,7 @@ const ROVER_ELECTRO_RESONATOR = new Resonator({
 const BA1234 = new ActionGroup("Basic - Deterrence 1234", [BA1, BA2, BA3, BA4]);
 
 const ER_ROTATION = new Rotation([
-  INTRO, BA1234, Skill, Repel.cancel(), Liberation, Overshock, ECHO.instaSwap(), Outro,
+  INTRO, BA1234, Skill, Repel.cancel(), Liberation, Overshock, ECHO.instaSwap(), OUTRO,
 ]);
 
 // The main-DPS loop: the same fill, the Liberation while the Surge is being built, then Overshock
@@ -394,7 +395,7 @@ const THRUM_HAVOC = new ActionGroup("Skill - Thrum: Havoc 123", [
 const ER_ROTATION_MDPS = new Rotation([
   INTRO, BA1234, Skill, Repel, OvershockHold, Liberation,
   THRUM_SPECTRO, THRUM_HAVOC, SilencingBlade,
-  ECHO.instaSwap(), Outro,
+  ECHO.instaSwap(), OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
@@ -407,13 +408,14 @@ export const ROVER_ELECTRO = new Loadout({
   echoLoadouts: [
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
     //new EchoLoadout(STAY_TUNED, ELECTRIC_REFLECTION_5PC),
-    new EchoLoadout(STAY_TUNED_3C, ELECTRIC_REFLECTION_5PC),
+    // both its Outro handoffs are Electro: worn only for Hsin, the one Electro DPS she hands to
+    new EchoLoadout(STAY_TUNED_3C, ELECTRIC_REFLECTION_5PC).requires(HSIN_RESONATOR),
     new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC),
     //new EchoLoadout(SOUL_OF_DESPAIR, SWORN_VIGIL_5PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
   substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Skill, Substat.AtkPct, Substat.FlatAtk, Substat.Liberation),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation, Substat.Basic),
     rotation: ER_ROTATION,
   sequences: [
     ER_S1, ER_S2,
@@ -431,7 +433,7 @@ export const ROVER_ELECTRO_MDPS = new Loadout({
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.ER3, Mainstat.Electro3, Mainstat.ATK1),
   substat: substats(Substat.CritRate, Substat.CritDmg, Substat.Skill, Substat.AtkPct, Substat.FlatAtk, Substat.Liberation),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation, Substat.Basic),
   rotation: ER_ROTATION_MDPS,
   sequences: [ER_S1, ER_S2, ER_S3, ER_S4, ER_S5, ER_S6],
 });

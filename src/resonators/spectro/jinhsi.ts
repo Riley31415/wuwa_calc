@@ -45,7 +45,7 @@ import {
   addStat,
   applyCurrent,
   applyTeam,
-  currentAction,
+  currentCast, currentHit,
   onAction,
   runningAction,
   runningAnyOf,
@@ -62,7 +62,7 @@ import {
   
   
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, START_LAST, ECHO, NOINTRO, EVERY_OTHER, INTRO, DOUBLE_INTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, START_LAST, ECHO, NOINTRO, INTRO, OUTRO, DOUBLE_INTRO } from "../../engine/rotation.js";
 import { AGES_OF_HARVEST } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { JUE, CELESTIAL_LIGHT_5PC } from "../../echoes/jinzhou.js";
@@ -77,16 +77,22 @@ function jinhsiAction(id: string, def: object): Action {
   return new Action(id, { element: Attribute.Spectro, scaling: Scaling.Atk, ...def });
 }
 
+/** The mode markers, no stat of their own — they name which replacement chain is live: the 5s
+ *  Overflowing Radiance window off Basic 4 or the Intro, Incarnation, then Ordination Glow. */
+const RADIANCE_WINDOW = new Buff({ name: "Jinhsi: Overflowing Radiance", duration: 60 * 5 });
+const INCARNATION = new Buff({ name: "Jinhsi: Incarnation", duration: 60 * 10 });
+const ORDINATION_GLOW = new Buff({ name: "Jinhsi: Ordination Glow", duration: 60 * 5 });
+
 // --- Slash of Breaking Dawn, the chain she plays only outside Incarnation. Her real loop enters
 //     Incarnation off the Intro, so none of these are placed below.
-const BA1 = jinhsiAction("Basic - Slash of Breaking Dawn 1", { animFrames: 28, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 17, mv: 6647, energy: 124, concerto: 248, offtune: 3960 }]});
-const BA2 = jinhsiAction("Basic - Slash of Breaking Dawn 2", { animFrames: 45, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = jinhsiAction("Basic - Slash of Breaking Dawn 1", { animFrames: 28, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 17, mv: 6647, energy: 124, concerto: 248, offtune: 3960 }]});
+const BA2 = jinhsiAction("Basic - Slash of Breaking Dawn 2", { animFrames: 45, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 3899, energy: 73, concerto: 146, offtune: 2324 },
     { hitFrame: 27, mv: 1950, energy: 37, concerto: 73, offtune: 1162 },
     { hitFrame: 34, mv: 1950, energy: 37, concerto: 73, offtune: 1162 },
     { hitFrame: 42, mv: 1950, energy: 37, concerto: 73, offtune: 1162 },
   ]});
-const BA3 = jinhsiAction("Basic - Slash of Breaking Dawn 3", { animFrames: 47, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = jinhsiAction("Basic - Slash of Breaking Dawn 3", { animFrames: 47, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 15, mv: 1065, energy: 20, concerto: 40, offtune: 635 },
     { hitFrame: 18, mv: 1065, energy: 20, concerto: 40, offtune: 635 },
     { hitFrame: 21, mv: 1065, energy: 20, concerto: 40, offtune: 635 },
@@ -96,11 +102,13 @@ const BA3 = jinhsiAction("Basic - Slash of Breaking Dawn 3", { animFrames: 47, n
     { hitFrame: 33, mv: 1065, energy: 20, concerto: 40, offtune: 635 },
     { hitFrame: 39, mv: 3194, energy: 60, concerto: 119, offtune: 1904 },
   ]});
-const BA4 = jinhsiAction("Basic - Slash of Breaking Dawn 4", { animFrames: 74, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA4 = jinhsiAction("Basic - Slash of Breaking Dawn 4", { animFrames: 74, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 25, mv: 6309, energy: 118, concerto: 236, offtune: 3760 },
     { hitFrame: 33, mv: 9463, energy: 177, concerto: 353, offtune: 5640 },
-  ]});
-const HA = jinhsiAction("Heavy - Slash of Breaking Dawn", { animFrames: 106, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+  ],
+  updateBuffs: () => applyCurrent(RADIANCE_WINDOW, 1),
+});
+const HA = jinhsiAction("Heavy - Slash of Breaking Dawn", { animFrames: 106, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 15, mv: 2386, energy: 40, concerto: 80, offtune: 1280 },
     { hitFrame: 22, commitFrame: 15, mv: 2386, energy: 40, concerto: 80, offtune: 1280 },
     { hitFrame: 29, commitFrame: 15, mv: 2386, energy: 40, concerto: 80, offtune: 1280 },
@@ -109,12 +117,12 @@ const HA = jinhsiAction("Heavy - Slash of Breaking Dawn", { animFrames: 106, nod
     { hitFrame: 75, mv: 3579, energy: 60, concerto: 120, offtune: 1920 },
     { hitFrame: 90, mv: 8351, energy: 140, concerto: 280, offtune: 4480 },
   ]});
-const MA = jinhsiAction("Mid-air - Slash of Breaking Dawn Plunge", { animFrames: 95, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MA = jinhsiAction("Mid-air - Slash of Breaking Dawn Plunge", { animFrames: 95, animPriority: { 71: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 7, mv: 1233, energy: 6, concerto: 10, offtune: 496 },
     { hitFrame: 38, mv: 2466, energy: 11, concerto: 20, offtune: 992 },
     { hitFrame: 52, mv: 8629, energy: 37, concerto: 70, offtune: 3472 },
   ]});
-const DC = jinhsiAction("Dodge Counter - Slash of Breaking Dawn", { animFrames: 48, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const DC = jinhsiAction("Dodge Counter - Slash of Breaking Dawn", { animFrames: 48, castPriority: 2, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 15, mv: 1468, energy: 28, concerto: 55, offtune: 875 },
     { hitFrame: 18, mv: 1468, energy: 28, concerto: 55, offtune: 875 },
     { hitFrame: 21, mv: 1468, energy: 28, concerto: 55, offtune: 875 },
@@ -128,7 +136,7 @@ const DC = jinhsiAction("Dodge Counter - Slash of Breaking Dawn", { animFrames: 
 // --- Trailing Lights of Eons, and the alternative skill that opens Incarnation. Trailing Lights
 //     (3s) and Crescent Divinity (10s) share one cooldown, each setting it to its own length
 const SKILL_CD = new Cooldown({ frames: 60 * 3 });
-const Skill = jinhsiAction("Skill - Trailing Lights of Eons", { animFrames: 64, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+const Skill = jinhsiAction("Skill - Trailing Lights of Eons", { animFrames: 64, animPriority: { 64: 2 }, castPriority: 4, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 11, mv: 1946, energy: 28, concerto: 55, offtune: 870 },
     { hitFrame: 16, mv: 1946, energy: 28, concerto: 55, offtune: 870 },
     { hitFrame: 21, mv: 1946, energy: 28, concerto: 55, offtune: 870 },
@@ -136,7 +144,7 @@ const Skill = jinhsiAction("Skill - Trailing Lights of Eons", { animFrames: 64, 
     { hitFrame: 42, mv: 7784, energy: 109, concerto: 218, offtune: 3480 },
   ]});
 const Skill2 = jinhsiAction("Skill - Overflowing Radiance", {
-  animFrames: 84, cooldown: 60 * 12,
+  animFrames: 84, castPriority: 4, cooldown: 60 * 12, requireBuff: RADIANCE_WINDOW,
   node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 11, mv: 987, energy: 7, offtune: 199 },
     { hitFrame: 16, mv: 987, energy: 7, offtune: 199 },
@@ -148,25 +156,28 @@ const Skill2 = jinhsiAction("Skill - Overflowing Radiance", {
     { hitFrame: 56, mv: 2959, energy: 19, offtune: 596 },
     { hitFrame: 74, mv: 3945, energy: 25, offtune: 794 },
   ], castConcerto: 400,
-  updateBuffs: () => applyCurrent(INCARNATION, 1),
+  updateBuffs: () => {
+    revokeCurrent(RADIANCE_WINDOW);
+    applyCurrent(INCARNATION, 1);
+  },
 });
 
 // --- Forte Circuit (Luminal Synthesis). The Incarnation basic chain is Resonance Skill DMG by its
 //     own text, so it is tagged Skill and cast Basic; the Heavy and the Dodge Counter are not.
-const IncBA1 = jinhsiAction("Basic - Incarnation 1", { animFrames: 26, node: Node.Forte, cast: Cast.Basic, type: Type.Skill, bullets: [{ hitFrame: 15, commitFrame: 12, mv: 8862, energy: 124, concerto: 124, offtune: 3960 }]});
-const IncBA2 = jinhsiAction("Basic - Incarnation 2", { animFrames: 41, node: Node.Forte, cast: Cast.Basic, type: Type.Skill, bullets: [
+const IncBA1 = jinhsiAction("Basic - Incarnation 1", { requireBuff: INCARNATION, animFrames: 26, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Skill, bullets: [{ hitFrame: 15, commitFrame: 12, mv: 8862, energy: 124, concerto: 124, offtune: 3960 }]});
+const IncBA2 = jinhsiAction("Basic - Incarnation 2", { requireBuff: INCARNATION, animFrames: 41, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Skill, bullets: [
     { hitFrame: 16, commitFrame: 13, mv: 7797, energy: 109, concerto: 109, offtune: 3485 },
     { hitFrame: 25, commitFrame: 13, mv: 2599, energy: 37, concerto: 37, offtune: 1162 },
     { hitFrame: 29, commitFrame: 13, mv: 2599, energy: 37, concerto: 37, offtune: 1162 },
   ]});
   // theoretical commit from 18-24, but window is small
-const IncBA3 = jinhsiAction("Basic - Incarnation 3", { animFrames: 54, node: Node.Forte, cast: Cast.Basic, type: Type.Skill, bullets: [
+const IncBA3 = jinhsiAction("Basic - Incarnation 3", { requireBuff: INCARNATION, animFrames: 54, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Skill, bullets: [
     { hitFrame: 26, commitFrame: 18, mv: 9944, energy: 139, concerto: 139, offtune: 4445 },
     { hitFrame: 31, mv: 6630, energy: 93, concerto: 93, offtune: 2964 },
   ]});
 /** Stage 4 ends Incarnation and hands her Ordination Glow, the window Illuminous Epiphany lives in. */
 const IncBA4 = jinhsiAction("Basic - Incarnation 4", {
-  animFrames: 87,
+  animFrames: 87, castPriority: 2, requireBuff: INCARNATION,
   node: Node.Forte, cast: Cast.Basic, type: Type.Skill, bullets: [
     { hitFrame: 0, mv: 1867, energy: 27, concerto: 27, offtune: 835 },
     { hitFrame: 9, commitFrame: 0, mv: 1867, energy: 27, concerto: 27, offtune: 835 },
@@ -176,19 +187,22 @@ const IncBA4 = jinhsiAction("Basic - Incarnation 4", {
     { hitFrame: 45, commitFrame: 0, mv: 1867, energy: 27, concerto: 27, offtune: 835 },
     { hitFrame: 71, commitFrame: 0, mv: 7467, energy: 105, concerto: 105, offtune: 3338 },
   ],
-  updateBuffs: () => { revokeCurrent(INCARNATION); applyCurrent(ORDINATION_GLOW, 1); },
+  updateBuffs: () => {
+    revokeCurrent(INCARNATION);
+    applyCurrent(ORDINATION_GLOW, 1);
+  },
 });
-const IncHeavy = jinhsiAction("Heavy - Incarnation", { animFrames: 78, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+const IncHeavy = jinhsiAction("Heavy - Incarnation", { animFrames: 78, animPriority: { 0: 6, 67: 2 }, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, bullets: [
     { hitFrame: 36, mv: 4772, energy: 60, concerto: 60, offtune: 1920 },
     { hitFrame: 48, mv: 11134, energy: 140, concerto: 140, offtune: 4480 },
   ]});
-const IncDodge = jinhsiAction("Dodge Counter - Incarnation", { animFrames: 87, node: Node.Forte, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const IncDodge = jinhsiAction("Dodge Counter - Incarnation", { requireBuff: INCARNATION, animFrames: 87, castPriority: 2, node: Node.Forte, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 20, mv: 4389, concerto: 62, offtune: 1962 },
     { hitFrame: 48, mv: 3292, concerto: 46, offtune: 1472 },
     { hitFrame: 56, mv: 3292, concerto: 46, offtune: 1472 },
     { hitFrame: 71, mv: 10971, concerto: 154, offtune: 4904 },
   ], castConcerto: 1000});
-const Skill3 = jinhsiAction("Skill - Crescent Divinity", { animFrames: 87, cooldown: SKILL_CD, cooldownFrames: 60 * 10, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, bullets: [
+const Skill3 = jinhsiAction("Skill - Crescent Divinity", { requireBuff: INCARNATION, animFrames: 87, castPriority: 4, cooldown: SKILL_CD, cooldownFrames: 60 * 10, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 20, commitFrame: 29, mv: 10076, energy: 64, offtune: 2028 },
     { hitFrame: 53, mv: 7557, energy: 48, offtune: 1521 },
     { hitFrame: 60, mv: 7557, energy: 48, offtune: 1521 },
@@ -198,7 +212,7 @@ const Skill3 = jinhsiAction("Skill - Crescent Divinity", { animFrames: 87, coold
 /** Illuminous Epiphany, the one press: Solar Flare's six taps, then Stella Glamor's detonation —
  *  the hit every Incandescence held pays out on (see INCANDESCENCE below). */
 const Skill4 = jinhsiAction("Forte Skill - Illuminous Epiphany", {
-  animFrames: 174, prioFrames: 174, timestop: [0, 132], motionStop: [0, 174],
+  animFrames: 174, castPriority: 10, timestop: [0, 132], motionStop: [0, 174], requireBuff: ORDINATION_GLOW,
   node: Node.Forte, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 87, mv: 1989, energy: 33, offtune: 2400 },
     { hitFrame: 93, commitFrame: 87, mv: 1989, energy: 33, offtune: 2400 },
@@ -221,13 +235,17 @@ const EPIPHANY = new Set<Action>([Skill4, Skill4_Unison]);
 const stellaGlamor = (): boolean => runningBullet(Skill4, -1) || runningBullet(Skill4_Unison, -1);
 
 const Liberation = jinhsiAction("Liberation - Purge of Light", {
-  animFrames: 231, prioFrames: 203, timestop: [0, 231], motionStop: [0, 231], cooldown: 60 * 24,
+  animFrames: 231, animPriority: { 203: 0 }, castPriority: 10, timestop: [0, 231], motionStop: [0, 231], cooldown: 60 * 24,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 106, mv: 49981, offtune: 25200 }, { hitFrame: 114, mv: 116622, offtune: 58800 }], castConcerto: 2000, resetEnergy: true,
 });
 
 const Intro = jinhsiAction("Intro - Loong's Halo", {
-  animFrames: 60, noSwapFrames: 78, prioFrames: 60, motionStop: [4, 37],
+  animFrames: 60, noSwapFrames: 78, animPriority: { 60: 1 }, castPriority: 11, motionStop: [4, 37],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 49, mv: 15905, energy: 1000, offtune: 8000 }], castConcerto: 1000,
+  // "while not in Incarnation", it opens the Overflowing Radiance window
+  updateBuffs: () => {
+    if (!isHeld(INCARNATION)) applyCurrent(RADIANCE_WINDOW, 1);
+  },
 });
 /** Temporal Bender hands the incoming resonator nothing of their own: it opens her own 20s window,
  *  under which Eras in Unity's channels run at one action instead of three. Both of her outros are
@@ -241,11 +259,6 @@ const Outro = jinhsiAction("Outro - Temporal Bender", {
 const OutroUnison = unisonOutro(Outro);
 
 /* ------------------------------------------------------------------------------------- buffs */
-
-/** The two mode markers, no stat of their own — they name which replacement chain is live, the
- *  same way Camellya's Blossom Mode does. */
-const INCARNATION = new Buff({ name: "Jinhsi: Incarnation", duration: 60 * 10 });
-const ORDINATION_GLOW = new Buff({ name: "Jinhsi: Ordination Glow", duration: 60 * 5 });
 
 /* Unison itself is shared/unison.ts's: whichever of her outros holds it is the free one, and the
  * other pays the real bar. */
@@ -274,11 +287,10 @@ for (const [attribute, label] of [[Attribute.Aero, "Aero"], [Attribute.Electro, 
 const ERAS_IN_UNITY = new Buff({
   name: "Jinhsi: Eras in Unity",
   hitGlobal: () => {
-    const a = currentAction();
     // a DOT tick (the Negative Status ladders) is nobody's attack, and the six attributes only: a
     // Physical hit (the Tune Break) is no Attribute DMG
-    const element = a.lastBullet?.element;
-    if (a.scaling === Scaling.Dot || !element || element === Attribute.Physical) return;
+    const element = currentHit().element;
+    if (currentCast().scaling === Scaling.Dot || !element || element === Attribute.Physical) return;
     const [plain, coordinated] = ERAS_CHANNELS.get(element)!;
     const now = currentTeam().frame, shut = now + (isHeld(TEMPORAL_BENDER) ? 60 : 180);
     if (stacksOf(plain) <= now) {
@@ -395,7 +407,7 @@ const JINHSI_TALENTS = new Talent({
   stats: [[Stat.BonusAtk, 12], [Stat.CritRate, 8]],
 });
 
-const JINHSI_RESONATOR = new Resonator({
+export const JINHSI_RESONATOR = new Resonator({
   name: "Jinhsi",
   matrix: matrix("Jinhsi", 25),
   talent: JINHSI_TALENTS,
@@ -405,6 +417,7 @@ const JINHSI_RESONATOR = new Resonator({
   weapon: WeaponType.Broadblade,
   color: "#c2ecfb",
   intro: Intro,
+  outro: () => (isHeld(UNISON) ? OutroUnison : Outro),
   maxEnergy: 15000,
 
   // Eras in Unity is hers the moment she is on the team, well before her first turn
@@ -433,18 +446,17 @@ const IncBA123 = new ActionGroup("Basic - Incarnation 123", [IncBA1, IncBA2, Inc
 
 /** Which Intro / Outro this resonator casts, resolved when its row is reached — whichever the
  *  kit's state calls for there (a kit with more than one). */
-const OutroResolver = new Action("Outro Resolver", { cast: Cast.Outro, resolve: () => (isHeld(UNISON) ? OutroUnison : Outro) });
 
 const JX_ROTATION_FULL = new Rotation([
   START_LAST, Liberation, Skill.instaSwap(),
 
   DOUBLE_INTRO, Skill2, 
   IncBA12.cancel(), Skill3, IncBA34.instaCancel(),
-  ECHO, Skill4_Unison, OutroResolver,
+  ECHO, Skill4_Unison, OUTRO,
 
   INTRO, Skill2,
   IncBA12.cancel(), Skill3, IncBA34.instaCancel(),
-  Skill4, Liberation, OutroResolver,
+  Skill4, Liberation, OUTRO,
 ]);
 
 // her support rotation lists a Liberation every visit and the bar only fills for half of them, so
@@ -453,31 +465,31 @@ const JX_ROTATION_FULL = new Rotation([
 // only fills every other time it comes round, so the cast alternates rather than being listed
 // every loop and paid for on credit
 const JX_ROTATION_EVERY_OTHER = new Rotation([
-  START_LAST, EVERY_OTHER, Liberation, Skill.instaSwap(),
+  START_LAST, Liberation.everyOther(), Skill.instaSwap(),
 
-  NOINTRO, BA1234.instaCancel(), Skill2.instaCancel(), ECHO, EVERY_OTHER, Liberation,
+  NOINTRO, BA1234.instaCancel(), Skill2.instaCancel(), ECHO, Liberation.everyOther(),
   IncBA1, IncBA2.instaJump(), IncBA3.instaJump(), IncBA4.instaCancel(), 
-  Skill4_Unison, OutroResolver,
+  Skill4_Unison, OUTRO,
 
   DOUBLE_INTRO, Skill2.instaDodge(), 
   IncBA12.cancel(), Skill3, IncBA34.instaCancel(),
-  ECHO, Skill4_Unison, EVERY_OTHER, Liberation, OutroResolver,
+  ECHO, Skill4_Unison, Liberation.everyOther(), OUTRO,
 
   INTRO, Skill2.instaDodge(),
   IncBA12.cancel(), Skill3, IncBA34.instaCancel(),
-  Skill4, OutroResolver,
+  Skill4, OUTRO,
 ]);
 
 const JX_ROTATION_SUPPORT = new Rotation([
-  START_LAST, EVERY_OTHER, Liberation, Skill.instaSwap(),
+  START_LAST, Liberation.everyOther(), Skill.instaSwap(),
 
-  NOINTRO, BA1234.instaCancel(), Skill2.instaCancel(), ECHO, EVERY_OTHER, Liberation, 
+  NOINTRO, BA1234.instaCancel(), Skill2.instaCancel(), ECHO, Liberation.everyOther(), 
   IncBA1, IncBA2.instaJump(), IncBA3.instaJump(), IncBA4.instaCancel(), 
-  Skill4_Unison, OutroResolver,
+  Skill4_Unison, OUTRO,
 
   INTRO, Skill2.instaDodge(), ECHO, 
   IncBA12.cancel(), Skill3, IncBA34.instaCancel(),
-  Skill4_Unison, EVERY_OTHER, Liberation, OutroResolver,
+  Skill4_Unison, Liberation.everyOther(), OUTRO,
 ]);
 
 const JX_ECHOES = [
@@ -494,7 +506,7 @@ export const JINHSI = new Loadout({
   sequences: [JX_S1, JX_S2, JX_S3, JX_S4, JX_S5, JX_S6],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
   substat: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation, Substat.Basic),
   rotation: JX_ROTATION_EVERY_OTHER,
 });
 export const JINHSI_FULL = new Loadout({
@@ -504,7 +516,7 @@ export const JINHSI_FULL = new Loadout({
   sequences: [JX_S1, JX_S2, JX_S3, JX_S4, JX_S5, JX_S6],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
   substat: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation, Substat.Basic),
   rotation: JX_ROTATION_FULL,
 });
 export const JINHSI_SUPPORT = new Loadout({
@@ -514,6 +526,6 @@ export const JINHSI_SUPPORT = new Loadout({
   sequences: [JX_S1, JX_S2, JX_S3, JX_S4, JX_S5, JX_S6],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
   substat: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation, Substat.Basic),
   rotation: JX_ROTATION_SUPPORT,
 });

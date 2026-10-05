@@ -22,7 +22,7 @@ import {
   
   queueOutro,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, START_LAST, INTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, START_LAST, INTRO, OUTRO } from "../../engine/rotation.js";
 import { BLAZING_BRILLIANCE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { NM_INFERNO_RIDER, MOLTEN_RIFT_5PC } from "../../echoes/jinzhou.js";
@@ -35,33 +35,41 @@ function changliAction(id: string, def: object): Action {
   return new Action(id, { element: Attribute.Fusion, scaling: Scaling.Atk, ...def });
 }
 
+/** Opened by BA4/MA4/Skill/Intro — 12s, and ended by whichever of Conquest/Charge spends it:
+ *  "When in True Sight" is what lets either of them be cast at all. */
+const TRUE_SIGHT = new Buff({
+  name: "Changli: True Sight",
+  duration: 60 * 12,
+});
+
 // --- basics, dodge counter, heavy (Blazing Enlightenment). Stage 4 opens True Sight.
-const BA1 = changliAction("Basic - Blazing Enlightenment 1", { animFrames: 27, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = changliAction("Basic - Blazing Enlightenment 1", { animFrames: 27, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 12, mv: 2949, energy: 44, concerto: 88, offtune: 1396 },
     { hitFrame: 21, mv: 2949, energy: 44, concerto: 88, offtune: 1396 },
   ]});
-const BA2 = changliAction("Basic - Blazing Enlightenment 2", { animFrames: 32, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA2 = changliAction("Basic - Blazing Enlightenment 2", { animFrames: 32, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 3549, energy: 53, concerto: 105, offtune: 1680 },
     { hitFrame: 21, mv: 3549, energy: 53, concerto: 105, offtune: 1680 },
   ]});
-const BA3 = changliAction("Basic - Blazing Enlightenment 3", { animFrames: 39, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = changliAction("Basic - Blazing Enlightenment 3", { animFrames: 39, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 11, mv: 3645, energy: 54, concerto: 108, offtune: 1726 },
     { hitFrame: 21, mv: 3645, energy: 54, concerto: 108, offtune: 1726 },
     { hitFrame: 29, mv: 3645, energy: 54, concerto: 108, offtune: 1726 },
   ]});
-const BA4 = changliAction("Basic - Blazing Enlightenment 4", { animFrames: 68, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA4 = changliAction("Basic - Blazing Enlightenment 4", { animFrames: 68, animPriority: { 68: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 5070, energy: 75, concerto: 150, offtune: 2400 },
+    { hitFrame: 23, element: null, type: null, subtype: null, updateDebuffs: () => applyCurrent(TRUE_SIGHT, 1) },
     { hitFrame: 32, commitFrame: 14, mv: 2958, energy: 44, concerto: 88, offtune: 1400 },
     { hitFrame: 36, commitFrame: 14, mv: 2958, energy: 44, concerto: 88, offtune: 1400 },
     { hitFrame: 40, commitFrame: 14, mv: 2958, energy: 44, concerto: 88, offtune: 1400 },
     { hitFrame: 44, commitFrame: 14, mv: 2958, energy: 44, concerto: 88, offtune: 1400 },
   ]});
-const DC = changliAction("Dodge Counter - Blazing Enlightenment 3", { animFrames: 39, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const DC = changliAction("Dodge Counter - Blazing Enlightenment 3", { animFrames: 39, animPriority: { 39: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 11, mv: 8264, energy: 104, concerto: 208, offtune: 3326 },
     { hitFrame: 21, mv: 8264, energy: 104, concerto: 208, offtune: 3326 },
     { hitFrame: 29, mv: 8264, energy: 104, concerto: 208, offtune: 3326 },
   ], castConcerto: 1000});
-const HA = changliAction("Heavy - Blazing Enlightenment", { animFrames: 47, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+const HA = changliAction("Heavy - Blazing Enlightenment", { animFrames: 47, animPriority: { 47: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 14, mv: 2899, energy: 43, concerto: 86, offtune: 1372 },
     { hitFrame: 20, commitFrame: 14, mv: 2899, energy: 43, concerto: 86, offtune: 1372 },
     { hitFrame: 26, commitFrame: 14, mv: 2899, energy: 43, concerto: 86, offtune: 1372 },
@@ -69,34 +77,34 @@ const HA = changliAction("Heavy - Blazing Enlightenment", { animFrames: 47, node
   ]});
 
 // --- mid-air basics, mid-air heavy — the same combo, airborne. Stage 4 also opens True Sight.
-const MA1 = changliAction("Mid-air - Blazing Enlightenment 1", { animFrames: 24, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 13, mv: 6135, energy: 91, concerto: 182, offtune: 2904 }]});
-const MA2 = changliAction("Mid-air - Blazing Enlightenment 2", { animFrames: 39, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MA1 = changliAction("Mid-air - Blazing Enlightenment 1", { animFrames: 24, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 13, mv: 6135, energy: 91, concerto: 182, offtune: 2904 }]});
+const MA2 = changliAction("Mid-air - Blazing Enlightenment 2", { animFrames: 39, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 17, mv: 5087, energy: 76, concerto: 151, offtune: 2408 },
     { hitFrame: 27, mv: 5087, energy: 76, concerto: 151, offtune: 2408 },
   ]});
-const MA3 = changliAction("Mid-air - Blazing Enlightenment 3", { animFrames: 47, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MA3 = changliAction("Mid-air - Blazing Enlightenment 3", { animFrames: 47, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 16, mv: 4400, energy: 66, concerto: 131, offtune: 2083 },
     { hitFrame: 25, mv: 4400, energy: 66, concerto: 131, offtune: 2083 },
     { hitFrame: 35, mv: 4400, energy: 66, concerto: 131, offtune: 2083 },
   ]});
-const MA4 = changliAction("Mid-air - Blazing Enlightenment 4", { animFrames: 53, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MA4 = changliAction("Mid-air - Blazing Enlightenment 4", { animFrames: 53, animPriority: { 53: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 6, mv: 3803, energy: 57, concerto: 113, offtune: 1800, updateDebuffs: () => applyCurrent(TRUE_SIGHT, 1) },
     { hitFrame: 18, commitFrame: 6, mv: 2218, energy: 33, concerto: 66, offtune: 1050 },
     { hitFrame: 24, commitFrame: 6, mv: 2218, energy: 33, concerto: 66, offtune: 1050 },
     { hitFrame: 29, commitFrame: 6, mv: 2218, energy: 33, concerto: 66, offtune: 1050 },
     { hitFrame: 35, commitFrame: 6, mv: 2218, energy: 33, concerto: 66, offtune: 1050 },
   ]});
-const MHA = changliAction("Heavy - Blazing Enlightenment (Mid-Air)", { animFrames: 54, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 42, mv: 12327, energy: 155, concerto: 100, offtune: 4960 }]});
+const MHA = changliAction("Heavy - Blazing Enlightenment (Mid-Air)", { animFrames: 54, animPriority: { 49: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 42, mv: 12327, energy: 155, concerto: 100, offtune: 4960 }]});
 
 // --- True Sight's own finishers: Conquest (ground Basic), Charge (jump/mid-air Basic) — both
 //     Resonance Skill DMG, both bank a stack of Enflamement and end True Sight
-const SBA = changliAction("Basic - True Sight: Conquest", { animFrames: 73, node: Node.Skill, cast: Cast.Basic, type: Type.Skill, bullets: [
+const SBA = changliAction("Basic - True Sight: Conquest", { requireBuff: TRUE_SIGHT, animFrames: 73, animPriority: { 78: 2 }, castPriority: 3, node: Node.Skill, cast: Cast.Basic, type: Type.Skill, bullets: [
     { hitFrame: 26, mv: 5895, energy: 81, offtune: 1797, forte1: 1 },
     { hitFrame: 51, mv: 5895, energy: 81, offtune: 1797 },
     { hitFrame: 60, mv: 8252, energy: 113, offtune: 2516 },
     { hitFrame: 68, mv: 9431, energy: 129, offtune: 2875 },
   ], castConcerto: 700});
-const SMA = changliAction("Basic - True Sight: Charge", { animFrames: 40, node: Node.Skill, cast: Cast.Basic, type: Type.Skill, bullets: [
+const SMA = changliAction("Basic - True Sight: Charge", { requireBuff: TRUE_SIGHT, animFrames: 40, animPriority: { 40: 2 }, castPriority: 2, node: Node.Skill, cast: Cast.Basic, type: Type.Skill, bullets: [
     { hitFrame: 13, mv: 7268, energy: 103, offtune: 1741, forte1: 1 },
     { hitFrame: 26, mv: 10902, energy: 154, offtune: 2612 },
   ], castConcerto: 600});
@@ -104,16 +112,17 @@ const SMA = changliAction("Basic - True Sight: Charge", { animFrames: 40, node: 
 // --- resonance skill: Tripartite Flames — also opens True Sight: Capture (bundled into this
 //     one hit's own total per wuwalab, not a separate press)
 // True Sight: Capture holds 2 charges, one back every 12s
-const Skill = changliAction("Skill - Tripartite Flames", { animFrames: 89, cooldown: new Cooldown({ frames: 60 * 12, charges: 2 }), node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+const Skill = changliAction("Skill - Tripartite Flames", { animFrames: 89, animPriority: { 0: 7, 88: 2 }, castPriority: 4, cooldown: new Cooldown({ frames: 60 * 12, charges: 2 }), node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 10, mv: 8188, energy: 160, offtune: 2496 },
     { hitFrame: 18, commitFrame: 10, mv: 8188, energy: 160, offtune: 2496 },
     { hitFrame: 27, commitFrame: 10, mv: 8188, energy: 160, offtune: 2496 },
+    { hitFrame: 47, element: null, type: null, subtype: null, updateDebuffs: () => applyCurrent(TRUE_SIGHT, 1) },
     { hitFrame: 74, mv: 16376, energy: 320, offtune: 4992 },
   ], castConcerto: 1400});
 
 /** At 4 Enflamement — Sweeping Force's own +20% Fusion DMG Bonus/15% DEF ignore pays on this
  *  same hit (intrinsic to the cast, no separate lingering buff). */
-const FlamingSacrifice = changliAction("Forte Heavy - Flaming Sacrifice", { minForte1: 4, animFrames: 76, node: Node.Forte, cast: Cast.Heavy, type: Type.Skill, bullets: [
+const FlamingSacrifice = changliAction("Forte Heavy - Flaming Sacrifice", { minForte1: 4, animFrames: 76, castPriority: 5, node: Node.Forte, cast: Cast.Heavy, type: Type.Skill, bullets: [
     { hitFrame: 9, mv: 3925, energy: 40, offtune: 1869 },
     { hitFrame: 15, mv: 3925, energy: 40, offtune: 1869 },
     { hitFrame: 21, mv: 3925, energy: 40, offtune: 1869 },
@@ -124,13 +133,13 @@ const FlamingSacrifice = changliAction("Forte Heavy - Flaming Sacrifice", { minF
 
 // --- liberation: Radiance of Fealty — grants 4 Enflamement outright and opens Fiery Feather
 const Liberation = changliAction("Liberation - Radiance of Fealty", {
-  animFrames: 191, prioFrames: 191, timestop: [0, 189], motionStop: [0, 158], cooldown: 60 * 20,
+  animFrames: 191, animPriority: { 191: 2 }, castPriority: 10, timestop: [0, 189], motionStop: [0, 158], cooldown: 60 * 20,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 163, mv: 121275, offtune: 100800 }], castConcerto: 2000, castForte1: 4, resetEnergy: true,
   updateBuffs: () => applyCurrent(FIERY_FEATHER, 1),
 });
 
 // --- intro / outro. Intro also opens True Sight.
-const Intro = changliAction("Intro - Obedience of Rules", { animFrames: 45, noSwapFrames: 46, prioFrames: 45, motionStop: [5, 44], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
+const Intro = changliAction("Intro - Obedience of Rules", { animFrames: 45, noSwapFrames: 46, animPriority: { 45: 2 }, castPriority: 11, motionStop: [5, 44], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 6, mv: 4450, energy: 300, offtune: 1791, updateDebuffs: () => applyCurrent(TRUE_SIGHT, 1) },
     { hitFrame: 18, commitFrame: 6, mv: 2596, energy: 175, offtune: 1045 },
     { hitFrame: 24, commitFrame: 6, mv: 2596, energy: 175, offtune: 1045 },
@@ -144,13 +153,6 @@ const Outro = changliAction("Outro - Strategy of Duality", {
 });
 
 /* ------------------------------------------------------------------------------------ buffs */
-
-/** Opened by BA4/MA4/Skill/Intro — 12s, permanent uptime once granted, but still explicitly
- *  ended by whichever of Conquest/Charge actually spends it. */
-const TRUE_SIGHT = new Buff({
-  name: "Changli: True Sight",
-  duration: 60 * 12,
-});
 
 /** Secret Strategist (Inherent Skill): each Enflamement stack held grants +5% Fusion DMG Bonus
  *  on Conquest/Charge specifically — genuinely unconditional. */
@@ -263,13 +265,13 @@ const CHANGLI_RESONATOR = new Resonator({
   weapon: WeaponType.Sword,
   color: "#f38b68",
   intro: Intro,
+  outro: Outro,
   maxEnergy: 12500,
   maxForte1: 4,
 
-  // Stage 4 and the Skill arm True Sight on cast (Mid-air Stage 4's and the Intro's are their first
-  // hits'); the two Sword-of-Fealty casts spend it
+  // True Sight is armed on the bullets wuwalab's gain_true_sight lands on; the two Sword-of-Fealty
+  // casts spend it
   updateBuffs: () => {
-    if (runningAction(BA4) || runningAction(Skill)) applyCurrent(TRUE_SIGHT, 1);
     if (runningAction(SBA) || runningAction(SMA)) revokeCurrent(TRUE_SIGHT);
   },
 
@@ -287,7 +289,7 @@ const CH_ROTATION = new Rotation([
   MHA, BA34.dodgeCancel(), SBA,
   FlamingSacrifice.cancel(),
   Liberation, FlamingSacrifice.swapCancel(),
-  Outro,
+  OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
@@ -301,6 +303,6 @@ export const CHANGLI = new Loadout({
   echoLoadouts: [new EchoLoadout(NM_INFERNO_RIDER, MOLTEN_RIFT_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
   substat: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation, Substat.Basic),
     rotation: CH_ROTATION,
 });

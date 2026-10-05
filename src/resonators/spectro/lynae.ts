@@ -26,6 +26,7 @@ import { Buff, Talent, Inherent, ResonanceMode, Resonator, Loadout, EchoLoadout,
 import {
   addStat,
   applyCurrent,
+  applyEnemy,
   applyTeam,
   onAction,
   runningAction,
@@ -35,17 +36,29 @@ import {
   asSource,
   currentTeam,
   frozenStacks,
+  isHeld,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, ECHO, INTRO } from "../../engine/rotation.js";
-import { applyRupture, applyStrain, TUNE_STRAIN_INTERFERED, strainPayout, tuneRuptureResponse } from "../../shared/tunebreak.js";
+import { ActionGroup, Action, Cooldown, Rotation, ECHO, INTRO, OUTRO } from "../../engine/rotation.js";
+import { applyRupture, applyStrain, TUNE_STRAIN_INTERFERED, TUNE_SHIFTABLE, strainPayout, tuneRuptureResponse } from "../../shared/tunebreak.js";
 import { SPECTRUM_BLASTER } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
 import { HYVATIA, NEONLIGHT_LEAP_5PC, REEL_5PC, VOIDWING_MOTH } from "../../echoes/lahairoi.js";
+import { AEMEATH_RESONATOR } from "../fusion/aemeath.js";
+import { LUUK_RESONATOR } from "./luuk.js";
+import { QINGXIAO_RESONATOR } from "../aero/qingxiao.js";
 import { HERON, STONEWALL_BRACER, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
+import { JINGRAN_RESONATOR } from "../fusion/jingran.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
+
+/** Kaleidoscopic Parade: entered by Spark Collision, left on her Outro (kept through it at S6). Every
+ *  Parade press and the Forte Circuit's Basics need it. */
+const KALEIDOSCOPIC_PARADE = new Buff({ name: "Lynae: Kaleidoscopic Parade" });
+/** "Press Normal Attack within a certain time after casting Prismatic Overblast to cast To a Vivid
+ *  Tomorrow!": armed by the Liberation, spent by that press. */
+const VIVID_TOMORROW_READY = new Buff({ name: "Lynae: To a Vivid Tomorrow! Ready" });
 
 function lynaeAction(id: string, def: object): Action {
   return new Action(id, { element: Attribute.Spectro, scaling: Scaling.Atk, ...def });
@@ -53,41 +66,53 @@ function lynaeAction(id: string, def: object): Action {
 
 // --- Chroma Drift, the out-of-Parade chain. Spark Collision Lv.3 is what sends her into
 //     Kaleidoscopic Parade, so it opens the rotation and the rest of this chain never gets played.
-const BA1 = lynaeAction("Basic - Chroma Drift 1", { animFrames: 31, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 16, mv: 8619, energy: 128, concerto: 459, offtune: 4080 }], castForte1: 12});
-const BA2 = lynaeAction("Basic - Chroma Drift 2", { animFrames: 66, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = lynaeAction("Basic - Chroma Drift 1", { animFrames: 31, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 16, mv: 8619, energy: 128, concerto: 459, offtune: 4080 },
+    { hitFrame: 19, element: null, type: null, subtype: null, forte1: 12 },
+  ]});
+const BA2 = lynaeAction("Basic - Chroma Drift 2", { animFrames: 66, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 15, mv: 5239, energy: 78, concerto: 279, offtune: 2480, forte1: 21 },
     { hitFrame: 29, mv: 5239, energy: 78, concerto: 279, offtune: 2480 },
     { hitFrame: 39, mv: 5239, energy: 78, concerto: 279, offtune: 2480 },
   ]});
-const BA3 = lynaeAction("Basic - Chroma Drift 3", { animFrames: 44, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 28, mv: 12337, energy: 183, concerto: 657, offtune: 5840 }], castForte1: 17});
-const DC = lynaeAction("Dodge Counter - Chroma Drift", { animFrames: 49, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 31, mv: 23997, energy: 205, concerto: 738, offtune: 6560 }], castConcerto: 1000, castForte1: 19});
-const MA = lynaeAction("Mid-air - Chroma Drift Plunge", { animFrames: 54, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = lynaeAction("Basic - Chroma Drift 3", { animFrames: 44, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 28, mv: 12337, energy: 183, concerto: 657, offtune: 5840 },
+    { hitFrame: 33, element: null, type: null, subtype: null, forte1: 17 },
+  ]});
+const DC = lynaeAction("Dodge Counter - Chroma Drift", { animFrames: 49, animPriority: { 0: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+    { hitFrame: 30, element: null, type: null, subtype: null, forte1: 19 },
+    { hitFrame: 31, mv: 23997, energy: 205, concerto: 738, offtune: 6560 },
+  ], castConcerto: 1000});
+const MA = lynaeAction("Mid-air - Chroma Drift Plunge", { animFrames: 54, animPriority: { 48: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 26, mv: 1437, energy: 22, concerto: 77, offtune: 680 },
     { hitFrame: 41, mv: 12928, energy: 192, concerto: 689, offtune: 6120 },
-  ], castForte1: 20});
-const SparkCollision = lynaeAction("Basic - Spark Collision Lv. 3", { minForte1: 120, animFrames: 157, noSwapFrames: 84, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 45, element: null, type: null, subtype: null, forte1: 20 },
+  ]});
+const SparkCollision = lynaeAction("Basic - Spark Collision Lv. 3", { minForte1: 120, animFrames: 157, animPriority: { 154: 1 }, castPriority: 4, noSwapFrames: 84, node: Node.Normal, cast: Cast.Heavy, type: Type.Basic, bullets: [
     { hitFrame: 100, mv: 27778, energy: 411, concerto: 1480, offtune: 13150 },
     { hitFrame: 111, mv: 27778, energy: 411, concerto: 1480, offtune: 13150 },
-  ], castForte1: -120, castForte2: 12000});
+  ], castForte1: -120, castForte2: 12000,
+  updateBuffs: () => applyCurrent(KALEIDOSCOPIC_PARADE, 1),
+});
 
 // --- Kaleidoscopic Parade, the combo she actually plays
-const KBA1 = lynaeAction("Basic - Kaleidoscopic Parade 1", { animFrames: 35, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 13, mv: 8281, energy: 123, concerto: 441, offtune: 3920 }]});
-const KBA2 = lynaeAction("Basic - Kaleidoscopic Parade 2", { animFrames: 28, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const KBA1 = lynaeAction("Basic - Kaleidoscopic Parade 1", { requireBuff: KALEIDOSCOPIC_PARADE, animFrames: 35, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 13, mv: 8281, energy: 123, concerto: 441, offtune: 3920 }]});
+const KBA2 = lynaeAction("Basic - Kaleidoscopic Parade 2", { requireBuff: KALEIDOSCOPIC_PARADE, animFrames: 28, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 10, mv: 3887, energy: 58, concerto: 207, offtune: 1840 },
     { hitFrame: 21, mv: 3887, energy: 58, concerto: 207, offtune: 1840 },
   ]});
-const KBA3 = lynaeAction("Basic - Kaleidoscopic Parade 3", { animFrames: 40, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const KBA3 = lynaeAction("Basic - Kaleidoscopic Parade 3", { requireBuff: KALEIDOSCOPIC_PARADE, animFrames: 40, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 12, mv: 3775, energy: 56, concerto: 201, offtune: 1787 },
     { hitFrame: 16, mv: 3775, energy: 56, concerto: 201, offtune: 1787 },
     { hitFrame: 24, mv: 3775, energy: 56, concerto: 201, offtune: 1787 },
   ]});
-const KBA4 = lynaeAction("Basic - Kaleidoscopic Parade 4", { animFrames: 70, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const KBA4 = lynaeAction("Basic - Kaleidoscopic Parade 4", { requireBuff: KALEIDOSCOPIC_PARADE, animFrames: 70, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 2975, energy: 44, concerto: 159, offtune: 1408 },
     { hitFrame: 25, mv: 2975, energy: 44, concerto: 159, offtune: 1408 },
     { hitFrame: 38, mv: 4462, energy: 66, concerto: 238, offtune: 2112 },
     { hitFrame: 50, mv: 4462, energy: 66, concerto: 238, offtune: 2112 },
   ]});
-const KBA5 = lynaeAction("Basic - Kaleidoscopic Parade 5", { animFrames: 99, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const KBA5 = lynaeAction("Basic - Kaleidoscopic Parade 5", { requireBuff: KALEIDOSCOPIC_PARADE, animFrames: 99, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 8, mv: 7554, energy: 112, concerto: 403, offtune: 3576 },
     { hitFrame: 29, mv: 1511, energy: 23, concerto: 81, offtune: 716 },
     { hitFrame: 35, commitFrame: 29, mv: 1511, energy: 23, concerto: 81, offtune: 716 },
@@ -96,7 +121,7 @@ const KBA5 = lynaeAction("Basic - Kaleidoscopic Parade 5", { animFrames: 99, nod
     { hitFrame: 53, commitFrame: 29, mv: 1511, energy: 23, concerto: 81, offtune: 716 },
     { hitFrame: 59, commitFrame: 29, mv: 10072, energy: 149, concerto: 537, offtune: 4768 },
   ]});
-const KHeavy = lynaeAction("Heavy - Kaleidoscopic Parade (Ground)", { animFrames: 82, node: Node.Normal, cast: Cast.Heavy, type: Type.Basic, bullets: [
+const KHeavy = lynaeAction("Heavy - Kaleidoscopic Parade (Ground)", { requireBuff: KALEIDOSCOPIC_PARADE, animFrames: 82, animPriority: { 42: 2, 50: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, type: Type.Basic, bullets: [
     { hitFrame: 10, mv: 1763, energy: 42, concerto: 94, offtune: 835 },
     { hitFrame: 14, mv: 1763, energy: 42, concerto: 94, offtune: 835 },
     { hitFrame: 18, mv: 1763, energy: 42, concerto: 94, offtune: 835 },
@@ -110,12 +135,12 @@ const KHeavy = lynaeAction("Heavy - Kaleidoscopic Parade (Ground)", { animFrames
 
 // --- Forte Circuit. These carry Photochromic Flux, which is what shifts the target (see the two
 //     Resonance Modes below). Visual Impact is the big one, on a 25s cooldown.
-const PolychromeLeap1 = lynaeAction("Forte Basic - Polychrome Leap 1", { animFrames: 46, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
+const PolychromeLeap1 = lynaeAction("Forte Basic - Polychrome Leap 1", { requireBuff: KALEIDOSCOPIC_PARADE, minForte2: 4000, animFrames: 46, animPriority: { 45: 2 }, castPriority: 6, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 12, mv: 3380, energy: 75, concerto: 180, offtune: 1600 },
     { hitFrame: 21, mv: 3380, energy: 75, concerto: 180, offtune: 1600 },
     { hitFrame: 25, mv: 3380, energy: 75, concerto: 180, offtune: 1600 },
   ], castForte2: -4000,  });
-const PolychromeLeap2 = lynaeAction("Forte Basic - Polychrome Leap 2", { animFrames: 42, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
+const PolychromeLeap2 = lynaeAction("Forte Basic - Polychrome Leap 2", { requireBuff: KALEIDOSCOPIC_PARADE, minForte2: 4000, animFrames: 42, animPriority: { 35: 2 }, castPriority: 6, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 12, mv: 1690, energy: 38, concerto: 90, offtune: 800 },
     { hitFrame: 18, mv: 1690, energy: 38, concerto: 90, offtune: 800 },
     { hitFrame: 24, mv: 1690, energy: 38, concerto: 90, offtune: 800 },
@@ -123,7 +148,7 @@ const PolychromeLeap2 = lynaeAction("Forte Basic - Polychrome Leap 2", { animFra
     { hitFrame: 36, mv: 1690, energy: 38, concerto: 90, offtune: 800 },
     { hitFrame: 42, mv: 1690, energy: 38, concerto: 90, offtune: 800 },
   ], castForte2: -4000,  });
-const PolychromeLeap3 = lynaeAction("Forte Basic - Polychrome Leap 3", { animFrames: 37, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
+const PolychromeLeap3 = lynaeAction("Forte Basic - Polychrome Leap 3", { requireBuff: KALEIDOSCOPIC_PARADE, minForte2: 4000, animFrames: 37, animPriority: { 36: 2 }, castPriority: 6, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 1310, energy: 30, concerto: 70, offtune: 620 },
     { hitFrame: 17, commitFrame: 14, mv: 1310, energy: 30, concerto: 70, offtune: 620 },
     { hitFrame: 20, commitFrame: 14, mv: 1310, energy: 30, concerto: 70, offtune: 620 },
@@ -133,28 +158,30 @@ const PolychromeLeap3 = lynaeAction("Forte Basic - Polychrome Leap 3", { animFra
     { hitFrame: 56, commitFrame: 14, mv: 1310, energy: 30, concerto: 70, offtune: 620 },
     { hitFrame: 59, commitFrame: 14, mv: 1310, energy: 30, concerto: 70, offtune: 620 },
   ], castForte2: -4000,  });
-const IridescentSplash = lynaeAction("Forte Basic - Iridescent Splash", { animFrames: 64, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 38, mv: 30418, energy: 813, concerto: 765, offtune: 6800 }],  });
+const IridescentSplash = lynaeAction("Forte Basic - Iridescent Splash", { requireBuff: KALEIDOSCOPIC_PARADE, animFrames: 64, animPriority: { 55: 2 }, castPriority: 6, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 38, mv: 30418, energy: 813, concerto: 765, offtune: 6800 }],  });
 const VisualImpact = lynaeAction("Forte Basic - Visual Impact", {
-  animFrames: 105, cooldown: 60 * 25,
+  requireBuff: KALEIDOSCOPIC_PARADE,
+  animFrames: 105, animPriority: { 75: 2 }, castPriority: 6, cooldown: 60 * 25,
   node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 42, mv: 121672, energy: 1405, concerto: 1458, offtune: 60960 }],
   updateBuffs: () => applyTeam(SPECTRAL_ANALYSIS_TBB, 1),
 });
 
 // Lynae-Style Palettes and Additive Color share one 6s cooldown
 const SKILL_CD = new Cooldown({ frames: 60 * 6 });
-const Skill = lynaeAction("Skill - Lynae-Style Palettes", { animFrames: 76, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+const Skill = lynaeAction("Skill - Lynae-Style Palettes", { animFrames: 76, animPriority: { 65: 2 }, castPriority: 4, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 30, mv: 13931, energy: 437, concerto: 491, offtune: 4360 },
+    { hitFrame: 44, element: null, type: null, subtype: null, forte1: 25 },
     { hitFrame: 51, commitFrame: 30, mv: 4644, energy: 146, concerto: 164, offtune: 1454 },
     { hitFrame: 58, commitFrame: 30, mv: 4644, energy: 146, concerto: 164, offtune: 1454 },
     { hitFrame: 62, commitFrame: 30, mv: 4644, energy: 146, concerto: 164, offtune: 1454 },
-  ], castForte1: 25});
-const AdditiveColor = lynaeAction("Skill - Additive Color", { animFrames: 75, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+  ]});
+const AdditiveColor = lynaeAction("Skill - Additive Color", { requireBuff: KALEIDOSCOPIC_PARADE, animFrames: 75, animPriority: { 72: 2 }, castPriority: 4, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 16, mv: 11631, energy: 346, concerto: 410, offtune: 3640 },
     { hitFrame: 30, mv: 11631, energy: 346, concerto: 410, offtune: 3640 },
   ]});
 
 const Liberation = lynaeAction("Liberation - Prismatic Overblast", {
-  animFrames: 240, prioFrames: 238, timestop: [0, 240], motionStop: [0, 223], cooldown: 60 * 25,
+  animFrames: 240, animPriority: { 238: 2 }, castPriority: 10, timestop: [0, 240], motionStop: [0, 223], cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [
     { hitFrame: 189, mv: 8748, offtune: 4800 },
     { hitFrame: 195, commitFrame: 189, mv: 8748, offtune: 4800 },
@@ -168,9 +195,12 @@ const Liberation = lynaeAction("Liberation - Prismatic Overblast", {
     { hitFrame: 243, commitFrame: 189, mv: 8748, offtune: 4800 },
   ],
   castConcerto: 2000, resetEnergy: true,
-  updateBuffs: () => applyTeam(PRISMATIC_OVERBLAST, 1),
+  updateBuffs: () => {
+    applyTeam(PRISMATIC_OVERBLAST, 1);
+    applyCurrent(VIVID_TOMORROW_READY, 1);
+  },
 });
-const VividTomorrow = lynaeAction("Basic - To a Vivid Tomorrow!", { animFrames: 159, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const VividTomorrow = lynaeAction("Basic - To a Vivid Tomorrow!", { requireBuff: VIVID_TOMORROW_READY, updateBuffs: () => revokeCurrent(VIVID_TOMORROW_READY), animFrames: 159, animPriority: { 157: 2 }, castPriority: 9, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 52, mv: 838, energy: 23, concerto: 81, offtune: 714 },
     { hitFrame: 56, mv: 838, energy: 23, concerto: 81, offtune: 714 },
     { hitFrame: 60, mv: 838, energy: 23, concerto: 81, offtune: 714 },
@@ -195,7 +225,7 @@ const VividTomorrow = lynaeAction("Basic - To a Vivid Tomorrow!", { animFrames: 
     { hitFrame: 172, commitFrame: 118, mv: 1005, energy: 27, concerto: 97, offtune: 856 },
   ]});
 
-const Intro = lynaeAction("Intro - Time to Show Some Colors!", { animFrames: 76, noSwapFrames: 62, prioFrames: 44, motionStop: [4, 66], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
+const Intro = lynaeAction("Intro - Time to Show Some Colors!", { animFrames: 76, noSwapFrames: 62, animPriority: { 44: 3 }, castPriority: 11, motionStop: [4, 66], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 44, mv: 2248, energy: 134, concerto: 120, offtune: 1064 },
     { hitFrame: 50, commitFrame: 44, mv: 2248, energy: 134, concerto: 120, offtune: 1064 },
     { hitFrame: 56, commitFrame: 44, mv: 2248, energy: 134, concerto: 120, offtune: 1064 },
@@ -233,12 +263,15 @@ const Outro = lynaeAction("Outro - Let's Hit the Road!", {
     { hitFrame: 158, commitFrame: 110, mv: 455 },
     { hitFrame: 164, commitFrame: 110, mv: 445 },
   ], minConcerto: 10000, castConcerto: -10000,
-  updateBuffs: () => queueOutro(LYNAE_OUTRO),
+  updateBuffs: () => {
+    queueOutro(LYNAE_OUTRO);
+    if (!isHeld(LY_S6)) revokeCurrent(KALEIDOSCOPIC_PARADE);
+  },
 });
 
 const SpectralAnalysis = lynaeAction("Tune Rupture Response - Spectral Analysis", {
   animFrames: 0,
-  node: Node.Forte, type: Type.Rupture, bullets: [{ hitFrame: 0, mv: 188075 }], scaling: Scaling.Tune
+  node: Node.Forte, cast: Cast.TuneBreak, type: Type.Rupture, bullets: [{ hitFrame: 0, mv: 188075 }], scaling: Scaling.Tune
 });
 
 /* ------------------------------------------------------------------------------------- modes */
@@ -256,6 +289,7 @@ const inflictsFlux = (): boolean =>
  *  Strain pays her Tune Break Boost off the Interfered stacks the breaks leave behind. */
 const MODE_RUPTURE = new ResonanceMode({
   name: "Resonance Mode - Tune Rupture",
+  combatStart: () => applyEnemy(TUNE_SHIFTABLE, 1),
   updateDebuffs: () => { if (inflictsFlux()) applyRupture(); },
   hitGlobal: () => tuneRuptureResponse(SpectralAnalysis),
 });
@@ -265,7 +299,11 @@ const MODE_STRAIN = new ResonanceMode({
   name: "Resonance Mode - Tune Strain",
   // her kit raises the target's Tune Strain - Interfered limit by 1 on top of the base 1
   updateDebuffs: () => { if (inflictsFlux()) applyStrain(); },
-  combatStart: () => { maxStackIncrease(TUNE_STRAIN_INTERFERED, 1); applyCurrent(LY_STRAIN_PAYOUT, 1); },
+  combatStart: () => {
+    maxStackIncrease(TUNE_STRAIN_INTERFERED, 1);
+    applyCurrent(LY_STRAIN_PAYOUT, 1);
+    applyEnemy(TUNE_SHIFTABLE, 1);
+  },
 });
 
 /* ------------------------------------------------------------------------------------- buffs */
@@ -331,6 +369,7 @@ const LYNAE_RESONATOR = new Resonator({
   weapon: WeaponType.Pistols,
   color: "#eae477",
   intro: Intro,
+  outro: Outro,
   maxEnergy: 12500,
   forteScale: [1, 0.01, 1, 1, 1],
   maxForte1: 120,
@@ -413,15 +452,17 @@ const PolychromeLeap123 = new ActionGroup("Forte - Polychrome Leap 123", [Polych
 const LY_ROTATION = new Rotation([
   INTRO.mashCancel(), Skill.cancel(), ECHO.instaDodge(), Liberation, SparkCollision.cancel(),
   PolychromeLeap123,
-  VisualImpact.swapCancel(), Outro,
+  VisualImpact.swapCancel(), OUTRO,
 ]);
 
 
 const LY_ECHOES = [
-    new EchoLoadout(VOIDWING_MOTH, REEL_5PC),
+    // Reel's team Tune Break Boost only pays a Tune DMG dealer
+    new EchoLoadout(VOIDWING_MOTH, REEL_5PC).requires(AEMEATH_RESONATOR, LUUK_RESONATOR, QINGXIAO_RESONATOR),
     new EchoLoadout(HYVATIA, NEONLIGHT_LEAP_5PC),
   new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
-  new EchoLoadout(STONEWALL_BRACER, MOONLIT_CLOUDS_5PC),
+  // worn for the shield, which Jingran's Trace the Vestige feeds on
+  new EchoLoadout(STONEWALL_BRACER, MOONLIT_CLOUDS_5PC).requires(JINGRAN_RESONATOR),
 ];
 
 /** One loadout per Resonance Mode, the same way Lucilla ships an Echo and a Chafe build — the mode
@@ -432,7 +473,7 @@ const build = (mode: ResonanceMode): Loadout => new Loadout({
   echoLoadouts: LY_ECHOES,
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
   substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation, Substat.Skill),
   rotation: { 0: LY_ROTATION },
   sequences: LY_SEQUENCES,
   mode,

@@ -7,14 +7,15 @@ import type { Gear } from "../engine/gear.js";
 import { menuStats } from "../engine/context.js";
 import { TUNE_BREAK_ENEMY } from "../shared/tunebreak.js";
 import type { ChainGroup, ResolvedSnapshot } from "../engine/evaluate.js";
-import { gaugeSuffix, fmt, digitsOf, PAD_DIGITS_COLUMNS, GROUPED_COLUMNS, OFFTUNE_RATE, ENERGY_RATE } from "../display.js";
-import type { Report, Column, ReportRow, ReportPart } from "../display.js";
-import type { TeamRun } from "../teamrun.js";
-import { hitsOf, erRollsFor } from "../teamrun.js";
+import { gaugeSuffix, fmt, digitsOf, PAD_DIGITS_COLUMNS, GROUPED_COLUMNS, OFFTUNE_RATE, ENERGY_RATE, landedBullets } from "./display.js";
+import type { Report, Column, ReportRow, ReportPart } from "./display.js";
+import type { TeamRun } from "../solve/teamrun.js";
+import { hitsOf, erRollsFor } from "../solve/teamrun.js";
 import { ER_TOLERANCE } from "../shared/substats.js";
 import { results, detailFor, FALLBACK_HUE } from "./model.js";
 import { esc, lazyPop, rect, zoom, clearPops, popover, infoPopover, buffsPopover, framesPopover, equippedGear, dprTable, loadoutTable, wireDistribution, drivePanel, dropPanel, holdPanels } from "./panels.js";
 import { rememberTableScroll } from "./table.js";
+import { canPick } from "./pickmenu.js";
 
 const app = document.getElementById("app")!;
 const topbar = document.getElementById("topbar")!;
@@ -46,12 +47,12 @@ const TAG_NOTE: Partial<Record<ActionTag, string>> = {
   [ActionTag.InstaDodge]: "After casting, dodge instantly",
   [ActionTag.InstaJump]: "After casting, jump instantly",
   [ActionTag.InstaSwap]: "After casting, swap instantly",
-  [ActionTag.Cancel]: "After the final hit, input the next action",
-  [ActionTag.DodgeCancel]: "After the final hit, dodge",
-  [ActionTag.JumpCancel]: "After the final hit, jump",
-  [ActionTag.SwapCancel]: "After the final hit, swap",
-  [ActionTag.MashCancel]: "After casting, mash the next input to cancel on the final hit",
-  [ActionTag.HoldCancel]: "After casting, hold the next input to cancel upon receiving forte",
+  [ActionTag.Cancel]: "After the final hit, input the next action to cancel endlag",
+  [ActionTag.DodgeCancel]: "After the final hit, dodge to cancel endlag",
+  [ActionTag.JumpCancel]: "After the final hit, jump to cancel endlag",
+  [ActionTag.SwapCancel]: "After the final hit, swap to cancel endlag",
+  [ActionTag.MashCancel]: "After casting, mash the next input to cancel when available",
+  [ActionTag.HoldCancel]: "After casting, hold the next input to cancel when available",
   [ActionTag.HitCancel]: "After the first hit, input the next action",
   [ActionTag.DodgeOnHit]: "After the first hit, dodge",
   [ActionTag.JumpOnHit]: "After the first hit, jump",
@@ -74,8 +75,9 @@ function stepRow(
     let attr = "";
     if (isRunning(col.key)) {
       if ("line" in row && row.line.aggregate) return cell(col);
-      const cast = ("line" in row ? row.line.snap : row.snap).action.cast;
-      const spend = col.key === "offtune" ? cast === Cast.TuneBreak
+      const act = ("line" in row ? row.line.snap : row.snap).action, cast = act.cast;
+      // a Tune Break's response casts as one too, but only the break drains the bar
+      const spend = col.key === "offtune" ? cast === Cast.TuneBreak && act.castOfftune < 0
         : col.key === "concerto" && cast === Cast.Outro;
       const before = Number(row.raw[`before:${col.key}`]) || 0;
       if (!spend) attr = ` data-val="${Number(v) || 0}" data-before="${before}"`;
@@ -92,6 +94,8 @@ function stepRow(
     if (col.key.startsWith("gauge:") && Number(row.raw[`clear:${col.key}`])) cls.push("buffed");
     if ((col.key === "concerto" || col.key === "energy") && Number(row.raw[`short:${col.key}`])) cls.push("underspent");
     if (col.key.startsWith("gauge:") && Number(row.raw[`short:${col.key}`])) cls.push("negative");
+    // a press cast without a buff its condition names
+    if (col.key === "action" && row.raw["short:buff"]) cls.push("negative");
 
     const text = esc(fmt(v, digitsOf(row.raw, col), PAD_DIGITS_COLUMNS.has(col.key), GROUPED_COLUMNS.has(col.key)))
       + (col.percent && typeof v === "number" ? "%" : "") + gaugeSuffix(row.raw, col.key);
@@ -264,7 +268,8 @@ function resetIndices(flat: ChainGroup[], from: number, to: number, member: stri
  * The constant ER a member needs for the bar to be full at `resetIdx`. The engine banks RealEnergy
  * at a flat rate, so `realEnergyBefore` is what the window generated at 100%; each of the member's
  * own gains scales with their ER at the time (constant + buff), a teammate's share with the constant
- * alone. Solve `before * C/100 + sum(own gain * buff)/100 = maxEnergy` for C. 0 for a costless
+ * alone, and a flat one (a cast's own, a hook's `addGain()`) not at all.
+ * Solve `before * C/100 + sum(own gain * buff)/100 + flat = maxEnergy` for C. 0 for a costless
  * Liberation, null where nothing was banked.
  */
 function erRequirement(flat: ChainGroup[], resetIdx: number, member: string, maxEnergy: number, constant: number): number | null {
@@ -281,8 +286,10 @@ function erRequirement(flat: ChainGroup[], resetIdx: number, member: string, max
       if (s.member !== member) continue;
       if (s.action.resetEnergy) break walk;
       if (s.endsLoop) continue;
-      const gain = (s.action.energy + s.stat(Stat.AddEnergy) + (s.castGain?.[0] ?? 0)) * (1 + s.stat(Stat.EnergyRegenMult) / 100);
-      buffed += gain * (s.stat(Stat.ER) - constant);
+      // the cast's own energy is flat, like a hook's
+      const own = landedBullets(s).reduce((n, b) => n + b.energy, 0);
+      const gain = own > 0 ? own * (1 + s.stat(Stat.EnergyRegenMult) / 100) : own;
+      buffed += gain * (s.stat(Stat.ER) - constant) + 100 * (s.action.castEnergy + (s.gain?.[0] ?? 0));
     }
   }
   return (maxEnergy * 100 - buffed) / before;
@@ -359,7 +366,7 @@ function page(run: TeamRun): string {
   <div class="rtables">
     <div class="rtable-block">
       <h2 class="summary-label">Equipment</h2>
-      ${loadoutTable(run, energyRequirements(run, lines))}
+      ${loadoutTable(run, energyRequirements(run, lines), (slot, kind) => canPick(run, slot, kind))}
     </div>
     <div class="rstack">
       <div class="rtable-block">
@@ -722,7 +729,7 @@ addEventListener("keydown", (e) => {
 
 /**
  * Press and drag over the log to pick out a block of cells: any rectangle, any columns. The block
- * wears the same white outline a singled-out column does, and stands from the press until the next
+ * wears the same blue outline a singled-out column does, and stands from the press until the next
  * block or until a heading singles a column out instead — the two are the one marker, so starting
  * a block takes a singled-out column off outright.
  *

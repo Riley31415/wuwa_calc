@@ -9,3 +9,5 @@ dist/*
 # the precomputed solve cache the published table opens on (src/precompute.ts), committed for
 # the same reason
 !dist/solves/
+
+tuning/out/

@@ -3,10 +3,10 @@
  * scroll window over the sorted rows, and every click/change handler for it.
  */
 import { Tier } from "../engine/stats.js";
-import { fmt } from "../display.js";
-import { loadoutName, sequenceLevels, scopedKey, axisUsed, compares, weaponBase, echoLines, echoLabel, axisOpen, AXES } from "../solver.js";
-import type { Member, Combo, Axis, TeamCost, ScopedCompare } from "../solver.js";
-import type { TeamRun } from "../teamrun.js";
+import { fmt } from "./display.js";
+import { loadoutName, sequenceLevels, scopedKey, axisUsed, compares, weaponBase, echoLines, echoLabel, axisOpen, AXES } from "../solve/solver.js";
+import type { Member, Combo, Axis, TeamCost, ScopedCompare } from "../solve/solver.js";
+import type { TeamRun } from "../solve/teamrun.js";
 import {
   TEAMS,
   filters,
@@ -53,7 +53,7 @@ addEventListener("keydown", () => {
 /** The refusal a change over `ROW_CAP` gets, popped where the reader asked for it rather than in
  *  the filter bar they may not be looking at. Takes itself down on the next click, key or scroll,
  *  the way a menu does. */
-function rowCapWarning(total: number | null): void {
+export function rowCapWarning(total: number | null): void {
   document.querySelector(".rowcap")?.remove();
   if (total === null) return;
   const pop = document.createElement("div");
@@ -166,7 +166,7 @@ const MENU_AXES: Axis[] = ["weapons", "sequences", "echoes", "mainstats"];
 
 /** `alt` is what the right button does on this line; without one the right button is inert
  *  there, so a second right press on a menu it just opened leaves the menu standing. */
-interface MenuItem { label: string; run: () => void; alt?: () => void }
+export interface MenuItem { label: string; run: () => void; alt?: () => void }
 
 /** The scoped compares a pick can open: refines on a weapon pick alone, and only where its rank
  *  list has >1 entry; sonatas and main stats where the resonator has options; an echo opens main
@@ -190,8 +190,9 @@ function scopedItems(resonator: string, on: ScopedCompare["on"], value: string):
   }));
 }
 
-/** The menu at the pointer; any other click, a scroll or Escape takes it down. */
-function showMenu(x: number, y: number, items: MenuItem[]): void {
+/** The menu at the pointer; any other click, a scroll or Escape takes it down, `onClose` after. */
+export function showMenu(x: number, y: number, items: MenuItem[], onClose?: () => void): HTMLElement {
+  document.querySelector(".ctxmenu")?.dispatchEvent(new Event("closemenu"));
   document.querySelector(".ctxmenu")?.remove();
   const menu = document.createElement("div");
   menu.className = "ctxmenu";
@@ -207,6 +208,7 @@ function showMenu(x: number, y: number, items: MenuItem[]): void {
     removeEventListener("contextmenu", onOutside, true);
     removeEventListener("keydown", onKey, true);
     removeEventListener("scroll", close, true);
+    onClose?.();
   };
   /** A press on one of the lines. Bound to the menu itself and live the moment it is on screen,
    *  so the second press of a double lands on the first line however fast it comes — only the
@@ -236,6 +238,7 @@ function showMenu(x: number, y: number, items: MenuItem[]): void {
     addEventListener("keydown", onKey, true);
     addEventListener("scroll", close, true);
   });
+  return menu;
 }
 
 /* ------------------------------------------------------------------------------ the table */
@@ -284,10 +287,10 @@ const cmpDrawn = new Set<string>();
 export let teamMode: "dpr" | "dps" = "dpr";
 const TEAM_HEAD = { dpr: "Team Avg DPR", dps: "Team DPS" };
 const wholeDamage = (run: TeamRun): number => run.sectionTotals.reduce((a, b) => a + b, 0);
-const teamFigure = (run: TeamRun): number =>
+export const teamFigure = (run: TeamRun): number =>
   Math.floor(wholeDamage(run) / (teamMode === "dpr" ? Math.max(1, run.sectionTotals.length) : run.seconds));
 /** One member's share of those sections, always per section whatever the team column reads. */
-const personalFigure = (run: TeamRun, name: string): number =>
+export const personalFigure = (run: TeamRun, name: string): number =>
   Math.floor(run.sectionBySlot.reduce((a, by) => a + (by.get(name) ?? 0), 0) / Math.max(1, run.sectionTotals.length));
 /** Beside DPR, the last rotation's length as a dimmed subscript — plain for the sizing row. DPS
  *  reads alone. */
@@ -296,7 +299,7 @@ const teamText = (run: TeamRun): string => fmt(teamFigure(run)) + (teamMode === 
 const teamHtml = (run: TeamRun): string =>
   fmt(teamFigure(run)) + (teamMode === "dpr" ? `<sub class="looptime">${loopTime(run)}</sub>` : "");
 /** A compare's share, one decimal truncated — never rounded up to a gain it didn't make. */
-const pctTrunc = (ratio: number): string => `${fmt(Math.trunc(ratio * 1000) / 10, 1, true)}%`;
+export const pctTrunc = (ratio: number): string => `${fmt(Math.trunc(ratio * 1000) / 10, 1, true)}%`;
 
 interface TableView {
   sorted: (readonly [string, TeamRun])[];

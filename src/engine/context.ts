@@ -5,7 +5,7 @@
  */
 import { Stat, EnemyStat, Attribute, Type, Subtype, Cast, scopedStat, tagBand, SUBTYPE_BITS } from "./stats.js";
 import type { Tag } from "./stats.js";
-import type { Action, Cooldown } from "./rotation.js";
+import type { Action, Bullet, Cooldown } from "./rotation.js";
 import { ctx, noteMutation, recordConsumed, pendingQueue, tagWord, recordWrite, recordRead, moved, applied as appliedRecord, consumed as consumedRecord } from "./runtime.js";
 import { Gear, Buff, Debuff, Resonator, Mainslot } from "./gear.js";
 import type { Trigger } from "./gear.js";
@@ -29,10 +29,25 @@ import type { StatRow } from "./state.js";
  *  shown; see index.ts's own `detailFor()`. */
 export function setTracing(on: boolean): void { ctx.tracing = on; }
 
-export const currentAction = (): Action => ctx.act!;
-/** The whole press being evaluated, from either half of it: what the press banks in all (its
- *  `forteN` cast and hit together), where `currentAction()` is only the half being run. */
-export const pressed = (): Action => (ctx.act!.half !== null ? ctx.act!.formOf ?? ctx.act! : ctx.act!);
+/** The press being run, whichever part of it this is — its cast, one of its hits, or its end: its
+ *  name, node and what its cast banks (`castEnergy`, `castForte`, ...). Only inside a cast hook, a
+ *  hit hook, a stat hook or `afterAction`; read-only, since every team a worker runs shares the one
+ *  Action. */
+export function currentCast(): Readonly<Action> {
+  if (!ctx.inCast && !ctx.inEnd && !ctx.inStats && ctx.hit === null) throw new Error(`${ctx.buff?.name ?? "?"}: currentCast() outside a cast, hit, stat or end hook (${ctx.act?.name ?? "?"})`);
+  const a = ctx.act!;
+  return a.half !== null ? a.formOf ?? a : a;
+}
+/** The bullet landing: what it deals and banks of its own (`mv`, `forte1`, ...) and which of its
+ *  press's bullets it is (`index`). Only inside a hit hook — `updateDebuffs`, `hitGlobal`, the stat
+ *  hooks and `afterHit` on a hit — never on a cast or at the press's end. */
+export function currentHit(): Bullet {
+  if (ctx.hit === null || ctx.inEnd) throw new Error(`${ctx.buff?.name ?? "?"}: currentHit() outside a hit hook (${ctx.act?.name ?? "?"})`);
+  return ctx.hit;
+}
+/** Is a bullet landing — for a trigger that fires on the cast or the hit alike (`inflicting()`)
+ *  and must tell the two apart. */
+export const hitting = (): boolean => ctx.hit !== null && !ctx.inEnd;
 
 /** True while the fight is part-way through an `ActionGroup` — set on every member but the last
  *  (see `run()`), and so still true across any follow-up queued off a mid-group cast. Only
@@ -46,10 +61,10 @@ export const midActionGroup = (): boolean => ctx.insideGroup;
 export const triggeredAction = (): boolean => ctx.triggered;
 /** The tag the press being evaluated was cut short by (`ActionTag`), "" where it played out. */
 export const pressCut = (): string => ctx.pressCut;
-/** Drop that dodge, and relabel the press it cut as `cut` instead — what takes the dodge's place
- *  (an auto Tune Break) is queued by the caller. */
-export function replaceNextDash(cut: string): void {
-  if (!ctx.dryRun) ctx.dashReplaced = cut;
+/** From `ResonatorDef.takesCut`: drop the plain dodge or the swap being reached, and relabel the
+ *  press it cut as `cut` instead — what takes its place (an auto Tune Break) is queued by the caller. */
+export function replaceCut(cut: string): void {
+  if (!ctx.dryRun) ctx.cutReplaced = cut;
 }
 export const currentTeam = (): State => ctx.state!;
 /** Whichever member the engine is mid-call for — the acting slot in every ordinary phase, and the
@@ -83,8 +98,8 @@ export function dropCast(cast: Cast): void {
 
 /** Is the action being evaluated this one — counting its dash- or jump-cancelled form as the same
  *  cast. A cancel is a fresh Action carrying the original's hooks (rotation.ts's own insta forms),
- *  so `currentAction() === X` silently reads false on one and a kit's node quietly stops paying.
- *  Always prefer this to comparing `currentAction()` by identity. */
+ *  so `currentCast() === X` silently reads false on one and a kit's node quietly stops paying.
+ *  Always prefer this to comparing `currentCast()` by identity. */
 export function runningAction(action: Action): boolean {
   // a cancel, a swap-out form or a Unison outro is the cast a kit named, told apart only by how
   // it ended (rotation.ts's `cancelOf`/`formOf`) — followed all the way down, since an off-field
@@ -94,13 +109,9 @@ export function runningAction(action: Action): boolean {
 }
 
 /** Is the hit being evaluated `action`'s bullet `index` (from the end where negative: -1 is its
- *  final one)? What a flat addition to one hit of a press reads. A press evaluated whole, rather
- *  than hit by hit, is every one of its bullets at once. */
+ *  final one)? What a flat addition to one hit of a press reads; false off a hit. */
 export function runningBullet(action: Action, index: number): boolean {
-  if (!runningAction(action)) return false;
-  const a = ctx.act!;
-  if (a.half !== "hit") return true;
-  return a.hitIndex === (index < 0 ? action.bullets.length + index : index);
+  return ctx.hit !== null && runningAction(action) && ctx.hit.index === (index < 0 ? action.bullets.length + index : index);
 }
 
 /** `runningAction()` over a set: is the acting press any of `actions`, cut or swapped out or not? */
@@ -225,7 +236,7 @@ export function isType(type: Type | Subtype): boolean {
  *  count as two casts at once (Qiuyuan's Thus Spoke the Blade trio are Heavy Attacks whose
  *  performance also counts as performing an Echo Skill, which is what feeds Sigrika's own
  *  Soliskin Vitality), and a bare `.cast === X` silently misses every one of them. */
-export function isCast(action: Action, cast: Cast): boolean {
+export function isCast(action: Pick<Action, "cast" | "subcast">, cast: Cast): boolean {
   return action.cast === cast || action.subcast === cast;
 }
 
@@ -522,23 +533,42 @@ export const { get: enemyForte5, set: setEnemyForte5, add: addEnemyForte5 } = en
  *  bounds itself, by calling this directly" shape as `setForteN` above (Camellya's own Ephemeral:
  *  "requires full Concerto, consumes 70" only makes sense against a clamped-to-100 starting
  *  point, not whatever this run happens to have overshot to). Read-only everywhere else — a kit
- *  still never *adds* to this directly, same as forte; evaluate() alone banks `action.concerto`/
- *  `AddConcerto` into it every action. */
+ *  still never *adds* to this directly, same as forte; evaluate() alone banks what a press and
+ *  `addGain()` bring into it. */
 export function concerto(): number { return ctx.slot!.concerto; }
 
-/** What a cast hook adds straight to its press's cast — "casting X restores N Concerto" — banked
- *  with the cast's own `castEnergy`/`castConcerto`/`castForteN`. Stats never carry these, and only a
- *  cast hook (updateGlobal, updateBuffs, a cast grant) may add them. */
-export interface CastGain { energy?: number; concerto?: number; forte1?: number; forte2?: number; forte3?: number; forte4?: number; forte5?: number }
-const CAST_GAIN_KEYS = ["energy", "concerto", "forte1", "forte2", "forte3", "forte4", "forte5"] as const;
-export function addToCast(gain: CastGain): void {
-  if (!ctx.inCast) throw new Error(`${ctx.buff?.name ?? "?"}: addToCast() outside a cast hook (${ctx.act?.name ?? "?"})`);
-  const gains = CAST_GAIN_KEYS.map((k) => gain[k] ?? 0);
-  for (let i = 0; i < gains.length; i++) ctx.castGain[i] = ctx.castGain[i]! + gains[i]!;
-  if (ctx.tracing) ctx.castAdds.push({ source: ctx.buff?.toString() ?? "", owner: (ctx.buff && ctx.state!.sourceOf.get(ctx.buff)) ?? ctx.slot!.name ?? null, gains });
+/** What a hook adds to the part of the press it runs on — "casting X restores N Concerto" from a
+ *  cast hook, "+30 Substance when it hits" from a hit's — banked with that part's own gains. Flat:
+ *  none of it is scaled by ER or shared with the team, bar `offtune`, which is built like a hit's
+ *  own (Off-Tune Buildup Rate and its multiplier) and so a hit's alone; `directOfftune` lands on
+ *  the bar as it is. Only a cast hook (updateGlobal, updateBuffs, a cast grant) or a hit's own ahead
+ *  of its damage (updateDebuffs, hitGlobal, an infliction's grant) may add; a stat hook never does. */
+export interface Gain {
+  energy?: number; concerto?: number; forte1?: number; forte2?: number; forte3?: number; forte4?: number; forte5?: number;
+  offtune?: number; directOfftune?: number;
 }
-/** What cast hooks have added to this press's cast so far (`addToCast()`). */
-export function castGained(key: keyof CastGain): number { return ctx.castGain[CAST_GAIN_KEYS.indexOf(key)]!; }
+const GAIN_KEYS = ["energy", "concerto", "forte1", "forte2", "forte3", "forte4", "forte5", "offtune", "directOfftune"] as const;
+export function addGain(gain: Gain): void {
+  if (!ctx.inCast && !ctx.inHit) throw new Error(`${ctx.buff?.name ?? "?"}: addGain() outside a cast hook or a hit's own (${ctx.act?.name ?? "?"})`);
+  if (ctx.inCast && gain.offtune) throw new Error(`${ctx.buff?.name ?? "?"}: addGain({ offtune }) from a cast hook — a cast runs no stat to build it, use directOfftune (${ctx.act?.name ?? "?"})`);
+  // `GAIN_KEYS`' order, field by field: a keyed walk over the literal would read each key generically
+  const g = ctx.gain;
+  g[0] = g[0]! + (gain.energy ?? 0);
+  g[1] = g[1]! + (gain.concerto ?? 0);
+  g[2] = g[2]! + (gain.forte1 ?? 0);
+  g[3] = g[3]! + (gain.forte2 ?? 0);
+  g[4] = g[4]! + (gain.forte3 ?? 0);
+  g[5] = g[5]! + (gain.forte4 ?? 0);
+  g[6] = g[6]! + (gain.forte5 ?? 0);
+  g[7] = g[7]! + (gain.offtune ?? 0);
+  g[8] = g[8]! + (gain.directOfftune ?? 0);
+  if (ctx.tracing) {
+    const gains = GAIN_KEYS.map((k) => gain[k] ?? 0);
+    ctx.adds.push({ source: ctx.buff?.toString() ?? "", owner: (ctx.buff && ctx.state!.sourceOf.get(ctx.buff)) ?? ctx.slot!.name ?? null, gains, onCast: ctx.inCast });
+  }
+}
+/** What hooks have added to this part of the press so far (`addGain()`). */
+export function gained(key: keyof Gain): number { return ctx.gain[GAIN_KEYS.indexOf(key)]!; }
 export function setConcerto(value: number): number {
   noteMutation(-10, value);
   return (ctx.slot!.concerto = value);
@@ -625,15 +655,12 @@ export function extendCurrent(buff: Buff, frames: number): void {
 export function currentGear(): Gear { return ctx.buff!; }
 
 /** Shortcut for a buff whose own kit text says "lost on swap" — revokes itself on the action that
- *  takes its holder off the field (`Action.swapOut`, off its tag: an Outro, a `.swap()` form, an echo's swap
- *  form). Call it from `updateBuffs()` if it should stop contributing before that same action's own
+ *  takes its holder off the field (`Action.swapOut`: an Outro, or the SWAP after a swap cancel).
+ *  Call it from `updateBuffs()` if it should stop contributing before that same action's own
  *  stats apply, or from `convertStats()` if it should still pay out on it first — same choice as any
  *  other revoke, just this one condition spelled out once instead of copied at every call site. */
 export function lostOnSwap(): void {
-  const a = currentAction();
-  // a swap cancel still hits on field: the buff pays on it and is revoked once it is done
-  if (a.swapsAfterHit) ctx.swapLosses.add(currentGear());
-  else if (a.swapOut) revokeCurrent(currentGear() as Buff);
+  if (ctx.act!.swapOut) revokeCurrent(currentGear() as Buff);
 }
 
 /** Run `fn` with its stats sourced to `gear` rather than to the Gear whose hook is running — for
@@ -782,7 +809,7 @@ export function queue(action: Action, delay = 0): void {
     return;
   }
   // animation frames on the real timer, which no time stop holds
-  insertByDue(ctx.state!.timed, timedEntry((ctx.tickAt ?? castFrame()) + delay, action, slot, queuedBy(), false, undefined, undefined, undefined, undefined, undefined));
+  insertByDue(ctx.state!.timed, timedEntry((ctx.tickAt ?? castFrame()) + delay, action, slot, queuedBy(), false, undefined, undefined, undefined, undefined));
 }
 
 /** Behind the action being evaluated — or, queued from a tick, at the tick's own frame. */
@@ -791,7 +818,7 @@ function queueOnSlot(slot: number, action: Action): void {
     pendingQueue.push({ action, slot, by: queuedBy(), event: false });
     return;
   }
-  insertByDue(ctx.state!.timed, timedEntry(ctx.tickAt, action, slot, queuedBy(), false, undefined, undefined, undefined, undefined, undefined));
+  insertByDue(ctx.state!.timed, timedEntry(ctx.tickAt, action, slot, queuedBy(), false, undefined, undefined, undefined, undefined));
 }
 
 /** Queue an action behind the *next Intro anyone casts* rather than behind this action — for a
@@ -805,7 +832,7 @@ export function queueOnIntro(action: Action): void {
   ctx.state!.introQueue.push({ action, slot: ctx.state!.slots.indexOf(ctx.slot!), by: queuedBy(), event: false });
 }
 
-/** Queue an action that belongs to nobody — the two ways an engine-level event differs from a
+/** Queue an action that belongs to nobody — the three ways an engine-level event differs from a
  *  resonator's own follow-up, which is all the Tune Break needs to be one (tunebreak.ts):
  *
  *  - *behind* everything this action already queued, because a break resolves the press it went
@@ -813,7 +840,9 @@ export function queueOnIntro(action: Action): void {
  *    its own off-tune onto the still-full bar, and the break drops the overshoot when it comes;
  *  - *unpinned* (slot -1, exactly like a rotation entry), so it runs on whoever is on field when it
  *    resolves rather than on whoever queued it. That's the difference on a break that goes off on
- *    an Outro: the handoff has landed by then, and the break is the incoming resonator's to eat. */
+ *    an Outro: the handoff has landed by then, and the break is the incoming resonator's to eat;
+ *  - *after the press playing*, never part-way through it: cast once it has run out, wherever the
+ *    clock then stands, and at the fight's end one already cast holds the end back until it plays. */
 export function queueEvent(action: Action): void {
   inheritPiece(action);
   noteMutation(action.id, 5e6);
@@ -855,7 +884,7 @@ export function applyOn(resonator: Resonator | null, fn: () => void): void {
     try { fn(); } finally { ctx.slot = prev; }
     return;
   }
-  insertByDue(ctx.state!.timed, timedEntry(ctx.tickAt, null, slot, queuedBy(), undefined, fn, undefined, undefined, undefined, undefined));
+  insertByDue(ctx.state!.timed, timedEntry(ctx.tickAt, null, slot, queuedBy(), undefined, fn, undefined, undefined, undefined));
 }
 
 

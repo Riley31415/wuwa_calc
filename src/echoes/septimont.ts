@@ -2,11 +2,13 @@
 import { Stat, Attribute, Type, Cast, Scaling, BuffTarget } from "../engine/stats.js";
 import { Buff, Sonata, Sonata3pc, Sonata2pc, Mainslot } from "../engine/gear.js";
 import {
+  cancelHits,
   addStat, stacksOf, stacksOfEnemy, stacksOfTeam, applyCurrent, casting, maxEnergy, queue, applied, appliedByMe,
   onCast, onType, onApplied,
 } from "../engine/context.js";
 import { Action, Cooldown } from "../engine/rotation.js";
 import { SHIELD, HAVOC_BANE } from "../shared/status.js";
+import { PseudoTransformEcho, SummonEcho, TransformEcho } from "./echo.js";
 
 /* --------------------------------------------------------------------------------- Phrolova, 2.5 */
 
@@ -26,10 +28,10 @@ export const DREAM_OF_THE_LOST_3PC = new Sonata3pc({
 /** False Sovereign, Augusta's own mainslot echo — flat Electro/Heavy Attack DMG Bonus. Casting
  *  Intro also summons it for a bonus hit. The Echo Skill holds 2 charges, one back every 8s; the
  *  Intro summon is assumed to draw on none, available whenever an Intro lands. */
-export const ACTION_FALSE_SOVEREIGN = new Action("Echo - False Sovereign", {
-  animFrames: 60, bullets: [{ hitFrame: 46, mv: 22140, energy: 304 }],
+export const ACTION_FALSE_SOVEREIGN = new TransformEcho("Echo - False Sovereign", {
+  bullets: [{ hitFrame: 46, mv: 22140, energy: 304 }],
   cooldown: new Cooldown({ frames: 60 * 8, charges: 2 }),
-  cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
+  element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
 });
 // no energy: the Intro summon has its own damage row and, unlike the transform strike, pays none
 export const ACTION_FALSE_SOVEREIGN_INTRO = new Action("Echo - False Sovereign (Intro)", {
@@ -59,9 +61,9 @@ export const COV_3PC = new Sonata3pc({
 
 /** Lady of the Sea, Iuno's own mainslot echo. (Her own sonata pick, Sierra Gale, is a
  *  Jinzhou-era set — see jinzhou.ts — she just reuses it.) */
-export const ACTION_MYA = new Action("Echo - Lady of the Sea", { animFrames: 8,
+export const ACTION_MYA = new SummonEcho("Echo - Lady of the Sea", {
   cooldown: 60 * 20,
-  cast: Cast.Echo, element: Attribute.Aero, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 30096, energy: 418 }], 
+  element: Attribute.Aero, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 30096, energy: 418 }],
 });
 export const MYA = new Mainslot({
   name: "Lady of the Sea",
@@ -72,9 +74,9 @@ export const MYA = new Mainslot({
 /* ----------------------------------------------------------------------------------- Lupa, 2.4 */
 
 /** Lioness of Glory, Lupa's own mainslot echo — flat Resonance Liberation/Fusion DMG Bonus, no trigger. */
-export const ACTION_LIONESS = new Action("Echo - Lioness of Glory", { animFrames: 8,
+export const ACTION_LIONESS = new SummonEcho("Echo - Lioness of Glory", {
   cooldown: 60 * 20,
-  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 27360, energy: 380 }], 
+  element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 27360, energy: 380 }],
 });
 export const LIONESS_OF_GLORY = new Mainslot({
   name: "Lioness of Glory",
@@ -101,9 +103,9 @@ export const CLAWPRINT_5PC = new Sonata({
 /* ----------------------------------------------------------------------------- Galbrena, 2.7 */
 
 /** Corrosaurus, Galbrena's own mainslot echo — flat Fusion/Echo Skill DMG Bonus, no trigger. */
-export const ACTION_CORROSAURUS = new Action("Echo - Corrosaurus", { animFrames: 8,
+export const ACTION_CORROSAURUS = new SummonEcho("Echo - Corrosaurus", {
   cooldown: 60 * 20,
-  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 27360, energy: 380 }], 
+  element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 27360, energy: 380 }],
 });
 export const CORROSAURUS = new Mainslot({
   name: "Corrosaurus",
@@ -138,9 +140,9 @@ export const FLAMEWING_SHADOW_3PC = new Sonata3pc({
 /* ------------------------------------------------------------------------------- Qiuyuan, 2.7 */
 
 /** Reminiscence: Fenrico, Qiuyuan's own mainslot echo — flat Aero/Heavy DMG Bonus, no trigger. */
-export const ACTION_FENRICO = new Action("Echo - Reminiscence: Fenrico", { animFrames: 8,
+export const ACTION_FENRICO = new SummonEcho("Echo - Reminiscence: Fenrico", {
   cooldown: 60 * 20,
-  cast: Cast.Echo, element: Attribute.Aero, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 27360, energy: 380 }], 
+  element: Attribute.Aero, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 27360, energy: 380 }],
 });
 export const FENRICO = new Mainslot({
   name: "Reminiscence: Fenrico",
@@ -178,11 +180,15 @@ export const LAW_OF_HARMONY_3PC = new Sonata3pc({
  *  deals damage, 0.5s apart, up to 8 times over the summon's 15s, and doubled against a target
  *  carrying Havoc Bane — one action, its eight hits its own bullets 0.5s apart, queued off the
  *  summon's own hit and resolved on the wearer's own slot and stats. */
-export const ACTION_THRENODIAN_LEVIATHAN = new Action("Echo - Reminiscence: Leviathan", { animFrames: 8,
+export const ACTION_THRENODIAN_LEVIATHAN = new PseudoTransformEcho("Echo - Reminiscence: Leviathan", {
   cooldown: 60 * 25,
-  cast: Cast.Echo, element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo,
+  element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo,
   bullets: [{ hitFrame: 0, mv: 13104 * 2, energy: 91 * 2 }], 
-  updateDebuffs: () => queue(ACTION_CORE_OF_COLLAPSE),
+  // one summon at a time: a fresh one cuts off whatever hits the last had left
+  updateDebuffs: () => {
+    cancelHits(CORES_OF_COLLAPSE);
+    queue(ACTION_CORE_OF_COLLAPSE);
+  },
 });
 /** The eight 24.57% hits, with the Havoc Bane doubling as its own Damage Taken ("Enemies with
  *  Havoc Bane take 100% more DMG from this effect") rather than folded into the motion value, so
@@ -193,6 +199,7 @@ export const ACTION_CORE_OF_COLLAPSE = new Action("Echo - Core of Collapse", {
   bullets: Array.from({ length: 8 }, (_, k) => ({ hitFrame: 30 * (k + 1), mv: 2457 })),
   applyStats: () => { if (stacksOfEnemy(HAVOC_BANE) > 0) addStat(Stat.DamageTaken, 100); },
 });
+const CORES_OF_COLLAPSE = new Set<Action>([ACTION_CORE_OF_COLLAPSE]);
 
 export const THRENODIAN_LEVIATHAN = new Mainslot({
   name: "Reminiscence: Threnodian - Leviathan", 

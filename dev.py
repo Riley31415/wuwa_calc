@@ -51,11 +51,11 @@ DEFAULT_PORT = 8731
 # two files the page actually loads (dist/bundle/index.js and the worker's dist/bundle/solver.js,
 # plus a shared chunk) — unbundled, a cold load was ~600 module requests (eight workers each
 # fetching the whole graph) and the workers came up staggered behind the browser's six-connection
-# limit; bundled it is 18, and the search starts ~0.2s sooner. `--outbase` keeps the worker at the
+# limit; bundled it is 18, and the search starts ~0.2s sooner. `--entry-names` keeps the worker at the
 # same relative path index.js finds it by (`new URL("./solver.js", import.meta.url)`).
 ESBUILD_ARGS = [
-    "dist/src/index.js", "dist/src/solver.js", "--bundle", "--splitting", "--format=esm",
-    "--outdir=dist/bundle", "--outbase=dist/src", "--log-level=warning",
+    "dist/src/page/index.js", "dist/src/solve/solver.js", "--bundle", "--splitting", "--format=esm",
+    "--outdir=dist/bundle", "--entry-names=[name]", "--log-level=warning",
 ]
 
 WATCH_EXTS = {".html", ".css", ".js"}

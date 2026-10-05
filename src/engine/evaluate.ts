@@ -2,18 +2,19 @@
  * Running an action: the phase order, the snapshot each one resolves into, and `run()`, which
  * walks a rotation and drains whatever the casts queued behind them.
  */
-import { Stat, EnemyStat, Type, Cast, ActionTag, INSTA_DELAY, SWAP_DELAY, FULL_CONCERTO, splitStop } from "./stats.js";
-import type { Action, ActionGroup, ActionField, CancelledStep, DashMarker } from "./rotation.js";
-import type { CastAdd } from "./runtime.js";
+import { Stat, EnemyStat, Type, Cast, ActionTag, Scaling, INSTA_DELAY, SWAP_DELAY, FULL_CONCERTO, MASH_DELAY, splitStop } from "./stats.js";
+import type { Action, ActionGroup, ActionField, CancelledStep, DashMarker, Bullet } from "./rotation.js";
+import { SWAP, SKIP, EveryOther, INTRO, DEFAULT_DODGE, ECHO_DODGE } from "./rotation.js";
+import type { GainAdd } from "./runtime.js";
 import { ctx, pendingQueue, tagWordOf, RESOURCE_STATS, replay, readAny, READ_APPLY, READ_CONVERT, READ_AFTER, applied as appliedRecord, resolving, hookReads, moved } from "./runtime.js";
 import { Gear, PHASE_COUNT } from "./gear.js";
-import type { VariantAt, Timed, StatRow } from "./state.js";
+import type { VariantAt, VariantBases, VariantMemo, PieceSwap, Timed, StatRow } from "./state.js";
 import {
   State, TeamMember, StatEntry, HeldBuff, ZERO_STATS, statRow, SUBTYPE_AMP_INDEX, BASIC_DMG_BONUS_INDEX, SUBTYPE_CRIT_RATE_INDEX, SUBTYPE_CRIT_DMG_INDEX, SUBTYPE_TOTAL_DMG_INDEX, SUBTYPE_DAMAGE_TAKEN_INDEX, FightSnapshot, capEnergy,
   EMPTY_HELD, EMPTY_FORTE, EMPTY_FIELDS, enemyDef, enemyRes, sortByDue, insertByDue, timedEntry,
 } from "./state.js";
-import { casting, isCast } from "./context.js";
-import { damageAvgOf, foldStat } from "./damage.js";
+import { casting, isCast, asSource } from "./context.js";
+import { damageFactorsInto, avgFromFactors, foldStat, FACTOR_COUNT } from "./damage.js";
 import { ER_TOLERANCE } from "../shared/substats.js";
 
 export interface Snapshot {
@@ -71,7 +72,8 @@ export interface Result {
   queued: boolean;
   /** This action's own average damage under each of the acting member's main-stat variants (see
    *  `TeamMember.variants`), in their order — `null` on every action of a member without any, and
-   *  on every traced run. solver.ts sums these the way it sums the real `avg`. */
+   *  on every traced run. Its hit record carries it (`State.hits`), which teamrun.ts sums the way it
+   *  sums the real `avg`; a split press's row keeps its cast's. */
   variantAvg: number[] | null;
   /** This action's motion value and average damage, computed here so an untraced run never
    *  builds the stat snapshot the report reads them back from (damage.ts's `mvPercent`/`damageFactors`
@@ -85,8 +87,9 @@ export interface Result {
   swapFrames?: number;
   /** The game timer as this press was cast (`State.frame`) — a landed hit's, its own. */
   starts: number;
-  /** What cast hooks added straight to the cast (`addToCast()`): energy, concerto, forte 1-5; null for none. */
-  castGain: number[] | null;
+  /** What hooks added to the press (`addGain()`), every part of it summed: energy, concerto, forte
+   *  1-5, off-tune, direct off-tune; null for none. */
+  gain: number[] | null;
   /** Its group's trailing dash was dropped for what took its place (`replaceNextDash()`): the
    *  group ends on this press, which its row then reads. */
   dashDropped?: boolean;
@@ -97,15 +100,15 @@ export interface Result {
 
 /** A snapshot with everything the old report/display layer also wants: the raw per-entry trace
  *  (`entries`), a `slot` alias for `member` (display.ts's own field name), and resource counters
- *  — always empty here, since this engine folds Energy/Concerto/Offtune into Stat's own space
- *  rather than tracking a running counter (see `AddEnergy` above); a column fed entirely by
+ *  — always empty here, since this engine banks Energy/Concerto/Offtune into running counters
+ *  of its own (`TeamMember.energy`, `State.offtune`); a column fed entirely by
  *  zeroes is dropped by `buildReport()` itself, so this degrades to "not shown" rather than
  *  lying with a fake number. `triggered` is set by `run()`, not here — only it knows whether an
  *  action came off the rotation list or was queued mid-fight. */
 export interface ResolvedSnapshot extends Result, Snapshot {
   entries: StatEntry[];
-  /** What cast hooks added straight to the cast (`addToCast()`), by who: energy, concerto, forte 1-5. */
-  castAdds: CastAdd[];
+  /** What hooks added to the press (`addGain()`), every part of it, by who. */
+  adds: GainAdd[];
   /** The damage type the hit was actually evaluated as — its own `type`, unless a held Gear called
    *  `typeOverride()` on it: what `isType()` answered against. */
   type: Type | null;
@@ -124,7 +127,7 @@ export interface ResolvedSnapshot extends Result, Snapshot {
   forteScale: [number, number, number, number, number];
   /** Running totals as they stood once this action resolved — energy/concerto are this slot's
    *  own (TeamMember.energy/concerto), offtune is the enemy's shared one (State.offtune). All
-   *  three are banked automatically by evaluate() itself; see AddEnergy/AddConcerto/AddOfftune. */
+   *  three are banked automatically by evaluate() itself, a hook's own through `addGain()`. */
   energy: number;
   concerto: number;
   offtune: number;
@@ -150,6 +153,13 @@ export interface ResolvedSnapshot extends Result, Snapshot {
    *  (`ActionDef.minEnergy` and on), null where it met them all or has none: what the report reads
    *  to flag those cells red. */
   castUnmet: boolean[] | null;
+  /** The `requireBuff` buffs the cast didn't find held; null where it found them all. */
+  buffUnmet: Gear[] | null;
+  /** The `forbidBuff` buffs the cast found held; null where it found none. */
+  buffForbidden: Gear[] | null;
+  /** Whose kit each `requireBuff` then `forbidBuff` buff came from as the cast found it (`State.sourceOf`),
+   *  the caster's where nothing granted it yet: what the action hover colours them by. */
+  buffSources: string[] | null;
   /** Whether this is the outro that ends its owner's loop — every one but a double-Intro visit's
    *  own, which they come straight back from. The ER window leaves its own energy out. */
   endsLoop: boolean;
@@ -168,8 +178,10 @@ export interface ResolvedSnapshot extends Result, Snapshot {
   /** Real frames of this press the game timer stood still for past its own time stop — another
    *  press's time stop still standing (`State.freeze()`). */
   timestopBanked: number;
-  /** A hold cancel's frame the bars paid for the press it held into (`Action.holdPaid()`); -1 otherwise. */
+  /** A hold cancel's frame the bars paid for the press it held into (`Action.holdPaid()`), and the
+   *  frame it let go (`Action.letGo()`); -1 otherwise. */
   holdPaid: number;
+  holdCut: number;
   /** Every Buff actually held once this action resolved — local (this slot's own), global
    *  (team-wide), and enemy (debuffs on the target — `State.enemyStacks`) kept apart, since
    *  that's a real distinction to a resonator popover, not just a formatting detail. Equipped
@@ -246,22 +258,41 @@ export function evaluate(state: State, action: Action, triggered = false, source
   ctx.state = state;
   ctx.slot = slot;
   ctx.act = action;
-  // each part of a split press runs its own side — a hitless cast its hit's too — and a whole press all
+  // each part of a split press runs its own side, and a whole press all — a hit's hooks on a hit
+  // alone: a press with no bullet has its cast and nothing else
   const half = action.half;
-  const castSide = half === null || half === "cast", hitSide = half === null || half === "hit" || action.hitsAtCast;
-  const lands = hitSide && action.bullets.length > 0;
+  const castSide = half === null || half === "cast", hitSide = (half === null || half === "hit") && action.bullets.length > 0;
+  // a bullet dealing nothing (an event's marker) runs its own hooks but sets off no onHit
+  const lands = hitSide && action.mv > 0;
   phaseMask = (castSide ? CAST_PHASES : 0) | (hitSide ? HIT_PHASES : 0) | (lands ? ON_HIT_PHASES : 0) | (half === null ? END_PHASES : 0);
   // a step's own cut, else the form's (an insta cancel, a swap)
   const tag = cut ?? action.tag;
   if (castSide) ctx.pressCut = tag;
   // a hold cancel lets go where the bars pay for the press it holds into: read ahead of the cast
   // for its hooks, then again on what the cast really added
-  const held = tag === ActionTag.HoldCancel && castSide ? action.formOf ?? action : null;
+  const held = (tag === ActionTag.HoldCancel || tag === ActionTag.MashCancel) && castSide ? action.formOf ?? action : null;
+  const mash = tag === ActionTag.MashCancel;
   const cap = slot.resonator?.maxForte ?? NO_CAP;
   // the cast's own condition, read off the bars as it finds them
-  const castUnmet = ctx.tracing && castSide ? action.castUnmet([slot.energy, slot.concerto, ...slot.forte]) : null;
-  let charged = held ? action.holdCost(held.holdAt([slot.energy, slot.concerto, ...slot.forte], cap, ctx.holdNext)) : action.cost(tag);
+  const castUnmet = castSide && (action.castMin || action.castMax) ? action.castUnmet([slot.energy, slot.concerto, ...slot.forte]) : null;
+  const buffUnmet = castSide ? action.buffsUnmet(state, slot) : null;
+  const buffForbidden = castSide ? action.buffsForbidden(state, slot) : null;
+  if ((castUnmet || buffUnmet || buffForbidden) && !triggered) warnUnmet(state, slot, action, castUnmet, buffUnmet, buffForbidden);
+  const buffSources = ctx.tracing && castSide && (action.requireBuffs || action.forbidBuffs)
+    ? [...action.requireBuffs ?? [], ...action.forbidBuffs ?? []].map((g) => state.sourceOf.get(g) ?? slot.name)
+    : null;
   const realStart = state.real;
+  // its owner's hits already on the clock (an earlier press's committed bullets) bank while it holds;
+  // its own split hits are queued there too, and `holdPaid()` walks those itself
+  const pending: { at: number; bullet: Bullet }[] = [];
+  if (held) {
+    for (const h of state.timed) {
+      const a = h.action;
+      if (!a || a.formOf === held || state.slots[h.slot] !== slot || (a.half !== "hit" && a.half !== null)) continue;
+      for (const bullet of a.bullets) pending.push({ at: h.due - realStart + (a.half === null ? bullet.hitFrame : 0), bullet });
+    }
+  }
+  let charged = held ? action.holdCost(held.holdAt([slot.energy, slot.concerto, ...slot.forte], cap, ctx.holdNext, null, pending, mash)) : action.cost(tag);
   // a wait on the game timer plays the real frames that take, held on by any time stop landing
   // inside it (`State.freeze()`); any other press the field moves on to ends one
   if (castSide && action.gameWait) {
@@ -277,7 +308,6 @@ export function evaluate(state: State, action: Action, triggered = false, source
   // every action starts on its own type; a held Gear reassigns it from updateDebuffs() below, and
   // `typeOverride()` rebuilds `ctx.tagWord` when one does
   ctx.overrideType = null; ctx.overrideSubtype = null; ctx.droppedCast = null;
-  if (ctx.swapLosses.size) ctx.swapLosses.clear();
   // what this action grants and spends is recorded under this stamp (see runtime.ts's `applied`)
   ctx.actionStamp++;
   // whatever ran out by now goes first of all, so no phase below ever visits it
@@ -321,10 +351,12 @@ export function evaluate(state: State, action: Action, triggered = false, source
   // be reachable. For a locally-held gear `ctx.slot` is switched to *its own holder* for the call,
   // so `revoke()`/`applySelf()`/`stacksOf()` inside it resolve against whoever holds it; global and
   // enemy gear keep `ctx.slot` on the actor. Then updateBuffs() over what that left.
-  const gain = ctx.castGain;
+  const gain = ctx.gain;
   for (let i = 0; i < gain.length; i++) gain[i] = 0;
   ctx.inCast = false;
-  if (ctx.tracing) ctx.castAdds = [];
+  ctx.inHit = false;
+  ctx.hit = null;
+  if (ctx.tracing) ctx.adds = [];
   if (castSide) {
     ctx.inCast = true;
     actionHook(action.updateGlobalFn, 1);
@@ -334,11 +366,29 @@ export function evaluate(state: State, action: Action, triggered = false, source
     runPhase(1, true);
     ctx.inCast = false;
   }
-  const holdPaid = held ? held.holdPaid([slot.energy, slot.concerto, ...slot.forte], cap, ctx.holdNext, gain) : -1;
+  let holdPaid = held ? held.holdPaid([slot.energy, slot.concerto, ...slot.forte], cap, ctx.holdNext, gain, pending) : -1;
   if (held) {
-    ctx.holdCut = held.letGo(holdPaid);
+    // it holds on until the next press can cut in as well: its priority, or an Outro's no-swap frames
+    const next = ctx.holdNext;
+    // a buff the next press needs and doesn't find yet: held to its last bullet, and let go where
+    // the buff lands instead (`settleHold()`)
+    const watched = !!(ctx.holdNext?.buffsUnmet(state, slot) || ctx.holdNext?.buffsForbidden(state, slot));
+    if (watched) {
+      state.holdWatch = {
+        press: held, owner: slot, next: ctx.holdNext!, kind: tag, start: realStart, least: realStart + held.letGo(holdPaid, mash, next),
+        paid: Math.min(held.freeForNext(next, holdPaid), held.animFrames), cut: 0, playsToBefore: state.playsTo, result: null,
+      };
+      holdPaid = held.bullets.length ? Math.max(holdPaid, held.lastHitDelay()) : held.animFrames;
+    }
+    ctx.holdCut = held.letGo(holdPaid, mash, next);
+    // what the press played before holding out its least, or its mash input: to where the bars paid
+    // and the next press could follow
+    holdPaid = Math.min(held.freeForNext(next, holdPaid), held.animFrames);
+    if (watched) state.holdWatch!.cut = ctx.holdCut;
+    else checkHoldCut(held, tag, ctx.holdCut);
     charged = action.holdCost(ctx.holdCut);
   }
+  const holdCut = held ? ctx.holdCut : -1;
   // the press plays its real frames whatever stops; its time stop freezes the game timer from its
   // own start frame, over its animation alongside any other, and what outlasts that stacks behind it all
   const realLen = charged.action + charged.global;
@@ -361,15 +411,19 @@ export function evaluate(state: State, action: Action, triggered = false, source
   // Every hit: the action's own updateDebuffs() and the hit's, every held Gear's, then the same for
   // hitGlobal(), then the grants its inflictions trigger
   if (hitSide) {
+    // the bullet stays current through the hit's stat phases and its onHit, its gains added ahead of those
+    ctx.hit = action.lastBullet;
+    ctx.inHit = true;
     capture(slot, state);
     actionHook(action.updateDebuffsFn, 0);
-    if (lands) actionHook(action.lastBullet!.updateDebuffs, 0);
+    actionHook(ctx.hit!.updateDebuffs, 0);
     runPhase(0, true);
     actionHook(action.hitGlobalFn, 0);
-    if (lands) actionHook(action.lastBullet!.hitGlobal, 0);
+    actionHook(ctx.hit!.hitGlobal, 0);
     runGlobals(state, slot, true);
     capture(slot, state);
     runPhase(7, true);
+    ctx.inHit = false;
   }
 
   // ...then applyStats()/convertStats() pay out over what's held *now*, not what was held a
@@ -392,13 +446,13 @@ export function evaluate(state: State, action: Action, triggered = false, source
   // so far contributed, before the real build's constant base goes in
   // (all zeroes when the grant phases wrote no stat, the usual case — then `ZERO_STATS` itself,
   // read-only, and the base below is copied in rather than added onto zeroes)
-  let pre: StatRow | null = null;
+  let pre: StatRow | null = null, constRow: StatRow | null = null;
   let variantEff: StatRow[] | null = null;
   let variantAt: VariantAt | null = null;
   let anyDry = false;
-  // a bare cast deals nothing and its row reads its hits' stats: the stat phases matter to it only
-  // where it banks energy or off-tune, the two gains a stat scales (Energy Regen Multiplier, Buildup Rate)
-  const statless = castSide && !hitSide && action.energy === 0 && action.offtune === 0 && gain[0] === 0;
+  // stats pay into hits alone: a bare cast deals nothing, its row reads its hits' stats, and what
+  // it banks (`castEnergy`, `castOfftune`, a cast hook's gain) is flat
+  const statless = !hitSide;
   if (!statless && !ctx.tracing && slot.variants.length !== 0) {
     if (ctx.wrote === 0) pre = ZERO_STATS;
     else {
@@ -408,7 +462,7 @@ export function evaluate(state: State, action: Action, triggered = false, source
   }
   // the stat phases change nothing in the fight, so a variant's dry re-run needs no snapshot of it —
   // only an afterAction (a whole press's) can, and that takes its own below
-  let replay2 = 0, applyMoved = false;
+  let replay2 = 0, applyMoved = false, post2 = slot.post2;
   if (!statless) {
     if (ctx.tracing) runPhase(6, true);
     else {
@@ -423,7 +477,8 @@ export function evaluate(state: State, action: Action, triggered = false, source
         slot.constBaseVersion = ctx.constVersion;
       }
       let base = slot.constBase.get(ctx.tagWord);
-      if (base === undefined) slot.constBase.set(ctx.tagWord, base = cachedBase(slot, null, null, null, null));
+      if (base === undefined) slot.constBase.set(ctx.tagWord, base = cachedBase(slot, null));
+      constRow = base;
       const effective = slot.effective;
       if (ctx.wrote === 0) effective.set(base);
       else for (let i = 0; i < effective.length; i++) effective[i] = effective[i]! + base[i]!;
@@ -444,8 +499,10 @@ export function evaluate(state: State, action: Action, triggered = false, source
     // since its dry run starts from the fight as it stood before it
     replay2 = replay.length;
     applyMoved = ctx.mutHash !== 0;
-    // ...and the real build's row as applyStats left it, the same variant's own starting point
-    if (pre !== null) slot.post2.set(slot.effective);
+    // ...and the real build's row as applyStats left it, the same variant's own starting point — the
+    // finished row itself where no conversion follows
+    if (pre !== null && hasConversions(action)) post2.set(slot.effective);
+    else post2 = slot.effective;
     ctx.readPhase = READ_CONVERT;
     if (pre !== null) {
       hookLogLen = 0;
@@ -476,28 +533,23 @@ export function evaluate(state: State, action: Action, triggered = false, source
     const primaryEff = slot.effective;
     let at = slot.variantAt.get(ctx.tagWord);
     if (at === undefined) {
-      const base = slot.constBase.get(ctx.tagWord)!;
-      at = { bases: [], diffs: [] };
-      for (let v = 0; v < slot.variants.length; v++) {
-        const sub = slot.variantSubs[v] ?? null;
-        const vbase = cachedBase(slot, slot.variantOf, slot.variants[v]!, sub && slot.variantSubOf, sub), diff: number[] = [];
-        for (let i = 0; i < vbase.length; i++) if (vbase[i] !== base[i]) diff.push(i);
-        at.bases.push(vbase); at.diffs.push(diff);
-      }
+      at = { ...variantBasesOf(slot), memo: null, memo2: null };
       slot.variantAt.set(ctx.tagWord, at);
-      for (let v = 0; v < slot.variants.length; v++) slot.variantEff[v] ??= statRow();
     }
     variantAt = at;
     variantEff = slot.variantEff;
-    for (let v = 0; v < slot.variants.length; v++) {
-      const eff = variantEff[v]!;
+    // no index any variant moves was read: none re-runs a phase
+    const clean = !readAny(at.union, READ_APPLY | READ_CONVERT);
+    if (clean) for (let v = 0; v < slot.variants.length; v++) slot.variantDry[v] = false;
+    for (let v = 0; v < slot.variants.length && !clean; v++) {
       const diff = at.diffs[v]!, vbase = at.bases[v]!;
       slot.variantDry[v] = readAny(diff, READ_APPLY | READ_CONVERT);
       if (!slot.variantDry[v]) continue;
-      slot.variantEverDry[v] = true;
+      // a variant's own row, only ever needed by one re-run dry
+      const eff = (variantEff[v] ??= statRow());
       if (!anyDry) { anyDry = true; ctx.dryRun = true; }
       const replayable = !applyMoved && !readAny(diff, READ_APPLY);
-      if (replayable) sparseRow(diff, vbase, eff, slot.post2, pre, 0, replay2);
+      if (replayable) sparseRow(diff, vbase, eff, post2, pre, 0, replay2);
       else for (let i = 0; i < eff.length; i++) eff[i] = pre[i]! + vbase[i]!;
       slot.effective = eff;
       if (replayable) replayConversions(diff, eff);
@@ -560,14 +612,16 @@ export function evaluate(state: State, action: Action, triggered = false, source
   // stat is one lookup rather than a re-sum across three freshly-built key strings.
   const effective = slot.effective;
 
-  // bank this action's own declared energy/concerto/offtune (the resonator's own baseline for
-  // performing it) plus whatever AddEnergy/AddConcerto/AddOfftune a held buff contributed, into
-  // the real running totals — no kit ever touches these directly, same as forte.
-  // Energy alone carries a multiplier: `(base + AddEnergy) x (1 + Energy Regen Multiplier)`.
-  // a buff's gains bank with the half they belong to: the hit's with a hit, the cast's with a cast
-  // each half banks what its own hooks granted: the stat phases' on the hit, updateBuffs' on the cast
-  const addEnergy = effective[Stat.AddEnergy]! + gain[0]!;
-  const energyGain = (action.energy + addEnergy) * (1 + effective[Stat.EnergyRegenMult]! / 100);
+  // bank what this part declares of its own (its cast's `castX`, its bullet's) plus whatever its
+  // hooks added (`addGain()`), each part with its own: no kit ever touches these directly.
+  // Energy alone carries a multiplier: `hits x (1 + Energy Regen Multiplier) + cast + added`.
+  const own = action.banks;
+  // the hits' own energy is scaled by ER (and the Energy Regen Multiplier) and shared; the cast's
+  // (`castEnergy`, banked where no stat runs) and what a hook added are neither
+  const hitEnergy = own[0]! - action.castEnergy;
+  const baseEnergy = hitEnergy > 0 ? hitEnergy * (1 + effective[Stat.EnergyRegenMult]! / 100) : hitEnergy;
+  const flatEnergy = action.castEnergy + gain[0]!;
+  const energyGain = baseEnergy + flatEnergy;
   slot.energy = Math.max(0, slot.energy + energyGain);
   // the Energy column counts up for the whole fight. A double-Intro visit's own outro hands the field
   // *backward* (rotation.ts's own outroDir): half of one loop, so only the other ends it
@@ -577,36 +631,39 @@ export function evaluate(state: State, action: Action, triggered = false, source
   // it against the bar's own 100 ceiling: a bar that overran it is capped back first, so the
   // declared -100 empties it exactly rather than leaving the overrun behind; and a bar holding
   // less than the spend is short, which the report flags. A Unison outro declares no spend
-  // (shared/unison.ts) and goes through neither. A buff's own AddConcerto spend (Suoming's Rift
-  // Cleaver, -20 while Unison is held) is a stat, not a declared cost, and is left to the kit.
+  // (shared/unison.ts) and goes through neither. A hook's own concerto spend (Suoming's Rift
+  // Cleaver, -20 while Unison is held) is an `addGain()`, not a declared cost, and is left to the kit.
   // An outro still caps the bar at 100 either way — a bar cannot hold more than that into the
   // next visit, spent or not. Off-tune is the enemy's, not theirs, and carries over.
-  const spend = action.concerto < 0 ? -action.concerto : 0;
+  const spend = own[1]! < 0 ? -own[1]! : 0;
   // a hit still in flight (an insta swap's, landing after the outro) hasn't banked yet, so the bar
   // goes below empty until that hit lands
   if ((spend > 0 || outro) && slot.concerto > FULL_CONCERTO) slot.concerto = FULL_CONCERTO;
-  const addConcerto = effective[Stat.AddConcerto]! + gain[1]!;
-  const concerto = slot.concerto + action.concerto + addConcerto;
-  slot.concerto = spend > 0 ? concerto : Math.max(0, concerto);
   // what the press itself banked, the floor up from below empty aside (`gaugeDelta`)
-  const concertoGained = action.concerto + addConcerto;
-  // Off-Tune Buildup Rate scales what an action *builds*, never what lands on the bar directly:
-  // DirectOfftune (a Tune Break's own drain, Denia's half-bar surge) is already the amount the bar
-  // moves, so it goes on untouched. A declared negative would come off in full for the same reason.
+  const concertoGained = own[1]! + gain[1]!;
+  const concerto = slot.concerto + concertoGained;
+  slot.concerto = spend > 0 ? concerto : Math.max(0, concerto);
+  // Off-Tune Buildup Rate and its multiplier scale what an action *builds*, never what lands on the
+  // bar directly: direct off-tune (Denia's half-bar surge) is already the amount the bar moves, so it
+  // goes on untouched, and a declared negative comes off in full. The cast's own (`castOfftune`, a
+  // Tune Break's drain) runs no stat, so it lands as direct does.
   // Unclamped, unlike energy/concerto: a break can leave the bar below empty (see tunebreak.ts).
-  const built = (action.offtune + effective[Stat.AddOfftune]!) * (1 + effective[Stat.OfftuneMult]! / 100);
-  state.offtune += (built < 0 ? built : built * (effective[Stat.OfftuneBuildup]! / 100)) + effective[Stat.DirectOfftune]!;
+  const declared = own[7]! - action.castOfftune + gain[7]!;
+  state.offtune += (declared < 0 ? declared : declared * (1 + effective[Stat.OfftuneMult]! / 100) * (effective[Stat.OfftuneBuildup]! / 100)) + action.castOfftune + gain[8]!;
 
-  // RealEnergy (TeamMember.realEnergy): the same gain as the real Energy bar above, each holder
-  // capped at their own maxEnergy, plus half of it shared to every *other* member — this is
+  // RealEnergy (TeamMember.realEnergy): the action's own gain, the one ER scales (flat gains
+  // go in `erFlat`), each holder capped at their own maxEnergy, plus half of it shared to every *other* member — this is
   // the real ingame mechanic for energy being automatically shared across the team. A Liberation that resets the bar is a special case: it
   // action's own gain lands, so a resetEnergy-marked Liberation's "before" value excludes its own
   // contribution — exactly the "banked coming into this cast" figure the ER requirement wants.
   const realEnergyBefore = slot.realEnergy;
-  slot.realEnergy = capEnergy(slot, slot.realEnergy + energyGain);
-  const shared = energyGain / 2;
-  for (const other of state.slots) {
-    if (other !== slot) other.realEnergy = capEnergy(other, other.realEnergy + shared);
+  // every bar already sits inside its own ceiling, so a press banking none moves none
+  if (baseEnergy !== 0) {
+    slot.realEnergy = capEnergy(slot, slot.realEnergy + baseEnergy);
+    const shared = baseEnergy / 2;
+    for (const other of state.slots) {
+      if (other !== slot) other.realEnergy = capEnergy(other, other.realEnergy + shared);
+    }
   }
   // The ER-requirement window (teamrun.ts's `erRollsFor`): two running sums and nothing else, so
   // every run carries the requirement without a second pass. The Liberation that closes a window
@@ -620,7 +677,7 @@ export function evaluate(state: State, action: Action, triggered = false, source
       // what this one Liberation asked of the constant ER. Every window counts, the opener's
       // included — only the very first cast is free, on the bar combatStart hands over.
       const want = realEnergyBefore > 0
-        ? ((slot.resonator?.maxEnergy ?? 0) * 100 - (slot.erGainEr - slot.constEr * slot.erGain)) / realEnergyBefore
+        ? ((slot.resonator?.maxEnergy ?? 0) * 100 - (slot.erGainEr - slot.constEr * slot.erGain) - 100 * slot.erFlat) / realEnergyBefore
         : 0;
       if (want > slot.erWorst) slot.erWorst = want;
       slot.erWants.push(want);
@@ -634,18 +691,20 @@ export function evaluate(state: State, action: Action, triggered = false, source
     }
     slot.erGainEr = 0;
     slot.erGain = 0;
+    slot.erFlat = 0;
     slot.realEnergy = 0;
   } else if (!endsLoop) {
-    slot.erGain += energyGain;
-    slot.erGainEr += energyGain * effective[Stat.ER]!;
+    slot.erGain += baseEnergy;
+    slot.erGainEr += baseEnergy * effective[Stat.ER]!;
+    slot.erFlat += flatEnergy;
   }
 
   // same shape, for whichever forte gauges this action declares a delta on — a kit assigns its
   // own meaning onto whichever slot fits (Jingran's Qi is forte1, his Mingfire is forte2) — plus
-  // whatever AddForte1-5 a held buff contributed (Jingran's Fire of Life refunding Qi off its own
-  // Mingfire spend, rather than reaching for setForte1 directly and leaving no trace of who paid
-  // it). Unconditional, not gated on the action's own declared amount being nonzero — a buff can
-  // contribute here even on an action that declares nothing itself.
+  // whatever a hook added (`addGain()`: Jingran's Fire of Life refunding Qi off its own Mingfire
+  // spend, rather than reaching for setForte1 directly and leaving no trace of who paid it).
+  // Unconditional, not gated on the action's own declared amount being nonzero — a hook can add
+  // here even on an action that declares nothing itself.
   //
   // Every gauge fills freely past its Resonator's `maxForteN`, and a spend from it starts at the
   // cap rather than the overrun — the bar never really held more. Below 0 after a spend is a
@@ -653,10 +712,10 @@ export function evaluate(state: State, action: Action, triggered = false, source
   // either, so the member's next cast — or a gain landing first — clamps it back to 0 rather than
   // paying the shortfall off. A `resetForteN` cast (rotation.ts's own ActionDef) empties the gauge
   // ahead of its own delta.
-  const forte = slot.forte;
+  const forte = slot.forte, caps = slot.resonator?.maxForte ?? NO_CAP;
   for (let i = 0; i < 5; i++) {
-    const cap = slot.resonator?.maxForte[i] ?? 0;
-    const delta = action.forteDeltas[i]! + effective[ADD_FORTE[i]!]! + gain[2 + i]!;
+    const cap = caps[i]!;
+    const delta = own[2 + i]! + gain[2 + i]!;
     if (action.resetForte[i] || (forte[i]! < 0 && (delta > 0 || (castSide && action.cast !== null)))) forte[i] = 0;
     if (cap > 0 && delta < 0 && forte[i]! > cap) forte[i] = cap;
     forte[i] = forte[i]! + delta;
@@ -684,16 +743,12 @@ export function evaluate(state: State, action: Action, triggered = false, source
   let variantAvg: number[] | null = null;
   if (variantEff !== null && (phaseMask & END_PHASES) === 0) {
     // a part with no afterAction: each variant's row is the finished one with its own indices redone
-    variantAvg = [];
-    let primary = NaN;
-    for (let v = 0; v < slot.variants.length; v++) {
-      if (slot.variantDry[v]) {
-        variantAvg.push(avgOf(action, variantEff[v]!));
-        continue;
+    if (!anyDry) variantAvg = scoreVariants(slot, action, variantAt!, effective, pre!, constRow);
+    else {
+      variantAvg = [];
+      for (let v = 0; v < slot.variants.length; v++) {
+        variantAvg.push(slot.variantDry[v] ? avgOf(action, variantEff[v]!) : scoreVariant(slot, v, action, variantAt!, effective, pre!));
       }
-      const own = scoreVariant(slot, v, action, variantAt!.diffs[v]!, variantAt!.bases[v]!, effective, pre!, replay.length);
-      if (own === own) variantAvg.push(own);
-      else variantAvg.push(primary === primary ? primary : (primary = avgOf(action, effective)));
     }
   } else if (variantEff !== null) {
     ctx.guarded = true;
@@ -710,15 +765,16 @@ export function evaluate(state: State, action: Action, triggered = false, source
     ctx.recording = false;
     ctx.buff = null;
     const primaryHash = ctx.mutHash;
-    variantAvg = [];
+    // with none re-run dry and afterAction reading no index a variant moves, all score as a part does
+    const pure = !anyDry && !readAny(variantAt!.union, READ_AFTER);
+    variantAvg = pure ? scoreVariants(slot, action, variantAt!, effective, pre!, constRow) : [];
     let anyDone = false;
-    for (let v = 0; v < slot.variants.length; v++) {
-      const eff = variantEff[v]!;
+    for (let v = 0; v < slot.variants.length && !pure; v++) {
+      const eff = (variantEff[v] ??= statRow());
       const diff = variantAt!.diffs[v]!, vbase = variantAt!.bases[v]!;
       const dry = slot.variantDry[v]!;
       if (!dry && !readAny(diff, READ_AFTER)) {
-        const own = scoreVariant(slot, v, action, diff, vbase, effective, pre!, replay.length);
-        variantAvg.push(own === own ? own : avgOf(action, effective));
+        variantAvg.push(scoreVariant(slot, v, action, variantAt!, effective, pre!));
         continue;
       } else {
         if (!dry) {
@@ -726,8 +782,7 @@ export function evaluate(state: State, action: Action, triggered = false, source
           if (resourceMoved(diff, eff, post4)) slot.variantUnsafe[v] = true;
         }
         if (!anyDone) { anyDone = true; done.take(state); ctx.dryRun = true; }
-        slot.variantEverDry[v] = true;
-        slot.effective = eff;
+          slot.effective = eff;
         banked.restore(state);
         ctx.mutHash = 0;
         ctx.stacks = -1;
@@ -745,33 +800,29 @@ export function evaluate(state: State, action: Action, triggered = false, source
     runPhase(5, false);
     ctx.buff = null;
   }
-  // what a swap cancel paid on for the last time goes with it — at its end, where it queued one
-  if (half === null) for (const gear of ctx.swapLosses) slot.revoke(gear);
   // the rest of the press is `run()`'s to walk, landing whatever hit falls due inside it
   if (realStart + realLen > state.playsTo) state.playsTo = realStart + realLen;
-  const atk = foldStat(effective, Stat.BaseAtk, Stat.BonusAtk, Stat.FlatAtk);
-  const hp = foldStat(effective, Stat.BaseHp, Stat.BonusHp, Stat.FlatHp);
-  const def = foldStat(effective, Stat.BaseDef, Stat.BonusDef, Stat.FlatDef);
   const mv = (action.mv + effective[Stat.AddMv]!) * (1 + effective[Stat.MulMv]! / 100);
-  const avg = damageAvgOf(
-    action, effective, atk, hp, def, effective[Stat.Amp]!, effective[SUBTYPE_AMP_INDEX]!, effective[Stat.DmgBonus]!,
-    effective[SUBTYPE_CRIT_RATE_INDEX]!, effective[SUBTYPE_CRIT_DMG_INDEX]!,
-    effective[SUBTYPE_TOTAL_DMG_INDEX]!, effective[SUBTYPE_DAMAGE_TAKEN_INDEX]!, enemyRes(), enemyDef(),
-  );
+  const avg = avgOf(action, effective);
   // `group`/`groupEnd`/`groupSpill`/`queued` are stamped by run() the moment this returns — nothing
   // mid-action reads them, unlike `triggered`, so none has to be threaded through this call
   const result: Result = {
     action, member: slot.name, slot: action.slot ?? slot.name, triggered, source,
     group: null, groupEnd: false, groupSpill: null, queued: false, mv, avg, variantAvg, starts: frameStart,
-    castGain: anyNonZero(gain) ? gain.slice() : null,
+    gain: anyNonZero(gain) ? gain.slice() : null,
     // the last hit is in at its own frame, not at the press's end or after the delay a cut costs
     realStarts: realStart,
     ends: realStart + (half === "cast" ? (action.formOf ?? action).lastHitDelay() : 0),
+    // filled in by the first hit landing (`landHit()`); present from the start so every row is one shape
+    hitAt: undefined,
   };
   const snapshot: ResolvedSnapshot | null = !ctx.tracing ? null : {
     ...result,
+    atk: foldStat(effective, Stat.BaseAtk, Stat.BonusAtk, Stat.FlatAtk),
+    hp: foldStat(effective, Stat.BaseHp, Stat.BonusHp, Stat.FlatHp),
+    def: foldStat(effective, Stat.BaseDef, Stat.BonusDef, Stat.FlatDef),
     type: ctx.overrideType ?? action.lastBullet?.type ?? null,   // the effective type — see ResolvedSnapshot.type
-    stat: statReader(effective), stats: effective, atk, hp, def,
+    stat: statReader(effective), stats: effective,
     amp: effective[Stat.Amp]!,
     subtypeAmp: effective[SUBTYPE_AMP_INDEX]!,
     subtypeCritRate: effective[SUBTYPE_CRIT_RATE_INDEX]!,
@@ -782,7 +833,7 @@ export function evaluate(state: State, action: Action, triggered = false, source
     enemyRes: enemyRes(),
     enemyDef: enemyDef(),
     entries: slot.entries,
-    castAdds: ctx.castAdds,
+    adds: ctx.adds,
     forte: [...slot.forte],
     forteBefore,
     maxForte: slot.resonator?.maxForte ?? EMPTY_FORTE,
@@ -792,9 +843,12 @@ export function evaluate(state: State, action: Action, triggered = false, source
     seq: ++traceSeq,
     concertoGained,
     castUnmet,
+    buffUnmet,
+    buffForbidden,
+    buffSources,
     endsLoop,
     realEnergyBefore,
-    frame: frameStart, frames, tag, active, timestopBanked, holdPaid,
+    frame: frameStart, frames, tag, active, timestopBanked, holdPaid, holdCut,
     heldLocal, heldGlobal, heldEnemy,
     opensFields,
   };
@@ -803,6 +857,7 @@ export function evaluate(state: State, action: Action, triggered = false, source
     const n = state.slots.length;
     state.active = (state.active + state.outroDir + n) % n;
   }
+  ctx.hit = null;
   return snapshot ?? result;
 }
 
@@ -812,7 +867,8 @@ export function evaluate(state: State, action: Action, triggered = false, source
 function shiftOffField(state: State, shift: number, from: number): void {
   for (const h of state.timed) {
     if (h.slot === state.presser || h.due <= from) continue;
-    h.due += shift;
+    // a hold cut short gives back what it held, never past where the new one starts
+    h.due = Math.max(from, h.due + shift);
   }
   sortByDue(state.timed);
 }
@@ -830,7 +886,6 @@ function closePress(state: State, action: Action, triggered: boolean, cut: strin
   ctx.triggered = triggered;
   ctx.tagWord = tagWordOf(action);
   ctx.overrideType = null; ctx.overrideSubtype = null; ctx.droppedCast = null;
-  ctx.swapLosses.clear();
   ctx.actionStamp++;
   state.expireBuffs();
   capture(slot, state);
@@ -848,7 +903,7 @@ function closePress(state: State, action: Action, triggered: boolean, cut: strin
  *  Outro evaluated between the queue() call and the follow-up actually running); a plain
  *  rotation entry always runs on whichever slot is active when its turn comes. */
 /** One step `run()` plays. */
-interface Step { action: Action; slot: number; by: HeldBuff | null; group: ActionGroup | null; end: boolean; spill: ActionGroup | null; queued: boolean; cut: ActionTag | null; at?: number; into?: Result | null; away?: boolean; losses?: Gear[]; frames?: number; closes?: boolean; triggered?: boolean; hold?: boolean; waited?: boolean; holdShift?: number; endCut?: string }
+interface Step { action: Action; slot: number; by: HeldBuff | null; group: ActionGroup | null; end: boolean; spill: ActionGroup | null; queued: boolean; event: boolean; cut: ActionTag | null; at?: number; into?: Result | null; away?: boolean; frames?: number; closes?: boolean; triggered?: boolean; hold?: boolean; waited?: boolean; holdShift?: number; endCut?: string; check?: () => void }
 
 /** The steps still to play: whatever was put in front (a stack, its top playing next) ahead of the
  *  rest of the written list, walked by index — so putting a follow-up in front of the rest moves
@@ -896,6 +951,7 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
   let guard = 0;
   while (steps.size || (flush && (state.timed.length || state.behindNext.length))) {
     if (++guard > 10000) throw new Error("action queue did not drain");
+    settleHold(state);
     // the fight's end: nothing is coming to cast behind, so what waited for it is cast now — and
     // whatever would land past the end is dropped as it is queued
     if (flush && until < Infinity) {
@@ -906,35 +962,35 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
     if (flush && !steps.size && state.behindNext.length) {
       steps.unshift(state.behindNext.splice(0).map((b) => newStep(b.action, b.slot, b.by, null, false, null, true, null, b.at)));
     }
-    // whatever is already queued plays before the clock moves on, but what waits out the press
-    // playing (`ActionDef.afterPlay`)
+    // whatever is already queued plays before the clock moves on, but an engine event, which
+    // waits out the press playing (`queueEvent()`)
     const ahead = steps.peek();
-    const walking = ahead?.queued && !waitsPlay(ahead) ? state.real < state.playsTo : walk(state, steps, spillGroup);
+    const walking = ahead?.queued && !ahead.event ? state.real < state.playsTo : walk(state, steps, spillGroup);
     // a flush's end plays out what is left on the clock a frame at a time, in its own order
     const draining = flush && !steps.size;
-    let first = 0;
-    if (draining) {
-      first = Infinity;
-      for (const h of state.timed) first = Math.min(first, h.due);
-    }
+    // the clock is kept in due order, so what can be due is a run at its head
+    const timed = state.timed, first = draining && timed.length ? timed[0]!.due : 0, limit = draining ? first : state.real;
     // a hit on the clock whose time has come lands before the next cast, at its own frame — but one
     // landing off field (an Outro's, an insta swap's) due on the very frame the next press starts
     // lands after it, so the incoming Intro is cast first
-    let anyDue = false;
-    for (let k = 0; k < state.timed.length; k++) {
-      if (!isDue(state.timed[k]!, draining, first, state.real, walking)) continue;
-      anyDue = true;
-      break;
-    }
+    let head = 0, anyDue = false;
+    for (; head < timed.length && timed[head]!.due <= limit; head++) if (isDue(timed[head]!, draining, first, state.real, walking)) anyDue = true;
     if (anyDue) {
       const due: Timed[] = [], kept: Timed[] = [];
-      for (const h of state.timed) (isDue(h, draining, first, state.real, walking) ? due : kept).push(h);
-      sortByDue(due);
+      for (let k = 0; k < head; k++) (isDue(timed[k]!, draining, first, state.real, walking) ? due : kept).push(timed[k]!);
+      for (let k = head; k < timed.length; k++) kept.push(timed[k]!);
       state.timed = kept;
       // one landing mid-group is that group's spill, like any follow-up there, so its row stays whole
       const spill = ctx.insideGroup ? spillGroup : null;
       const landed: Step[] = [];
       for (const h of due) {
+        // a check on the clock runs in its place among what lands, behind everything due before it
+        if (h.check) {
+          const check = newStep(SKIP, h.slot, null, null, false, spill, true, null, h.due);
+          check.check = h.check;
+          landed.push(check);
+          continue;
+        }
         if (h.action) {
           landed.push(newStep(h.action, h.slot, h.by, null, false, spill, true, null, h.due, h));
           continue;
@@ -947,7 +1003,7 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
         ctx.slot = state.slots[h.slot]!;
         h.apply?.();
         state.setReal(Math.max(now, draining ? h.due : state.real));
-        for (const q of pendingQueue) landed.push(newStep(q.action, q.slot, q.by, null, false, q.event ? null : spillGroup, true, null, h.due));
+        for (const q of pendingQueue) landed.push(queuedStep(q, spillGroup, h.due));
         pendingQueue.length = 0;
       }
       steps.unshift(landed);
@@ -956,12 +1012,21 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
     // a rotation press waits for the last one to finish playing: the walk only stopped short of it
     // to land what fell due on the way
     const up = steps.peek()!;
-    if ((!up.queued || waitsPlay(up)) && state.real < state.playsTo) continue;
+    if ((!up.queued || up.event) && state.real < state.playsTo) continue;
     const step = steps.take();
     // the fight is over at its end: nothing is cast past it (a break queued behind the last outro) —
     // but one cast by then that can't be swapped out of plays out, and the end waits for it
     if (step.at === undefined ? state.real > until : step.at > until) continue;
-    const unswappable = flush && until < Infinity && step.action.afterPlay && step.action.half === null;
+    if (step.check) {
+      const now = state.real;
+      state.setReal(step.at!);
+      ctx.state = state;
+      ctx.slot = state.slots[step.slot]!;
+      step.check();
+      state.setReal(Math.max(now, state.real));
+      continue;
+    }
+    const unswappable = flush && until < Infinity && step.event;
     if (step.closes) {
       const now = state.real, field = state.onField, before = state.active;
       state.active = step.slot;
@@ -969,10 +1034,7 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
       if (step.away) state.onField = -1;
       ctx.pressFrames = step.frames ?? 0;
       ctx.pressStart = step.into?.realStarts ?? state.real;
-      ctx.nextStep = steps.peek()?.action ?? null;
       closePress(state, step.action, !!step.triggered, step.endCut ?? "");
-      if (ctx.dashReplaced) dropDash(steps, step.into);
-      if (step.losses) for (const gear of step.losses) state.slots[step.slot]!.revoke(gear);
       state.setReal(Math.max(now, state.real));
       state.onField = field;
       state.active = before;
@@ -996,15 +1058,12 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
         }
       }
       if (state.swapPaid) {
-        // an Outro handed over: the swap was paid before it
+        // an Outro or a swap cancel handed over: the swap was paid before it
         state.swapPaid = false;
-        state.swapRow = null;
         state.presser = state.active;
         steps.unshift([step]);
         continue;
       }
-      if (state.swapRow) state.swapRow.swapFrames = (state.swapRow.swapFrames ?? 0) + SWAP_DELAY;
-      state.swapRow = null;
       state.presser = state.active;
       state.playsTo = state.real + SWAP_DELAY;
       steps.unshift([step]);
@@ -1022,18 +1081,6 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
     if (step.group) ctx.insideGroup = !step.end;
     const before = state.active;
     if (step.slot >= 0) state.active = step.slot;
-    // A marker that gates the entry after it rather than standing for a cast (rotation.ts's own
-    // EVERY_OTHER): it never lands itself, and a skip swallows the whole group where the entry it
-    // gates is one. Read through the same "current" pointers as any other marker.
-    if (step.action.skipNextFn) {
-      ctx.state = state;
-      ctx.slot = state.slot;
-      if (step.action.skipNextFn()) {
-        const gated = steps.size ? steps.take() : undefined;
-        if (gated?.group) while (steps.size && steps.peek()!.group === gated.group) steps.take();
-      }
-      continue;
-    }
     let action: Action | null = step.action;
     if (step.action.resolveFn) {
       // a marker reads state via the "current" pointers, same as any other kit logic — evaluate()
@@ -1041,8 +1088,58 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
       ctx.state = state;
       ctx.slot = state.slot;
       action = resolving(step.action.resolveFn);
+      // an `everyOther()` reached for real, not peeked at: its count moves on, play or skip
+      if (step.action instanceof EveryOther) state.slot.everyOther++;
       // resolved to no cast at all this step (deferred onto a later one — see `queueOnIntro()`)
       if (!action) continue;
+      // skipped, and the rest of its group with it
+      if (action === SKIP) {
+        if (step.group) {
+          while (steps.size && steps.peek()!.group === step.group) steps.take();
+          ctx.insideGroup = false;
+        }
+        continue;
+      }
+    }
+    // a plain dodge something takes the place of on the frame it would be cast (the enemy's
+    // `takesCut`, a ready Tune Break): the press it cut reads the cut it became, and what
+    // replaces it plays here instead — the group the dodge closed closing on that press
+    const behind = state.lastOwn, marker = step.action as unknown as DashMarker;
+    if (marker.after !== undefined && (action === DEFAULT_DODGE || action === ECHO_DODGE)
+      && behind && behind.member === state.slot.name && state.enemy.resonator?.takesCut) {
+      ctx.state = state;
+      ctx.slot = state.slot;
+      const enemy = state.enemy.resonator;
+      asSource(enemy, () => enemy.takesCut!(behind.action, marker.kind));
+      if (ctx.cutReplaced) {
+        (behind as unknown as { tag: string }).tag = ctx.cutReplaced;
+        if (step.end) {
+          behind.groupEnd = true;
+          behind.dashDropped = true;
+        }
+        ctx.cutReplaced = "";
+        if (pendingQueue.length) takeQueued(steps, spillGroup, undefined);
+        continue;
+      }
+    }
+    // ...and the same behind a swap cancel or a plain, on-hit or insta cancel, read once on the frame
+    // the rotation's next step would be cast: the cut's delay already played, what goes in plays
+    // there ahead of that step — a swap cancel's Outro or SWAP still after it
+    const cutBehind = state.lastOwnCut;
+    if (step.slot < 0 && !step.queued && STEP_CUTS.has(cutBehind)
+      && behind && behind.member === state.slot.name && state.enemy.resonator?.takesCut) {
+      state.lastOwnCut = "";
+      ctx.state = state;
+      ctx.slot = state.slot;
+      const enemy = state.enemy.resonator;
+      asSource(enemy, () => enemy.takesCut!(behind.action, cutBehind as ActionTag));
+      if (ctx.cutReplaced) {
+        (behind as unknown as { tag: string }).tag = ctx.cutReplaced;
+        ctx.cutReplaced = "";
+        steps.unshift([step]);
+        if (pendingQueue.length) takeQueued(steps, spillGroup, undefined);
+        continue;
+      }
     }
     // An Outro waits, on the outgoing member and as one row, for whichever is longer: a kit that
     // keeps the field waiting (`ResonatorDef.holdBefore`), or the incoming visit reaching a cooldown
@@ -1058,7 +1155,8 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
       const into = to >= 0 ? state.slots[to]!.resonator : null;
       ctx.state = state;
       ctx.slot = state.slot;
-      const hold = into?.holdFn && into.intro ? into.holdFn(into.intro) : null;
+      // asked with the INTRO the arrival will cast, read only once reached
+      const hold = into?.holdFn && into.intro ? into.holdFn(INTRO) : null;
       // read at where the Outro would be cast: a hit landing mid-wait stops the clock short of it,
       // and the swap delay still to pay comes first
       const castAt = Math.max(state.real, state.playsTo) + (state.swapPaid ? 0 : SWAP_DELAY), gameAt = state.gameOf(castAt);
@@ -1116,10 +1214,15 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
     const by = step.by;
     // a FIELD press, or anything with a source to name, is nobody's press
     const triggered = action.tag === ActionTag.Field || by !== null;
-    // a dash the next press stops time on is cut short by it, an insta cancel that keeps its hit;
-    // a marker there resolves only when reached, so it is taken as stopping nothing
-    const nextPress = steps.peek()?.action;
-    const dash = (step.action as unknown as DashMarker).after !== undefined && !!nextPress && !nextPress.resolveFn && nextPress.timestop > 0;
+    // a dash the next press out-prioritises is cut short by it, an insta cancel that keeps its hit:
+    // its cast priority above the dash's own where an insta cut hands over
+    let dash = false;
+    if ((step.action as unknown as DashMarker).after !== undefined) {
+      const ahead = steps.peek();
+      const next = !ahead || ahead.queued || ahead.slot >= 0 ? null : ahead.action.resolveFn ? resolving(ahead.action.resolveFn) : ahead.action;
+      const c = action.cost(ActionTag.InstaCancel);
+      dash = !!next && next !== SKIP && next.cutIn !== null && next.cutIn > action.priorityAt(c.action + c.global);
+    }
     // an echo whose cut frees its wearer no sooner plays whole (`Action.cutPays`)
     let cut = uncut ? null : dash ? ActionTag.InstaCancel : step.cut;
     const pressed = action;
@@ -1128,19 +1231,33 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
     const checked = !dash && action.half === null;
     if (checked && LENGTH_CHECKED.has(kind)) checkCutLength(pressed.cancelOf ?? pressed, kind);
     // a marker resolving to presses of either kind can't be written insta for the hitless one alone
-    const cutAt = kind === ActionTag.SwapCancel ? action.swapCutFrame : action.cutFrame;
-    if (checked && !step.action.resolveFn && SLOW_CUTS.has(kind) && cutAt <= INSTA_DELAY) {
+    const slow = checked && !step.action.resolveFn && SLOW_CUTS.has(kind), cutAt = !slow ? 0 : kind === ActionTag.SwapCancel ? action.swapCutFrame : action.cutFrame;
+    if (slow && cutAt <= INSTA_DELAY) {
       throw new Error(`${action.name}: cuts at frame ${cutAt}, inside an insta cut's ${INSTA_DELAY} — write it as ${INSTA_OF[kind as ActionTag]} instead of ${kind}`);
+    }
+    // nothing is cast at priority 0, the floor any press has to beat; what the engine queues aside is no
+    // press, nor a wait (no cast, no hits)
+    if (step.slot < 0 && !step.queued && !triggered && (action.cast !== null || action.bullets.length > 0) && !((action.castPriority ?? 0) >= 1)) {
+      throw new Error(`${action.name}: pressed at cast priority ${action.castPriority ?? 0} — a press needs 1 or more`);
+    }
+    // a written cut lands only where what cuts in beats the press's priority: its dash or jump, the
+    // press a cut-short dash gives way to, else the next press
+    if (step.slot < 0 && !step.queued && PRIORITY_CUTS.has(kind)) {
+      ctx.state = state;
+      ctx.slot = state.slot;
+      const ahead = steps.peek();
+      const after = !ahead || ahead.queued || ahead.slot >= 0 ? null : ahead.action.resolveFn ? resolving(ahead.action.resolveFn) : ahead.action;
+      checkPriority(action, cut, after);
     }
     // a press that takes time casts now and queues each hit on the time-ordered queue at its own
     // frame, and its end where it runs out
     const whole = action;
     const splits = whole.splitsHit(cut);
     const castAt = step.at ?? state.real, away = splits && whole.hitsAway(cut);
-    let split: Timed[] | null = null;
+    let split: Timed[] | null = null, splitEnd: Timed | null = null;
     if (splits) {
       split = [];
-      for (let k = 0; k < whole.bullets.length; k++) split.push(timedEntry(castAt + whole.hitDelay(k), whole.hitPart(k), state.active, null, away, undefined, undefined, 0, undefined, false));
+      for (let k = 0; k < whole.bullets.length; k++) split.push(timedEntry(castAt + whole.hitDelay(k), whole.hitPart(k), state.active, null, away, undefined, 0, undefined, false));
     }
     if (split) {
       for (const h of split) insertByDue(state.timed, h);
@@ -1162,14 +1279,15 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
     ctx.pressFrames = step.frames ?? 0;
     ctx.pressStart = step.into?.realStarts ?? state.real;
     // a hold cancel holds into the next press, read as it stands now
-    if (cut === ActionTag.HoldCancel) {
-      const after = steps.peek()?.action ?? null;
+    if (cut === ActionTag.HoldCancel || cut === ActionTag.MashCancel) {
+      const after = steps.peek()?.action ?? ctx.holdBeyond;
       ctx.holdNext = after?.resolveFn ? resolving(after.resolveFn) : after;
     }
-    ctx.nextStep = steps.peek()?.action ?? null;
     const result = evaluate(state, action, triggered, by, cut);
+    // SWAP takes its owner off the field, as an Outro does: whoever presses next takes it
+    if (action === SWAP) state.onField = -1;
     ctx.holdNext = null;
-    const dashEnded = ctx.dashReplaced ? dropDash(steps, result) : false;
+    if (state.holdWatch?.result === null) state.holdWatch.result = result;
     if (unswappable) state.drainUntil = until = Math.max(until, state.playsTo);
     const motionAdd = ctx.offFieldShift, stamp = ctx.actionStamp;
     // ...and a bullet it let go of before its commit never lands
@@ -1204,10 +1322,11 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
       const runs = whole.castsInstantly ? whole.animFrames : ctx.actReal;
       const end = timedEntry(
         Math.max(last, castAt + runs + (step.holdShift ?? 0)), whole.endPart(), state.active, null, away, undefined,
-        ctx.swapLosses.size ? [...ctx.swapLosses] : undefined, ctx.actFrames, true, triggered,
+        ctx.actFrames, true, triggered,
       );
       end.cut = kind;
       insertByDue(state.timed, end);
+      splitEnd = end;
     }
     if (step.at !== undefined) {
       state.setReal(Math.max(now, state.real));
@@ -1217,22 +1336,30 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
       landHit(step.into, result, result.starts);
     } else {
       result.group = step.group;
-      result.groupEnd = step.end || dashEnded;
-      if (dashEnded) result.dashDropped = true;
+      result.groupEnd = step.end;
       result.groupSpill = step.spill;
       result.queued = step.queued;
       // one row stands for the whole press, in cast order: each hit adds itself in as it lands
       if (split) {
-        for (const h of state.timed) if (h.action?.formOf === whole && h.into === null) h.into = result;
+        for (const h of split) h.into = result;
+        splitEnd!.into = result;
         result.action = whole;
       }
       out.push(result);
-      // the row the next resonator's swap frames go on: a swap-out press (an Outro's are paid
-      // ahead of it, on `lastOwn`)
+      // a swap cancel's own delay is the swap's: the Outro or SWAP after it pays none
       const tag = cut ?? action.tag;
-      const swaps = tag === ActionTag.SwapCancel || tag === ActionTag.InstaSwap;
-      if (swaps) state.swapRow = result;
-      if (!step.queued && !triggered && !isCast(action, Cast.Outro)) state.lastOwn = result;
+      if (tag === ActionTag.SwapCancel || tag === ActionTag.InstaSwap) state.swapPaid = true;
+      if (!step.queued && !triggered && !isCast(action, Cast.Outro)) {
+        state.lastOwn = result;
+        state.lastOwnCut = tag;
+        // a cut something may follow is read on its own cut frame (the enemy's `atCut`), behind
+        // whatever lands by then: the cut's delay after it is only the input
+        const enemy = state.enemy.resonator;
+        if (enemy?.atCut && TAKEN_CUTS.has(tag)) {
+          const check = (): void => asSource(enemy, () => enemy.atCut!(whole, tag));
+          insertByDue(state.timed, { ...timedEntry(castAt + whole.cost(tag).action, null, state.active, null, false, undefined, undefined, undefined, undefined), check });
+        }
+      }
     }
     // a queued follow-up's own turn doesn't stick — restore whoever was actually active,
     // unless the follow-up was itself an outro (genuinely advances the team)
@@ -1242,14 +1369,10 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
       // spliced in right after the action that queued them, i.e. at the read cursor. A follow-up
       // is never one of the casts a group names, whatever it was queued from; it belongs to
       // whatever beat spawned it — an engine event to nobody (`queueEvent`)
-      const queued: Step[] = [];
       // a follow-up lands with whatever queued it: a hit at its own frame (a tick's, a queued hit's),
       // a cast at its cast, a whole press at its hit rather than after the rest of its frames
       const from = split ? result.realStarts : result.ends;
-      const at = step.at ?? (from < state.real ? from : undefined);
-      for (const p of pendingQueue) queued.push(newStep(p.action, p.slot, p.by, null, false, p.event ? null : spillGroup, true, null, at));
-      steps.unshift(queued);
-      pendingQueue.length = 0;
+      takeQueued(steps, spillGroup, step.at ?? (from < state.real ? from : undefined));
     }
     // what waited for the next rotation press is cast right behind it, on its own frame
     // (`queueOnBehindNext()`) — never behind the press that queued it
@@ -1270,12 +1393,41 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
 
 /** The cuts that play up to the cut frame (`cutFrame`) — pointless on a press whose cut frame an
  *  insta cut (6f) already reaches, so writing one there throws. */
-const SLOW_CUTS = new Set<string>([ActionTag.Cancel, ActionTag.MashCancel, ActionTag.DodgeCancel, ActionTag.JumpCancel, ActionTag.SwapCancel]);
+const SLOW_CUTS = new Set<string>([ActionTag.Cancel, ActionTag.DodgeCancel, ActionTag.JumpCancel, ActionTag.SwapCancel]);
 /** What each of those is written as instead, cut insta. */
 const INSTA_OF: Partial<Record<ActionTag, string>> = {
   [ActionTag.Cancel]: ".instaCancel()", [ActionTag.MashCancel]: ".instaCancel()", [ActionTag.HoldCancel]: ".instaCancel()", [ActionTag.DodgeCancel]: ".instaDodge()",
   [ActionTag.JumpCancel]: ".instaJump()", [ActionTag.SwapCancel]: ".instaSwap()",
 };
+
+/** The cuts weighed against the priority of the press they cut (`checkPriority()`); a hold or a mash
+ *  waits for it instead (`Action.letGo()`), and a swap answers to no-swap frames. */
+const PRIORITY_CUTS = new Set<string>([ActionTag.Cancel, ActionTag.DodgeCancel, ActionTag.JumpCancel, ActionTag.InstaCancel,
+  ActionTag.InstaDodge, ActionTag.InstaJump, ActionTag.HitCancel, ActionTag.DodgeOnHit, ActionTag.JumpOnHit]);
+
+/** `by` cuts `press` only with a cast priority above `press`'s own at the frame `by` starts on —
+ *  the cut and its delay played. Nothing is checked where either side declares none. */
+function checkPriority(press: Action, cut: ActionTag | null, by: Action | null): void {
+  const cast = by?.cutIn ?? null;
+  if (cast === null) return;
+  const c = press.cost(cut), at = c.action + c.global, tier = press.priorityAt(at);
+  if (cast <= tier) throw new Error(`${press.name}: ${cut ?? press.tag} into ${by!.name} at frame ${at} — its cast priority ${cast} doesn't beat ${tier} there`);
+}
+
+/** A hold or mash cancel lets go short of its press's end — a mash's input delay played — or it
+ *  saves nothing over playing the press out. */
+function checkHoldCut(press: Action, kind: ActionTag, cut: number): void {
+  if (!press.animFrames) return;
+  if (cut >= press.animFrames) {
+    throw new Error(`${press.name}: its ${kind} lets go at frame ${cut} of ${press.animFrames}, saving nothing over playing it out`);
+  }
+}
+
+/** The cuts the enemy's `takesCut` is asked behind on the rotation's next step — a dodge cut is
+ *  asked on its own dash instead. */
+const STEP_CUTS = new Set<string>([ActionTag.SwapCancel, ActionTag.Cancel, ActionTag.HitCancel, ActionTag.InstaCancel]);
+/** Every cut the enemy's `takesCut` is asked behind, each read first on its own cut frame (`atCut`). */
+const TAKEN_CUTS = new Set<string>([...STEP_CUTS, ActionTag.DodgeCancel, ActionTag.InstaDodge, ActionTag.DodgeOnHit]);
 
 /** The cuts weighed against the press they cut (`checkCutLength()`) — not an insta swap, which
  *  may run past a short press. */
@@ -1293,8 +1445,8 @@ function checkCutLength(base: Action, kind: ActionTag): void {
  *  the gauges it walked in with. The damage and motion value sum across its hits; the stats, buffs
  *  and gauge readings are the last one's — what the bars held once its last bullet was in. */
 const CAST_KEEPS = new Set(["action", "member", "slot", "triggered", "group", "groupEnd", "groupSpill", "source", "queued",
-  "frame", "realStarts", "frames", "tag", "active", "timestopBanked", "holdPaid", "endsLoop", "castUnmet", "realEnergyBefore",
-  "energyBefore", "concertoBefore", "offtuneBefore", "forteBefore", "castGain", "castAdds", "seq", "gaugeLog"]);
+  "frame", "realStarts", "frames", "tag", "active", "timestopBanked", "holdPaid", "holdCut", "endsLoop", "castUnmet", "buffUnmet", "buffForbidden", "buffSources", "realEnergyBefore",
+  "energyBefore", "concertoBefore", "offtuneBefore", "forteBefore", "gain", "adds", "seq", "gaugeLog"]);
 
 /** One step of a press — its cast, or one of its hits — and what it moved: energy, concerto,
  *  off-tune, forte 1-5. */
@@ -1340,6 +1492,78 @@ export function settleGauges(rows: ResolvedSnapshot[]): void {
   }
 }
 
+/** A hold or mash cancel whose next press needs (or can't have) a buff it found wrong at the cast: `press` (the
+ *  whole press) held from real frame `start` for `cut` frames at the most, let go no sooner than `least` —
+ *  `paid` frames in, where its bars and window let the next press follow. */
+export interface HoldWatch {
+  press: Action; owner: TeamMember; next: Action; kind: ActionTag; start: number; least: number; paid: number; cut: number; playsToBefore: number; result: Result | null;
+}
+
+/** Let a watched hold go (`HoldWatch`) once its next press's buffs stand: the next press starts
+ *  there, and its bullets not committed by then never land. */
+function settleHold(state: State): void {
+  const w = state.holdWatch;
+  if (!w?.result) return;
+  const end = w.start + w.cut;
+  if (state.real >= end) {
+    state.holdWatch = null;
+    checkHoldCut(w.press, w.kind, w.cut);
+    return;
+  }
+  if (w.next.buffsUnmet(state, w.owner) || w.next.buffsForbidden(state, w.owner)) return;
+  state.holdWatch = null;
+  // the buff landing is the last thing to give way where it lands after the bars and the window:
+  // a mash's input lands `MASH_DELAY` after it, as after either of those
+  const paid = Math.max(w.paid, state.real - w.start);
+  const at = Math.min(end, Math.max(w.least, state.real + (w.kind === ActionTag.MashCancel ? MASH_DELAY : 0))), cut = at - w.start;
+  checkHoldCut(w.press, w.kind, cut);
+  if (state.playsTo === end) state.playsTo = Math.max(w.playsToBefore, at);
+  let last = at;
+  state.timed = state.timed.filter((h) => {
+    if (h.into !== w.result || h.action?.half !== "hit") return true;
+    if (w.press.bullets[h.action.hitIndex]!.commitFrame > cut) return false;
+    last = Math.max(last, h.due);
+    return true;
+  });
+  const frames = cut - Math.min(cut, state.frozenWithin(w.start, at));
+  for (const h of state.timed) {
+    if (h.into !== w.result) continue;
+    if (h.action?.half === "end") h.due = last;
+    h.frames = frames;
+  }
+  sortByDue(state.timed);
+  const row = w.result as Partial<ResolvedSnapshot>;
+  if (row.frames !== undefined) {
+    row.frames = frames;
+    row.holdPaid = paid;
+    row.holdCut = cut;
+  }
+}
+
+/** Unmet cast conditions already warned: one line per team, member, press and condition. */
+const warned = new Set<string>();
+/** Warn that `action` was cast outside its concerto, forte or buff condition — once per team. */
+function warnUnmet(state: State, slot: TeamMember, action: Action, bars: boolean[] | null, buffs: Gear[] | null, forbidden: Gear[] | null): void {
+  const what: string[] = [];
+  for (let k = 1; k < 7; k++) {
+    if (!bars?.[k]) continue;
+    // concerto in points, a forte gauge in its resonator's own units
+    const min = action.castMin?.[k] ?? -Infinity, scale = k === 1 ? 100 : 1 / (slot.resonator?.forteScale[k - 2] ?? 1);
+    const has = k === 1 ? slot.concerto : slot.forte[k - 2]!;
+    const need = min > -Infinity ? `>= ${min / scale}` : `<= ${action.castMax![k]! / scale}`;
+    what.push(`${k === 1 ? "concerto" : `forte${k - 1}`} ${has / scale} (needs ${need})`);
+  }
+  for (const b of buffs ?? []) what.push(`buff ${b.name}`);
+  const under = (forbidden ?? []).map((b) => `buff ${b.name}`);
+  if (!what.length && !under.length) return;
+  const team = state.slots.map((m) => m.name).join(" / ");
+  const key = `${team}|${slot.name}|${action.name}|${what.join(",")}|${under.join(",")}`;
+  if (warned.has(key)) return;
+  warned.add(key);
+  const parts = [what.length ? `without ${what.join(", ")}` : "", under.length ? `under ${under.join(", ")}` : ""].filter(Boolean);
+  console.warn(`[${team}] ${slot.name}: ${action.name} cast ${parts.join(" and ")}`);
+}
+
 /** Walk the clock toward where the last press ends, stopping at the first queued hit due before
  *  then: the timers run up to it, and it lands there. True while the walk is still short of its end. */
 function walk(state: State, steps: StepQueue, spillGroup: ActionGroup | null): boolean {
@@ -1357,48 +1581,28 @@ function walk(state: State, steps: StepQueue, spillGroup: ActionGroup | null): b
     const stop = Math.max(0, Math.min(to, state.motionUntil) - Math.max(thaw, state.motionFrom));
     ctx.state = state;
     ctx.slot = state.slot;
-    state.runTicks(gameFrom, state.gameOf(to), stop, (game) => thaw + game - gameFrom);
+    state.runTicks(gameFrom, state.gameOf(to), stop, thaw);
     state.setReal(to);
     state.expireBuffs();
+    settleHold(state);
     if (pendingQueue.length) takeQueued(steps, spillGroup, undefined);
     if (to < state.playsTo) return true;
   }
   return false;
 }
 
-/** A press whose dodge something took the place of (`replaceNextDash()`): the dodge step goes, the
- *  group it closed closing on the press instead, and the press's row reads the cut it became. */
-function dropDash(steps: StepQueue, row: Result | null | undefined): boolean {
-  const dash = steps.peek();
-  let ends = false;
-  if (dash && (dash.action as unknown as DashMarker).after !== undefined) {
-    steps.take();
-    ends = dash.end;
-    if (ends) ctx.insideGroup = false;
-  }
-  if (row) {
-    (row as unknown as { tag: string }).tag = ctx.dashReplaced;
-    if (ends) {
-      row.groupEnd = true;
-      row.dashDropped = true;
-    }
-  }
-  ctx.dashReplaced = "";
-  return ends;
-}
-
-/** A queued cast that waits out the press playing (`ActionDef.afterPlay`) — the cast, not its parts. */
-const waitsPlay = (step: Step): boolean => step.action.afterPlay && step.action.half === null;
-
 /** What the last hook queued (`pendingQueue`), put in front of the steps — at `at` where given. */
 function takeQueued(steps: StepQueue, spillGroup: ActionGroup | null, at: number | undefined): void {
-  const queued: Step[] = [];
-  for (const q of pendingQueue) {
-    const spill = q.event ? null : spillGroup;
-    queued.push(newStep(q.action, q.slot, q.by, null, false, spill, true, null, at));
-  }
-  steps.unshift(queued);
+  steps.unshift(pendingQueue.map((q) => queuedStep(q, spillGroup, at)));
   pendingQueue.length = 0;
+}
+
+/** A step for one queued cast: an engine event (`queueEvent()`) is nobody's spill, and waits out the
+ *  press playing to go where the clock then is. */
+function queuedStep(q: (typeof pendingQueue)[number], spillGroup: ActionGroup | null, at: number | undefined): Step {
+  const step = newStep(q.action, q.slot, q.by, null, false, q.event ? null : spillGroup, true, null, q.event ? undefined : at);
+  step.event = q.event;
+  return step;
 }
 
 /** A step with every field set, in one order — `run()` then reads one shape. `from`: the clock entry it
@@ -1408,11 +1612,10 @@ function newStep(
   cut: ActionTag | null, at: number | undefined = undefined, from: Timed | null = null, hold = false,
 ): Step {
   return {
-    // one cast once the press playing has run out goes where the clock then is
-    action, slot, by, group, end, spill, queued, cut, at: action.afterPlay && !from ? undefined : at,
-    into: from ? from.into : undefined, away: from ? from.away : undefined, losses: from ? from.losses : undefined,
+    action, slot, by, group, end, spill, queued, event: false, cut, at,
+    into: from ? from.into : undefined, away: from ? from.away : undefined,
     frames: from ? from.frames : undefined, closes: from ? from.closes : undefined, triggered: from ? from.triggered : undefined, endCut: from?.cut,
-    hold, waited: false,
+    hold, waited: false, holdShift: undefined,
   };
 }
 
@@ -1426,7 +1629,7 @@ function outroLanding(state: State, slot: TeamMember, due: number): Timed {
   const land = (): void => {
     for (const gear of state.outroQueue.splice(0)) slot.addStack(gear, 1);
   };
-  return timedEntry(due, null, state.active, null, undefined, land, undefined, undefined, undefined, undefined);
+  return timedEntry(due, null, state.active, null, undefined, land, undefined, undefined, undefined);
 }
 
 /** The popover's three rosters (`heldPools`), named at the counts the stat phases ran with. */
@@ -1473,11 +1676,18 @@ function anyNonZero(list: number[]): boolean {
 
 /** One row's average damage for `action` — a variant's, off its own totals. */
 function avgOf(action: Action, eff: StatRow): number {
-  return damageAvgOf(
-    action, eff,
-    foldStat(eff, Stat.BaseAtk, Stat.BonusAtk, Stat.FlatAtk),
-    foldStat(eff, Stat.BaseHp, Stat.BonusHp, Stat.FlatHp),
-    foldStat(eff, Stat.BaseDef, Stat.BonusDef, Stat.FlatDef),
+  factorsOf(ONE, 0, action.scaling, eff);
+  return avgFromFactors(ONE, 0, action.scaling, action.mv);
+}
+
+/** A row's damage factors (`damageFactorsInto()`) into `out[k...]` — folding only the one stat the
+ *  scaling reads. */
+function factorsOf(out: Float64Array, k: number, scaling: Scaling | null, eff: StatRow): void {
+  damageFactorsInto(
+    out, k, scaling, eff,
+    scaling === Scaling.Atk ? foldStat(eff, Stat.BaseAtk, Stat.BonusAtk, Stat.FlatAtk) : 0,
+    scaling === Scaling.Hp ? foldStat(eff, Stat.BaseHp, Stat.BonusHp, Stat.FlatHp) : 0,
+    scaling === Scaling.Def ? foldStat(eff, Stat.BaseDef, Stat.BonusDef, Stat.FlatDef) : 0,
     eff[Stat.Amp]!, eff[SUBTYPE_AMP_INDEX]!, eff[Stat.DmgBonus]!,
     eff[SUBTYPE_CRIT_RATE_INDEX]!, eff[SUBTYPE_CRIT_DMG_INDEX]!,
     eff[SUBTYPE_TOTAL_DMG_INDEX]!, eff[SUBTYPE_DAMAGE_TAKEN_INDEX]!,
@@ -1485,30 +1695,38 @@ function avgOf(action: Action, eff: StatRow): number {
   );
 }
 
+/** What a row reads off the last hit that dealt something: a marker bullet landing after it moves
+ *  the gauges but leaves the stats the damage paid on. */
+const DAMAGE_KEEPS = new Set(["type", "stat", "stats", "atk", "hp", "def", "amp", "subtypeAmp", "subtypeCritRate", "subtypeCritDmg",
+  "subtypeTotalDmg", "subtypeDamageTaken", "dmgBonus", "enemyRes", "enemyDef", "entries", "heldLocal", "heldGlobal", "heldEnemy"]);
+
 /** Add one of a split press's hits, landed at `at`, into its cast row. */
 function landHit(row: Result, hit: Result, at: number): void {
   // the first hit replaces what the cast dealt; each after it adds on
-  const summed = row.hitAt !== undefined, avg = row.avg, mv = row.mv, variantAvg = row.variantAvg;
+  const summed = row.hitAt !== undefined, avg = row.avg, mv = row.mv;
   if (ctx.tracing) {
     const r = row as unknown as Record<string, unknown>, h = hit as unknown as Record<string, unknown>;
     const fields = r.opensFields as ActionField[] | undefined;
     const steps = (r.gaugeLog as GaugeStep[] | undefined) ?? [{ seq: r.seq as number, delta: gaugeDelta(row as ResolvedSnapshot) }];
     steps.push({ seq: h.seq as number, delta: gaugeDelta(hit as ResolvedSnapshot) });
-    for (const k of Object.keys(h)) if (!CAST_KEEPS.has(k)) r[k] = h[k];
+    const marker = hit.action.mv === 0 && summed && mv !== 0;
+    for (const k of Object.keys(h)) if (!CAST_KEEPS.has(k) && !(marker && DAMAGE_KEEPS.has(k))) r[k] = h[k];
     r.gaugeLog = steps;
+    // what hooks added sums over the press, every part's own
+    const g = r.gain as number[] | null, hg = h.gain as number[] | null;
+    if (hg) r.gain = g ? g.map((v, n) => v + hg[n]!) : hg.slice();
+    r.adds = [...(r.adds as GainAdd[]), ...(h.adds as GainAdd[])];
     if (fields) r.opensFields = [...fields, ...(h.opensFields as ActionField[])];
   } else {
     // a lean row carries only these past what it keeps of its cast
     row.mv = hit.mv;
     row.avg = hit.avg;
-    row.variantAvg = hit.variantAvg;
     row.starts = hit.starts;
     row.ends = hit.ends;
   }
   if (summed) {
     row.avg += avg;
     row.mv += mv;
-    if (row.variantAvg && variantAvg) row.variantAvg = row.variantAvg.map((v, n) => v + variantAvg[n]!);
   }
   row.hitAt = at;
 }
@@ -1552,7 +1770,7 @@ const chainHeadOf = (i: number): number => (chainHeadKey[i] === chainKey ? chain
 
 const RESOURCE_LIST = Int32Array.from(RESOURCE_STATS);
 
-/** Per scaling, the row indices `damageAvgOf` reads: a variant moving none of them deals what the
+/** Per scaling, the row indices `damageFactorsInto` reads: a variant moving none of them deals what the
  *  real build deals. */
 const DAMAGE_READS: boolean[][] = (() => {
   const atk = [Stat.BaseAtk, Stat.BonusAtk, Stat.FlatAtk], hp = [Stat.BaseHp, Stat.BonusHp, Stat.FlatHp], def = [Stat.BaseDef, Stat.BonusDef, Stat.FlatDef];
@@ -1568,20 +1786,18 @@ const DAMAGE_READS: boolean[][] = (() => {
 
 const patchAt: number[] = [], patchWas: number[] = [];
 
-/** A pure variant's damage on the action being evaluated, without building its row: the indices its
- *  main-stat piece moves (`diff`) are worked out exactly as `sparseRow` would, and where one the
- *  formula reads differs they are put into the real build's finished row `from` for the formula and
- *  taken back out. NaN where it deals what the real build deals. Marks the variant unsafe where a
- *  resource index moved, as `resourceMoved` does. */
-function scoreVariant(slot: TeamMember, v: number, action: Action, diff: number[], vbase: StatRow, from: StatRow, pre: StatRow, k1: number): number {
+/** A pure variant's damage factors into `out[k...]`, its moved indices (as `sparseRow` works them) patched
+ *  into `from` and back out. False where it deals what the real build deals; unsafe where a resource moved. */
+function variantFactors(slot: TeamMember, v: number, scaling: Scaling | null, diff: number[], vbase: StatRow, from: StatRow, pre: StatRow,
+  out: Float64Array, k: number): boolean {
   chainJournal();
-  const value = replay.value;
-  const reads = action.scaling === null ? null : DAMAGE_READS[action.scaling]!;
+  const value = replay.value, k1 = replay.length;
+  const reads = scaling === null ? null : DAMAGE_READS[scaling]!;
   let moved = false, dealt = false;
   for (let d = 0; d < diff.length; d++) {
     const i = diff[d]!;
     let x = pre[i]! + vbase[i]!;
-    for (let k = chainHeadOf(i); k >= 0 && k < k1; k = chainNext[k]!) x = x + value[k]!;
+    for (let j = chainHeadOf(i); j >= 0 && j < k1; j = chainNext[j]!) x = x + value[j]!;
     patchAt[d] = x;
     if (x !== from[i]) {
       if (RESOURCE_MASK[i]) moved = true;
@@ -1589,16 +1805,90 @@ function scoreVariant(slot: TeamMember, v: number, action: Action, diff: number[
     }
   }
   if (moved) slot.variantUnsafe[v] = true;
-  // nothing it deals moves, or a hit of no motion value at all: the real build's figure
-  if (!dealt || (action.mv === 0 && from[Stat.AddMv] === 0 && !diff.includes(Stat.AddMv))) return NaN;
+  if (!dealt) return false;
   for (let d = 0; d < diff.length; d++) {
     const i = diff[d]!;
     patchWas[d] = from[i]!;
     from[i] = patchAt[d]!;
   }
-  const avg = avgOf(action, from);
+  factorsOf(out, k, scaling, from);
   for (let d = 0; d < diff.length; d++) from[diff[d]!] = patchWas[d]!;
-  return avg;
+  return true;
+}
+
+/** Whether variant `v` deals what the real build does at motion value `mv`: it moves nothing the
+ *  formula reads, or the hit has no motion value and the variant adds none. */
+const dealsPrimary = (dealt: boolean, mv: number, from: StatRow, at: VariantAt, v: number): boolean =>
+  !dealt || (mv === 0 && from[Stat.AddMv] === 0 && !at.addMv[v]);
+
+const ONE = new Float64Array(FACTOR_COUNT);
+
+/** Variant `v`'s damage on the action being evaluated, worked out alone (`variantFactors()`). */
+function scoreVariant(slot: TeamMember, v: number, action: Action, at: VariantAt, from: StatRow, pre: StatRow): number {
+  const dealt = variantFactors(slot, v, action.scaling, at.diffs[v]!, at.bases[v]!, from, pre, ONE, 0);
+  return dealsPrimary(dealt, action.mv, from, at, v) ? avgOf(action, from) : avgFromFactors(ONE, 0, action.scaling, action.mv);
+}
+
+/** Every variant's damage, none re-run dry: their factors are worked out once for what the part reads
+ *  (`VariantMemo`, kept per tag word), and each part's own motion value goes over them. */
+function scoreVariants(slot: TeamMember, action: Action, at: VariantAt, from: StatRow, pre: StatRow, base: StatRow | null): number[] {
+  const n = slot.variants.length, scaling = action.scaling, mv = action.mv;
+  let memo = at.memo, fresh = false;
+  if (memo === null || !memoHolds(memo, scaling, from, pre, base)) {
+    const prev = at.memo2;
+    if (prev !== null && memoHolds(prev, scaling, from, pre, base)) {
+      at.memo2 = memo;
+      at.memo = memo = prev;
+    } else {
+      memo = keep(at, n, scaling, from, pre, base);
+      fresh = true;
+      factorsOf(memo.factors, n * FACTOR_COUNT, scaling, from);
+      for (let v = 0; v < n; v++) memo.dealt[v] = variantFactors(slot, v, scaling, at.diffs[v]!, at.bases[v]!, from, pre, memo.factors, v * FACTOR_COUNT);
+    }
+  }
+  if (!fresh && memo.out !== null && memo.mv === mv) return memo.out;
+  const f = memo.factors, primary = avgFromFactors(f, n * FACTOR_COUNT, scaling, mv);
+  const out: number[] = [];
+  for (let v = 0; v < n; v++) out.push(dealsPrimary(memo.dealt[v]!, mv, from, at, v) ? primary : avgFromFactors(f, v * FACTOR_COUNT, scaling, mv));
+  memo.mv = mv;
+  memo.out = out;
+  return out;
+}
+
+/** Whether `memo` was worked out off exactly what the part being evaluated reads. */
+function memoHolds(memo: VariantMemo, scaling: Scaling | null, eff: StatRow, pre: StatRow, base: StatRow | null): boolean {
+  if (memo.scaling !== scaling || memo.length !== replay.length) return false;
+  const index = replay.index, value = replay.value;
+  for (let k = 0; k < memo.length; k++) if (memo.index[k] !== index[k] || memo.value[k] !== value[k]) return false;
+  // the very constant base with nothing written ahead of it, then the very same journal: the same rows
+  if (base !== null && base === memo.base && pre === ZERO_STATS && memo.zeroPre) return true;
+  const mEff = memo.eff, mPre = memo.pre;
+  for (let i = 0; i < eff.length; i++) if (mEff[i] !== eff[i] || mPre[i] !== pre[i]) return false;
+  return true;
+}
+
+/** `at`'s memo, set to what the part being evaluated reads — its factors still to fill — the one it
+ *  replaces kept second. */
+function keep(at: VariantAt, n: number, scaling: Scaling | null, eff: StatRow, pre: StatRow, base: StatRow | null): VariantMemo {
+  const memo = at.memo2 ?? {
+    scaling, eff: statRow(), pre: statRow(), index: [], value: [], length: 0, factors: new Float64Array((n + 1) * FACTOR_COUNT), dealt: [], mv: 0, out: null,
+    base: null, zeroPre: false,
+  };
+  at.memo2 = at.memo;
+  at.memo = memo;
+  memo.scaling = scaling;
+  memo.out = null;
+  memo.base = base;
+  memo.zeroPre = pre === ZERO_STATS;
+  memo.eff.set(eff);
+  memo.pre.set(pre);
+  const len = replay.length;
+  for (let k = 0; k < len; k++) {
+    memo.index[k] = replay.index[k]!;
+    memo.value[k] = replay.value[k]!;
+  }
+  memo.length = len;
+  return memo;
 }
 
 /** Whether a variant's row banks a resource differently from the real build's `from` — only its
@@ -1611,8 +1901,6 @@ function resourceMoved(diff: number[], eff: StatRow, from: StatRow): boolean {
 const RESOURCE_MASK: boolean[] = Array.from(ZERO_STATS, () => false);
 for (const s of RESOURCE_STATS) RESOURCE_MASK[s] = true;
 
-const ADD_FORTE = [Stat.AddForte1, Stat.AddForte2, Stat.AddForte3, Stat.AddForte4, Stat.AddForte5];
-
 const capList: Gear[][] = [[], [], []];
 const capCounts: number[][] = [[], [], []];
 const capHooks: number[][][] = [[], [], []];
@@ -1622,6 +1910,8 @@ const capFns: (() => void)[][][] = [[], [], []];
  *  only ever in one pool — a self buff is local, a team buff global, a debuff on the enemy — so
  *  the three are simply visited in turn, local first. */
 let capSlot: TeamMember | null = null, capState: State | null = null, capVersion = -1;
+/** The phases (bit per phase) some captured Gear has a hook for. */
+let capPhases = 0;
 function capture(slot: TeamMember, state: State): void {
   // the pools' arrays are only ever replaced, so unchanged ones are the very arrays captured last
   if (slot === capSlot && state === capState && ctx.poolVersion === capVersion) return;
@@ -1634,22 +1924,23 @@ function capture(slot: TeamMember, state: State): void {
   capList[1] = pool.list; capCounts[1] = pool.counts; capHooks[1] = pool.hooks; capFns[1] = pool.fns;
   pool = state.enemyStacks;
   capList[2] = pool.list; capCounts[2] = pool.counts; capHooks[2] = pool.hooks; capFns[2] = pool.fns;
+  capPhases = slot.stacks.phases | state.globalStacks.phases | pool.phases;
 }
 
 /** Every captured Gear's constantStats summed into a fresh array, in roster order — the slot's
- *  own cached base for one tag word. With `from`/`to`, the one Gear `from` (a held main-stat Buff)
- *  is stood in for by `to` at the very same position — and `from2` by `to2` likewise, the substat
- *  tier a variant's ER moves — so a variant's base is built by exactly the additions, in exactly
- *  the order, a real run wearing them would make. */
-function constBaseOf(slot: TeamMember, from: Gear | null, to: Gear | null, from2: Gear | null = null, to2: Gear | null = null): StatRow {
+ *  own cached base for one tag word. With `swaps`, each held piece a variant swaps (a main stat, a
+ *  set piece, the substat tier its ER moves) is stood in for by its own at the very same position,
+ *  so a variant's base is built by exactly the additions, in exactly the order, a real run wearing
+ *  them would make. */
+function constBaseOf(slot: TeamMember, swaps: readonly PieceSwap[] | null): StatRow {
   const live = slot.effective;
   slot.effective = statRow();
   for (let q = 0; q < 3; q++) {
     const list = capList[q]!, counts = capCounts[q]!, hooks = capHooks[q]![6]!;
     for (let i = 0, m = hooks.length; i < m; i++) {
       const k = hooks[i]!;
-      const g = list[k]!;
-      const gear = g === from ? to! : g === from2 ? to2! : g;
+      let gear = list[k]!;
+      if (swaps) gear = swapped(gear, swaps);
       ctx.buff = gear; ctx.stacks = counts[k]!;
       gear.constantStatsFn!();
     }
@@ -1666,7 +1957,7 @@ function constBaseOf(slot: TeamMember, from: Gear | null, to: Gear | null, from2
 interface CachedBase { row: StatRow; wrote: number; buff: Gear | null; stacks: number }
 /** Per constant roster (keyed by its Gear ids and counts), its bases by tag word and stand-ins —
  *  `plain` the ones with no stand-in, by tag word alone, the commonest lookup by far. */
-interface Roster { any: boolean; bases: Map<string, CachedBase>; plain: Map<number, CachedBase> }
+interface Roster { any: boolean; bases: Map<string, CachedBase>; plain: Map<number, CachedBase>; variants: Map<string, VariantBases> }
 const ROSTERS = new Map<string, Roster>();
 let rosterBases = 0;
 /** A slot's constant roster only moves when `ctx.constVersion` does, so it is looked up once per version. */
@@ -1686,18 +1977,18 @@ function rosterOf(slot: TeamMember): Roster {
     rosterBases = 0;
   }
   let roster = ROSTERS.get(key);
-  if (!roster) ROSTERS.set(key, (roster = { any, bases: new Map(), plain: new Map() }));
+  if (!roster) ROSTERS.set(key, (roster = { any, bases: new Map(), plain: new Map(), variants: new Map() }));
   SLOT_ROSTERS.set(slot, { version: ctx.constVersion, roster });
   return roster;
 }
-function cachedBase(slot: TeamMember, from: Gear | null, to: Gear | null, from2: Gear | null, to2: Gear | null): StatRow {
+function cachedBase(slot: TeamMember, swaps: readonly PieceSwap[] | null): StatRow {
   const roster = rosterOf(slot);
-  const plain = from === null && to === null && from2 === null && to2 === null;
-  const key = plain ? "" : `${ctx.tagWord}#${from?.id ?? 0}>${to?.id ?? 0}#${from2?.id ?? 0}>${to2?.id ?? 0}`;
+  const plain = swaps === null;
+  const key = plain ? "" : `${ctx.tagWord}#${swapKey(swaps)}`;
   let hit = plain ? roster.plain.get(ctx.tagWord) : roster.bases.get(key);
   if (hit === undefined) {
     const wrote = ctx.wrote;
-    const row = constBaseOf(slot, from, to, from2, to2);
+    const row = constBaseOf(slot, swaps);
     hit = { row, wrote: ctx.wrote - wrote, buff: roster.any ? ctx.buff : null, stacks: ctx.stacks };
     if (plain) roster.plain.set(ctx.tagWord, hit);
     else roster.bases.set(key, hit);
@@ -1712,25 +2003,56 @@ function cachedBase(slot: TeamMember, from: Gear | null, to: Gear | null, from2:
   return hit.row;
 }
 
+/** The slot's variants' bases for the tag word being evaluated and where each differs from the real
+ *  build's — fixed by the constant roster and the pieces swapped, so made once for every run. */
+function variantBasesOf(slot: TeamMember): VariantBases {
+  const roster = rosterOf(slot);
+  const key = `${ctx.tagWord}#${slot.variantKey ??= slot.variants.map(swapKey).join(",")}`;
+  let made = roster.variants.get(key);
+  if (made) return made;
+  const base = slot.constBase.get(ctx.tagWord)!;
+  made = { bases: [], diffs: [], union: [], addMv: [] };
+  for (let v = 0; v < slot.variants.length; v++) {
+    const vbase = cachedBase(slot, slot.variants[v]!), diff: number[] = [];
+    for (let i = 0; i < vbase.length; i++) if (vbase[i] !== base[i]) diff.push(i);
+    made.bases.push(vbase);
+    made.diffs.push(diff);
+    made.addMv.push(diff.includes(Stat.AddMv));
+    for (const i of diff) if (!made.union.includes(i)) made.union.push(i);
+  }
+  roster.variants.set(key, made);
+  rosterBases++;
+  return made;
+}
+
+/** The piece `swaps` stand in for `gear`, else `gear` itself. */
+function swapped(gear: Gear, swaps: readonly PieceSwap[]): Gear {
+  for (const [from, to] of swaps) if (gear === from) return to;
+  return gear;
+}
+const swapKey = (swaps: readonly PieceSwap[]): string => swaps.map(([from, to]) => `${from.id}>${to.id}`).join("+");
+
 /** Run one phase's hook on every captured Gear that has it, with the "current" pointers aimed at
  *  each in turn. `withStacks` hands each hook its own captured stack count (see `frozenStacks()`);
  *  afterAction runs without, reading the live count instead, since it is the one phase that
  *  runs after a gear may already have spent itself down. */
-/** Which of `runPhase()`'s phases run for the action being evaluated: a cast half only the cast's
- *  (`updateBuffs`, and the popover's constant stats), a queued hit only the hit's, a whole press both. */
-const CAST_PHASES = (1 << 1) | (1 << 6);
+/** Which of `runPhase()`'s phases run for the action being evaluated: a cast half the cast's
+ *  (`updateBuffs`) and no stat phase, a queued hit only the hit's, a whole press both. */
+const CAST_PHASES = 1 << 1;
 const HIT_PHASES = (1 << 0) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 6) | (1 << 7);
 /** The onHit grants, on a part that lands a hit. */
 const ON_HIT_PHASES = 1 << 8;
 const END_PHASES = 1 << 5;
 let phaseMask = CAST_PHASES | HIT_PHASES | ON_HIT_PHASES | END_PHASES;
 function runPhase(p: number, withStacks: boolean): void {
-  if (!((phaseMask >> p) & 1)) return;
+  if (!(((phaseMask & capPhases) >> p) & 1)) return;
   ctx.inStats = ((STAT_PHASES >> p) & 1) === 1;
+  ctx.inEnd = p === 5;
   try {
     runHooks(p, withStacks);
   } finally {
     ctx.inStats = false;
+    ctx.inEnd = false;
   }
 }
 /** applyStats, convertStats, lateConvertStats, constantStats: stats only. */
@@ -1753,10 +2075,18 @@ interface HookCall { fn: () => void; buff: Gear; stacks: number; r0: number; r1:
 const hookLog: HookCall[] = [];
 let hookLogLen = 0;
 
+/** Whether the part being evaluated has a conversion to run: its own, or a captured Gear's. */
+function hasConversions(action: Action): boolean {
+  if (action.convertStatsFn || action.lateConvertStatsFn) return true;
+  for (let q = 0; q < 3; q++) if (capHooks[q]![3]!.length || capHooks[q]![4]!.length) return true;
+  return false;
+}
+
 /** A conversion phase as `actionHook` + `runPhase` run it, each call logged (`hookLog`). */
 function logPhase(own: (() => void) | undefined, p: number): void {
   if (!((phaseMask >> p) & 1)) return;
   if (own) logCall(own, ctx.act!, 1);
+  if (!((capPhases >> p) & 1)) return;
   for (let q = 0; q < 3; q++) {
     const list = capList[q]!, counts = capCounts[q]!, hooks = capHooks[q]![p]!, fns = capFns[q]![p]!;
     for (let i = 0, m = hooks.length; i < m; i++) logCall(fns[i]!, list[hooks[i]!]!, counts[hooks[i]!]!);
@@ -1862,9 +2192,11 @@ function actionHook(fn: (() => void) | undefined, p: number): void {
   ctx.buff = ctx.act;
   ctx.stacks = 1;
   ctx.inStats = ((STAT_PHASES >> p) & 1) === 1;
+  ctx.inEnd = p === 5;
   try {
     fn();
   } finally {
     ctx.inStats = false;
+    ctx.inEnd = false;
   }
 }

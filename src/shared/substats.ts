@@ -52,9 +52,26 @@ const ROLL: Record<Substat, { stat: Stat; tag?: Tag; values: number[]; weights: 
   [Substat.Liberation]: { stat: Stat.DmgBonus, tag: Type.Liberation, values: PCT, weights: WEIGHTS, label: "Liberation" },
 };
 
+/** A substat's stat, value spread and line label, for the tuning simulator (src/tuning). */
+export const rollSpread = (s: Substat): Readonly<typeof ROLL[Substat]> => ROLL[s];
+
+/** One constant piece carrying exactly these rolled lines, `[stat, value]` each — the tuning
+ *  simulator's echoes, where every line has its own value rather than a percentile's. */
+export function rolledPiece(name: string, lines: readonly (readonly [Substat, number])[]): Buff {
+  const totals = new Map<Substat, number>();
+  for (const [s, v] of lines) totals.set(s, (totals.get(s) ?? 0) + v);
+  const entries = [...totals].map(([s, v]) => [ROLL[s].stat, v, ROLL[s].tag] as const);
+  return new Buff({
+    name,
+    constantStats: () => {
+      for (const [stat, value, tag] of entries) addStat(stat, value, tag);
+    },
+  });
+}
+
 /** What a roll of `s` is worth at percentile `p` of its own spread: the lowest value its weights
  *  carry `p` up to, so 0.5 is the median roll and 0.8 the one four rolls in five come under. */
-const rollAt = (s: Substat, p: number): number => {
+export const rollAt = (s: Substat, p: number): number => {
   const { values, weights } = ROLL[s];
   const target = p * weights.reduce((a, b) => a + b, 0);
   let seen = 0;
@@ -113,16 +130,23 @@ export class ErSpread {
   }
 }
 
-/** The spread `named` describes as one piece: `shape` rolls apiece in priority order, one roll of
- *  each of the eight left over. Named after the stats that tell two spreads apart — every one of
- *  them rolls crit, so crit is left out of the name. `ownEr` is whether the ER in `named` is the
- *  kit's own rather than a promotion's. */
-function spreadPiece(named: Substat[], shape: number[] = SHAPE, ownEr = false): Buff {
+/** How many rolls each substat takes in the spread `named` describes: `shape` rolls apiece in
+ *  priority order, one roll of each of the eight left over. */
+export function spreadCounts(named: readonly Substat[], shape: readonly number[] = SHAPE): Map<Substat, number> {
   const counts = new Map<Substat, number>();
   // only the first five take a share of the shape; a sixth is named for the hover's sake and takes
   // the single roll it would have had among the eight either way
   named.slice(0, shape.length).forEach((s, i) => counts.set(s, shape[i]!));
   for (let s = Substat.CritRate; s <= Substat.Liberation; s++) if (!counts.has(s)) counts.set(s, 1);
+  return counts;
+}
+
+/** The spread `named` describes as one piece: `shape` rolls apiece in priority order, one roll of
+ *  each of the eight left over. Named after the stats that tell two spreads apart — every one of
+ *  them rolls crit, so crit is left out of the name. `ownEr` is whether the ER in `named` is the
+ *  kit's own rather than a promotion's. */
+function spreadPiece(named: Substat[], shape: number[] = SHAPE, ownEr = false): Buff {
+  const counts = spreadCounts(named, shape);
   // the name is what the spread is spent on, so it reads the five that take `SHAPE` and not the
   // sixth, which is one roll named only so the hover leaves it lit. ER only reads as part of it
   // where the kit named it, however few rolls that is — promoted in to fill a bar the rotation
@@ -156,8 +180,14 @@ export const litStats = (maxEnergy: number): StatKey[] => (maxEnergy ? [Stat.ER]
  *  be paid for slack the build does not actually carry. */
 export const ER_TOLERANCE = 0.0; // tolerance removed for now.
 
-/** What one ER roll is worth on a ChemX32 spread — what the ER requirement is paid down in. */
-export const erRollValue = (): number => rollAt(Substat.Er, 0.5);
+/** The percentile every high-investment line rolls at: the highest at which an ER roll still lands
+ *  on 10%, the weight of every ER value up to 10 over the whole. */
+const HIGH_PERCENTILE = ROLL[Substat.Er].weights.filter((_, i) => ROLL[Substat.Er].values[i]! <= 10).reduce((a, b) => a + b, 0)
+  / ROLL[Substat.Er].weights.reduce((a, b) => a + b, 0);
+
+/** What one ER roll is worth on the spread a build wears — ChemX32's median, or the high-investment
+ *  percentile's — what the ER requirement is paid down in. */
+export const erRollValue = (highSubs = false): number => rollAt(Substat.Er, highSubs ? HIGH_PERCENTILE : 0.5);
 
 /** A build's rolls: the five stats named here, most important first, take 5/5/2/2/2 of the
  *  twenty-five and each of the other eight takes one. ER is one of those eight unless a kit
@@ -177,59 +207,61 @@ export function substats(sub1: Substat, sub2: Substat, sub3: Substat, sub4: Subs
   return new ErSpread(named, tiers);
 }
 
-/** The high-investment spread's own shape: six named stats in priority order, and a single roll
- *  for anything an ER promotion pushes past the end. 21 of the 25 rolls, or 22 once the bar's own
- *  ER line lands — the rest are left empty rather than spent on stats the kit has no use for. */
-const HIGH_SHAPE = [5, 5, 5, 3, 2, 1];
+/** The high-investment spread's own shape: seven named stats in priority order, and a single roll
+ *  for anything an ER promotion pushes past the end. 22 of the 25 rolls at every tier, since ER takes
+ *  a named stat's place rather than adding one — the rest are left empty rather than spent on stats
+ *  the kit has no use for. */
+const HIGH_SHAPE = [5, 5, 5, 3, 2, 1, 1];
 
 /** Where ER slots in when the bar wants more than its one line, against `HIGH_SHAPE`'s own places
  *  — the same rule ChemX32 follows, and it stops at three for the same reason. */
 const HIGH_PROMOTIONS: [number, number][] = [[2, 4], [3, 3]];
 
-/** One high-investment piece from the stats it names, in priority order. `last` is the sixth stat
- *  the kit asked for — a single roll wherever the tier puts it, and left out of the name; `ownEr`
- *  is whether the ER in `named` is the kit's own rather than a promotion's. */
-function highPiece(named: Substat[], last: Substat, ownEr = false): Buff {
+/** One high-investment piece from the stats it names, in priority order. `extras` are the sixth and
+ *  seventh stats the kit asked for — a single roll each wherever the tier puts them, and left out of
+ *  the name; `ownEr` is whether the ER in `named` is the kit's own rather than a promotion's. */
+function highPiece(named: Substat[], extras: Substat[], ownEr = false): Buff {
   const counts = new Map<Substat, number>();
   named.forEach((s, i) => counts.set(s, HIGH_SHAPE[i] ?? 1));
   for (const [s, n] of counts) if (n > 5) throw new Error(`highSubs(): ${ROLL[s].label} rolls ${n} times, a build has five echoes`);
   // ER reads as part of the build's name only where the kit named it, however few rolls that is;
   // promoted in for the bar it is the Energy tax the spread pays, not what the spread is
-  const labels = [...new Set(named.filter((s) => s > Substat.CritDmg && s !== last && (s !== Substat.Er || ownEr))
+  const labels = [...new Set(named.filter((s) => s > Substat.CritDmg && !extras.includes(s) && (s !== Substat.Er || ownEr))
     .map((s) => ROLL[s].label))];
-  const lines = [...counts].map(([s, n]) => [ROLL[s].stat, rollAt(s, 0.8) * n, ROLL[s].tag] as const);
+  const lines = [...counts].map(([s, n]) => [ROLL[s].stat, rollAt(s, HIGH_PERCENTILE) * n, ROLL[s].tag] as const);
   const piece = new Buff({
     name: `High Invest - ${labels.join(" ")}`,
     constantStats: () => { for (const [stat, value, tag] of lines) addStat(stat, value, tag); },
   });
-  ROLL_BUFFS.set(piece, rollBuffsOf("High Invest", counts, 0.8));
+  ROLL_BUFFS.set(piece, rollBuffsOf("High Invest", counts, HIGH_PERCENTILE));
   return piece;
 }
 
 /**
  * The high-investment spread (the "High Invest Substats" boxes, shown as "CN Subs" against the
- * default "ChemX32"): six distinct stats, most important first, taking 5/5/5/3/2/1 of the
- * twenty-five rolls at the 80th percentile rather than ChemX32's median. Crit is named here rather
- * than assumed — every one of these builds wants it, but not always at the top.
+ * default "ChemX32"): seven distinct stats, most important first, taking 5/5/5/3/2/1/1 of the
+ * twenty-five rolls at `HIGH_PERCENTILE` rather than ChemX32's median. Crit is named here rather
+ * than assumed — every one of these builds wants it, but not always at the top. The sixth and
+ * seventh are single rolls of whatever the kit still deals a little of, the better of the two sixth.
  *
  * ER works exactly as it does on ChemX32: a kit that names it holds whatever slot it named, and a
  * kit that does not gets one line for the bar (none at all where the Liberation costs nothing) and
- * is promoted to two or three only where the rotation cannot fill without. A promotion inserts ER
- * at that place and shifts the rest right, the last of them down to a single roll.
+ * is promoted to two or three only where the rotation cannot fill without. ER is inserted at its
+ * place and every stat below it shifts down one, the seventh off the end.
  */
-export function highSubs(sub1: Substat, sub2: Substat, sub3: Substat, sub4: Substat, sub5: Substat, sub6: Substat): ErSpread {
-  const named = [sub1, sub2, sub3, sub4, sub5, sub6];
-  if (new Set(named).size !== 6) throw new Error(`highSubs(${named.join(", ")}): six distinct stats`);
+export function highSubs(sub1: Substat, sub2: Substat, sub3: Substat, sub4: Substat, sub5: Substat, sub6: Substat, sub7: Substat): ErSpread {
+  const named = [sub1, sub2, sub3, sub4, sub5, sub6, sub7];
+  if (new Set(named).size !== 7) throw new Error(`highSubs(${named.join(", ")}): seven distinct stats`);
   const own = named.indexOf(Substat.Er);
-  // a kit that named ER wears all six as written: there ER is the build, not the bar's own tax
-  if (own >= 0) return new ErSpread(named, [{ rolls: HIGH_SHAPE[own]!, piece: highPiece(named, sub6, true) }]);
-  // everyone else pays for their bar out of the sixth slot rather than on top of it, so the ER line
-  // takes `sub6`'s place and every tier stays six stats long. Only a kit with no Liberation to pay
-  // for (`maxEnergy: 0`, the `noEr` piece) actually gets the sixth stat it asked for.
-  const five = named.slice(0, 5);
+  // a kit that named ER wears all seven as written: there ER is the build, not the bar's own tax
+  if (own >= 0) return new ErSpread(named, [{ rolls: HIGH_SHAPE[own]!, piece: highPiece(named, [sub6, sub7], true) }]);
+  // everyone else pays for their bar inside the seven rather than on top of them: the ER line goes in
+  // sixth and pushes `sub6` to the last, `sub7` off it. Only a kit with no Liberation to pay for
+  // (`maxEnergy: 0`, the `noEr` piece) wears all seven it asked for.
+  const six = named.slice(0, 6);
   return new ErSpread(named, [
-    { rolls: 1, piece: highPiece([...five, Substat.Er], sub6) },
+    { rolls: 1, piece: highPiece([...six.slice(0, 5), Substat.Er, sub6], [sub6, sub7]) },
     ...HIGH_PROMOTIONS.map(([rolls, place]) => (
-      { rolls: rolls!, piece: highPiece([...five.slice(0, place), Substat.Er, ...five.slice(place)], sub6) })),
-  ], highPiece(named, sub6));
+      { rolls: rolls!, piece: highPiece([...six.slice(0, place), Substat.Er, ...six.slice(place)], [sub6, sub7]) })),
+  ], highPiece(named, [sub6, sub7]));
 }

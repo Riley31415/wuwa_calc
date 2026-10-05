@@ -31,7 +31,7 @@ import {
   appliedByMember,
   applyEnemy,
   applyCurrent,
-  currentAction,
+  currentHit,
   currentTeam,
   isType,
   queue,
@@ -132,14 +132,16 @@ export const OWN_CHAFE_RUNGS = new Map<Resonator, (Action | null)[]>();
 
 export const GLACIO_CHAFE = new Debuff({
     name: "Glacio Chafe", maxStacks: 10, duration: 60 * 15,
-    // each stack this hit laid (every one is laid in updateDebuffs) deals its rung, a bullet-less hit's too
+    // each stack this hit laid (every one is laid in updateDebuffs) deals its rung, a bullet-less hit's
+    // too, on whoever laid it last (a marker's owner, not the hitter)
     hitGlobal: () => {
         const held = stacksOfEnemy(GLACIO_CHAFE);
-        const team = currentTeam(), me = currentMember();
-        const own = team.slots[team.onField] === me && me.resonator ? OWN_CHAFE_RUNGS.get(me.resonator) : undefined;
+        const team = currentTeam();
+        const applier = team.slots.find((s) => s.name === team.sourceOf.get(GLACIO_CHAFE)) ?? currentMember();
+        const own = team.slots[team.onField] === applier && applier.resonator ? OWN_CHAFE_RUNGS.get(applier.resonator) : undefined;
         const rungs = own ?? GLACIO_CHAFE_ACTIONS;
         for (let n = Math.max(1, held - applied(GLACIO_CHAFE) + 1); n <= held; n++) {
-            queue(rungs[n]!);
+            queueOnApplier(GLACIO_CHAFE, rungs[n]!);
         }
     },
 });
@@ -161,16 +163,16 @@ export const FUSION_BURST = new Debuff({
   // which is where the number comes from; the cap is the fight's (Chisa raises it), not the
   // declared 10.
   applyStats: () => {
-    if (!isType(Subtype.FusionBurst) || currentAction().mv !== 0) return;
+    if (!isType(Subtype.FusionBurst) || currentHit().mv !== 0) return;
     const rung = FUSION_BURST_ACTIONS[currentTeam().enemyMax(FUSION_BURST)];
     if (rung) asSource(rung, () => addStat(Stat.AddMv, rung.mv));
   },
   // the burst takes the stacks with it and whatever landed past the cap is lost, so the target
-  // rebuilds from empty. Cap is the fight's, not the declared 10. On the hit that filled it: the
-  // enemy pool runs last in the phase, after every inflict.
+  // rebuilds from empty. Cap is the fight's, not the declared 10. On the hit that filled it (the
+  // enemy pool runs last in the phase, after every inflict), credited to whoever laid the last stack.
   updateDebuffs: () => {
     if (frozenStacks() < currentTeam().enemyMax(FUSION_BURST)) return;
-    queue(FUSION_BURST_ACTIONS[frozenStacks()]!);
+    queueOnApplier(FUSION_BURST, FUSION_BURST_ACTIONS[frozenStacks()]!);
     // a consume, which a "when you consume" passive reads (Suisui's Undulating Mist)
     consume(FUSION_BURST, stacksOfEnemy(FUSION_BURST));
   },
@@ -340,7 +342,7 @@ export const ELECTRO_FLARE: Debuff = new Debuff({
   // comes from. Hsin's own instances land while her cap pin holds the target full, so for her the
   // two read alike; a kit firing one on a target below the cap pays the lower rung.
   applyStats: () => {
-    if (!isType(Subtype.ElectroFlare) || currentAction().mv !== 0) return;
+    if (!isType(Subtype.ElectroFlare) || currentHit().mv !== 0) return;
     const rung = negativeStatusRung(ELECTRO_FLARE_DMG, frozenStacks());
     if (rung) asSource(rung, () => addStat(Stat.AddMv, rung.mv));
   },

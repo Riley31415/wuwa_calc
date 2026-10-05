@@ -26,7 +26,8 @@
     "sourceMap": true,
     "declaration": false
   },
-  "include": ["src/**/*"],
+  /* tuning/ is the substat tuning simulator: internal testing, built beside src/ but never bundled */
+  "include": ["src/**/*", "tuning/**/*"],
   /* display.ts is restored — kit.ts now exports ResolvedSnapshot/StatEntry/ChainGroup so it
      compiles against the new engine unmodified (see kit.ts's own header on those types).
      optimize.ts/run.ts/team.ts (the old CLI/report-building harness for the OLD engine's

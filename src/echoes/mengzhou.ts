@@ -2,20 +2,22 @@
 import { Stat, Attribute, Type, Cast, Scaling, BuffTarget } from "../engine/stats.js";
 import { Buff, Sonata, Sonata2pc, Mainslot, handoff } from "../engine/gear.js";
 import {
+  cancelHits,
   addStat, frozenStacks, queue, queueOutro, applied, onApplied, onInflict, onCast, either,
 } from "../engine/context.js";
 import { Action } from "../engine/rotation.js";
 import { SHIELD, HAVOC_BANE, GLACIO_CHAFE, ELECTRO_FLARE, HEALS } from "../shared/status.js";
 import { gainedUnison, unisonResponse } from "../shared/unison.js";
 import { TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
+import { SummonEcho, TransformEcho } from "./echo.js";
 
 /* ------------------------------------------------------------------------------ Jingran, 3.6 */
 
 /** Myriad Snare, Jingran's own mainslot echo — flat Fusion/Heavy Attack DMG Bonus for whoever
  *  wears it, no trigger. */
-export const ACTION_MYRIAD_SNARE = new Action("Echo - Myriad Snare", { animFrames: 8,
+export const ACTION_MYRIAD_SNARE = new SummonEcho("Echo - Myriad Snare", {
   cooldown: 60 * 20,
-  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Hp, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 1723, energy: 380 }], 
+  element: Attribute.Fusion, scaling: Scaling.Hp, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 1723, energy: 380 }],
 });
 export const MYRIAD_SNARE = new Mainslot({
   name: "Myriad Snare: Rustfire Chassis",
@@ -45,10 +47,10 @@ export const LAMP_5PC = new Sonata({
 /** Calamity Effigy, Qingxiao's own mainslot echo: one 405% Aero hit. Whoever wears it gets +10%
  *  Aero DMG Bonus flat, and +10% more for 15s on inflicting Tune Strain - Shifting — short and
  *  their own. Pairs with Heart of Evil's Purge below. */
-export const ACTION_CALAMITY_EFFIGY = new Action("Echo - Calamity Effigy", {
-  animFrames: 60, bullets: [{ hitFrame: 46, mv: 40500, energy: 562 }],
+export const ACTION_CALAMITY_EFFIGY = new TransformEcho("Echo - Calamity Effigy", {
+  bullets: [{ hitFrame: 46, mv: 40500, energy: 562 }],
   cooldown: 60 * 25,
-  cast: Cast.Echo, element: Attribute.Aero, scaling: Scaling.Atk, type: Type.Echo,
+  element: Attribute.Aero, scaling: Scaling.Atk, type: Type.Echo,
 });
 export const CALAMITY_EFFIGY_STRAIN = new Buff({
   name: "Calamity Effigy (strain)",
@@ -85,15 +87,20 @@ export const HEART_OF_EVILS_PURGE_BUFF = new Buff({
  *  Chisa's Thread of Bane hands out off the wearer's swing is hers and spends no blade. The four
  *  blades are one action, its hits its own bullets at the blade's 1s cooldown — the wearer's kit
  *  inflicts Bane often enough to spend each the moment it is ready. */
-export const ACTION_THOUSAND_PUPPET_PAVILION = new Action("Echo - Thousand-Puppet Pavilion", {
+export const ACTION_THOUSAND_PUPPET_PAVILION = new SummonEcho("Echo - Thousand-Puppet Pavilion", {
   cooldown: 60 * 20, animFrames: 16,
-  cast: Cast.Echo, element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 5, mv: 10944, energy: 152 }], 
-  updateBuffs: () => queue(ACTION_BLADE_OF_THOUSAND_MEMORIES),
+  element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 5, mv: 10944, energy: 152 }],
+  // one set of blades at a time: a fresh summon cuts off whatever the last had left
+  updateBuffs: () => {
+    cancelHits(BLADES_OF_THOUSAND_MEMORIES);
+    queue(ACTION_BLADE_OF_THOUSAND_MEMORIES);
+  },
 });
 export const ACTION_BLADE_OF_THOUSAND_MEMORIES = new Action("Echo - Blade of Thousand Memories", {
   element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo,
   bullets: Array.from({ length: 4 }, (_, k) => ({ hitFrame: 60 * (k + 1), mv: 4104, energy: 57 })),
 });
+const BLADES_OF_THOUSAND_MEMORIES = new Set<Action>([ACTION_BLADE_OF_THOUSAND_MEMORIES]);
 export const THOUSAND_PUPPET_PAVILION = new Mainslot({
   name: "Thousand-Puppet Pavilion", 
   action: ACTION_THOUSAND_PUPPET_PAVILION,
@@ -137,9 +144,9 @@ export const CHONGMINGS_FEATHER = new Buff({
  *  (statuses.ts's own note on Healing Bonus). It carries no sonata of its own; Suisui pairs it
  *  with Song of Feathered Trace above, whose Chongming's Feather branch is written for exactly her
  *  — Glacio Chafe into an Energy-Regen-scaled team ATK buff. */
-export const ACTION_FORBIDDEN_BASTION = new Action("Echo - Forbidden Bastion", { animFrames: 8,
+export const ACTION_FORBIDDEN_BASTION = new SummonEcho("Echo - Forbidden Bastion", {
   cooldown: 60 * 20,
-  cast: Cast.Echo, element: Attribute.Glacio, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 23760, energy: 330 }], 
+  element: Attribute.Glacio, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 23760, energy: 330 }],
 });
 export const FORBIDDEN_BASTION = new Mainslot({
   name: "Forbidden Bastion",
@@ -164,9 +171,9 @@ export const STAY_TUNED_BUFF = new Buff({
   stats: [[Stat.DmgBonus, 10, Attribute.Electro]],
 });
 const STAY_TUNED_GRANTS = [{ on: either(onInflict(ELECTRO_FLARE), gainedUnison, unisonResponse), buff: STAY_TUNED_BUFF }];
-export const ACTION_STAY_TUNED = new Action("Echo - Reminiscence: Suhsin", { animFrames: 8,
+export const ACTION_STAY_TUNED = new SummonEcho("Echo - Reminiscence: Suhsin", {
   cooldown: 60 * 20,
-  cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
+  element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
   bullets: [{ hitFrame: 0, mv: 2736 * 4 + 16416, energy: 38 * 4 + 228 }], 
 });
 export const STAY_TUNED = new Mainslot({
@@ -177,9 +184,9 @@ export const STAY_TUNED = new Mainslot({
 });
 
 /** Hsin's own form of it — her loadouts name this one instead. */
-export const ACTION_STAY_TUNED_HSIN = new Action("Echo - Reminiscence: Suhsin (Hsin)", { animFrames: 8,
+export const ACTION_STAY_TUNED_HSIN = new SummonEcho("Echo - Reminiscence: Suhsin (Hsin)", {
   cooldown: 60 * 20,
-  cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
+  element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
   bullets: [{ hitFrame: 0, mv: 1368 * 5 + 23256, energy: 19 * 5 + 323 }], 
 });
 export const STAY_TUNED_HSIN = new Mainslot({
@@ -194,9 +201,9 @@ export const STAY_TUNED_HSIN = new Mainslot({
  *  incoming resonator's +12% Electro DMG Bonus for 15s, long enough to outlast their own visit
  *  (gear.ts's `handoff`). Text is the CN translation ("conductive" = Electro); encore's own
  *  data lists the hit once — the three instances are the CN text's. Summon by that text. */
-export const ACTION_STAY_TUNED_3C = new Action("Echo - Soulfrayer", { animFrames: 8,
+export const ACTION_STAY_TUNED_3C = new SummonEcho("Echo - Soulfrayer", {
   cooldown: 60 * 20,
-  cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 9118 * 3, energy: 126 * 3 }], 
+  element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 9118 * 3, energy: 126 * 3 }],
   updateBuffs: () => queueOutro(STAY_TUNED_3C_OUTRO),
 });
 export const STAY_TUNED_3C = new Mainslot({
@@ -243,9 +250,9 @@ export const ELECTRIC_REFLECTION_HANDOFF = handoff("Flash of Electric Reflection
  *  mainslot: one 273.60% Fusion hit ("Molten" DMG in the CN translation — unconfirmed against EN
  *  text), and +10% Energy Regen for whoever wears it. Pairs with Flower of Tinged Yearning below.
  *  Summon by its text ("summon the Formless Demon"). */
-export const ACTION_FORMLESS_DEMON = new Action("Echo - Formrender", { animFrames: 8,
+export const ACTION_FORMLESS_DEMON = new SummonEcho("Echo - Formrender", {
   cooldown: 60 * 20,
-  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 27360, energy: 380 }], 
+  element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 27360, energy: 380 }],
 });
 export const FORMLESS_DEMON = new Mainslot({
   name: "Formrender",

@@ -3,8 +3,8 @@
  * Filter *actions* (what a search hit or chip does) live in table.ts beside the table's handlers.
  */
 import { TUNE_BREAK_ENEMY } from "../shared/tunebreak.js";
-import { eligibleWeapons, scopedKey, axisUsed, weaponBase, echoLabel, axisOpen, AXES } from "../solver.js";
-import type { Axis, TeamCost, ScopedCompare } from "../solver.js";
+import { eligibleWeapons, scopedKey, axisUsed, weaponBase, echoLabel, echoPicks, axisOpen, AXES } from "../solve/solver.js";
+import type { Axis, TeamCost, ScopedCompare } from "../solve/solver.js";
 import { TEAMS, RESONATOR_HUE, filters, resonatorFilters, OPTION_FILTER_MAPS, sequenceTagsOf, tagOwner, comparable, MATRIX_RESONATORS } from "./model.js";
 import type { ResonatorFilter, OptionKind } from "./model.js";
 import { esc, CLICK } from "./panels.js";
@@ -60,7 +60,7 @@ function searchCandidates(): SearchHit[] {
         }
       }
       if (axisUsed(m, filters, "refines")) for (const i of eligibleWeapons(m, filters)) for (const w of m.loadout.refinements[i]!) add("refine", `${m.name} R${w.refinement}`);
-      if (axisOpen(m, filters, "echoes")) for (const e of m.loadout.echoLoadouts) add("echo", echoLabel(m.loadout, e));
+      if (axisOpen(m, filters, "echoes")) for (const e of echoPicks(m, members)) add("echo", echoLabel(m.loadout, m.loadout.echoLoadouts[e]!));
       // every level the open compare shows, the baseline and the max-rank row included; nothing
       // at all when closed
       for (const tag of sequenceTagsOf(m, filters)) if (tag) add("sequence", tag);
@@ -168,6 +168,8 @@ const COST_HELP = [
   "s0r1 mdps +r0 supports - Each team gets a single signature weapon at R1, on whichever of its main DPS gives the best DPR increase — never a support. Dual DPS teams still only get one signature weapon.",
   "s0r1 all - All limited resonators get their best signature weapon, while Rover and 4* supports may still use standard or 4* weapons.",
   "s2r1 / s3r1 / s6r1 mdps +r1 supports - One main DPS per team runs that many sequence nodes, whichever gives the best DPR increase — never a support. Everyone else stays S0 on their own signature at R1.",
+  "s6r1 mdps +s2r1 supports - As above at S6, with everyone else at S2 on their own signature at R1.",
+  "s6r5 mdps +s0r1 supports - One main DPS per team is S6 with their signature at R5, whichever gives the best DPR increase — never a support. Everyone else stays S0 on their own signature at R1.",
   "s6r5 all - Every resonator is S6 with their best weapon at R5.",
 ];
 /** Shown on the Matrix bubble and on the name menu's own line — the box this used to describe is
@@ -195,6 +197,7 @@ export function comparisonFilters(): string {
       + option("s0r0", "s0r0 all") + option("s0r1mdps", "s0r1 mdps +r0 supports") + option("s0r1", "s0r1 all")
       + option("s2r1mdps", "s2r1 mdps +r1 supports")
       + option("s3r1mdps", "s3r1 mdps +r1 supports") + option("s6r1mdps", "s6r1 mdps +r1 supports")
+      + option("s6r1mdps_s2r1", "s6r1 mdps +s2r1 supports") + option("s6r5mdps", "s6r5 mdps +s0r1 supports")
       + option("s6r5", "s6r5 all")
       + `</select></div>`
       + `<div class="tcopt-desc"${open ? "" : " hidden"}><ul>${COST_HELP.map((l) => `<li>${esc(l)}</li>`).join("")}</ul></div>`

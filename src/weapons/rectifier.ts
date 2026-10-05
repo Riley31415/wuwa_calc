@@ -12,7 +12,7 @@ import {
   applyTeam,
   revokeCurrent,
   casting,
-  currentAction, isType,
+  isType,
   isActive,
   applied,
   stacksOfEnemy,
@@ -23,7 +23,7 @@ import {
   either,
   both,
   inflicting,
-  addToCast,
+  addGain,
 } from "../engine/context.js";
 import { GLACIO_CHAFE, FUSION_BURST, HEALS, ELECTRO_FLARE, SPECTRO_FRAZZLE } from "../shared/status.js";
 import { TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
@@ -155,7 +155,7 @@ export const SK_SIG = refinements((r, rank) => {
     name: `Stellar Symphony: Astral Evolvement${rank}`,
     updateBuffs: () => {
       if (!casting(Cast.Liberation)) return;
-      addToCast({ concerto: [800, 1000, 1200, 1400, 1600][r]! });
+      addGain({ concerto: [800, 1000, 1200, 1400, 1600][r]! });
       revokeCurrent(SK_SIG_CHARGE);
     },
   });
@@ -193,7 +193,7 @@ export const LUMINOUS_HYMN = refinements((r, rank) => {
     weaponType: WeaponType.Rectifier, name: `Luminous Hymn${rank}`,
     stats: [[Stat.BaseAtk, 500], [Stat.CritRate, 36], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     grants: [
-      { on: () => currentAction().bullets.length > 0 && stacksOfEnemy(SPECTRO_FRAZZLE) > 0, buff: HOMEBUILDERS_STACKS, onHit: true },
+      { on: () => stacksOfEnemy(SPECTRO_FRAZZLE) > 0, buff: HOMEBUILDERS_STACKS, onHit: true },
       { on: onCast(Cast.Outro), buff: HOMEBUILDERS_FRAZZLE, to: BuffTarget.Enemy },
     ],
   });
@@ -238,7 +238,7 @@ export const FIRSTLIGHTS_HERALD = refinements((r, rank) => {
     name: `Firstlight's Herald: Spring Wreath${rank}`,
     updateBuffs: () => {
       if (!casting(Cast.Liberation)) return;
-      addToCast({ concerto: [800, 1000, 1200, 1400, 1600][r]! });
+      addGain({ concerto: [800, 1000, 1200, 1400, 1600][r]! });
       revokeCurrent(SPRING_WREATH);
     },
   });

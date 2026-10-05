@@ -2,21 +2,21 @@
  * One engine run of a team under one combo, and the lines/totals read off it. DOM-free: the
  * solver's worker, precompute.ts and the scratch A/B scripts all import `runTeam` from here.
  */
-import type { Gear } from "./engine/gear.js";
-import { State } from "./engine/state.js";
-import type { HitRecord } from "./engine/state.js";
-import { withTeam, equip, equipEnemy, setTracing, menuStats } from "./engine/context.js";
-import type { ChainGroup, Result, ResolvedSnapshot } from "./engine/evaluate.js";
-import { ER_SHORT, settleGauges } from "./engine/evaluate.js";
-import { runRotations } from "./engine/rotation.js";
-import type { ActionField } from "./engine/rotation.js";
-import { TUNE_BREAK_ENEMY } from "./shared/tunebreak.js";
-import { erRollValue, ER_TOLERANCE } from "./shared/substats.js";
-import { Stat } from "./engine/stats.js";
-import { ctx } from "./engine/runtime.js";
-import type { Report } from "./display.js";
+import type { Gear } from "../engine/gear.js";
+import { State } from "../engine/state.js";
+import type { HitRecord, PieceSwap } from "../engine/state.js";
+import { withTeam, equip, equipEnemy, setTracing, menuStats } from "../engine/context.js";
+import type { ChainGroup, Result, ResolvedSnapshot } from "../engine/evaluate.js";
+import { ER_SHORT, settleGauges } from "../engine/evaluate.js";
+import { runRotations } from "../engine/rotation.js";
+import type { ActionField } from "../engine/rotation.js";
+import { TUNE_BREAK_ENEMY } from "../shared/tunebreak.js";
+import { erRollValue, ER_TOLERANCE } from "../shared/substats.js";
+import { Stat } from "../engine/stats.js";
+import { ctx } from "../engine/runtime.js";
+import type { Report } from "../page/display.js";
 import type { Member, Combo } from "./solver.js";
-import type { Loadout } from "./engine/gear.js";
+import type { Loadout } from "../engine/gear.js";
 
 export interface TeamRun {
   /** The fight itself — null on a row rebuilt from a worker's score (`runFromScore`). */
@@ -59,7 +59,6 @@ export interface VariantBase {
   alts: (Combo[] | null)[];
   rolls: number[][];
   engineUnsafe: boolean[][];
-  everDry: boolean[][];
   measured: number[] | null;
   /** Per member, every requirement their Liberations asked for (`TeamMember.erWants`). */
   wants: number[][];
@@ -234,26 +233,37 @@ const adjusted = (damage: number, frames: number): number => Math.floor((damage 
  *  adjusted DPR over the frames they took, and the whole fight's damage beside them. */
 type RunSums = Pick<TeamRun, "total" | "bySlot" | "sectionTotals" | "sectionBySlot" | "fightTotal" | "fightBySlot" | "seconds">;
 
-/** One walk over a fight's hits (all whole numbers): the run's figures at `avgAt`, and member i's variants
- *  with their own hits at `src[i][v]` (-1 `avgAt`'s). `quiet` drops what a run wouldn't record. */
-function sumHits(sections: HitRecord[][], complete: number, frames: number, members: Member[], avgAt: (h: HitRecord) => number,
+/** One walk over a fight's hits (all whole numbers): the run's figures at `avgAt` (handed the hit's member's
+ *  index), member i's variants with their own hits at `src[i][v]` (-1 `avgAt`'s). `quiet` drops what a run wouldn't record. */
+function sumHits(sections: HitRecord[][], complete: number, frames: number, members: Member[], avgAt: (h: HitRecord, i: number | undefined) => number,
   src: number[][], unsafe: (i: number, v: number) => boolean, quiet: boolean): RunSums & { variantRuns: VariantRun[][] } {
   const nameIndex = new Map(members.map((m, i) => [m.name, i]));
   const slotIndex = new Map<string, number>(), slotNames: string[] = [];
+  // per member, variant v's delta on slot k sits at `v * stride + k`: every member and the enemy fit
+  const stride = members.length + 1;
   const secs = sections.map((lines) => {
     const by: number[] = [], order: number[] = [];
     let total = 0;
-    const deltaBy = src.map((s) => s.map(() => [] as number[]));
-    const deltaTotal = src.map((s) => s.map(() => 0));
+    const deltaBy = src.map((s) => new Float64Array(s.length * stride));
+    const deltaTotal = src.map((s) => new Float64Array(s.length));
+    // hits run in stretches of one member's, so each lookup is kept for the next hit
+    let member: string | null = null, i: number | undefined, slot: string | null = null, k: number | undefined;
     for (const h of lines) {
-      const i = nameIndex.get(h.member);
+      if (h.member !== member) {
+        member = h.member;
+        i = nameIndex.get(member);
+      }
       const own = i === undefined ? null : src[i]!;
-      const p = avgAt(h);
+      const p = avgAt(h, i);
       if (quiet && p === 0 && !own?.length) continue;
-      let k = slotIndex.get(h.slot);
+      if (h.slot !== slot) {
+        slot = h.slot;
+        k = slotIndex.get(slot);
+      }
       if (k === undefined) {
         slotIndex.set(h.slot, k = slotNames.length);
         slotNames.push(h.slot);
+        if (k >= stride) throw new Error(`teamrun.ts: more report slots than ${stride}`);
       }
       if (by[k] === undefined) {
         by[k] = 0;
@@ -262,12 +272,12 @@ function sumHits(sections: HitRecord[][], complete: number, frames: number, memb
       by[k] = by[k]! + p;
       total += p;
       if (!own?.length || h.variantAvg === null) continue;
+      const at = deltaBy[i!]!, sums = deltaTotal[i!]!;
       for (let v = 0; v < own.length; v++) {
         const s = own[v]!;
         const d = (s < 0 ? h.avg : h.variantAvg[s]!) - p;
-        const at = deltaBy[i!]![v]!;
-        at[k] = (at[k] ?? 0) + d;
-        deltaTotal[i!]![v] = deltaTotal[i!]![v]! + d;
+        at[v * stride + k] = at[v * stride + k]! + d;
+        sums[v] = sums[v]! + d;
       }
     }
     return { by, order, total, deltaBy, deltaTotal };
@@ -280,10 +290,10 @@ function sumHits(sections: HitRecord[][], complete: number, frames: number, memb
     const whole: number[] = [], wholeOrder: number[] = [];
     let fightTotal = 0;
     secs.forEach((s, sec) => {
-      const delta = v < 0 ? null : s.deltaBy[i]![v]!;
+      const delta = v < 0 ? null : s.deltaBy[i]!;
       const by = new Map<string, number>();
       for (const k of s.order) {
-        const x = s.by[k]! + (delta?.[k] ?? 0);
+        const x = s.by[k]! + (delta ? delta[v * stride + k]! : 0);
         by.set(slotNames[k]!, x);
         if (sec < complete) {
           if (whole[k] === undefined) {
@@ -313,13 +323,13 @@ function sumHits(sections: HitRecord[][], complete: number, frames: number, memb
   const variantTotal = (i: number, v: number): number => {
     const whole: number[] = [], wholeOrder: number[] = [];
     for (let sec = 0; sec < complete; sec++) {
-      const s = secs[sec]!, delta = s.deltaBy[i]![v]!;
+      const s = secs[sec]!, delta = s.deltaBy[i]!;
       for (const k of s.order) {
         if (whole[k] === undefined) {
           whole[k] = 0;
           wholeOrder.push(k);
         }
-        whole[k] = whole[k]! + (s.by[k]! + (delta[k] ?? 0));
+        whole[k] = whole[k]! + (s.by[k]! + delta[v * stride + k]!);
       }
     }
     let total = 0;
@@ -425,12 +435,12 @@ export function erRollsFor(teamKey: string, members: Member[], combo: Combo[]): 
 }
 
 /** One member's ER rolls under one combo, given the requirement `need` — or the kit's own minimum
- *  (`Loadout.minEr`), where that is the higher. */
+ *  (`Loadout.minEr`), where that is the higher — each priced at the spread the combo wears. */
 function erRollsWanted(m: Member, c: Combo, need: number): number {
-  const base = m.loadout.substat.tiers[0]!.rolls;
+  const base = (c.highSubs ? m.loadout.highSubstat : m.loadout.substat).tiers[0]!.rolls;
   need = Math.max(need, m.loadout.minEr);
   if (!need) return base;
-  return base + Math.max(0, Math.ceil((need - erHeld(m, c, base) - ER_TOLERANCE) / erRollValue()));
+  return base + Math.max(0, Math.ceil((need - erHeld(m, c, base) - ER_TOLERANCE) / erRollValue(c.highSubs)));
 }
 
 /** How much constant ER one piece carries — the mainstat sweep compares two picks by this rather
@@ -467,7 +477,8 @@ export function shortOf(teamKey: string, members: Member[], combo: Combo[]): ("e
   const rolls = erRollsFor(teamKey, members, combo);
   return members.map((m, i) => {
     const l = m.loadout;
-    if (rolls[i]! > l.substat.tiers[l.substat.tiers.length - 1]!.rolls) return "er";
+    const { tiers } = combo[i]!.highSubs ? l.highSubstat : l.substat;
+    if (rolls[i]! > tiers[tiers.length - 1]!.rolls) return "er";
     if (l.minCritRate && crHeld(m, combo[i]!, rolls[i]!) < l.minCritRate) return "cr";
     return null;
   });
@@ -480,7 +491,22 @@ function measureNeed(members: Member[], _combo: Combo[], state: State): number[]
   return members.map((m, i) => (m.loadout.resonator.maxEnergy ? state.slots[i]!.erWorst : 0));
 }
 
-/** `combo` with member `i`'s replaced by `alt` — the combo one of their main-stat variants stands for. */
+/** What `alt` wears in place of `c`'s pieces: the same build but for constant-stat pieces (a main
+ *  stat, an echo set's 2pc), which is what lets one run score it as a variant of the other. */
+function swapsOf(c: Combo, alt: Combo): PieceSwap[] {
+  const from = [...c.echo.pieces(), c.mainstat], to = [...alt.echo.pieces(), alt.mainstat];
+  const same = from.length === to.length && c.weapon === alt.weapon && c.sequence === alt.sequence && c.matrix === alt.matrix && c.highSubs === alt.highSubs;
+  const swaps: PieceSwap[] = [];
+  for (let k = 0; same && k < from.length; k++) {
+    if (from[k] === to[k]) continue;
+    if (!from[k]!.constantOnly || !to[k]!.constantOnly) break;
+    swaps.push([from[k]!, to[k]!]);
+  }
+  if (!same || swaps.length !== from.filter((g, k) => g !== to[k]).length) throw new Error(`teamrun.ts: ${alt.key} is no constant-stat variant of ${c.key}`);
+  return swaps;
+}
+
+/** `combo` with member `i`'s replaced by `alt` — the combo one of their variants stands for. */
 const variantCombo = (combo: Combo[], i: number, alt: Combo): Combo[] => combo.map((c, j) => (j === i ? alt : c));
 
 /** @param trace  keep per-entry traces and the resolved lines (the detail page); off for the bulk pass.
@@ -560,12 +586,13 @@ export function runTeam(teamKey: string, members: Member[], combo: Combo[], trac
 
 /**
  * The run `combo` would get, read off `from`'s fight instead of fought again — every member on
- * `from`'s own pick or on one of the main stats it carried as variants, where a main stat only ever
- * changes its wearer's figures. Only where that run would be `from`'s very fight: every variant leaned
- * on one the engine vouched for that never re-ran a phase dry, every member wearing the substat piece
- * `from`'s rows wore, and no Liberation of `from`'s asking more than a member moving gear ER would
- * wear (a run there gives up and climbs; a constant ER shift moves no ask). The ER
- * bookkeeping such a run makes is made here as `runTeam` makes it, so what comes after reads the same.
+ * `from`'s own pick or on one of the builds it carried as variants, where a constant-stat piece only
+ * ever changes its wearer's figures. Only where that run would be `from`'s very fight: every variant
+ * leaned on one the engine vouched for (its rows re-run dry where a hook read what it moves), every
+ * member wearing the substat piece `from`'s rows wore, and no Liberation of `from`'s asking more than
+ * a member moving gear ER would wear (a run there gives up and climbs; a constant ER shift moves no
+ * ask). The ER bookkeeping such a run makes is made here as `runTeam` makes it, so what comes after
+ * reads the same.
  * `variants`: what the run would carry, as `runTeam` takes them. Null where it must be fought — after
  * the bookkeeping of a first attempt that would be run again lower, which `runTeam` then picks up.
  */
@@ -581,7 +608,7 @@ export function deriveRun(teamKey: string, members: Member[], combo: Combo[], fr
       continue;
     }
     const v = b.alts[j]?.findIndex((a) => a.key === c.key) ?? -1;
-    if (v < 0 || b.engineUnsafe[j]![v] || b.everDry[j]![v]) return null;
+    if (v < 0 || b.engineUnsafe[j]![v]) return null;
     pick.push(v);
   }
   // the substat piece a row of `from` wore: its own build's, or a variant's own
@@ -596,13 +623,14 @@ export function deriveRun(teamKey: string, members: Member[], combo: Combo[], fr
   for (let j = 0; j < members.length; j++) {
     if (members[j]!.loadout.spread(combo[j]!.highSubs, worn[j]!) !== rowPiece(j, pick[j]!)) return null;
   }
-  // a main stat moving gear ER moves the constant each Liberation is held to: where one of `from`'s
-  // asks (unmoved by a constant shift) is past it, a real run would give up (ER_SHORT), so it is fought
+  // a piece moving gear ER moves the constant each Liberation is held to: where one of `from`'s asks
+  // (unmoved by a constant shift) is past it, a real run would give up (ER_SHORT), so it is fought
   for (let j = 0; j < members.length; j++) {
     const m = members[j]!, c = combo[j]!;
-    if (pick[j]! < 0 || c.highSubs || gearEr(c.mainstat) === gearEr(from.combo[j]!.mainstat)) continue;
-    if (worn[j]! >= m.loadout.substat.tiers[m.loadout.substat.tiers.length - 1]!.rolls) continue;
+    if (pick[j]! < 0 || c.highSubs) continue;
     const held = erHeld(m, c, worn[j]!);
+    if (held === erHeld(m, from.combo[j]!, worn[j]!)) continue;
+    if (worn[j]! >= m.loadout.substat.tiers[m.loadout.substat.tiers.length - 1]!.rolls) continue;
     if (b.wants[j]!.some((w) => w > held + ER_TOLERANCE + 1e-9)) return null;
   }
   // ...and its variants the rolls `runTeamInner` hands them, off the same rows of `from`
@@ -634,11 +662,7 @@ export function deriveRun(teamKey: string, members: Member[], combo: Combo[], fr
   const asked = erRollsFor(teamKey, members, combo);
   if (members.some((m, i) => !combo[i]!.highSubs && m.loadout.substat.at(asked[i]!) !== m.loadout.substat.at(worn[i]!))) return null;
 
-  const index = new Map(members.map((m, i) => [m.name, i]));
-  const avgAt = (h: HitRecord): number => {
-    const j = index.get(h.member);
-    return j !== undefined && pick[j]! >= 0 ? h.variantAvg![pick[j]!]! : h.avg;
-  };
+  const avgAt = (h: HitRecord, j: number | undefined): number => (j !== undefined && pick[j]! >= 0 ? h.variantAvg![pick[j]!]! : h.avg);
   // judged as `runTeam` judges a variant after the run: the engine's verdict on the rows it reads,
   // and the tier its own combo asks for against the one it wore
   const unsafe = members.map((m, i) => (variants?.[i] ?? []).map((alt, v) => {
@@ -667,22 +691,18 @@ function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace:
     const alts = variants?.[i];
     if (alts?.length) {
       const slot = state.slots[i]!;
-      slot.variantOf = c.mainstat;
-      slot.variants = alts.map((alt) => alt.mainstat);
       slot.variantAt = new Map();
       slot.variantUnsafe = alts.map(() => false);
-      slot.variantEverDry = alts.map(() => false);
-      // a main stat carrying ER moves the tier the spread wears, so each variant's base swaps the
-      // substat piece along with its main stat — at the rolls the requirement known so far asks.
+      // a piece carrying ER moves the tier the spread wears, so each variant's base swaps the
+      // substat piece along with its own — at the rolls the requirement known so far asks.
       // A variant has this build's buffs and so its need: where its own combo is not yet known,
       // this one's measurement is the guess, ahead of the team's
       const worn = c.highSubs ? null : m.loadout.substat.at(erRolls[i]!);
-      slot.variantSubOf = worn;
       const own = ER_NEED_AT.get(needKey(teamKey, combo)) ?? erNeedFor(teamKey, members, combo);
       slot.variantRolls = alts.map((alt) => erRollsWanted(m, alt, (ER_NEED_AT.get(needKey(teamKey, variantCombo(combo, i, alt))) ?? own)[i] ?? 0));
-      slot.variantSubs = slot.variantRolls.map((rolls) => {
-        const piece = c.highSubs ? null : m.loadout.substat.at(rolls);
-        return piece === worn ? null : piece;
+      slot.variants = alts.map((alt, v) => {
+        const swaps = swapsOf(c, alt), piece = c.highSubs ? null : m.loadout.substat.at(slot.variantRolls[v]!);
+        return piece === worn ? swaps : [...swaps, [worn!, piece!] as const];
       });
     }
   });
@@ -714,7 +734,6 @@ function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace:
     hits, complete, frames, worn: erRolls.slice(), alts: variants, measured: null, wants: state.slots.map((s) => s.erWants),
     rolls: state.slots.map((s, i) => (variants[i]?.length ? s.variantRolls.slice() : [])),
     engineUnsafe: state.slots.map((s, i) => (variants[i]?.length ? s.variantUnsafe.slice() : [])),
-    everDry: state.slots.map((s, i) => (variants[i]?.length ? s.variantEverDry.slice() : [])),
   } : undefined;
 
   // a traced run's results are the full snapshots (see `Result`), which the report's own folds read

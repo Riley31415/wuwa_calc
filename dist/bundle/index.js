@@ -11,7 +11,6 @@ import {
   INTERCHANGEABLE,
   LEVEL_90_DOT,
   LEVEL_90_TUNE,
-  MAINSTAT_ROWS,
   MV_UNIT,
   NODE_NAME,
   OWN_DEF,
@@ -33,26 +32,29 @@ import {
   defaultFilters,
   echoLabel,
   echoLines,
+  echoPicks,
   effectiveRes,
   effectiveShred,
   eligibleWeapons,
   erRollsFor,
   filterSignature,
+  gateOf,
   hasBuild,
   hitsOf,
   isPercent,
   isProgress,
   litStats,
   loadoutName,
+  mainstatRanking,
   mainstatSlotBuffs,
   member,
   menuStats,
-  mvPercent,
   picksKey,
   refineLevels,
   runFromScore,
   runTeam,
   scopedKey,
+  scopedOpen,
   scopedStat,
   sequenceLevels,
   solveTeam,
@@ -65,9 +67,9 @@ import {
   teamAt,
   teamKey,
   weaponBase
-} from "./chunk-CPNVZIFF.js";
+} from "./chunk-2SPS5ZQI.js";
 
-// dist/src/display.js
+// dist/src/page/display.js
 var shown = (s, i) => s.shownAfter?.[i] ?? [s.energy, s.concerto, s.offtune, ...s.forte][i];
 var shownBefore = (s, i) => s.shownBefore?.[i] ?? [s.energyBefore, s.concertoBefore, s.offtuneBefore, ...s.forteBefore][i];
 var formatters = /* @__PURE__ */ new Map();
@@ -129,9 +131,9 @@ var digitsOf = (raw, col) => {
 };
 var keysFor = (action, ...stats) => stats.flatMap((stat) => [
   stat,
-  ...[action.lastBullet?.element ?? null, action.lastBullet?.type ?? null, action.lastBullet?.subtype ?? null].filter((tag) => tag !== null).map((tag) => scopedStat(tag, stat))
+  ...[action.lastDamage?.element ?? null, action.lastDamage?.type ?? null, action.lastDamage?.subtype ?? null].filter((tag) => tag !== null).map((tag) => scopedStat(tag, stat))
 ]);
-var sub = (action) => action.lastBullet?.subtype ?? null;
+var sub = (action) => action.lastDamage?.subtype ?? null;
 var special = (action) => action.scaling === 3 || action.scaling === 4 || action.scaling === 5;
 var fixed = (action) => action.scaling === 5;
 var SCALERS = {
@@ -234,23 +236,23 @@ var FEEDS = {
   )],
   effDef: (a) => fixed(a) ? [] : a.scaling === 3 ? keysFor(
     a,
-    37
+    28
     /* EnemyStat.DefReduce */
   ) : keysFor(
     a,
     23,
     24,
-    37
+    28
     /* EnemyStat.DefReduce */
   ),
   effRes: (a) => a.scaling === 3 ? keysFor(
     a,
-    36
+    27
     /* EnemyStat.ResReduce */
   ) : fixed(a) ? [] : keysFor(
     a,
     22,
-    36
+    27
     /* EnemyStat.ResReduce */
   )
   // energy/concerto/offtune are running totals — `rowValues()` builds their panels by hand
@@ -301,7 +303,7 @@ var SECTION_OF = {
     /* Stat.DefIgnoreOld */
   ]: "DEF Ignore (old)",
   [
-    37
+    28
     /* EnemyStat.DefReduce */
   ]: "DEF Reduce",
   [
@@ -309,7 +311,7 @@ var SECTION_OF = {
     /* Stat.ResIgnore */
   ]: "RES Ignore",
   [
-    36
+    27
     /* EnemyStat.ResReduce */
   ]: "RES Reduce",
   [
@@ -321,7 +323,8 @@ var SECTION_OF = {
     /* Stat.DamageTaken */
   ]: "Damage Taken"
 };
-var actionInfo = (action, type, source) => {
+var actionInfo = (snap) => {
+  const { action, type, source } = snap;
   const info = [];
   const push = (label, value) => {
     if (value)
@@ -343,14 +346,27 @@ var actionInfo = (action, type, source) => {
   let press = action;
   while (press.cancelOf ?? press.formOf)
     press = press.cancelOf ?? press.formOf;
-  push("Animation Frames", String(press.animFrames));
-  push("High Priority Frames", press.prioFrames ? String(press.prioFrames) : null);
-  push("No Swap Frames", press.noSwapFrames ? String(press.noSwapFrames) : null);
-  push("Outro Buff Frames", press.qteFrames ? String(press.qteFrames) : null);
-  push("Time Stop Frames", press.timestop ? `${press.timestopFrom}-${press.timestopFrom + press.timestop}` : null);
-  push("Motion Stop Frames", press.motionStop ? `${press.motionStopFrom}-${press.motionStopFrom + press.motionStop}` : null);
-  push("Hit Frames", press.bullets.length ? press.bullets.map((h) => h.hitFrame).join(", ") : null);
-  push("Commit Frames", press.bullets.some((h) => h.commitFrame !== h.hitFrame) ? press.bullets.map((h) => h.commitFrame).join(", ") : null);
+  push("Frames", `${press.animFrames}`);
+  push("Priority", press.castPriority === null ? null : String(press.castPriority));
+  const windows = press.castPriority !== null && press.animPriority[0]?.[0] !== 0 ? [[0, press.castPriority], ...press.animPriority] : press.animPriority;
+  push("Animation", windows.length ? windows.map(([f, t]) => `${f}f: ${t}`).join(", ") : null);
+  push("No Swap", press.noSwapFrames ? `${press.noSwapFrames}f` : null);
+  push("Outro Buff", press.qteFrames ? `${press.qteFrames}f` : null);
+  push("Time Stop", press.timestop ? `${press.timestopFrom}f-${press.timestopFrom + press.timestop}f` : null);
+  push("Motion Stop", press.motionStop ? `${press.motionStopFrom}f-${press.motionStopFrom + press.motionStop}f` : null);
+  push("Bullets", press.bullets.length ? press.bullets.map((h) => h.hitFrame).join(", ") : null);
+  push("Commits", press.bullets.some((h) => h.commitFrame !== h.hitFrame) ? press.bullets.map((h) => h.commitFrame).join(", ") : null);
+  const bars = ["Energy", "Concerto", ...FORTE_GAUGES.map((_, i) => `Forte ${i + 1}`)];
+  const scale = [1 / ENERGY_UNIT, 1 / CONCERTO_UNIT, ...snap.forteScale];
+  bars.forEach((bar, k) => {
+    const min = press.castMin?.[k] ?? -Infinity, max = press.castMax?.[k] ?? Infinity;
+    if (min !== -Infinity)
+      push(`Min ${bar}`, fmtExact(min * scale[k]));
+    if (max !== Infinity)
+      push(`Max ${bar}`, fmtExact(max * scale[k]));
+  });
+  const conds = [...(press.requireBuffs ?? []).map((g) => ["Require Buff", g]), ...(press.forbidBuffs ?? []).map((g) => ["Forbid Buff", g])];
+  conds.forEach(([label, g], i) => info.push({ label, value: g.name, source: snap.buffSources?.[i] ?? snap.member }));
   if (source)
     info.push({ label: "Source", value: source.name, source: source.source });
   return info;
@@ -465,18 +481,30 @@ function foldDuplicates(rows) {
 }
 var OFFTUNE_RATE = "Buildup Rate";
 var ENERGY_RATE = "Regen Multiplier";
+var ENERGY_REGEN = "Energy Regen";
 var MV_MULTIPLIER = "MV Multiplier";
-var tagOf = (snap) => snap.tag === ActionTag.Field ? "" : snap.tag;
-function ownShares(snap, total, cast) {
-  const hit = total - cast;
+var tagOf = (snap) => snap.tag === ActionTag.Field || snap.tag === ActionTag.NoTb ? "" : snap.tag;
+function ownShares(snap, cast, hit) {
   if (cast && hit) {
     return [
       { source: snap.action.name, value: cast, owner: snap.member },
       { source: snap.action.name, value: hit, owner: snap.member }
     ];
   }
-  return total ? [{ source: snap.action.name, value: total, owner: snap.member }] : [];
+  return cast + hit ? [{ source: snap.action.name, value: cast + hit, owner: snap.member }] : [];
 }
+var landedBullets = (s) => s.holdCut < 0 ? s.action.bullets : s.action.bullets.filter((b) => b.commitFrame <= s.holdCut);
+var hitsBank = (s, key) => landedBullets(s).reduce((n, b) => n + b[key], 0);
+var landedMv = (s) => {
+  const base = hitsBank(s, "mv");
+  return base || !s.action.mv ? (base + s.stats[
+    16
+    /* Stat.AddMv */
+  ]) * (1 + s.stats[
+    17
+    /* Stat.MulMv */
+  ] / 100) : 0;
+};
 var STAT_COLUMNS = ["scaler", "mv", "dmgBonus", "amp", "cr", "cd", "dealt", "effDef", "effRes", "avg"];
 function rowValues(snap, { mv, avg }, members = []) {
   const dealsDamage = mv !== 0;
@@ -535,6 +563,8 @@ function rowValues(snap, { mv, avg }, members = []) {
   FORTE_GAUGES.forEach((key, i) => {
     raw[`short:gauge:${RESOURCE_NAME[key]}`] = snap.castUnmet?.[2 + i] ? 1 : 0;
   });
+  const buffs = [...(snap.buffUnmet ?? []).map((b) => b.name), ...(snap.buffForbidden ?? []).map((b) => `not ${b.name}`)];
+  raw["short:buff"] = buffs.length ? buffs.join(", ") : 0;
   const sources = {};
   for (const [key, feeds] of Object.entries(FEEDS))
     sources[key] = tracing(snap, feeds(snap.action));
@@ -552,7 +582,7 @@ function rowValues(snap, { mv, avg }, members = []) {
       /* Stat.DefIgnoreOld */
     );
     const reduce = snap.stat(
-      37
+      28
       /* EnemyStat.DefReduce */
     );
     const base = fmt(snap.enemyDef, 0, false, false);
@@ -568,29 +598,12 @@ function rowValues(snap, { mv, avg }, members = []) {
       { source: "", label: "Effective Defense Shred", value: effectiveShred(snap) * 100, percent: true, digits: 2, summary: true, place: "afterTotal", joined: true }
     ];
   }
-  const RESOURCE_STAT = {
-    energy: [
-      27
-      /* Stat.AddEnergy */
-    ],
-    concerto: [
-      28
-      /* Stat.AddConcerto */
-    ],
-    offtune: [
-      29
-      /* Stat.AddOfftune */
-    ]
-  };
   const CAST_SHARE = { energy: snap.action.castEnergy, concerto: snap.action.castConcerto, offtune: snap.action.castOfftune };
-  const castAdded = (i) => (snap.castAdds ?? []).filter((c) => c.gains[i] !== 0).map((c) => ({ source: c.source, value: c.gains[i], owner: c.owner ?? void 0, label: "on cast" }));
-  const CAST_ADD = { energy: 0, concerto: 1, offtune: -1 };
+  const added2 = (i) => (snap.adds ?? []).filter((c) => c.gains[i] !== 0).map((c) => ({ source: c.source, value: c.gains[i], owner: c.owner ?? void 0, ...c.onCast ? { label: "on cast" } : {} }));
+  const ADDED = { energy: 0, concerto: 1, offtune: 7 };
   for (const key of ["energy", "concerto", "offtune"]) {
-    const traced = [
-      ...RESOURCE_STAT[key].flatMap((st) => tracing(snap, keysFor(snap.action, st), false)),
-      ...CAST_ADD[key] < 0 ? [] : castAdded(CAST_ADD[key])
-    ].map((r) => ({ ...r, value: r.value / RESOURCE_SCALE[key] }));
-    const own = ownShares(snap, snap.action[key] / RESOURCE_SCALE[key], CAST_SHARE[key] / RESOURCE_SCALE[key]);
+    const traced = added2(ADDED[key]).map((r) => ({ ...r, value: r.value / RESOURCE_SCALE[key] }));
+    const own = ownShares(snap, CAST_SHARE[key] / RESOURCE_SCALE[key], hitsBank(snap, key) / RESOURCE_SCALE[key]);
     const rows = [...own, ...traced];
     const folded = [...own, ...foldDuplicates(traced)];
     if (folded.length)
@@ -599,23 +612,39 @@ function rowValues(snap, { mv, avg }, members = []) {
       buffed.add(key);
     raw[`moved:${key}`] = rows.reduce((n, r) => n + r.value, 0);
   }
-  const rate = tracing(snap, keysFor(
+  const hitEnergy = hitsBank(snap, "energy");
+  const rate = hitEnergy > 0 ? tracing(snap, keysFor(
     snap.action,
     14
     /* Stat.EnergyRegenMult */
-  ));
+  )) : [];
   if (rate.length) {
     sources.energy = [...sources.energy ?? [], ...rate.map((r) => ({ ...r, section: ENERGY_RATE }))];
-    raw["moved:energy"] = (Number(raw["moved:energy"]) || 0) * (1 + snap.stat(
+    raw["moved:energy"] = (Number(raw["moved:energy"]) || 0) + hitEnergy / RESOURCE_SCALE.energy * snap.stat(
       14
       /* Stat.EnergyRegenMult */
-    ) / 100);
+    ) / 100;
   }
-  const buildingOfftune = (snap.action.offtune + tracing(snap, keysFor(
-    snap.action,
-    29
-    /* Stat.AddOfftune */
-  )).reduce((n, r) => n + r.value, 0)) * (1 + snap.stat(
+  if (hitEnergy > 0) {
+    const regen = tracing(snap, keysFor(
+      snap.action,
+      11
+      /* Stat.ER */
+    ), false).map((r) => ({ ...r, percent: true, section: ENERGY_REGEN, place: "afterTotal" }));
+    if (regen.length) {
+      sources.energy = [...sources.energy ?? [], ...regen, {
+        source: "",
+        label: "Total",
+        value: regen.reduce((n, r) => n + r.value, 0),
+        percent: true,
+        summary: true,
+        section: ENERGY_REGEN,
+        place: "afterTotal"
+      }];
+    }
+  }
+  const declaredOfftune = hitsBank(snap, "offtune") + added2(7).reduce((n, r) => n + r.value, 0);
+  const buildingOfftune = declaredOfftune < 0 ? declaredOfftune : declaredOfftune * (1 + snap.stat(
     15
     /* Stat.OfftuneMult */
   ) / 100);
@@ -635,15 +664,11 @@ function rowValues(snap, { mv, avg }, members = []) {
     if (rate2.length)
       sources.offtune = [...sources.offtune ?? [], ...rate2.map((r) => ({ ...r, section: OFFTUNE_RATE }))];
   }
-  const direct = tracing(snap, keysFor(
-    snap.action,
-    30
-    /* Stat.DirectOfftune */
-  ));
+  const direct = added2(8);
   raw["moved:offtune"] = ((buildingOfftune < 0 ? buildingOfftune : buildingOfftune * (snap.stat(
     13
     /* Stat.OfftuneBuildup */
-  ) / 100)) + direct.reduce((n, r) => n + r.value, 0)) / RESOURCE_SCALE.offtune;
+  ) / 100)) + snap.action.castOfftune + direct.reduce((n, r) => n + r.value, 0)) / RESOURCE_SCALE.offtune;
   if (direct.length) {
     sources.offtune = [...sources.offtune ?? [], ...direct.map((r) => ({
       ...r,
@@ -653,23 +678,14 @@ function rowValues(snap, { mv, avg }, members = []) {
     buffed.add("offtune");
   }
   const FORTE_FIELD = ["forte1", "forte2", "forte3", "forte4", "forte5"];
-  const FORTE_STAT = [
-    31,
-    32,
-    33,
-    34,
-    35
-    /* Stat.AddForte5 */
-  ];
   FORTE_GAUGES.forEach((key, i) => {
     const unit2 = snap.forteScale[i];
-    const declared = snap.action[FORTE_FIELD[i]] * unit2;
-    const traced = [...tracing(snap, keysFor(snap.action, FORTE_STAT[i])), ...castAdded(2 + i)].map((r) => ({ ...r, value: r.value * unit2 }));
+    const traced = added2(2 + i).map((r) => ({ ...r, value: r.value * unit2 }));
     const rows = [];
     if (snap.action.resetForte[i]) {
       rows.push({ source: snap.action.name, value: 0, text: "Reset", owner: snap.member });
     }
-    rows.push(...ownShares(snap, declared, snap.action.castForte[i] * unit2));
+    rows.push(...ownShares(snap, snap.action.castForte[i] * unit2, hitsBank(snap, FORTE_FIELD[i]) * unit2));
     rows.push(...traced);
     if (rows.length)
       sources[`gauge:${RESOURCE_NAME[key]}`] = rows;
@@ -684,8 +700,9 @@ function rowValues(snap, { mv, avg }, members = []) {
     const parts = sources.mv ?? [];
     if (parts.length)
       buffed.add("mv");
+    const base = hitsBank(snap, "mv");
     sources.mv = [
-      ...snap.action.mv ? [{ source: snap.action.name, label: "Base MV", value: snap.action.mv / MV_UNIT, percent: true, owner: snap.member }] : [],
+      ...base ? [{ source: snap.action.name, label: "Base MV", value: base / MV_UNIT, percent: true, owner: snap.member }] : [],
       ...parts.filter((r) => !isFactor(r)),
       ...parts.filter(isFactor).map((r) => ({ ...r, section: MV_MULTIPLIER }))
     ];
@@ -729,15 +746,17 @@ function rowValues(snap, { mv, avg }, members = []) {
     }
   }
   if (members.length > 1) {
-    const per = members.map((m) => rowValues(m, { mv: mvPercent(m), avg: 0 }));
+    const per = members.map((m) => rowValues(m, { mv: landedMv(m), avg: 0 }));
     for (const key of ["short:energy", "short:concerto", ...FORTE_GAUGES.map((k) => `short:gauge:${RESOURCE_NAME[k]}`)]) {
       raw[key] = per.some((p) => Number(p.raw[key])) ? 1 : 0;
     }
+    raw["short:buff"] = per.map((p) => p.raw["short:buff"]).filter(Boolean).join(", ") || 0;
     for (const key of COMBINED_COLUMNS) {
       if (sources[key] === void 0 && key === "mv")
         continue;
       const last = per.length - 1;
-      const rows = foldDuplicates(per.flatMap((p, k) => (p.sources[key] ?? []).filter((r) => r.section !== OFFTUNE_RATE && r.section !== ENERGY_RATE || k === last)));
+      const kept = per.flatMap((p, k) => (p.sources[key] ?? []).filter((r) => r.section !== OFFTUNE_RATE && r.section !== ENERGY_RATE && r.section !== ENERGY_REGEN || k === last));
+      const rows = [...foldDuplicates(kept.filter((r) => r.section !== ENERGY_REGEN)), ...kept.filter((r) => r.section === ENERGY_REGEN)];
       if (rows.length)
         sources[key] = rows;
       else
@@ -757,7 +776,7 @@ function rowValues(snap, { mv, avg }, members = []) {
     raw["before:offtune"] = shownBefore(members[0], 2) / RESOURCE_SCALE.offtune;
   }
   const floor4 = (v) => Math.floor(v * 1e4) / 1e4;
-  const dealers = (members.length ? members : [snap]).filter((m) => mvPercent(m) !== 0);
+  const dealers = (members.length ? members : [snap]).filter((m) => landedMv(m) !== 0);
   const fs = (dealers.length ? dealers : [snap]).map(damageFactors);
   const f = fs[fs.length - 1];
   const factor = (source, label, pick, mult, round = (v) => v) => {
@@ -826,11 +845,11 @@ function buildReport(lines) {
       full: RESOURCE_NAME[key]
     }))
   ];
-  const isShort = (snap) => snap.triggered && snap.action.cast !== 8;
+  const isShort = (snap) => snap.triggered && !(snap.action.cast === 8 && snap.action.castOfftune < 0);
   const isShortLine = (line) => line.members?.length ? line.members.every(isShort) : isShort(line.snap);
-  const endOf = (s) => s.triggered && s.hitAt !== void 0 ? s.hitAt : s.frame + s.frames + (s.swapFrames ?? 0);
+  const endOf = (s) => s.action.cast === 6 ? s.frame + s.action.animFrames : s.triggered && s.hitAt !== void 0 ? s.hitAt : s.frame + s.frames + (s.swapFrames ?? 0);
   const partOf = (snap, avg, shown3) => {
-    const part = rowValues(snap, { mv: mvPercent(snap), avg });
+    const part = rowValues(snap, { mv: landedMv(snap), avg });
     part.raw.action = snap.action.name;
     if (tagOf(snap))
       part.raw["tag:action"] = tagOf(snap);
@@ -839,7 +858,7 @@ function buildReport(lines) {
     part.raw["end:time"] = end;
     return {
       ...part,
-      info: actionInfo(snap.action, snap.type, snap.source),
+      info: actionInfo(snap),
       type: snap.type,
       scaling: snap.action.scaling,
       isShown: snap === shown3,
@@ -862,7 +881,7 @@ function buildReport(lines) {
       sources,
       buffed,
       // `snap.type`, not `action.type`: the type it was actually evaluated as (typeOverride)
-      info: actionInfo(snap.action, snap.type, snap.source),
+      info: actionInfo(snap),
       scaling: snap.action.scaling,
       short: isShortLine(line),
       parts: line.isChain ? line.parts.map((p) => partOf(p.snap, p.dmg.avg, snap)) : []
@@ -960,8 +979,8 @@ function offeredGear(kind, f = filters) {
               offered.weapon.add(w.name);
           }
         if (axisOpen(m, f, "echoes"))
-          for (const e of m.loadout.echoLoadouts)
-            offered.echo.add(echoLabel(m.loadout, e));
+          for (const e of echoPicks(m, members))
+            offered.echo.add(echoLabel(m.loadout, m.loadout.echoLoadouts[e]));
       }
     }
     gearCache = { sig, offered };
@@ -988,7 +1007,7 @@ function comparable(name, axis) {
       if (m.name !== name)
         continue;
       const l = m.loadout;
-      const n = axis === "weapons" ? l.weapons.length : axis === "echoes" ? l.echoLoadouts.length : axis === "mainstats" ? l.mainstats.length : axis === "substats" ? 2 : axis === "refines" ? Math.max(...l.refinements.map((r) => r.length)) : l.sequences.length ? l.sequences.length - Math.max(l.minSequence, l.resonator.tier === 2 ? 0 : Math.min(baseSequence(l.resonator), l.sequences.length)) + 1 : 1;
+      const n = axis === "weapons" ? l.weapons.length : axis === "echoes" ? echoPicks(m, members).length : axis === "mainstats" ? l.mainstats.length : axis === "substats" ? 2 : axis === "refines" ? Math.max(...l.refinements.map((r) => r.length)) : l.sequences.length ? l.sequences.length - Math.max(l.minSequence, l.resonator.tier === 2 ? 0 : Math.min(baseSequence(l.resonator), l.sequences.length)) + 1 : 1;
       if (n > 1)
         return true;
     }
@@ -1088,9 +1107,50 @@ function rowWanted(row) {
   const fielded = row.members.map((m) => m.name);
   return namesHold(weaponFilters, row.combo.flatMap((c) => [c.weapon.name, weaponBase(c.weapon)])) && namesHold(echoFilters, row.combo.map((c, i) => echoLabel(row.members[i].loadout, c.echo))) && tagsHold(sequenceFilters, row.combo.flatMap((c, i) => sequenceTag(row.members[i], c) ?? []), fielded) && tagsHold(refineFilters, row.combo.map((c, i) => refineTag(row.members[i], c)), fielded);
 }
-function expandTeam(teamKey2, members) {
-  const solved = bestPicks.get(bestKey(teamKey2, members, filters));
-  if (!solved || !teamWanted(teamKey2, members))
+function admitBuild(members, combo) {
+  const fielded = members.map((m) => m.name);
+  const fit = (map, names, tagged) => {
+    for (const [name, mode] of [...map]) {
+      if (names.includes(name) === (mode === "include"))
+        continue;
+      const own = tagged && mode === "include" ? names.find((n) => tagOwner(n) === tagOwner(name)) : void 0;
+      if (own)
+        map.set(own, "include");
+      else if (!tagged || mode === "exclude" || fielded.includes(tagOwner(name)))
+        map.delete(name);
+    }
+  };
+  fit(weaponFilters, combo.flatMap((c) => [c.weapon.name, weaponBase(c.weapon)]), false);
+  fit(echoFilters, combo.map((c, i) => echoLabel(members[i].loadout, c.echo)), false);
+  fit(sequenceFilters, combo.flatMap((c, i) => sequenceTag(members[i], c) ?? []), true);
+  fit(refineFilters, combo.map((c, i) => refineTag(members[i], c)), true);
+}
+function admitTeam(teamKey2) {
+  const members = TEAMS[teamKey2];
+  for (const m of members)
+    if (resonatorFilters.get(m.name) === "exclude")
+      resonatorFilters.delete(m.name);
+  for (const m of members) {
+    if (teamWanted(teamKey2, members))
+      return;
+    resonatorFilters.set(m.name, "include");
+  }
+}
+function snapshotFilters() {
+  const kept = structuredClone(filters);
+  const maps = [resonatorFilters, ...Object.values(OPTION_FILTER_MAPS)].map((map) => [map, [...map]]);
+  return () => {
+    Object.assign(filters, kept);
+    for (const [map, entries] of maps) {
+      map.clear();
+      for (const [name, mode] of entries)
+        map.set(name, mode);
+    }
+  };
+}
+function expandTeam(teamKey2, members, all = false, f = filters) {
+  const solved = bestPicks.get(bestKey(teamKey2, members, f));
+  if (!solved || !all && !teamWanted(teamKey2, members))
     return [];
   const rows = /* @__PURE__ */ new Map();
   const file = (picks, score, list) => {
@@ -1103,9 +1163,10 @@ function expandTeam(teamKey2, members) {
   };
   solved.rows.forEach((picks, r) => file(picks, solved.scores[r], true));
   (solved.hidden ?? []).forEach((picks, r) => file(picks, solved.hiddenScores?.[r], false));
-  return [...rows.values()].filter(rowWanted);
+  return all ? [...rows.values()] : [...rows.values()].filter(rowWanted);
 }
 var teamRows = () => Object.entries(TEAMS).flatMap(([key, members]) => expandTeam(key, members));
+var solvedRows = (teamKey2, f = filters) => expandTeam(teamKey2, TEAMS[teamKey2], true, f);
 function axisWays(lists, map, cap = Infinity, tagged = false) {
   const excluded = [...map].filter(([, mode]) => mode === "exclude").map(([n]) => n);
   const sizes = (drop) => lists.map((l) => l === null ? 1 : l.filter((n) => !drop.includes(n)).length);
@@ -1126,26 +1187,33 @@ function axisWays(lists, map, cap = Infinity, tagged = false) {
   return total;
 }
 function estimatedRowCount(members, f = filters) {
-  return axisWays(members.map((m) => axisOpen(m, f, "weapons") ? eligibleWeapons(m, f).map((i) => m.loadout.weapons[i].name) : null), weaponFilters) * axisWays(members.map((m) => axisOpen(m, f, "echoes") ? m.loadout.echoLoadouts.map((e) => echoLabel(m.loadout, e)) : null), echoFilters) * members.reduce((n, m) => n * (axisOpen(m, f, "mainstats") ? Math.min(MAINSTAT_ROWS, m.loadout.mainstats.length) : 1), 1) * axisWays(members.map((m) => sequenceTagsOf(m, f)), sequenceFilters, Infinity, true) * members.reduce((n, m) => n * (axisOpen(m, f, "substats") ? 2 : 1), 1) * members.reduce((n, m) => n * (axisUsed(m, f, "refines") ? Math.max(...eligibleWeapons(m, f).map((i) => m.loadout.refinements[i].length)) : 1), 1) * members.reduce((n, m) => n * (!axisOpen(m, f, "echoes") && axisUsed(m, f, "echoes") ? m.loadout.echoLoadouts.length : 1) * (!axisOpen(m, f, "mainstats") && axisUsed(m, f, "mainstats") ? Math.min(MAINSTAT_ROWS, m.loadout.mainstats.length) : 1), 1);
+  return axisWays(members.map((m) => axisOpen(m, f, "weapons") ? eligibleWeapons(m, f).map((i) => m.loadout.weapons[i].name) : null), weaponFilters) * axisWays(members.map((m) => axisOpen(m, f, "echoes") ? echoPicks(m, members).map((e) => echoLabel(m.loadout, m.loadout.echoLoadouts[e])) : null), echoFilters) * members.reduce((n, m) => n * (axisOpen(m, f, "mainstats") ? m.loadout.mainstats.length : 1), 1) * axisWays(members.map((m) => sequenceTagsOf(m, f)), sequenceFilters, Infinity, true) * members.reduce((n, m) => n * (axisOpen(m, f, "substats") ? 2 : 1), 1) * members.reduce((n, m) => n * (axisUsed(m, f, "refines") ? Math.max(...eligibleWeapons(m, f).map((i) => m.loadout.refinements[i].length)) : 1), 1) * members.reduce((n, m) => n * (!axisOpen(m, f, "echoes") && axisUsed(m, f, "echoes") ? echoPicks(m, members).length : 1) * (!axisOpen(m, f, "mainstats") && axisUsed(m, f, "mainstats") ? m.loadout.mainstats.length : 1), 1);
 }
 function prospectiveRows(f = filters) {
   return Object.entries(TEAMS).filter(([key, members]) => teamWanted(key, members)).reduce((sum, [, members]) => sum + estimatedRowCount(members, f), 0);
 }
+var COMBO_KEY = /^(\d+)\.(\d+)\.(\d+)\.s(\d+)\.r(\d+)(\.m)?(\.h)?$/;
+function picksOfKey(key) {
+  const picks = [];
+  for (const k of key.split("-").slice(1)) {
+    const p = COMBO_KEY.exec(k);
+    if (!p)
+      return null;
+    picks.push({ weapon: +p[1], echo: +p[2], mainstat: +p[3], sequence: +p[4], refine: +p[5], matrix: !!p[6], highSubs: !!p[7] });
+  }
+  return picks;
+}
 function rowFromKey(key) {
-  const [teamKey2, ...comboKeys] = key.split("-");
-  if (!teamKey2)
-    return null;
-  const members = TEAMS[teamKey2];
-  if (!members || comboKeys.length !== members.length)
+  const teamKey2 = key.split("-")[0];
+  const members = teamKey2 ? TEAMS[teamKey2] : void 0;
+  const picks = picksOfKey(key);
+  if (!teamKey2 || !members || !picks || picks.length !== members.length)
     return null;
   const combo = [];
   for (let i = 0; i < members.length; i++) {
-    const parsed = /^(\d+)\.(\d+)\.(\d+)\.s(\d+)\.r(\d+)(\.m)?(\.h)?$/.exec(comboKeys[i]);
-    if (!parsed)
-      return null;
     const l = members[i].loadout;
-    const pick = { weapon: +parsed[1], echo: +parsed[2], mainstat: +parsed[3], sequence: +parsed[4], refine: +parsed[5], matrix: !!parsed[6], highSubs: !!parsed[7] };
-    if (!l.refinements[pick.weapon]?.[pick.refine] || !l.echoLoadouts[pick.echo] || !l.mainstats[pick.mainstat] || pick.matrix && !l.resonator.matrix)
+    const pick = picks[i];
+    if (!l.refinements[pick.weapon]?.[pick.refine] || !echoPicks(members[i], members).includes(pick.echo) || !l.mainstats[pick.mainstat] || pick.matrix && !l.resonator.matrix || pick.sequence < l.minSequence)
       return null;
     combo.push(comboOf(l, pick));
   }
@@ -1214,9 +1282,10 @@ function picksFit(key, picks) {
   const team = teamAt(key.split("|")[0]);
   if (!team)
     return false;
+  const roster = team.loadouts.map((l) => l.resonator);
   return picks.length === team.loadouts.length && picks.every((p, i) => {
     const l = team.loadouts[i];
-    return p.weapon < l.weapons.length && p.refine < (l.refinements[p.weapon]?.length ?? 0) && p.echo < l.echoLoadouts.length && p.mainstat < l.mainstats.length;
+    return p.weapon < l.weapons.length && p.refine < (l.refinements[p.weapon]?.length ?? 0) && !!l.echoLoadouts[p.echo]?.fits(roster) && p.mainstat < l.mainstats.length && p.sequence >= l.minSequence;
   });
 }
 function solveFits(key, solved, f) {
@@ -1335,6 +1404,8 @@ var COST_CODE = {
   s2r1mdps: "s2m",
   s3r1mdps: "s3m",
   s6r1mdps: "s6m",
+  s6r1mdps_s2r1: "s6ms2",
+  s6r5mdps: "s6r5m",
   s6r5: "s6r5"
 };
 var FILTER_GROUPS = [
@@ -1402,7 +1473,7 @@ function teamTag(key) {
     return key;
   let bits = BigInt(+team[1]), width = 14n;
   for (const combo of comboKeys) {
-    const p = /^(\d+)\.(\d+)\.(\d+)\.s(\d+)\.r(\d+)(\.m)?(\.h)?$/.exec(combo);
+    const p = COMBO_KEY.exec(combo);
     if (!p)
       return key;
     const [weapon, echo, mainstat, sequence, refine] = p.slice(1, 6).map(Number);
@@ -1440,6 +1511,21 @@ function hashTeam() {
   return [teamKey2, ...combos].join("-");
 }
 function syncHash(team = hashTeam(), push = false) {
+  const next = hashOf(team);
+  if (next === location.hash)
+    return;
+  const url = `${location.pathname}${location.search}${next}`;
+  if (push)
+    history.pushState({ detail: true }, "", url);
+  else
+    history.replaceState(history.state, "", url);
+}
+function reopenDetail(team) {
+  const url = (hash) => `${location.pathname}${location.search}${hash}`;
+  history.replaceState(null, "", url(hashOf(null)));
+  history.pushState({ detail: true }, "", url(hashOf(team)));
+}
+function hashOf(team) {
   const named = (map, mode) => [...map].filter(([, m]) => m === mode).map(([name]) => encodeURIComponent(map === resonatorFilters ? name.replace(/ /g, "") : name)).join(",");
   const compact = (n) => encodeURIComponent(n.replace(/ /g, ""));
   const parts = filters.matrix.length ? [`mx=${filters.matrix.map(compact).join(",")}`] : [];
@@ -1459,14 +1545,7 @@ function syncHash(team = hashTeam(), push = false) {
   }
   if (team)
     parts.push(`team=${teamTag(team)}`);
-  const next = parts.length ? `#${parts.join("&")}` : "";
-  if (next === location.hash)
-    return;
-  const url = `${location.pathname}${location.search}${next}`;
-  if (push)
-    history.pushState({ detail: true }, "", url);
-  else
-    history.replaceState(history.state, "", url);
+  return parts.length ? `#${parts.join("&")}` : "";
 }
 var routeTeam = () => {
   const key = hashTeam();
@@ -1536,7 +1615,8 @@ function popover(col, rows, total, slotHue, suffix = "", empty = "") {
   const body = sections.map(({ key, rows: group }) => `<tr class="sec"><td colspan="2">${esc(key ?? col.full ?? col.label)}</td></tr>` + group.map(row).join("")).join("");
   const titled = sections.length ? body : `<tr class="sec${empty ? " plain" : ""}"><td colspan="2">${esc(empty || (col.fullEmpty ?? col.full ?? col.label))}</td></tr>`;
   const sum = col.noTotal ? "" : `<tr class="sum"><td class="k">Total</td><td class="v">${fmtExact(total)}${col.percent ? "%" : ""}${esc(suffix)}</td></tr>`;
-  return lazyPop(`<span class="pop stat${col.key === "avg" ? " damage" : ""}"><table>${titled}${before.map(row).join("")}${sum}${after.map(row).join("")}</table></span>`);
+  const tail = after.map((r, i) => (r.section && r.section !== after[i - 1]?.section ? `<tr class="sec"><td colspan="2">${esc(r.section)}</td></tr>` : "") + row(r)).join("");
+  return lazyPop(`<span class="pop stat${col.key === "avg" ? " damage" : ""}"><table>${titled}${before.map(row).join("")}${sum}${tail}</table></span>`);
 }
 function infoPopover(info, slotHue) {
   if (!info?.length)
@@ -1558,24 +1638,25 @@ function framesPopover(snaps) {
     if (!s.active)
       continue;
     const press = s.hitAt !== void 0 ? s.action.castPart() : s.action;
-    const hold = s.tag === ActionTag.HoldCancel && s.holdPaid >= 0;
-    const cost = hold ? press.holdCost(s.action.letGo(s.holdPaid)) : press.cost(s.tag);
+    const fast = s.tag === ActionTag.MashCancel;
+    const hold = (s.tag === ActionTag.HoldCancel || fast) && s.holdPaid >= 0;
+    const cost = hold ? press.holdCost(s.holdCut) : press.cost(s.tag);
     total += cost.total - s.timestopBanked;
     const insta = s.tag === ActionTag.InstaCancel || s.tag === ActionTag.InstaDodge || s.tag === ActionTag.InstaJump || s.tag === ActionTag.InstaSwap;
-    const fast = s.tag === ActionTag.MashCancel;
     const cut = s.tag === ActionTag.Cancel || s.tag === ActionTag.MashCancel || s.tag === ActionTag.HoldCancel || s.tag === ActionTag.DodgeCancel || s.tag === ActionTag.JumpCancel || s.tag === ActionTag.SwapCancel || s.tag === ActionTag.HitCancel || s.tag === ActionTag.DodgeOnHit || s.tag === ActionTag.JumpOnHit;
     if (hold) {
-      const own = Math.min(Math.max(s.holdPaid, s.action.prioFrames), cost.action);
+      const own = Math.min(s.holdPaid, cost.action);
       if (own)
         rows.push(line(`${s.action.name} (c)`, own));
       if (cost.action > own)
-        rows.push(line("Hold Input", cost.action - own));
+        rows.push(line(fast ? "Mash Input" : "Hold Input", cost.action - own));
     } else if (!insta)
       rows.push(line(`${s.action.name}${cut ? " (c)" : ""}`, cost.action));
     if (cost.timestop)
       rows.push(line("Timestop", -cost.timestop));
+    const swaps = s.tag === ActionTag.InstaSwap || s.tag === ActionTag.SwapCancel;
     if (cost.global)
-      rows.push(line(insta ? "Input Delay" : fast ? "Mash delay" : "Cancel Timing", cost.global));
+      rows.push(line(swaps ? "Swap Delay" : insta ? "Input Delay" : "Cancel Timing", cost.global));
     if (s.timestopBanked)
       rows.push(line("Banked Timestop", -s.timestopBanked));
     if (s.swapFrames)
@@ -1808,8 +1889,7 @@ var constantKeys = (stats) => new Set(stats.map(lineKey));
 var statRow = (e, owner, slotHue, noStat = false) => {
   const percent = isPercent(e.stat);
   const stat = splitStat(e.stat)[0];
-  const resource = stat === 27 || stat === 28;
-  return `<tr class="stat${e.dim ? " one" : ""}"><td class="s" style="--own:${slotHue.get(owner) ?? FALLBACK_HUE}">${esc(e.source)}</td>` + (noStat ? "" : `<td class="k">${esc(statLabel(e.stat))}</td>`) + `<td class="v">${fmt(e.value / statDisplayScale(stat), percent ? 1 : resource ? 2 : 0)}${percent ? "%" : ""}</td></tr>`;
+  return `<tr class="stat${e.dim ? " one" : ""}"><td class="s" style="--own:${slotHue.get(owner) ?? FALLBACK_HUE}">${esc(e.source)}</td>` + (noStat ? "" : `<td class="k">${esc(statLabel(e.stat))}</td>`) + `<td class="v">${fmt(e.value / statDisplayScale(stat), percent ? 1 : 0)}${percent ? "%" : ""}</td></tr>`;
 };
 function piecePopover(run, pieces, owner, slotHue) {
   const own = new Set(pieces);
@@ -1824,11 +1904,13 @@ function piecePopover(run, pieces, owner, slotHue) {
   return statsPanel(stats, buffs.sort((a, b) => rank(a) - rank(b)), owner, slotHue);
 }
 function resonatorPopover(run, kit, equipped, owner, slotHue) {
-  const stats = menuStats([...kit]);
+  const own = new Set(kit);
+  const stats = menuStats(kit);
   const constant = constantKeys(stats);
-  const forte = (e) => e.stat >= 31 && e.stat <= 35;
-  const mine = (root, e) => e.owner === owner && (kit.has(root) || !equipped.has(root)) && !constant.has(lineKey(e)) && !forte(e);
-  return statsPanel(stats, buffStats(run, mine), owner, slotHue);
+  const mine = (root, e) => e.owner === owner && (own.has(root) || !equipped.has(root)) && !constant.has(lineKey(e));
+  const order = new Map(kit.map((g, i) => [g, i]));
+  const rank = (e) => order.get((e.gear ? run.state?.grantedBy.get(e.gear) : void 0) ?? e.gear) ?? 0;
+  return statsPanel(stats, buffStats(run, mine).sort((a, b) => rank(a) - rank(b)), owner, slotHue);
 }
 function statsPanel(stats, buffs, owner, slotHue, heading = "Stats", noStat = false) {
   const row = (e) => statRow(e, owner, slotHue, noStat);
@@ -1837,64 +1919,50 @@ function statsPanel(stats, buffs, owner, slotHue, heading = "Stats", noStat = fa
     return "";
   return lazyPop(`<span class="pop gear"><table>` + (stats.length ? `<tr class="sec"><td colspan="${cols}">${esc(heading)}</td></tr>${stats.map(row).join("")}` : "") + (buffs.length ? `<tr class="sec"><td colspan="${cols}">Buffs</td></tr>${buffs.map(row).join("")}` : "") + `</table></span>`);
 }
-function loadoutTable(run, needs) {
+function loadoutTable(run, needs, pickable) {
   const erRolls = erRollsFor(run.teamKey, run.members, run.combo);
-  const builds = run.members.map((m, i) => ({ member: m, combo: run.combo[i], erRolls: erRolls[i] }));
+  const builds = run.members.map((m, i) => ({ member: m, combo: run.combo[i], erRolls: erRolls[i], slot: i }));
   const slotHue = new Map([
     ...run.members.map((m) => [m.name, m.color]),
     [TUNE_BREAK_ENEMY.name, TUNE_BREAK_ENEMY.color]
   ]);
   const kitOf = ({ member: member2, combo }) => {
-    const r = member2.loadout.resonator;
-    return new Set([r, r.talent, r.inherent1, r.inherent2, combo.matrix].filter((g) => g != null));
+    const l = member2.loadout, r = l.resonator;
+    return [r, r.talent, r.inherent1, r.inherent2, combo.matrix, l.mode, ...l.sequences.slice(0, combo.sequence)].filter((g) => g != null);
   };
+  const pick = (slot, kind) => pickable?.(slot, kind) ? ` data-pick="${kind}" data-slot="${slot}"` : "";
   const equipped = new Set(builds.flatMap(({ member: member2, combo, erRolls: n }) => member2.loadout.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs, n)));
   const head = `<div class="rtrow rthead"><div class="c lbl">Resonator</div>` + builds.map((b) => {
     const hover = resonatorPopover(run, kitOf(b), equipped, b.member.name, slotHue);
-    return `<div class="c mem${hover ? " has" : ""}"${hover} style="--mem:${b.member.color}">${esc(b.member.name)}</div>`;
+    return `<div class="c mem${hover ? " has" : ""}"${hover}${pick(b.slot, "sequences")} style="--mem:${b.member.color}">${esc(loadoutName(b.member.loadout, b.combo.sequence || void 0))}</div>`;
   }).join("") + `</div>`;
   const row = (label, cells) => `<div class="rtrow"><div class="c lbl">${esc(label)}</div>${cells.join("")}</div>`;
-  const gearCell = (owner, g, pieces) => {
+  const gearCell = (owner, g, pieces, picks = "") => {
     if (!g)
       return `<div class="c"></div>`;
     const hover = piecePopover(run, pieces ?? [g], owner, slotHue);
-    return `<div class="c${hover ? " has" : ""}"${hover}>${esc(g.name)}</div>`;
+    return `<div class="c${hover ? " has" : ""}"${hover}${picks}>${esc(g.name)}</div>`;
   };
   const rows = [];
-  rows.push(row("Weapon", builds.map((b) => gearCell(b.member.name, b.combo.weapon))));
-  rows.push(row("Mainslot", builds.map((b) => gearCell(b.member.name, b.combo.echo.mainslot))));
-  const sonataOf = builds.map(({ combo }) => combo.echo.sets);
-  const sonatas = Math.max(...sonataOf.map((list) => list.length));
-  for (let i = 0; i < sonatas; i++) {
-    rows.push(row(i === 0 ? "Sonata" : "", builds.map((b, k) => {
-      const set = sonataOf[k][i] ?? null;
-      return gearCell(b.member.name, set, set instanceof Sonata ? [set, set.sonata2pc] : void 0);
-    })));
-  }
-  const spreadCell = (piece, owner, stats, heading, noStat = false) => {
+  rows.push(row("Weapon", builds.map((b) => gearCell(b.member.name, b.combo.weapon, void 0, pick(b.slot, "weapons")))));
+  rows.push(row("Mainslot", builds.map((b) => gearCell(b.member.name, b.combo.echo.mainslot, void 0, pick(b.slot, "mainslot")))));
+  rows.push(row("Sonata", builds.map((b) => {
+    const sets = b.combo.echo.sets;
+    const pieces = sets.flatMap((g) => g instanceof Sonata ? [g, g.sonata2pc] : [g]);
+    return gearCell(b.member.name, sets[0] ?? null, pieces, pick(b.slot, "sonata"));
+  })));
+  const spreadCell = (piece, owner, stats, heading, noStat = false, picks = "") => {
     const hover = statsPanel(stats, [], owner, slotHue, heading, noStat);
-    return `<div class="c has"${hover}>${esc(piece.name)}</div>`;
+    return `<div class="c has"${hover}${picks}>${esc(piece.name)}</div>`;
   };
-  rows.push(row("Mainstats", builds.map((b) => spreadCell(b.combo.mainstat, b.member.name, declaredRows(mainstatSlotBuffs(b.combo.mainstat), b.member.name, false), "Mainstats & Secondary Stats"))));
+  rows.push(row("Mainstats", builds.map((b) => spreadCell(b.combo.mainstat, b.member.name, declaredRows(mainstatSlotBuffs(b.combo.mainstat), b.member.name, false), "Mainstats & Secondary Stats", false, pick(b.slot, "mainstats")))));
   rows.push(row("Substats", builds.map((b) => {
     const l = b.member.loadout;
     const piece = l.spread(b.combo.highSubs, b.erRolls);
     const rolls = substatRollBuffs(piece);
     const lit = litStats(l.resonator.maxEnergy);
-    return spreadCell(piece, b.member.name, declaredRows(rolls, b.member.name, true, lit), `Substats (${rolls.length} lines)`, true);
+    return spreadCell(piece, b.member.name, declaredRows(rolls, b.member.name, true, lit), `Substats (${rolls.length} lines)`, true, pick(b.slot, "substats"));
   })));
-  if (builds.some((b) => b.combo.sequence > 0)) {
-    rows.push(row("Sequences", builds.map((b) => {
-      if (!b.combo.sequence)
-        return `<div class="c"></div>`;
-      const held = b.member.loadout.sequences.slice(0, b.combo.sequence);
-      const hover = piecePopover(run, held, b.member.name, slotHue);
-      return `<div class="c${hover ? " has" : ""}"${hover}>${held.map((_, i) => `S${i + 1}`).join(", ")}</div>`;
-    })));
-  }
-  if (builds.some((b) => b.member.loadout.mode)) {
-    rows.push(row("Mode", builds.map((b) => gearCell(b.member.name, b.member.loadout.mode ?? null))));
-  }
   rows.push(row("Menu Stats", builds.map((b) => {
     const req = needs?.get(b.member.name);
     const stats = menuStatRows(b.member, b.combo, b.erRolls).map((r) => {
@@ -2128,7 +2196,7 @@ function distCell(lines, slot, section, hue) {
   let nodeless = 0;
   eachHit(lines, slot, (snap, avg) => {
     total += avg;
-    const subtype = snap.action.lastBullet?.subtype ?? null;
+    const subtype = snap.action.lastDamage?.subtype ?? null;
     const type = snap.type === 32768 && subtype !== null ? null : snap.type;
     const key = (type ?? 0) | (subtype ?? 0);
     const slice = types.get(key);
@@ -2245,10 +2313,21 @@ function teamCell(sections, section, slotHue) {
   const by = /* @__PURE__ */ new Map();
   let total = 0;
   sections.forEach((lines) => {
+    let own = 0;
+    const field = /* @__PURE__ */ new Map();
+    eachHit(lines, null, (snap, avg) => {
+      own += avg;
+      if (snap.action.tag !== ActionTag.Field)
+        return;
+      const key = `${snap.slot} ${snap.action.name}`;
+      field.set(key, (field.get(key) ?? 0) + avg);
+    });
     eachHit(lines, null, (snap, avg) => {
       if (avg <= 0)
         return;
       total += avg;
+      if ((field.get(`${snap.slot} ${snap.action.name}`) ?? Infinity) < own * 0.02)
+        return;
       const color = slotHue.get(snap.slot) ?? TUNE_BREAK_ENEMY.color;
       let act = snap.action;
       while (act.cancelOf ?? act.formOf)
@@ -2261,18 +2340,20 @@ function teamCell(sections, section, slotHue) {
       }
       acts[at].dmg += avg;
       acts[at].casts++;
-      bars.push({ dmg: avg, color, act: at });
+      const off = !snap.active || snap.tag === ActionTag.Field || snap.tag === ActionTag.InstaSwap || snap.tag === ActionTag.SwapCancel;
+      const cost = snap.action.cost(snap.tag);
+      const frames = off ? act.animFrames : snap.holdCut >= 0 ? snap.holdCut : cost.action + cost.global;
+      bars.push({ dmg: avg, frames, color, act: at });
     });
   });
-  const roster = [...slotHue].map(([name, color]) => ({ name, color }));
-  return { kind: "team", section, total, bars, roster, acts };
+  return { kind: "team", section, total, bars, acts };
 }
 function barChart(bars) {
   const width = 480, height = 210, left = 2, right = 2, top = 10, foot = 12;
   const plotW = width - left - right, plotH = height - top - foot;
   const f = (n) => n.toFixed(2);
   const peak = Math.max(...bars.map((b) => b.dmg));
-  const weights = bars.map((b) => 0.15 + Math.sqrt(b.dmg / peak));
+  const weights = bars.map((b) => Math.max(b.frames, 60));
   const unit2 = plotW / weights.reduce((a, w) => a + w, 0);
   let x = left;
   const rects = bars.map((b, i) => {
@@ -2283,14 +2364,13 @@ function barChart(bars) {
   }).join("");
   return `<svg class="bars" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img"><line class="axis" vector-effect="non-scaling-stroke" x1="${left}" y1="${top + plotH}" x2="${width - right}" y2="${top + plotH}"/>` + rects + `</svg>`;
 }
-var barKey = (roster) => `<ul class="barkey" style="--keys:${roster.length}">${roster.map((c) => `<li><span class="dot" style="background:${c.color}"></span>${esc(c.name)}</li>`).join("")}</ul>`;
 function distBody(cell2) {
   if (!cell2 || cell2.total <= 0)
     return `<div class="pies"><p class="nodist">No damage in this section.</p></div>`;
   const section = cell2.section ? ` (${cell2.section})` : "";
   if (cell2.kind === "team") {
     shownChart = cell2;
-    return `<div class="teampanes"><figure class="piefig"><figcaption>Damage Over Time${section}</figcaption><div class="chartwrap">${barChart(cell2.bars)}</div>${barKey(cell2.roster)}</figure></div>`;
+    return `<div class="teampanes"><figure class="piefig"><figcaption>Damage Over Time${section}</figcaption><div class="chartwrap">${barChart(cell2.bars)}</div></figure></div>`;
   }
   return `<div class="pies">${pieFigure(`${cell2.slot} Damage Distribution${section}`, cell2.types, cell2.total)}${pieFigure(`${cell2.slot} Node Priority${section}`, cell2.nodes, cell2.total)}</div>`;
 }
@@ -2408,8 +2488,8 @@ function searchCandidates() {
           for (const w of m.loadout.refinements[i])
             add("refine", `${m.name} R${w.refinement}`);
       if (axisOpen(m, filters, "echoes"))
-        for (const e of m.loadout.echoLoadouts)
-          add("echo", echoLabel(m.loadout, e));
+        for (const e of echoPicks(m, members))
+          add("echo", echoLabel(m.loadout, m.loadout.echoLoadouts[e]));
       for (const tag of sequenceTagsOf(m, filters))
         if (tag)
           add("sequence", tag);
@@ -2489,6 +2569,8 @@ var COST_HELP = [
   "s0r1 mdps +r0 supports - Each team gets a single signature weapon at R1, on whichever of its main DPS gives the best DPR increase \u2014 never a support. Dual DPS teams still only get one signature weapon.",
   "s0r1 all - All limited resonators get their best signature weapon, while Rover and 4* supports may still use standard or 4* weapons.",
   "s2r1 / s3r1 / s6r1 mdps +r1 supports - One main DPS per team runs that many sequence nodes, whichever gives the best DPR increase \u2014 never a support. Everyone else stays S0 on their own signature at R1.",
+  "s6r1 mdps +s2r1 supports - As above at S6, with everyone else at S2 on their own signature at R1.",
+  "s6r5 mdps +s0r1 supports - One main DPS per team is S6 with their signature at R5, whichever gives the best DPR increase \u2014 never a support. Everyone else stays S0 on their own signature at R1.",
   "s6r5 all - Every resonator is S6 with their best weapon at R5."
 ];
 var MATRIX_HELP = "Enables matrix exclusive buffs for older characters, scaled down to a neutral environment. Lucy also activates 1 stack of her boss kill inherent.";
@@ -2503,7 +2585,7 @@ function comparisonFilters() {
   const costBox = () => {
     const open = openHelp.has("cost");
     const option = (value, label) => `<option value="${value}"${filters.cost === value ? " selected" : ""}>${label}</option>`;
-    return `<div class="tcopt${open ? " open" : ""}"><div class="tcopt-head"><button type="button" class="tcopt-name" data-help="cost" aria-expanded="${open}">Team Cost<span class="arrow">\u203A</span></button><select id="cost" class="tcselect" aria-label="Team Cost" title="Team Cost">` + option("s0r0", "s0r0 all") + option("s0r1mdps", "s0r1 mdps +r0 supports") + option("s0r1", "s0r1 all") + option("s2r1mdps", "s2r1 mdps +r1 supports") + option("s3r1mdps", "s3r1 mdps +r1 supports") + option("s6r1mdps", "s6r1 mdps +r1 supports") + option("s6r5", "s6r5 all") + `</select></div><div class="tcopt-desc"${open ? "" : " hidden"}><ul>${COST_HELP.map((l) => `<li>${esc(l)}</li>`).join("")}</ul></div></div>`;
+    return `<div class="tcopt${open ? " open" : ""}"><div class="tcopt-head"><button type="button" class="tcopt-name" data-help="cost" aria-expanded="${open}">Team Cost<span class="arrow">\u203A</span></button><select id="cost" class="tcselect" aria-label="Team Cost" title="Team Cost">` + option("s0r0", "s0r0 all") + option("s0r1mdps", "s0r1 mdps +r0 supports") + option("s0r1", "s0r1 all") + option("s2r1mdps", "s2r1 mdps +r1 supports") + option("s3r1mdps", "s3r1 mdps +r1 supports") + option("s6r1mdps", "s6r1 mdps +r1 supports") + option("s6r1mdps_s2r1", "s6r1 mdps +s2r1 supports") + option("s6r5mdps", "s6r5 mdps +s0r1 supports") + option("s6r5", "s6r5 all") + `</select></div><div class="tcopt-desc"${open ? "" : " hidden"}><ul>${COST_HELP.map((l) => `<li>${esc(l)}</li>`).join("")}</ul></div></div>`;
   };
   const note = (id, label, lines, extra = "") => {
     const open = openHelp.has(id);
@@ -2760,7 +2842,8 @@ function scopedItems(resonator, on, value) {
     run: () => setScoped(s(axis))
   }));
 }
-function showMenu(x, y, items) {
+function showMenu(x, y, items, onClose) {
+  document.querySelector(".ctxmenu")?.dispatchEvent(new Event("closemenu"));
   document.querySelector(".ctxmenu")?.remove();
   const menu = document.createElement("div");
   menu.className = "ctxmenu";
@@ -2774,6 +2857,7 @@ function showMenu(x, y, items) {
     removeEventListener("contextmenu", onOutside, true);
     removeEventListener("keydown", onKey, true);
     removeEventListener("scroll", close, true);
+    onClose?.();
   };
   const onItem = (e) => {
     const item = e.target.closest(".ctxitem");
@@ -2805,6 +2889,7 @@ function showMenu(x, y, items) {
     addEventListener("keydown", onKey, true);
     addEventListener("scroll", close, true);
   });
+  return menu;
 }
 function memberLabel(m, combo) {
   return [m.mainDps ? loadoutName(m.loadout) : m.name, combo.matrix ? "(Matrix)" : "", `${seqToken(m, combo)}${rankToken(m, combo)}`].filter(Boolean).join(" ");
@@ -2904,8 +2989,8 @@ function comparisonTable(rows) {
     openAt[axis].forEach((open, pos) => {
       if (!open)
         return;
-      const choices = [...seenAt].some(([key, seen]) => key.startsWith(`${axis}|${pos}|`) && seen.size > 1);
-      if (choices)
+      const choices2 = [...seenAt].some(([key, seen]) => key.startsWith(`${axis}|${pos}|`) && seen.size > 1);
+      if (choices2)
         return;
       if (axis === "weapons")
         soloWeapon[pos] = true;
@@ -3592,6 +3677,247 @@ document.addEventListener("keydown", (e) => {
   takeSearchHit(hit);
 });
 
+// dist/src/page/pickmenu.js
+var FIELDS = ["weapon", "echo", "mainstat", "sequence", "refine", "highSubs"];
+var picksOf = (run) => picksOfKey(`${run.teamKey}-${run.combo.map((c) => c.key).join("-")}`);
+var switchTo = async () => {
+};
+var onSwitch = (fn) => {
+  switchTo = fn;
+};
+var solveQuiet = async () => {
+};
+var onSolve = (fn) => {
+  solveQuiet = fn;
+};
+function choices(run, i, kind) {
+  const m = run.members[i], l = m.loadout;
+  const cur = picksOf(run)[i];
+  const choice = (label, axis, pick, is, free) => ({ label, axis, pick, is, free, current: is(cur) });
+  const regear = ["echo", "mainstat"];
+  if (kind === "sequences") {
+    return sequenceLevels(m, { ...filters, sequences: [...filters.sequences, m.name] }).map((n) => choice(loadoutName(l, n), "sequences", { ...cur, sequence: n }, (p) => p.sequence === n, regear));
+  }
+  if (kind === "weapons") {
+    const ranks = l.refinements[cur.weapon];
+    return [
+      ...l.weapons.map((w, k) => choice(weaponBase(w), "weapons", { ...cur, weapon: k, refine: Math.min(cur.refine, l.refinements[k].length - 1) }, (p) => p.weapon === k, regear)),
+      // the worn weapon's other ranks, by their own names ("Discord R2")
+      ...ranks.length > 1 ? ranks.map((w, r) => choice(w.name, "refines", { ...cur, refine: r }, (p) => p.weapon === cur.weapon && p.refine === r, regear)) : []
+    ];
+  }
+  if (kind === "sonata" || kind === "mainslot") {
+    const setsOf = (e) => l.echoLoadouts[e].sets.map((g) => g.name).join(" + ");
+    const slotOf = (e) => l.echoLoadouts[e].mainslot.name;
+    const [labelOf, otherOf] = kind === "sonata" ? [setsOf, slotOf] : [slotOf, setsOf];
+    const echoes = echoPicks(m, run.members);
+    return [...new Set(echoes.map(labelOf))].map((label) => {
+      const wearing = echoes.filter((e) => labelOf(e) === label);
+      const held = wearing.find((e) => otherOf(e) === otherOf(cur.echo));
+      return choice(label, "echoes", { ...cur, echo: held ?? wearing[0] }, (p) => labelOf(p.echo) === label, held === void 0 ? regear : ["mainstat"]);
+    });
+  }
+  if (kind === "mainstats") {
+    return mainstatRanking(run.teamKey, run.members, picksOf(run), i).map(({ mainstat: k, run: ranked }) => ({ ...choice(l.mainstats[k].name, "mainstats", { ...cur, mainstat: k }, (p) => p.mainstat === k, []), run: ranked }));
+  }
+  return [false, true].map((h) => choice(subsLabel(comboOf(l, { ...cur, highSubs: h })), "substats", { ...cur, highSubs: h }, (p) => p.highSubs === h, regear));
+}
+function canPick(run, i, kind) {
+  if (kind === "mainstats")
+    return run.members[i].loadout.mainstats.length > 1;
+  return choices(run, i, kind).length > 1;
+}
+function closest(rows, cur, i, c) {
+  let best = null;
+  let score = [];
+  for (const row of rows) {
+    const picks = picksOfKey(row.key);
+    const off = picks.reduce((n, p, j) => n + FIELDS.filter((f) => j === i ? !c.free.includes(f) && p[f] !== c.pick[f] : p[f] !== cur[j][f]).length, 0);
+    const s = [Number(!c.is(picks[i])), off, -teamFigure(results.get(row.key))];
+    const at = s.findIndex((v, k) => v !== score[k]);
+    if (!best || at >= 0 && s[at] < score[at]) {
+      best = row;
+      score = s;
+    }
+  }
+  return best;
+}
+function opened(m, axis, gate, from = filters) {
+  const f = structuredClone(from);
+  if (compares(m, f, axis, gate))
+    return f;
+  if (axis === "refines")
+    f.scoped.push({ resonator: m.name, on: "weapon", value: weaponBase(gate.weapon), axis: "refines" });
+  else
+    f[axis].push(m.name);
+  return f;
+}
+function shutCompare(m, axis, gate) {
+  for (const a of axis === "weapons" ? ["weapons", "refines"] : [axis])
+    filters[a] = filters[a].filter((n) => n !== m.name);
+  filters.scoped = filters.scoped.filter((s) => s.resonator !== m.name || s.axis !== axis || !scopedOpen(m, { ...filters, scoped: [s] }, axis, gate));
+  pruneGearFilters();
+}
+function take(run, i, c) {
+  const m = run.members[i];
+  const cur = picksOf(run);
+  const gate = gateOf(m.loadout, c.pick);
+  const undo = snapshotFilters();
+  const admit = () => {
+    admitTeam(run.teamKey);
+    admitBuild(run.members, cur.map((p, j) => comboOf(run.members[j].loadout, j === i ? c.pick : p)));
+    return prospectiveRows();
+  };
+  const shut = {
+    setUp: () => {
+      undo();
+      shutCompare(m, c.axis, gate);
+      return admit() <= ROW_CAP;
+    },
+    choose: (rows) => {
+      const row = closest(rows, cur, i, c);
+      return row && c.is(picksOfKey(row.key)[i]) ? row : null;
+    }
+  };
+  const open = {
+    setUp: () => {
+      undo();
+      Object.assign(filters, opened(m, c.axis, gate));
+      const total = admit();
+      rowCapWarning(total > ROW_CAP ? total : null);
+      return total <= ROW_CAP;
+    },
+    choose: (rows) => closest(rows, cur, i, c)
+  };
+  void switchTo(run.teamKey, [shut, open], undo);
+}
+var LOOK = [
+  "font-family",
+  "font-size",
+  "font-weight",
+  "font-variant-numeric",
+  "line-height",
+  "letter-spacing",
+  "text-transform",
+  "text-align",
+  "white-space",
+  "padding-top",
+  "padding-right",
+  "padding-bottom",
+  "padding-left",
+  "border-top-width",
+  "border-top-style",
+  "border-top-color"
+];
+function ratios(m, owns) {
+  const l = m.loadout, axis = owns[0]?.[0].axis;
+  const low = Math.min(...owns.map(([c]) => c.pick.sequence));
+  const ranked = owns.some(([c]) => c.axis === "refines");
+  const keep = axis === "weapons" ? (c) => l.weapons[c.pick.weapon].tier !== 0 && (!ranked || c.pick.refine === 0) : axis === "refines" ? (c) => c.pick.refine === 0 : axis === "sequences" ? (c) => c.pick.sequence === low : axis === "substats" ? (c) => !c.pick.highSubs : () => true;
+  const pool2 = owns.filter(([c]) => keep(c)).map(([, v]) => v);
+  const base = pool2.length ? Math.max(...pool2) : Math.min(...owns.map(([, v]) => v));
+  return base > 0 ? owns.map(([c, v]) => [c, v / base]) : [];
+}
+async function showRatios(run, i, list, boxes, cell2) {
+  const m = run.members[i];
+  const cur = picksOf(run);
+  const gate = gateOf(m.loadout, cur[i]);
+  const axes = [...new Set(list.map((c) => c.axis))];
+  const groups = axes.includes("refines") ? [axes] : axes.map((a) => [a]);
+  for (const group of groups) {
+    const axis = group[0];
+    const own = list.filter((c) => group.includes(c.axis));
+    let owns;
+    if (axis === "mainstats")
+      owns = own.map((c) => [c, personalFigure(c.run, m.name)]);
+    else {
+      const f = group.reduce((at, a) => opened(m, a, gate, at), filters);
+      await solveQuiet(run.teamKey, f);
+      const rows = solvedRows(run.teamKey, f);
+      owns = own.flatMap((c) => {
+        const row = closest(rows, cur, i, c);
+        return row && c.is(picksOfKey(row.key)[i]) ? [[c, personalFigure(results.get(row.key), m.name)]] : [];
+      });
+    }
+    if (!cell2.classList.contains("picking"))
+      return;
+    for (const [c, ratio] of ratios(m, owns)) {
+      const box = c.current ? c.axis === axes[0] ? cell2 : void 0 : boxes.get(c);
+      if (!box)
+        continue;
+      const tag = box.appendChild(document.createElement("span"));
+      tag.className = "pickpct";
+      tag.textContent = pctTrunc(ratio);
+    }
+  }
+}
+function dressAs(menu, cell2) {
+  const cs = getComputedStyle(cell2);
+  let ground = "";
+  for (let at = cell2; at && !ground; at = at.parentElement) {
+    const bg = getComputedStyle(at).backgroundColor;
+    if (bg !== "rgba(0, 0, 0, 0)" && bg !== "transparent")
+      ground = bg;
+  }
+  const look = LOOK.map((p) => `${p}:${cs.getPropertyValue(p)}`).join(";");
+  const r = cell2.getBoundingClientRect();
+  menu.classList.add("pickdrop");
+  menu.style.left = `${r.left}px`;
+  menu.style.width = `${r.width}px`;
+  for (const box of menu.querySelectorAll(".ctxitem")) {
+    box.style.cssText += `;${look};color:${cs.color};background-color:${ground};box-shadow:${cs.boxShadow}`;
+    if (box.scrollWidth > box.clientWidth)
+      box.title = box.textContent ?? "";
+  }
+}
+var openPickMenu = (e) => {
+  const el = e.target.closest(".rtable.loadout .c[data-pick]");
+  const key = el ? routeTeam() : null;
+  const run = key ? results.get(key) : void 0;
+  if (!el || !run)
+    return;
+  e.preventDefault();
+  if (reopened === el)
+    return;
+  openCell = el;
+  const i = Number(el.dataset.slot);
+  const list = choices(run, i, el.dataset.pick);
+  const offered = list.filter((c) => !c.current);
+  const items = offered.map((c) => ({ label: c.label, run: () => take(run, i, c) }));
+  const r = el.getBoundingClientRect();
+  dropPanel();
+  holdPanels(true);
+  const box = document.body.appendChild(document.createElement("div"));
+  box.className = "pickbox";
+  const frame = (at) => {
+    const b = at.getBoundingClientRect();
+    box.style.cssText = `left:${b.left}px;top:${b.top}px;width:${b.width}px;height:${b.height}px`;
+  };
+  frame(el);
+  el.classList.add("picking");
+  const menu = showMenu(r.left, r.bottom - 1, items, () => {
+    holdPanels(false);
+    box.remove();
+    el.classList.remove("picking");
+    openCell = null;
+    el.querySelector(".pickpct")?.remove();
+  });
+  dressAs(menu, el);
+  const boxes = new Map(offered.map((c, n) => [c, menu.querySelectorAll(".ctxitem")[n]]));
+  void showRatios(run, i, list, boxes, el);
+  menu.addEventListener("mouseover", (ev) => frame(ev.target.closest(".ctxitem") ?? el));
+  menu.addEventListener("mouseleave", () => frame(el));
+};
+var openCell = null;
+var reopened = null;
+for (const type of ["click", "contextmenu"]) {
+  addEventListener(type, (e) => {
+    reopened = openCell?.contains(e.target) ? openCell : null;
+  }, true);
+}
+document.addEventListener("click", openPickMenu);
+document.addEventListener("contextmenu", openPickMenu);
+
 // dist/src/page/detail.js
 var app3 = document.getElementById("app");
 var topbar2 = document.getElementById("topbar");
@@ -3624,12 +3950,12 @@ var TAG_NOTE = {
   [ActionTag.InstaDodge]: "After casting, dodge instantly",
   [ActionTag.InstaJump]: "After casting, jump instantly",
   [ActionTag.InstaSwap]: "After casting, swap instantly",
-  [ActionTag.Cancel]: "After the final hit, input the next action",
-  [ActionTag.DodgeCancel]: "After the final hit, dodge",
-  [ActionTag.JumpCancel]: "After the final hit, jump",
-  [ActionTag.SwapCancel]: "After the final hit, swap",
-  [ActionTag.MashCancel]: "After casting, mash the next input to cancel on the final hit",
-  [ActionTag.HoldCancel]: "After casting, hold the next input to cancel upon receiving forte",
+  [ActionTag.Cancel]: "After the final hit, input the next action to cancel endlag",
+  [ActionTag.DodgeCancel]: "After the final hit, dodge to cancel endlag",
+  [ActionTag.JumpCancel]: "After the final hit, jump to cancel endlag",
+  [ActionTag.SwapCancel]: "After the final hit, swap to cancel endlag",
+  [ActionTag.MashCancel]: "After casting, mash the next input to cancel when available",
+  [ActionTag.HoldCancel]: "After casting, hold the next input to cancel when available",
   [ActionTag.HitCancel]: "After the first hit, input the next action",
   [ActionTag.DodgeOnHit]: "After the first hit, dodge",
   [ActionTag.JumpOnHit]: "After the first hit, jump"
@@ -3642,8 +3968,8 @@ function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = tr
     if (isRunning(col.key)) {
       if ("line" in row && row.line.aggregate)
         return cell(col);
-      const cast = ("line" in row ? row.line.snap : row.snap).action.cast;
-      const spend = col.key === "offtune" ? cast === 8 : col.key === "concerto" && cast === 6;
+      const act = ("line" in row ? row.line.snap : row.snap).action, cast = act.cast;
+      const spend = col.key === "offtune" ? cast === 8 && act.castOfftune < 0 : col.key === "concerto" && cast === 6;
       const before = Number(row.raw[`before:${col.key}`]) || 0;
       if (!spend)
         attr = ` data-val="${Number(v) || 0}" data-before="${before}"`;
@@ -3665,6 +3991,8 @@ function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = tr
     if ((col.key === "concerto" || col.key === "energy") && Number(row.raw[`short:${col.key}`]))
       cls.push("underspent");
     if (col.key.startsWith("gauge:") && Number(row.raw[`short:${col.key}`]))
+      cls.push("negative");
+    if (col.key === "action" && row.raw["short:buff"])
       cls.push("negative");
     const text = esc(fmt(v, digitsOf(row.raw, col), PAD_DIGITS_COLUMNS.has(col.key), GROUPED_COLUMNS.has(col.key))) + (col.percent && typeof v === "number" ? "%" : "") + gaugeSuffix(row.raw, col.key);
     let html = sources && text ? `<span class="has">${text}</span>` : text;
@@ -3817,17 +4145,15 @@ function erRequirement(flat, resetIdx, member2, maxEnergy, constant) {
         break walk;
       if (s.endsLoop)
         continue;
-      const gain = (s.action.energy + s.stat(
-        27
-        /* Stat.AddEnergy */
-      ) + (s.castGain?.[0] ?? 0)) * (1 + s.stat(
+      const own = landedBullets(s).reduce((n, b) => n + b.energy, 0);
+      const gain = own > 0 ? own * (1 + s.stat(
         14
         /* Stat.EnergyRegenMult */
-      ) / 100);
+      ) / 100) : own;
       buffed += gain * (s.stat(
         11
         /* Stat.ER */
-      ) - constant);
+      ) - constant) + 100 * (s.action.castEnergy + (s.gain?.[0] ?? 0));
     }
   }
   return (maxEnergy * 100 - buffed) / before;
@@ -3899,7 +4225,7 @@ function page(run) {
   <div class="rtables">
     <div class="rtable-block">
       <h2 class="summary-label">Equipment</h2>
-      ${loadoutTable(run, energyRequirements(run, lines))}
+      ${loadoutTable(run, energyRequirements(run, lines), (slot, kind) => canPick(run, slot, kind))}
     </div>
     <div class="rstack">
       <div class="rtable-block">
@@ -4006,8 +4332,8 @@ function doubled(row, held) {
   if (!tgl?.checked)
     return false;
   const field = tgl.id.startsWith("fg") ? tgl.id.slice(2) : "";
-  const opened = field ? chain.closest(".grid").querySelectorAll(`.r[data-fh="${field}"], [data-fh="${field}"] .r`) : chain.querySelectorAll(":scope > .parts .r");
-  return [...opened].some((r) => held.has(r));
+  const opened2 = field ? chain.closest(".grid").querySelectorAll(`.r[data-fh="${field}"], [data-fh="${field}"] .r`) : chain.querySelectorAll(":scope > .parts .r");
+  return [...opened2].some((r) => held.has(r));
 }
 function blockPanel(sel) {
   let dmg = 0, dmgCells = 0;
@@ -4934,7 +5260,7 @@ addEventListener("resize", () => {
   requestAnimationFrame(place);
 });
 
-// dist/src/index.js
+// dist/src/page/index.js
 var app4 = document.getElementById("app");
 var backLink = document.getElementById("backLink");
 var overlay2 = document.getElementById("loading");
@@ -5168,6 +5494,7 @@ async function ensureBestPicks(inPlay, f, stale) {
 }
 var generation = 0;
 var tableRequested = false;
+var tableStale = false;
 var route = () => {
   const key = routeTeam();
   if (key) {
@@ -5175,7 +5502,7 @@ var route = () => {
     maybeShowTutorial();
     return;
   }
-  if (!tableRequested) {
+  if (!tableRequested || tableStale) {
     void refresh2();
     return;
   }
@@ -5184,6 +5511,7 @@ var route = () => {
 };
 async function refresh2() {
   tableRequested = true;
+  tableStale = false;
   const gen = ++generation;
   const stale = () => gen !== generation;
   cancelQueued();
@@ -5238,6 +5566,50 @@ async function refresh2() {
   overlayHide();
   maybeShowTutorial();
 }
+async function switchTo2(teamKey2, attempts, undo) {
+  tableStale = true;
+  const gen = ++generation;
+  const stale = () => gen !== generation;
+  cancelQueued();
+  barReset();
+  try {
+    for (const attempt of attempts) {
+      if (!attempt.setUp())
+        continue;
+      await ensureBestPicks([[teamKey2, TEAMS[teamKey2]]], structuredClone(filters), stale);
+      if (stale())
+        return;
+      saveSolves();
+      const row = attempt.choose(solvedRows(teamKey2));
+      if (!row)
+        continue;
+      admitBuild(row.members, row.combo);
+      await overlayNow("Running Rotation\u2026", 1);
+      if (stale())
+        return;
+      reopenDetail(row.key);
+      route();
+      overlayHide();
+      return;
+    }
+  } catch (err) {
+    if (!stale())
+      showError(err);
+    return;
+  }
+  undo();
+  overlayHide();
+}
+async function solveQuiet2(teamKey2, f) {
+  const members = TEAMS[teamKey2];
+  await loadShipped(f);
+  if (bestPicks.has(bestKey(teamKey2, members, f)) || !members.every((m) => hasBuild(m, f)))
+    return;
+  workerPool();
+  await solveAll([[teamKey2, members]], f, () => {
+  });
+  saveSolves();
+}
 async function bootDetail() {
   const key = hashTeam();
   if (!key || results.has(key))
@@ -5254,6 +5626,8 @@ async function bootDetail() {
 }
 async function boot() {
   onRefresh(refresh2);
+  onSwitch(switchTo2);
+  onSolve(solveQuiet2);
   applyHash();
   await loadSolves();
   const detail = await bootDetail().catch((err) => {

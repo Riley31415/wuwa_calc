@@ -25,29 +25,40 @@ import { consumedConcerto, gainedUnison } from "../shared/unison.js";
 import { TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
 import { AERO_EROSION, FUSION_BURST, GLACIO_CHAFE, HAVOC_BANE } from "../shared/status.js";
 
-/** Changli's sig: Crimson Phoenix. +12% ATK flat. Searing Feather: a stack per hit at a 0.5s
- *  ICD — one every 30 frames of the wielder's own field time, on a clock their presses keep up
- *  and their swap-out drops — and five outright on a Resonance Skill, up to 14, each +4% Resonance Skill
- *  DMG Bonus. The stacks carry across visits: the kit's "removed 12s after reaching max" is taken
- *  as the Outro cast at max stacks dropping them, paid on that outro first. */
+/** Changli's sig: Crimson Phoenix. +12% ATK flat. Searing Feather: a stack on dealing damage, once
+ *  every 0.5s, and five on casting a Resonance Skill, up to 14, each +4% Resonance Skill DMG Bonus.
+ *  Reaching 14 removes every stack 12s later. */
 export const BLAZING_BRILLIANCE = refinements((r, rank) => {
   const SEARING_FEATHER: Buff = new Buff({
     name: `Blazing Brilliance: Crimson Phoenix${rank}`, maxStacks: 14,
     stats: [[Stat.DmgBonus, [4, 5, 6, 7, 8][r]!, Type.Skill]], perStack: true,
-    afterAction: () => { if (casting(Cast.Outro) && stacksOf(SEARING_FEATHER) >= 14) revokeCurrent(SEARING_FEATHER); },
   });
-  const SEARING_CLOCK = new Buff({
-    name: `Blazing Brilliance: Crimson Phoenix${rank}`, hidden: true,
-    tick: { every: 30, fire: () => applyCurrent(SEARING_FEATHER, 1) },
-    updateBuffs: () => lostOnSwap(),
+  const SEARING_GAP = new Buff({ name: `Blazing Brilliance: Searing Feather Cooldown${rank}`, duration: 30, hidden: true });
+  // started at max stacks, it drops them all on its one tick 12s on
+  const SEARING_EXPIRY: Buff = new Buff({
+    name: `Blazing Brilliance: Searing Feather Expiry${rank}`, hidden: true,
+    tick: {
+      every: 60 * 12,
+      fire: () => {
+        revokeCurrent(SEARING_FEATHER);
+        revokeCurrent(SEARING_EXPIRY);
+      },
+    },
   });
+  const gain = (n: number): void => {
+    if (isHeld(SEARING_EXPIRY)) return;
+    applyCurrent(SEARING_FEATHER, n);
+    if (stacksOf(SEARING_FEATHER) >= 14) applyCurrent(SEARING_EXPIRY, 1);
+  };
   return new Weapon({
     weaponType: WeaponType.Sword, name: `Blazing Brilliance${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritDmg, 48.6], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
-    grants: [
-      { on: isActive, buff: SEARING_CLOCK },
-      { on: onCast(Cast.Skill), buff: SEARING_FEATHER, stacks: 5 },
-    ],
+    updateBuffs: () => { if (casting(Cast.Skill)) gain(5); },
+    afterHit: () => {
+      if (isHeld(SEARING_GAP)) return;
+      gain(1);
+      applyCurrent(SEARING_GAP, 1);
+    },
   });
 });
 

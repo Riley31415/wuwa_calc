@@ -8,8 +8,8 @@
     "build": "tsc && npm run bundle",
     "watch": "tsc --watch",
     "dev": "python dev.py",
-    "precompute": "\"%USERPROFILE%\\tools\\node-v24.21.0-win-x64\\node.exe\" dist/src/precompute.js",
-    "bundle": "node -e \"require('node:fs').rmSync('dist/bundle',{recursive:true,force:true})\" && esbuild dist/src/index.js dist/src/solver.js --bundle --splitting --format=esm --outdir=dist/bundle --outbase=dist/src"
+    "precompute": "\"%USERPROFILE%\\tools\\node-v24.21.0-win-x64\\node.exe\" dist/src/solve/precompute.js",
+    "bundle": "node -e \"require('node:fs').rmSync('dist/bundle',{recursive:true,force:true})\" && esbuild dist/src/page/index.js dist/src/solve/solver.js --bundle --splitting --format=esm --outdir=dist/bundle --entry-names=[name]"
   },
   "repository": {
     "type": "git",

@@ -64,7 +64,7 @@ export const mvPercent = (snapshot: Snapshot): number =>
 const notDotFor = (snapshot: Snapshot): number =>
   (snapshot.action.scaling !== Scaling.Dot ? 1 : 0);
 
-/** The scalar forms of the enemy-side terms, off the figures alone: `damageAvgOf()` (the search's
+/** The scalar forms of the enemy-side terms, off the figures alone: `damageFactorsInto()` (the search's
  *  per-variant path, which has no Snapshot object) and the Snapshot forms below share them, so the
  *  two can't drift. */
 const shredOf = (stats: StatRow, notDot: number, base: number): number =>
@@ -228,19 +228,21 @@ export const foldStat = (stats: StatRow, base: Stat, bonus: Stat, flat: Stat): n
   return b + Math.floor(b * stats[bonus]! / 100) + stats[flat]!;
 };
 
-/** `damageFactors().avg` alone, off the figures rather than a Snapshot — the same expressions in
- *  the same order, with nothing allocated. The search calls this once per variant per action. */
-export function damageAvgOf(
-  action: Action, stats: StatRow, atk: number, hp: number, def: number,
+/** Where each of a row's factors sits in its stretch of `FACTOR_COUNT` (`damageFactorsInto()`). */
+const F_ADD_MV = 0, F_MUL_MV = 1, F_STAT = 2, F_AMP = 3, F_BONUS = 4, F_TBB = 5, F_RES = 6, F_DEF = 7, F_DEALT = 8, F_TAKEN = 9, F_CRIT = 10;
+export const FACTOR_COUNT = 11;
+
+/** `damageFactors()` off the figures, split at the motion value, same expressions in the same order:
+ *  every factor but the motion value into `out[at...]`, which `avgFromFactors()` then heads. */
+export function damageFactorsInto(
+  out: Float64Array, at: number, scaling: Scaling | null, stats: StatRow, atk: number, hp: number, def: number,
   amp: number, subtypeAmp: number, dmgBonus: number, subtypeCritRate: number, subtypeCritDmg: number,
   subtypeTotalDmg: number, subtypeDamageTaken: number, enemyRes: number, enemyDef: number,
-): number {
-  const { scaling } = action;
-  if (scaling === null) return 0;
-  if (scaling === Scaling.Fixed) return Math.floor(action.mv / MV_UNIT);
+): void {
+  if (scaling === null || scaling === Scaling.Fixed) return;
   const notDot = scaling !== Scaling.Dot ? 1 : 0;
   const notTune = scaling !== Scaling.Tune ? 1 : 0;
-  const finalStat = Math.floor(
+  out[at + F_STAT] = Math.floor(
     scaling === Scaling.Atk ? atk
     : scaling === Scaling.Hp ? hp
     : scaling === Scaling.Def ? def
@@ -248,20 +250,28 @@ export function damageAvgOf(
     : scaling === Scaling.Tune ? LEVEL_90_TUNE
     : NaN
   );
-  const finalMv = (action.mv + stats[Stat.AddMv]!) * (1 + stats[Stat.MulMv]! / 100) / (100 * MV_UNIT);
-  const ampFactor = 1 + ((notDot ? amp : subtypeAmp) / 100) * notTune;
-  const bonusFactor = 1 + (dmgBonus / 100) * notDot * notTune;
-  const tbbFactor = 1 + (stats[Stat.TBB]! / 100) * (1 - notTune);
-  const resFactor = resFactorFrom(resOf(stats, notDot, enemyRes) / 100);
-  const defFactor = defFactorFrom((1 - shredOf(stats, notDot, enemyDef)) * enemyDef);
-  const dealtFactor = 1 + (notDot ? stats[Stat.TotalDmg]! : subtypeTotalDmg) / 100;
-  const takenFactor = 1 + (notDot ? stats[Stat.DamageTaken]! : subtypeDamageTaken) / 100;
+  out[at + F_ADD_MV] = stats[Stat.AddMv]!;
+  out[at + F_MUL_MV] = 1 + stats[Stat.MulMv]! / 100;
+  out[at + F_AMP] = 1 + ((notDot ? amp : subtypeAmp) / 100) * notTune;
+  out[at + F_BONUS] = 1 + (dmgBonus / 100) * notDot * notTune;
+  out[at + F_TBB] = 1 + (stats[Stat.TBB]! / 100) * (1 - notTune);
+  out[at + F_RES] = resFactorFrom(resOf(stats, notDot, enemyRes) / 100);
+  out[at + F_DEF] = defFactorFrom((1 - shredOf(stats, notDot, enemyDef)) * enemyDef);
+  out[at + F_DEALT] = 1 + (notDot ? stats[Stat.TotalDmg]! : subtypeTotalDmg) / 100;
+  out[at + F_TAKEN] = 1 + (notDot ? stats[Stat.DamageTaken]! : subtypeDamageTaken) / 100;
   const special = !(notDot * notTune);
   const critMult = special ? (subtypeCritDmg ? subtypeCritDmg / 100 : 1) : stats[Stat.CritDmg]! / 100;
   const cr = special ? subtypeCritRate / 100 : stats[Stat.CritRate]! / 100;
-  const critFactor = cr >= 1 ? critMult : (1 - cr) + critMult * cr;
-  const noCrit = finalMv * finalStat * ampFactor * bonusFactor * tbbFactor
-    * resFactor * defFactor * dealtFactor * takenFactor;
-  return Math.floor(noCrit * critFactor);
+  out[at + F_CRIT] = cr >= 1 ? critMult : (1 - cr) + critMult * cr;
+}
+
+/** The average hit of motion value `mv` off a row's factors (`damageFactorsInto()`). */
+export function avgFromFactors(f: Float64Array, at: number, scaling: Scaling | null, mv: number): number {
+  if (scaling === null) return 0;
+  if (scaling === Scaling.Fixed) return Math.floor(mv / MV_UNIT);
+  const finalMv = (mv + f[at + F_ADD_MV]!) * f[at + F_MUL_MV]! / (100 * MV_UNIT);
+  const noCrit = finalMv * f[at + F_STAT]! * f[at + F_AMP]! * f[at + F_BONUS]! * f[at + F_TBB]!
+    * f[at + F_RES]! * f[at + F_DEF]! * f[at + F_DEALT]! * f[at + F_TAKEN]!;
+  return Math.floor(noCrit * f[at + F_CRIT]!);
 }
 

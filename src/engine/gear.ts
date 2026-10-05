@@ -11,7 +11,7 @@ import { ctx } from "./runtime.js";
 import type { ErSpread } from "../shared/substats.js";
 // the one edge back up the stack: a Resonator's own combatStart banks its base stats through
 // the ordinary API. Both names are function declarations, so the import cycle is inert at load.
-import { addStat, frozenStacks, casting, currentAction, applyCurrent, applyTeam, applyEnemy, queueOutro, revokeCurrent, currentMember, currentTeam, queue, queueOn, applyOn, stacksOf, stacksOfTeam, removeStack, removeStackTeam, removeStackEnemy } from "./context.js";
+import { addStat, frozenStacks, casting, applyCurrent, applyTeam, applyEnemy, queueOutro, revokeCurrent, currentMember, currentTeam, queue, queueOn, applyOn, stacksOf, stacksOfTeam, removeStack, removeStackTeam, removeStackEnemy } from "./context.js";
 
 /** One stat line as a kit writes it: `[stat, value]`, or `[stat, value, tag]` scoped to an
  *  element or damage type. On a piece of gear these are its constant stats; on a `Buff` they are
@@ -69,7 +69,7 @@ export interface GearDef {
    *  in `applyStats` below, which runs every action. Contributes in the applyStats phase, ahead of
    *  every `applyStats`. */
   constantStats?: () => void;
-  /** A flat stat contribution, on the hit only. */
+  /** A flat stat contribution, on every hit. A cast runs no stat: what it banks is flat. */
   applyStats?: () => void;
   /** Reads a total applyStats() already built this action (an ER threshold, an HP fold). */
   convertStats?: () => void;
@@ -150,6 +150,8 @@ export class Gear {
    *  than Buff because a pool holds every kind of Gear and reads it off each entry it stamps. */
   duration = 0;
   durationFn?: (stacks: number) => number;
+  /** The buffs that end with this one on its holder (`BuffDef.lostWith`). */
+  lostWithThis: Gear[] = [];
   /** See `BuffDef.tick` — the cadence in frames, and what fires on it. */
   tickEvery?: () => number;
   tickFn?: (n: number) => void;
@@ -241,7 +243,8 @@ export class Gear {
         this.updateBuffsFn = () => {
           own?.();
           fire(onCast);
-          if (currentAction().half === "cast") fire(onInflict);
+          // with no hit of its own to come, the cast fires them itself
+          if (ctx.act!.half === "cast" || !ctx.act!.bullets.length) fire(onInflict);
         };
       }
       if (onInflict.length) this.hitGrantsFn = () => fire(onInflict);
@@ -266,6 +269,11 @@ export class Gear {
       | (this.onHitFn ? PHASE_ON_HIT : 0);
     this.hookFns = [this.updateDebuffsFn, this.updateBuffsFn, this.applyStatsFn, this.convertStatsFn, this.lateConvertStatsFn, this.afterActionFn,
       this.constantStatsFn, this.hitGrantsFn, this.onHitFn];
+  }
+  /** Whether all this Gear does is its constant stats — no other hook, grant, clock or field: a run
+   *  can stand one such piece in for another without its fight changing (teamrun.ts's variants). */
+  get constantOnly(): boolean {
+    return this.hookMask === PHASE_CONST && !this.combatStartFn && !this.globalEntry && !this.tickFn && !this.field;
   }
   /** "Name xN" for anything that stacks — by its own declared cap, or in fact: a debuff declared at 1
    *  can be standing at 2 or 3 once a kit's `maxStackIncrease()` raised the target's own ceiling
@@ -295,11 +303,14 @@ export interface BuffDef extends GearDef {
   lostOnSwap?: boolean;
   /** How long this stands once granted, in frames at 60 a second (`60 * 30` for thirty seconds).
    *  Every grant refreshes it, and it is dropped ahead of the first action that starts at or past
-   *  its end (evaluate.ts's expiry pass). 0, the default, is unlimited. Independent of `until`:
+   *  its end (evaluate.ts's expiry pass). 0, the default, is unlimited. Independent of `lostWith`:
    *  whichever comes first ends the buff. A function is read at each grant, after the stacks have
    *  landed and with the count it landed on, for a length that depends on the moment ("extended
    *  to 30s at max stacks", a window whose stacks are its seconds). */
   duration?: number | ((stacks: number) => number);
+  /** A state that only stands inside another (a window inside a stance): it ends whenever that
+   *  buff ends on the same holder, so a cast needing both requires this one alone. */
+  lostWith?: Gear;
   /** A clock of the buff's own: `fire` runs every `every` frames of fight time it stands, with
    *  the tick's ordinal since the grant, on whichever action's press carries the clock past it —
    *  a field's summons, a status's own damage, a stack gained every 0.2s. Fired as the clock
@@ -318,6 +329,7 @@ export class Buff extends Gear {
     this.maxStacks = def.maxStacks ?? 1;
     if (typeof def.duration === "function") this.durationFn = def.duration;
     else this.duration = def.duration ?? 0;
+    if (def.lostWith) def.lostWith.lostWithThis.push(this);
     if (def.tick) {
       const every = def.tick.every;
       this.tickEvery = typeof every === "function" ? every : () => every;
@@ -341,9 +353,7 @@ export class Buff extends Gear {
     if (def.lostOnSwap) {
       const own = this.updateBuffsFn;
       this.updateBuffsFn = () => {
-        // a swap cancel pays first (`lostOnSwap()`)
-        if (currentAction().swapsAfterHit) ctx.swapLosses.add(this);
-        else if (currentAction().swapOut) revokeCurrent(this);
+        if (ctx.act!.swapOut) revokeCurrent(this);
         own?.();
       };
     }
@@ -537,6 +547,8 @@ export class EchoLoadout {
   mainslot: Mainslot;
   sonata: Sonata | Sonata3pc | Sonata1pc;
   sets: Gear[];
+  /** The resonators a team must field one of for this pick to be tried in it; none = any team. */
+  prerequisite: Resonator[] = [];
   constructor(mainslot: Mainslot, sonata: Sonata);
   constructor(mainslot: Mainslot, sonata: Sonata3pc, pc2: Sonata2pc);
   constructor(mainslot: Mainslot, sonata: Sonata1pc, pc2a: Sonata2pc, pc2b: Sonata2pc);
@@ -547,6 +559,14 @@ export class EchoLoadout {
   }
   pieces(): Gear[] {
     return [this.mainslot, ...this.sets, ...(this.sonata instanceof Sonata ? [this.sonata.sonata2pc] : [])];
+  }
+  /** Only tried in a team fielding one of `resonators`: a pick whose payoff is a teammate's kit. */
+  requires(...resonators: Resonator[]): this {
+    this.prerequisite = resonators;
+    return this;
+  }
+  fits(team: Resonator[]): boolean {
+    return !this.prerequisite.length || this.prerequisite.some((r) => team.includes(r));
   }
 }
 
@@ -633,6 +653,7 @@ export class Loadout {
     this.refinements = def.weapons.map((w) => (Array.isArray(w) ? w : [w]));
     this.weapons = this.refinements.map((w) => w[0]!);
     this.echoLoadouts = def.echoLoadouts;
+    if (this.echoLoadouts.every((e) => e.prerequisite.length)) throw new Error(`${def.resonator.name}: every echo pick has a prerequisite, so some team could try none`);
     this.mainstats = def.mainstats;
     this.substat = def.substat;
     this.highSubstat = def.highSubstat;
@@ -723,21 +744,32 @@ export interface ResonatorDef extends GearDef {
    *  damage popovers all key off it, read straight off the Resonator rather than re-declared per
    *  team in index.ts. */
   color: string;
-  /** The Intro this resonator casts — the kit's Intro, or its Intro Resolver where it has more than
-   *  one. What an INTRO_OPENER / INTRO_FIRST / INTRO_LAST marker casts when no Intro is written after it. */
-  intro?: Action;
+  /** The Intro this resonator casts — the kit's Intro, or where it has more than one, which comes
+   *  out as it is reached (`() => (isHeld(X) ? IntroB : Intro)`). What INTRO casts, and an
+   *  INTRO_OPENER / INTRO_FIRST / INTRO_LAST marker when no Intro is written after it. */
+  intro?: Action | (() => Action);
+  /** The Outro this resonator casts, the same way (a Unison form, a sequence's). What OUTRO casts. */
+  outro?: Action | (() => Action);
   /** This resonator's own Tune Break, where it isn't their weapon class's (Qingxiao's) — an Intro
    *  Resolver-style `resolve` where it depends on their form. Unset is the class's (tunebreak.ts). */
   tuneBreak?: Action;
-  /** The dash this resonator makes cutting `after` short, where it has one of its own (Jingran's
-   *  Shadow Step, Hiyuki's Iai Stance flash) — resolved like `intro` when the dash is reached;
+  /** The dash this resonator makes, where it has one of its own (Jingran's Shadow Step) — or the
+   *  one it makes cutting `after` short, read when the dash is reached (Hiyuki's Iai Stance flash);
    *  null, or unset, is the plain DODGE. */
-  dodge?: (after: Action) => Action | null;
+  dodge?: Action | ((after: Action) => Action | null);
   /** The same for a jump. */
-  jump?: (after: Action) => Action | null;
+  jump?: Action | ((after: Action) => Action | null);
   /** A wait the resonator handing this one the field must play before `next` (the arrival's first
    *  cast; an Outro asks with the Intro) — Phrolova's Hecate. Asked again after it; null goes ahead. */
   holdBefore?: (next: Action) => Action | null;
+  /** The enemy's own, on the frame `behind` is cut by `cut` (a dodge, swap, plain, on-hit or insta
+   *  cancel), ahead of its bullets still to land: what is ready there for `takesCut` to act on, the
+   *  cut's delay after it being only the input. */
+  atCut?: (behind: Action, cut: ActionTag) => void;
+  /** The enemy's own: read on the frame a plain dodge would be cast, or the rotation's next step
+   *  after a swap cancel or a plain, on-hit or insta cancel, `behind` the press its `cut` cut short
+   *  — it may `replaceCut()` and queue what plays there (tunebreak.ts's ready break). */
+  takesCut?: (behind: Action, cut: ActionTag) => void;
   /** How hard this resonator is to own, which is what sets the resonance-chain level their build
    *  is costed at — see stats.ts's own `Tier` and `baseSequence()`. Unset means `Tier.Limited`. */
   tier?: Tier;
@@ -767,11 +799,15 @@ export class Resonator extends Gear {
   maxForte: [number, number, number, number, number];
   forteScale: [number, number, number, number, number];
   color: string;
-  intro?: Action;
+  /** `ResonatorDef.intro`/`outro`, each read as it is reached. */
+  intro?: () => Action;
+  outro?: () => Action;
   tuneBreak?: Action;
   dodgeFn?: (after: Action) => Action | null;
   jumpFn?: (after: Action) => Action | null;
   holdFn?: (next: Action) => Action | null;
+  atCut?: (behind: Action, cut: ActionTag) => void;
+  takesCut?: (behind: Action, cut: ActionTag) => void;
   tier: Tier;
   constructor(def: ResonatorDef) {
     super({
@@ -817,11 +853,15 @@ export class Resonator extends Gear {
     const scale = def.forteScale ?? 1;
     this.forteScale = Array.isArray(scale) ? scale : [scale, scale, scale, scale, scale];
     this.color = def.color;
-    this.intro = def.intro;
+    const { intro, outro, dodge, jump } = def;
+    this.intro = typeof intro === "function" ? intro : intro && (() => intro);
+    this.outro = typeof outro === "function" ? outro : outro && (() => outro);
     this.tuneBreak = def.tuneBreak;
-    this.dodgeFn = def.dodge;
+    this.dodgeFn = typeof dodge === "function" ? dodge : dodge && (() => dodge);
     this.holdFn = def.holdBefore;
-    this.jumpFn = def.jump;
+    this.atCut = def.atCut;
+    this.takesCut = def.takesCut;
+    this.jumpFn = typeof jump === "function" ? jump : jump && (() => jump);
     this.tier = def.tier ?? Tier.Limited;
   }
 }

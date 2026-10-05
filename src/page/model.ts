@@ -6,13 +6,13 @@
 import { Tier } from "../engine/stats.js";
 import { baseSequence } from "../engine/gear.js";
 import { TUNE_BREAK_ENEMY } from "../shared/tunebreak.js";
-import { buildReport } from "../display.js";
-import type { Report } from "../display.js";
-import { member, comboOf, eligibleWeapons, refineLevels, sequenceLevels, scopedKey, axisUsed, weaponBase, echoLabel, MAINSTAT_ROWS, defaultFilters, bestKey, picksKey, axisOpen, filterSignature, AXES } from "../solver.js";
-import type { Member, Combo, Pick, Filters, Solved, SolveSave, Axis, TeamCost, ScopedCompare } from "../solver.js";
-import { runTeam, runFromScore } from "../teamrun.js";
-import type { TeamRun } from "../teamrun.js";
-import { teamKey, teamAt, ALL_TEAMS, PRIMARY_TEAM, INTERCHANGEABLE } from "../teams.js";
+import { buildReport } from "./display.js";
+import type { Report } from "./display.js";
+import { member, comboOf, eligibleWeapons, refineLevels, sequenceLevels, scopedKey, axisUsed, weaponBase, echoLabel, echoPicks, defaultFilters, bestKey, picksKey, axisOpen, filterSignature, AXES } from "../solve/solver.js";
+import type { Member, Combo, Pick, Filters, Solved, SolveSave, Axis, TeamCost, ScopedCompare } from "../solve/solver.js";
+import { runTeam, runFromScore } from "../solve/teamrun.js";
+import type { TeamRun } from "../solve/teamrun.js";
+import { teamKey, teamAt, ALL_TEAMS, PRIMARY_TEAM, INTERCHANGEABLE } from "../resonators/teams.js";
 
 /* ------------------------------------------------------------------------------------ teams */
 
@@ -84,7 +84,7 @@ export function offeredGear(kind: GearKind, f: Filters = filters): Set<string> {
     for (const members of Object.values(TEAMS)) {
       for (const m of members) {
         if (axisOpen(m, f, "weapons")) for (const i of eligibleWeapons(m, f)) { offered.weapon.add(weaponBase(m.loadout.weapons[i]!)); for (const w of m.loadout.refinements[i]!) offered.weapon.add(w.name); }
-        if (axisOpen(m, f, "echoes")) for (const e of m.loadout.echoLoadouts) offered.echo.add(echoLabel(m.loadout, e));
+        if (axisOpen(m, f, "echoes")) for (const e of echoPicks(m, members)) offered.echo.add(echoLabel(m.loadout, m.loadout.echoLoadouts[e]!));
       }
     }
     gearCache = { sig, offered };
@@ -112,7 +112,7 @@ export function comparable(name: string, axis: Axis): boolean {
     for (const m of members) {
       if (m.name !== name) continue;
       const l = m.loadout;
-      const n = axis === "weapons" ? l.weapons.length : axis === "echoes" ? l.echoLoadouts.length
+      const n = axis === "weapons" ? l.weapons.length : axis === "echoes" ? echoPicks(m, members).length
         : axis === "mainstats" ? l.mainstats.length : axis === "substats" ? 2
         : axis === "refines" ? Math.max(...l.refinements.map((r) => r.length))
         : (l.sequences.length ? l.sequences.length - Math.max(l.minSequence, l.resonator.tier === Tier.Free ? 0 : Math.min(baseSequence(l.resonator), l.sequences.length)) + 1 : 1);
@@ -290,11 +290,55 @@ function rowWanted(row: TeamRow): boolean {
     && tagsHold(refineFilters, row.combo.map((c, i) => refineTag(row.members[i]!, c)), fielded);
 }
 
+/** Loosen the option filters just enough for this build to be listed: a hidden pick it wears and an
+ *  include it can't meet on gear go, and a level or rank include gains the build's own beside it. */
+export function admitBuild(members: Member[], combo: Combo[]): void {
+  const fielded = members.map((m) => m.name);
+  const fit = (map: Map<string, ResonatorFilter>, names: string[], tagged: boolean): void => {
+    for (const [name, mode] of [...map]) {
+      if (names.includes(name) === (mode === "include")) continue;
+      // a level or rank include reads as "either" beside its own resonator's others (`tagsHold`)
+      const own = tagged && mode === "include" ? names.find((n) => tagOwner(n) === tagOwner(name)) : undefined;
+      if (own) map.set(own, "include");
+      else if (!tagged || mode === "exclude" || fielded.includes(tagOwner(name))) map.delete(name);
+    }
+  };
+  fit(weaponFilters, combo.flatMap((c) => [c.weapon.name, weaponBase(c.weapon)]), false);
+  fit(echoFilters, combo.map((c, i) => echoLabel(members[i]!.loadout, c.echo)), false);
+  fit(sequenceFilters, combo.flatMap((c, i) => sequenceTag(members[i]!, c) ?? []), true);
+  fit(refineFilters, combo.map((c, i) => refineTag(members[i]!, c)), true);
+}
+
+/** Bring a team back onto the table: its hidden members come off the hidden list, and while it
+ *  still stands outside the pool its members join it one at a time. */
+export function admitTeam(teamKey: string): void {
+  const members = TEAMS[teamKey]!;
+  for (const m of members) if (resonatorFilters.get(m.name) === "exclude") resonatorFilters.delete(m.name);
+  for (const m of members) {
+    if (teamWanted(teamKey, members)) return;
+    resonatorFilters.set(m.name, "include");
+  }
+}
+
+/** Every filter as it stands now, and the call that puts them all back. */
+export function snapshotFilters(): () => void {
+  const kept = structuredClone(filters);
+  const maps = [resonatorFilters, ...Object.values(OPTION_FILTER_MAPS)].map((map) => [map, [...map]] as const);
+  return () => {
+    Object.assign(filters, kept);
+    for (const [map, entries] of maps) {
+      map.clear();
+      for (const [name, mode] of entries) map.set(name, mode);
+    }
+  };
+}
+
 /** One team's rows: every combo its solve opened (solver.ts `rowPicks()`) as real gear, filed as
- *  already run off the solve's scores, filtered to what the option filters want. */
-function expandTeam(teamKey: string, members: Member[]): TeamRow[] {
-  const solved = bestPicks.get(bestKey(teamKey, members, filters));
-  if (!solved || !teamWanted(teamKey, members)) return [];
+ *  already run off the solve's scores, filtered to what the option filters want — or every one of
+ *  them with `all`, the table's own filters aside. */
+function expandTeam(teamKey: string, members: Member[], all = false, f: Filters = filters): TeamRow[] {
+  const solved = bestPicks.get(bestKey(teamKey, members, f));
+  if (!solved || (!all && !teamWanted(teamKey, members))) return [];
   const rows = new Map<string, TeamRow>();
   const file = (picks: Pick[], score: Solved["scores"][number] | undefined, list: boolean): void => {
     const combo = picks.map((p, i) => comboOf(members[i]!.loadout, p));
@@ -305,10 +349,12 @@ function expandTeam(teamKey: string, members: Member[]): TeamRow[] {
   solved.rows.forEach((picks, r) => file(picks, solved.scores[r], true));
   // hidden rows are filed as run for the gear compares, never listed
   (solved.hidden ?? []).forEach((picks, r) => file(picks, solved.hiddenScores?.[r], false));
-  return [...rows.values()].filter(rowWanted);
+  return all ? [...rows.values()] : [...rows.values()].filter(rowWanted);
 }
 
 export const teamRows = (): TeamRow[] => Object.entries(TEAMS).flatMap(([key, members]) => expandTeam(key, members));
+/** Every row one team's solve listed under `f`, whether the table would show it or not. */
+export const solvedRows = (teamKey: string, f: Filters = filters): TeamRow[] => expandTeam(teamKey, TEAMS[teamKey]!, true, f);
 
 /** Ways one axis can be filled across a team under its option filters. `null` = a closed box (one
  *  unknown pick). Excludes are exact per member; includes are counted by inclusion-exclusion;
@@ -346,10 +392,9 @@ export function estimatedRowCount(members: Member[], f: Filters = filters): numb
   return axisWays(members.map((m) => (axisOpen(m, f, "weapons")
       ? eligibleWeapons(m, f).map((i) => m.loadout.weapons[i]!.name) : null)), weaponFilters)
     * axisWays(members.map((m) => (axisOpen(m, f, "echoes")
-      ? m.loadout.echoLoadouts.map((e) => echoLabel(m.loadout, e)) : null)), echoFilters)
-    // an open box shows the build's own best few rolls, not the whole list (solver.ts's own
-    // `rowPicks()`), and no filter narrows them
-    * members.reduce((n, m) => n * (axisOpen(m, f, "mainstats") ? Math.min(MAINSTAT_ROWS, m.loadout.mainstats.length) : 1), 1)
+      ? echoPicks(m, members).map((e) => echoLabel(m.loadout, m.loadout.echoLoadouts[e]!)) : null)), echoFilters)
+    // an open box shows every roll (solver.ts's own `rowPicks()`), and no filter narrows them
+    * members.reduce((n, m) => n * (axisOpen(m, f, "mainstats") ? m.loadout.mainstats.length : 1), 1)
     // a closed sequence box's level is known (the baseline, untagged), so the real list goes in
     * axisWays(members.map((m) => sequenceTagsOf(m, f)), sequenceFilters, Infinity, true)
     * members.reduce((n, m) => n * (axisOpen(m, f, "substats") ? 2 : 1), 1)
@@ -358,8 +403,8 @@ export function estimatedRowCount(members: Member[], f: Filters = filters): numb
       : 1), 1)
     // a scoped sonata/main-stat compare is costed as if it opened every row
     * members.reduce((n, m) => n
-      * (!axisOpen(m, f, "echoes") && axisUsed(m, f, "echoes") ? m.loadout.echoLoadouts.length : 1)
-      * (!axisOpen(m, f, "mainstats") && axisUsed(m, f, "mainstats") ? Math.min(MAINSTAT_ROWS, m.loadout.mainstats.length) : 1), 1);
+      * (!axisOpen(m, f, "echoes") && axisUsed(m, f, "echoes") ? echoPicks(m, members).length : 1)
+      * (!axisOpen(m, f, "mainstats") && axisUsed(m, f, "mainstats") ? m.loadout.mainstats.length : 1), 1);
 }
 
 export function prospectiveRows(f: Filters = filters): number {
@@ -368,20 +413,32 @@ export function prospectiveRows(f: Filters = filters): number {
     .reduce((sum, [, members]) => sum + estimatedRowCount(members, f), 0);
 }
 
+/** One member's combo key (`comboOf()`): weapon.echo.mainstat.sN.rN, then .m and .h. */
+const COMBO_KEY = /^(\d+)\.(\d+)\.(\d+)\.s(\d+)\.r(\d+)(\.m)?(\.h)?$/;
+
+/** A row key's picks, member by member — null where a combo key doesn't parse. */
+export function picksOfKey(key: string): Pick[] | null {
+  const picks: Pick[] = [];
+  for (const k of key.split("-").slice(1)) {
+    const p = COMBO_KEY.exec(k);
+    if (!p) return null;
+    picks.push({ weapon: +p[1]!, echo: +p[2]!, mainstat: +p[3]!, sequence: +p[4]!, refine: +p[5]!, matrix: !!p[6], highSubs: !!p[7] });
+  }
+  return picks;
+}
+
 /** A row straight from its key (team + per-member combo keys), for a `#team=` link with no table
  *  build. `null` for a stale key. */
 export function rowFromKey(key: string): TeamRow | null {
-  const [teamKey, ...comboKeys] = key.split("-");
-  if (!teamKey) return null;
-  const members = TEAMS[teamKey];
-  if (!members || comboKeys.length !== members.length) return null;
+  const teamKey = key.split("-")[0];
+  const members = teamKey ? TEAMS[teamKey] : undefined;
+  const picks = picksOfKey(key);
+  if (!teamKey || !members || !picks || picks.length !== members.length) return null;
   const combo: Combo[] = [];
   for (let i = 0; i < members.length; i++) {
-    const parsed = /^(\d+)\.(\d+)\.(\d+)\.s(\d+)\.r(\d+)(\.m)?(\.h)?$/.exec(comboKeys[i]!);
-    if (!parsed) return null;
     const l = members[i]!.loadout;
-    const pick: Pick = { weapon: +parsed[1]!, echo: +parsed[2]!, mainstat: +parsed[3]!, sequence: +parsed[4]!, refine: +parsed[5]!, matrix: !!parsed[6], highSubs: !!parsed[7] };
-    if (!l.refinements[pick.weapon]?.[pick.refine] || !l.echoLoadouts[pick.echo] || !l.mainstats[pick.mainstat] || (pick.matrix && !l.resonator.matrix)) return null;
+    const pick = picks[i]!;
+    if (!l.refinements[pick.weapon]?.[pick.refine] || !echoPicks(members[i]!, members).includes(pick.echo) || !l.mainstats[pick.mainstat] || (pick.matrix && !l.resonator.matrix) || pick.sequence < l.minSequence) return null;
     combo.push(comboOf(l, pick));
   }
   return { key, teamKey, members, combo };
@@ -455,9 +512,12 @@ function filtersOfKey(key: string, members: Member[]): Filters {
 function picksFit(key: string, picks: Pick[]): boolean {
   const team = teamAt(key.split("|")[0]!);
   if (!team) return false;
+  // a pick the team no longer meets the prerequisite of is stale too (`EchoLoadout.requires()`)
+  const roster = team.loadouts.map((l) => l.resonator);
   return picks.length === team.loadouts.length && picks.every((p, i) => {
     const l = team.loadouts[i]!;
-    return p.weapon < l.weapons.length && p.refine < (l.refinements[p.weapon]?.length ?? 0) && p.echo < l.echoLoadouts.length && p.mainstat < l.mainstats.length;
+    return p.weapon < l.weapons.length && p.refine < (l.refinements[p.weapon]?.length ?? 0) && !!l.echoLoadouts[p.echo]?.fits(roster) && p.mainstat < l.mainstats.length
+      && p.sequence >= l.minSequence;
   });
 }
 
@@ -556,7 +616,7 @@ const COMPARE_PARAM: Record<Axis, string> = { weapons: "cw", echoes: "ce", mains
 const SCOPED_PARAM = "cs";
 const COST_CODE: Record<TeamCost, string> = {
   s0r0: "r0", s0r1mdps: "r1m", s0r1: "r1",
-  s2r1mdps: "s2m", s3r1mdps: "s3m", s6r1mdps: "s6m", s6r5: "s6r5",
+  s2r1mdps: "s2m", s3r1mdps: "s3m", s6r1mdps: "s6m", s6r1mdps_s2r1: "s6ms2", s6r5mdps: "s6r5m", s6r5: "s6r5",
 };
 
 const FILTER_GROUPS: { include: string; exclude: string; map: Map<string, ResonatorFilter> }[] = [
@@ -628,7 +688,7 @@ export function teamTag(key: string): string {
   if (!team || +team[1]! > 0x3fff) return key;
   let bits = BigInt(+team[1]!), width = 14n;
   for (const combo of comboKeys) {
-    const p = /^(\d+)\.(\d+)\.(\d+)\.s(\d+)\.r(\d+)(\.m)?(\.h)?$/.exec(combo);
+    const p = COMBO_KEY.exec(combo);
     if (!p) return key;
     const [weapon, echo, mainstat, sequence, refine] = p.slice(1, 6).map(Number) as [number, number, number, number, number];
     if (weapon > 7 || echo > 7 || mainstat > 63 || sequence > 7 || refine > 7) return key;
@@ -672,6 +732,24 @@ export function hashTeam(): string | null {
  *  `push` is for opening a detail view, which is a navigation of its own: it goes on the history
  *  stack so the browser's own Back button comes back out of it (index.ts's `hashchange`). */
 export function syncHash(team: string | null = hashTeam(), push = false): void {
+  const next = hashOf(team);
+  if (next === location.hash) return;
+  const url = `${location.pathname}${location.search}${next}`;
+  // the marker rides along on a replace, so a filter flip inside a detail view keeps it
+  if (push) history.pushState({ detail: true }, "", url);
+  else history.replaceState(history.state, "", url);
+}
+
+/** A detail page swapped for another under new filters: the entry under it becomes the table on those
+ *  filters, so Back lands on a table that can show the new row, and the new row goes on top. */
+export function reopenDetail(team: string): void {
+  const url = (hash: string): string => `${location.pathname}${location.search}${hash}`;
+  history.replaceState(null, "", url(hashOf(null)));
+  history.pushState({ detail: true }, "", url(hashOf(team)));
+}
+
+/** The whole page state as the hash `syncHash()` writes, `team` the detail page open over it. */
+function hashOf(team: string | null): string {
   const named = (map: Map<string, ResonatorFilter>, mode: ResonatorFilter): string => [...map]
     // a resonator's spaces are dropped (`ElectroRover`); gear names keep theirs
     .filter(([, m]) => m === mode).map(([name]) => encodeURIComponent(map === resonatorFilters ? name.replace(/ /g, "") : name)).join(",");
@@ -687,12 +765,7 @@ export function syncHash(team: string | null = hashTeam(), push = false): void {
     if (named(map, "exclude")) parts.push(`${exclude}=${named(map, "exclude")}`);
   }
   if (team) parts.push(`team=${teamTag(team)}`);
-  const next = parts.length ? `#${parts.join("&")}` : "";
-  if (next === location.hash) return;
-  const url = `${location.pathname}${location.search}${next}`;
-  // the marker rides along on a replace, so a filter flip inside a detail view keeps it
-  if (push) history.pushState({ detail: true }, "", url);
-  else history.replaceState(history.state, "", url);
+  return parts.length ? `#${parts.join("&")}` : "";
 }
 
 /** A detail route is valid iff `results` has actually run it. */
