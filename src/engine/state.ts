@@ -4,7 +4,7 @@
  * over it — no phase running, no ambient pointers of its own.
  */
 import { STAT_COUNT } from "./stats.js";
-import type { StatKey } from "./stats.js";
+import type { StatKey, Position } from "./stats.js";
 import type { Action, ActionField, Cooldown } from "./rotation.js";
 import type { Result, HoldWatch } from "./evaluate.js";
 import { ctx, dryLog, undoDry, noteMutation, recordApplied, MEMBERS } from "./runtime.js";
@@ -470,6 +470,16 @@ export class TeamMember {
   cooldowns = new Map<Cooldown, { charges: number; next: number }>();
   /** The rotation chain this member is playing now (rotation.ts's `runChain`), null outside one. */
   visitChain: object | null = null;
+  /** This member's last press of the visit (OFF_FIELD ones aside), what the next one's `chains`
+   *  reads — null on arriving. */
+  lastPress: Action | null = null;
+  /** Presses an effect lets this member's next ones follow as if just pressed (`saveChain()`): a
+   *  press whose `chains` its last press fails spends the first it follows. Emptied on arriving. */
+  savedChains: Action[] = [];
+  /** Where they stand (`ActionDef.castPosition`), null while despawned; and the real frame their
+   *  last press (OFF_FIELD ones aside) ends, `DESPAWN_TIME` past which they despawn. */
+  position: Position | null = null;
+  endsAt = -Infinity;
   /** The frame the field was last handed to this member, and the visit that handed it — a repeating
    *  schedule always follows one visit with the same next one, so that visit names this one. */
   handoffAt = -1;
@@ -863,6 +873,12 @@ export class State {
   swapPaid = false;
   /** The cut `lastOwn` was pressed with — what tells a swap form's swap still to come. */
   lastOwnCut = "";
+  /** The member whose press the chain and position checks last read (`run()`), -1 before any:
+   *  another's press after it is an arrival. */
+  lastActor = -1;
+  /** Inside the fight's start-of-combat sections (`runRotations()`): an arrival there opens on its ground
+   *  swap-in, and a despawned one comes in on the ground. */
+  inStart = false;
   /** The visit a handoff into slot `to` opens, timed off its presses (rotation.ts's `chainGates`),
    *  for a handoff with no visit learned yet — set by `runRotations()`, null outside one. */
   plannedGates: ((to: number, visit: object | null) => VisitGate[] | null) | null = null;

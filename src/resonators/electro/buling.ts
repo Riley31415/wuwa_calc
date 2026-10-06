@@ -32,7 +32,7 @@
  *  S5 the Array inflicts 6 more Electro Flare the moment it is generated.
  *  S6 Heaven, Earth, Mind grants 50% Resonance Skill DMG Bonus instead of 25% — its own +25 on top.
  */
-import { Tier, Stat, Attribute, WeaponType, Type, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Tier, Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, Position } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, coordinatedBuff } from "../../engine/gear.js";
 import {
   applyTeam,
@@ -55,7 +55,7 @@ import {
   queue,
   cancelHits,
 } from "../../engine/context.js";
-import { Action, ActionField, Cooldown, Rotation, NOINTRO, ECHO, ActionGroup, INTRO, OUTRO } from "../../engine/rotation.js";
+import { Action, ActionField, Cooldown, Rotation, NOINTRO, ECHO, ActionGroup, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
 import type { BulletDef } from "../../engine/rotation.js";
 import { HEALS, heal, inflictElectroFlare } from "../../shared/status.js";
 import { VARIATION } from "../../weapons/standard.js";
@@ -93,18 +93,20 @@ const BA1 = bulingAction("Basic - Hexagram Calls, Lightning Falls 1", { animFram
     { hitFrame: 14, commitFrame: 8, mv: 2073, energy: 53, concerto: 167, offtune: 1668 },
     { hitFrame: 20, commitFrame: 8, mv: 2073, energy: 53, concerto: 167, offtune: 1668 },
   ]});
-const BA2 = bulingAction("Basic - Hexagram Calls, Lightning Falls 2", { animFrames: 45, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA2 = bulingAction("Basic - Hexagram Calls, Lightning Falls 2", { chains: [BA1], animFrames: 45, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 8, commitFrame: 2, mv: 3345, energy: 85, concerto: 270, offtune: 2692,
       ...MOUNTAIN },
     { hitFrame: 15, commitFrame: 2, mv: 3345, energy: 85, concerto: 270, offtune: 2692 },
   ]});
-const BA3 = bulingAction("Basic - Hexagram Calls, Lightning Falls 3", { animFrames: 31, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = bulingAction("Basic - Hexagram Calls, Lightning Falls 3", { chains: [BA2], animFrames: 31, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 1, mv: 2351, energy: 60, concerto: 190, offtune: 1892 },
     { hitFrame: 10, commitFrame: 1, mv: 2351, energy: 60, concerto: 190, offtune: 1892 },
   ]});
-const BA4 = bulingAction("Basic - Hexagram Calls, Lightning Falls 4", { animFrames: 60, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 23, mv: 9364, energy: 236, concerto: 754, offtune: 7536 }], ...THUNDER });
-const MA = bulingAction("Mid-air - Hexagram Calls, Lightning Falls Plunge", { animFrames: 46, animPriority: { 41: 3 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 39, mv: 7396, energy: 124, concerto: 496, offtune: 4960 }], ...THUNDER });
-const DC = bulingAction("Dodge Counter - Hexagram Calls, Lightning Falls 3", { animFrames: 31, castPriority: 2, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+// "Right after casting Resonance Skill, press Normal Attack to perform Basic Attack Stage 4", and the same after Dodge Counter
+const BA4 = bulingAction("Basic - Hexagram Calls, Lightning Falls 4", { chains: () => [BA3, Skill, DC], animFrames: 60, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 23, mv: 9364, energy: 236, concerto: 754, offtune: 7536 }], ...THUNDER });
+// the kit text calls it a plain "Mid-air Attack", no Plunging Attack, so it lands her nowhere
+const MA = bulingAction("Mid-air - Hexagram Calls, Lightning Falls Plunge", { castPosition: Position.Midair, animFrames: 46, animPriority: { 41: 3 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 39, mv: 7396, energy: 124, concerto: 496, offtune: 4960 }], ...THUNDER });
+const DC = bulingAction("Dodge Counter - Hexagram Calls, Lightning Falls 3", { chains: [DODGE], animFrames: 31, castPriority: 2, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 1, mv: 2351, energy: 60, concerto: 190, offtune: 1892 },
     { hitFrame: 10, commitFrame: 1, mv: 2351, energy: 60, concerto: 190, offtune: 1892 },
   ], castConcerto: 1000});
@@ -235,7 +237,7 @@ const FiveThundersArray = bulingAction("Liberation - Five Thunders Spell Array",
 const ARRAYS = new Set<Action>([FiveThundersArray]);
 
 const Intro = bulingAction("Intro - Summon and Smite", {
-  qteFrames: 7, animFrames: 80, noSwapFrames: 59, animPriority: { 70: 2 }, castPriority: 11, motionStop: [7, 60],
+  endPosition: Position.Grounded, qteFrames: 7, animFrames: 80, noSwapFrames: 59, animPriority: { 70: 2 }, castPriority: 11, motionStop: [7, 60],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     // her team heal, at the cast (wuwalab's heals[0])
     { hitFrame: 0, element: null, type: null, subtype: null, updateDebuffs: () => applyCurrent(HEALS, 1) },
@@ -381,6 +383,8 @@ const BULING_RESONATOR = new Resonator({
   color: "#7a6ff0",
   intro: Intro,
   outro: Outro,
+  swapIn: BA1,
+  swapInAir: MA,
   maxEnergy: 15000,
   maxForte1: 4,
 
@@ -394,7 +398,7 @@ const BULING_RESONATOR = new Resonator({
 // Thunder Over Mountain for Minor Yang; Skill and Basic 4 bank two Thunders and the Heavy reads
 // [T, T] as Twin Thunders for Minor Yin — Yin-Yang Balance, so the Liberation resolves to Harmony.
 const BL_ROTATION = new Rotation([
-  NOINTRO,
+  NOINTRO, BA1.instaCancel(),
   INTRO.mashCancel(),
   Skill, BA4.jumpCancel(), MA, BA12.instaCancel(), HA, HA.cancel(), ECHO.instaDodge(), // TODO maybe cancel HA?
   LIB, OUTRO,

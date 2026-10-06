@@ -118,6 +118,8 @@ export const ctx: {
   cutReplaced: string;
   /** The press a hold cancel holds into, set by `run()` for evaluate() to read where it lets go. */
   holdNext: Action | null;
+  /** The acting member's presses still to come off the rotation, each resolved as reached (`nextPresses()`); set by `run()`. */
+  nextPresses: () => Iterable<Action>;
   /** What a hold cancel holds into once the steps run out: the press the next loop would cast after
    *  the Intro a fight ends on, which it never plays (rotation.ts's `finish()`). */
   holdBeyond: Action | null;
@@ -168,6 +170,7 @@ export const ctx: {
   pressCut: "",
   cutReplaced: "",
   holdNext: null,
+  nextPresses: () => [],
   holdBeyond: null,
   holdCut: -1,
   offFieldShift: 0,

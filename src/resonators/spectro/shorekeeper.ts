@@ -10,7 +10,7 @@
  * Numbers from nanoka.cc (character 1505); Base DEF (1100) confirmed there directly, since the
  * migrated sheet this was ported from didn't carry it. Her resonance chain is below the buffs.
  */
-import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, Position } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   applyTeam,
@@ -92,17 +92,18 @@ const REALM_HEALS: Buff = new Buff({
 // ceiling itself, so BA3's +2/MA's +1 landing on 5 relies on this loop never running a fourth
 // basic before Forte: Illation spends the whole gauge below.
 const BA1 = skAction("Basic - Origin Calculus 1", { animFrames: 23, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 15, mv: 3178, energy: 50, concerto: 160, offtune: 2664, forte1: 1 }]});
-const BA2 = skAction("Basic - Origin Calculus 2", { animFrames: 33, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+// after the Plunging Attack or Chaos Theory, Basic Attack starts at Stage 2
+const BA2 = skAction("Basic - Origin Calculus 2", { chains: () => [BA1, MA, Skill], animFrames: 33, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 8, mv: 2386, energy: 38, concerto: 120, offtune: 2000, forte1: 1 },
     { hitFrame: 20, mv: 2386, energy: 38, concerto: 120, offtune: 2000 },
   ]});
-const BA3 = skAction("Basic - Origin Calculus 3", { animFrames: 47, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = skAction("Basic - Origin Calculus 3", { chains: [BA2], animFrames: 47, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 20, mv: 2332, energy: 37, concerto: 118, offtune: 1955 },
     { hitFrame: 29, commitFrame: 20, mv: 2332, energy: 37, concerto: 118, offtune: 1955, forte1: 1 },
     { hitFrame: 38, commitFrame: 20, mv: 2332, energy: 37, concerto: 118, offtune: 1955, forte1: 1 },
   ]});
 
-const MA = skAction("Mid-air - Origin Calculus Plunge", { animFrames: 50, animPriority: { 50: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 46, mv: 7396, energy: 155, concerto: 500, offtune: 4960, forte1: 1 }]});
+const MA = skAction("Mid-air - Origin Calculus Plunge", { castPosition: Position.Midair, endPosition: Position.Grounded, animFrames: 50, animPriority: { 50: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 46, mv: 7396, energy: 155, concerto: 500, offtune: 4960, forte1: 1 }]});
 
 const Skill = skAction("Skill - Chaos Theory", { animFrames: 39, animPriority: { 0: 4, 39: 2 }, castPriority: 5, cooldown: 60 * 16, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 16, element: null, type: null, subtype: null, updateDebuffs: () => applyCurrent(HEALS, 1) }, // its heal, ahead of the hits
@@ -136,7 +137,7 @@ const Liberation = skAction("Liberation - End Loop", {
   },
 });
 
-const Intro = skAction("Intro - Enlightenment", { qteFrames: 40, animFrames: 85, noSwapFrames: 65, animPriority: { 85: 2 }, castPriority: 10, motionStop: [6, 34], node: Node.Intro, cast: Cast.Intro, type: Type.Skill, bullets: [
+const Intro = skAction("Intro - Enlightenment", { endPosition: Position.Grounded, qteFrames: 40, animFrames: 85, noSwapFrames: 65, animPriority: { 85: 2 }, castPriority: 10, motionStop: [6, 34], node: Node.Intro, cast: Cast.Intro, type: Type.Skill, bullets: [
     { hitFrame: 38, element: null, type: null, subtype: null, updateDebuffs: () => applyCurrent(HEALS, 1) }, // its heal, ahead of the hits
     { hitFrame: 83, commitFrame: 44, mv: 4530, energy: 200, concerto: 200, offtune: 2279 },
     { hitFrame: 85, commitFrame: 44, mv: 4530, energy: 200, concerto: 200, offtune: 2279 },
@@ -146,7 +147,7 @@ const Intro = skAction("Intro - Enlightenment", { qteFrames: 40, animFrames: 85,
   ], castConcerto: 1000});
 // replaces plain Intro under a Supernal Stellarealm (see SHOREKEEPER_RESONATOR's own intro() below); scales
 // off HP, counts as liberation damage, always crits, and ends the realm on resolving
-const EIntro = skAction("Intro - Discernment", { qteFrames: 142,
+const EIntro = skAction("Intro - Discernment", { endPosition: Position.Grounded, qteFrames: 142,
   // "When a Supernal Stellarealm is generated, Shorekeeper's first Intro Skill ... is replaced"
   requireBuff: SUPERNAL_REALM, animFrames: 215, castPriority: 10, timestop: [6, 140], motionStop: [6, 140],
   node: Node.Intro, cast: Cast.Intro, type: Type.Liberation, scaling: Scaling.Hp, bullets: [
@@ -280,6 +281,9 @@ const SHOREKEEPER_RESONATOR = new Resonator({
   // planned ahead of the handoff's Outro, the realm reads a stage on from where it stands
   intro: () => (realmStage() + (handoffPending() && realmStage() ? 1 : 0) >= 3 ? EIntro : Intro),
   outro: Outro,
+  swapIn: BA1,
+  // no mid-air string: her Mid-air Attack is the Plunging Attack
+  swapInAir: MA,
   maxEnergy: 17500,
   maxForte1: 5,
   // reads the realm as it stands, already stepped by the preceding outro
@@ -302,7 +306,7 @@ const BA23 = new ActionGroup("Basic - Origin Calculus 23", [BA2, BA3]);
 const BA12 = new ActionGroup("Basic - Origin Calculus 12", [BA1, BA2]);
 
 const SK_LOOP = new Rotation([
-  START_LAST, Skill.cancel(), Liberation, ECHO.instaSwap(),
+  START_LAST, BA1.instaCancel(), Skill.cancel(), Liberation, ECHO.instaSwap(),
 
   NOINTRO, 
   BA123.jumpCancel(), MA, FHA.instaCancel(),
@@ -316,7 +320,7 @@ const SK_LOOP = new Rotation([
 ]);
 
 const SK_LOOP_S3 = new Rotation([
-  START_LAST, Skill.cancel(), Liberation, ECHO.instaSwap(),
+  START_LAST, BA1.instaCancel(), Skill.cancel(), Liberation, ECHO.instaSwap(),
 
   NOINTRO, 
   BA123.jumpCancel(), MA, FHA.instaCancel(),

@@ -80,7 +80,7 @@ export const WILDFIRE_MARK = refinements((r, rank) => {
     duration: 60 * 30,
     stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Attribute.Fusion]],
   });
-  const WILDFIRE_EXTENDED = new Buff({ name: `Wildfire Mark: Blazing Starfire${rank} (extended)`, hidden: true });
+  const WILDFIRE_EXTENDED = new Buff({});
   const WILDFIRE_LIB_DMG: Buff = new Buff({
     name: `Wildfire Mark: Blazing Starfire${rank}`,
     duration: 60 * 6,

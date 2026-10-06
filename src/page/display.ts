@@ -212,18 +212,17 @@ const actionInfo = (snap: ResolvedSnapshot): InfoEntry[] => {
   // the frames are the whole press's, however it was cut or swapped out of
   let press = action;
   while (press.cancelOf ?? press.formOf) press = (press.cancelOf ?? press.formOf)!;
-  push("Frames", `${press.animFrames}`);
-  push("Priority", press.castPriority === null ? null : String(press.castPriority));
-  // its cast priority holds from frame 0 until a window of its own says otherwise
-  const windows = press.castPriority !== null && press.animPriority[0]?.[0] !== 0 ? [[0, press.castPriority] as const, ...press.animPriority] : press.animPriority;
-  push("Animation", windows.length ? windows.map(([f, t]) => `${f}f: ${t}`).join(", ") : null);
+  push("Animation", `${press.animFrames}f`);
+  push("Cast Priority", press.castPriority === null ? null : String(press.castPriority));
+  // its own windows only: the cast priority holding until the first is the row above
+  push("Anim Priority", press.animPriority.length ? press.animPriority.map(([f, t]) => `${f}f: ${t}`).join(", ") : null);
   push("No Swap", press.noSwapFrames ? `${press.noSwapFrames}f` : null);
   push("Outro Buff", press.qteFrames ? `${press.qteFrames}f` : null);
   push("Time Stop", press.timestop ? `${press.timestopFrom}f-${press.timestopFrom + press.timestop}f` : null);
   push("Motion Stop", press.motionStop ? `${press.motionStopFrom}f-${press.motionStopFrom + press.motionStop}f` : null);
-  push("Bullets", press.bullets.length ? press.bullets.map((h) => h.hitFrame).join(", ") : null);
+  push("Bullets", press.bullets.length ? press.bullets.map((h) => `${h.hitFrame}f`).join(", ") : null);
   // a bullet committing ahead of its hit
-  push("Commits", press.bullets.some((h) => h.commitFrame !== h.hitFrame) ? press.bullets.map((h) => h.commitFrame).join(", ") : null);
+  push("Commits", press.bullets.some((h) => h.commitFrame !== h.hitFrame) ? press.bullets.map((h) => `${h.commitFrame}f`).join(", ") : null);
   // the cast's condition, each bar in its own units, then the buffs it needs or can't be under
   const bars = ["Energy", "Concerto", ...FORTE_GAUGES.map((_, i) => `Forte ${i + 1}`)];
   const scale = [1 / ENERGY_UNIT, 1 / CONCERTO_UNIT, ...snap.forteScale];
@@ -354,9 +353,8 @@ export const ENERGY_REGEN = "Energy Regen";
 /** The MV panel's multiplying half (Stat.MulMv), kept out of the summing section. */
 export const MV_MULTIPLIER = "MV Multiplier";
 
-/** A row's tag as shown: a Field press reads FIELD with its owner on field, OFF-FIELD without. */
-/** The tag box a row wears — none for FIELD, which the row's dimming already says. */
-const tagOf = (snap: ResolvedSnapshot): string => (snap.tag === ActionTag.Field || snap.tag === ActionTag.NoTb ? "" : snap.tag);
+/** The tag box a row wears — none for OFF_FIELD, which the row's dimming already says. */
+const tagOf = (snap: ResolvedSnapshot): string => (snap.tag === ActionTag.OffField ? "" : snap.tag);
 
 /** The action's own gain as panel rows: one where it all comes from the cast or all from the hit,
  *  and the same action twice — its cast's share, then its hit's — where it has both. */

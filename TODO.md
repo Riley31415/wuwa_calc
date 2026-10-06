@@ -6,22 +6,19 @@ delete the current ECHO placeholder action and related logic, replace them with 
 fully implement echo frames
 
 #
-preferred TB placement
-implement action chain restriction. after this, remove the restriction of not casting it during action groups.
-currently tb not allowed after mash,hold, cancels
-remove midair special case for tb, instead it will check if the next action needs ground/air and allow tb if tb puts them in that spot
-.no_tb marker removal.
-swapin and air swaping replace nointro
-midair and grounded state + restriction
+implement suisui's dance after outro, which sends her to midair
+her intro and skill to enter form also send her midair
+skill moves her to ground
+
+#
+currently tb not allowed after mash,hold,
 .tbCancel(), which will take priority for tb use for that section of the rotation (the first one after offtune is full takes the priority)
 
+#
+galbrena frames and forte (cooked)
 
 #
 restrict 44111 when no 2 4 costs
-
-#
-get sk/mornye field buff time (and for other fields/buff starts)
-maybe check buling frames/cancels
 
 #
 find correct input buffers and hold buffer
@@ -51,4 +48,6 @@ baizhi
 luumi
 taoqi
 yangyang
-aalto 
+aalto
+encore (no rotations shown)
+havoc rover (no rotations shown)

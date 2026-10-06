@@ -59,7 +59,7 @@ export const SHIELD = new Buff({ name: "Shield", maxStacks: 9999 });
 
 /** The frame a resonator can next gain a shield, held as its stack count so a variant replay
  *  restores it with everything else. */
-const SHIELD_READY = new Buff({ name: "Shield Cooldown", maxStacks: 1e9, hidden: true });
+const SHIELD_READY = new Buff({ maxStacks: 1e9 });
 
 /** A shield off the hit (or cast) being evaluated, at a 0.5s (30f) cooldown per resonator. */
 export function gainShield(): void {

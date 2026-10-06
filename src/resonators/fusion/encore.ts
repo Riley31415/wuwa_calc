@@ -24,7 +24,7 @@
  * relative to this file's own scale. Her mainslot echo is Inferno Rider (plain, not
  * "Nightmare:") — see echoes/jinzhou.ts's own INFERNO_RIDER.
  */
-import { Tier, Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, BuffTarget } from "../../engine/stats.js";
+import { Tier, Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, BuffTarget, Position } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   applyCurrent,
@@ -35,7 +35,7 @@ import {
   addStat,
   onCast,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, ECHO, INTRO, OUTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, ECHO, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
 import { LETHEAN_ELEGY, RIME_DRAPED_SPROUTS, STRINGMASTER, WHISPERS_OF_SIRENS } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { INFERNO_RIDER, MOLTEN_RIFT_5PC } from "../../echoes/jinzhou.js";
@@ -52,21 +52,21 @@ function encoreAction(id: string, def: object): Action {
 // carries over unscaled, same as everywhere else in this project.
 // --- basics, mid-air, dodge counter, heavy (Wooly Attack)
 const BA1 = encoreAction("Basic - Wooly Attack 1", { animFrames: 18, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 10, mv: 5566, energy: 70, concerto: 140, offtune: 3360, forte1: 3 }]});
-const BA2 = encoreAction("Basic - Wooly Attack 2", { animFrames: 22, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 11, mv: 6620, energy: 83, concerto: 166, offtune: 3996, forte1: 5 }]});
-const BA3 = encoreAction("Basic - Wooly Attack 3", { animFrames: 45, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA2 = encoreAction("Basic - Wooly Attack 2", { chains: [BA1], animFrames: 22, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 11, mv: 6620, energy: 83, concerto: 166, offtune: 3996, forte1: 5 }]});
+const BA3 = encoreAction("Basic - Wooly Attack 3", { chains: [BA2], animFrames: 45, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 29, commitFrame: 5, mv: 6630, energy: 83, concerto: 166, offtune: 4002, forte1: 3 },
     { hitFrame: 34, commitFrame: 5, mv: 6630, energy: 83, concerto: 166, offtune: 4002, forte1: 3 },
   ]});
-const BA4 = encoreAction("Basic - Wooly Attack 4", { animFrames: 46, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA4 = encoreAction("Basic - Wooly Attack 4", { chains: [BA3], animFrames: 46, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 13, mv: 3827, energy: 48, concerto: 96, offtune: 2310, forte1: 1 },
     { hitFrame: 25, mv: 3827, energy: 48, concerto: 96, offtune: 2310, forte1: 1 },
     { hitFrame: 37, mv: 3827, energy: 48, concerto: 96, offtune: 2310, forte1: 1 },
     { hitFrame: 49, mv: 3827, energy: 48, concerto: 96, offtune: 2310, forte1: 1 },
   ]});
-const WoolyStrike = encoreAction("Basic - Wooly Strike", { animFrames: 76, castPriority: 4, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 34, commitFrame: 0, mv: 23857, energy: 300, concerto: 600, offtune: 14400, forte1: 25 }]});
+const WoolyStrike = encoreAction("Basic - Wooly Strike", { chains: [BA4], animFrames: 76, castPriority: 4, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 34, commitFrame: 0, mv: 23857, energy: 300, concerto: 600, offtune: 14400, forte1: 25 }]});
 const HA = encoreAction("Heavy - Wooly Attack", { animFrames: 56, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 24, mv: 18708, energy: 235, concerto: 470, offtune: 11292, forte1: 5 }]});
-const MA = encoreAction("Mid-air - Wooly Attack Plunge", { castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 12326, energy: 51, concerto: 100, offtune: 14400, forte1: 11 }] });
-const DC = encoreAction("Dodge Counter - Wooly Attack", { castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 25188, energy: 316, concerto: 1332, offtune: 8004, forte1: 6 }] });
+const MA = encoreAction("Mid-air - Wooly Attack Plunge", { castPosition: Position.Midair, endPosition: Position.Grounded, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 12326, energy: 51, concerto: 100, offtune: 14400, forte1: 11 }] });
+const DC = encoreAction("Dodge Counter - Wooly Attack", { chains: [DODGE], castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 25188, energy: 316, concerto: 1332, offtune: 8004, forte1: 6 }] });
 
 // Flaming Woolies, then Energetic Welcome (press again shortly after)
 const Skill1 = encoreAction("Skill - Flaming Woolies", { animFrames: 110, castPriority: 5, cooldown: 60 * 10, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
@@ -79,7 +79,7 @@ const Skill1 = encoreAction("Skill - Flaming Woolies", { animFrames: 110, castPr
     { hitFrame: 95, mv: 7661, energy: 191, offtune: 3200, forte1: 4 },
     { hitFrame: 105, mv: 7661, energy: 191, offtune: 3200, forte1: 4 },
   ], castConcerto: 1500});
-const Skill2 = encoreAction("Skill - Energetic Welcome", { animFrames: 48, animPriority: { 47: 2 }, castPriority: 6, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [{ hitFrame: 14, mv: 33916, energy: 75, concerto: 151, offtune: 9072, forte1: 30 }], castConcerto: 500});
+const Skill2 = encoreAction("Skill - Energetic Welcome", { chains: [Skill1], animFrames: 48, animPriority: { 47: 2 }, castPriority: 6, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [{ hitFrame: 14, mv: 33916, energy: 75, concerto: 151, offtune: 9072, forte1: 30 }], castConcerto: 500});
 
 // Cloudy Frenzy (Threshold), spends the full Mayhem gauge
 // Cloudy Frenzy/Cosmos Rupture each spend the whole Mayhem gauge — both fire only at 100, so the
@@ -107,18 +107,18 @@ const UBA1 = encoreAction("Basic - Cosmos: Frolicking 1", { ...RAVE, animFrames:
     { hitFrame: 5, mv: 9018, energy: 66, concerto: 133, offtune: 3198, forte1: 4 },
     { hitFrame: 22, mv: 9018, energy: 66, concerto: 133, offtune: 3198, forte1: 4 },
   ]});
-const UBA2 = encoreAction("Basic - Cosmos: Frolicking 2", { ...RAVE, animFrames: 43, castPriority: 2, node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, bullets: [
+const UBA2 = encoreAction("Basic - Cosmos: Frolicking 2", { chains: [UBA1], ...RAVE, animFrames: 43, castPriority: 2, node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 11, mv: 5640, energy: 41, concerto: 83, offtune: 2000, forte1: 4 },
     { hitFrame: 23, mv: 5640, energy: 41, concerto: 83, offtune: 2000, forte1: 4 },
     { hitFrame: 37, mv: 5640, energy: 41, concerto: 83, offtune: 2000, forte1: 4 },
   ]});
-const UBA3 = encoreAction("Basic - Cosmos: Frolicking 3", { ...RAVE, animFrames: 47, castPriority: 2, node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, bullets: [
+const UBA3 = encoreAction("Basic - Cosmos: Frolicking 3", { chains: [UBA2], ...RAVE, animFrames: 47, castPriority: 2, node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 6599, energy: 48, concerto: 97, offtune: 2340, forte1: 4 },
     { hitFrame: 24, mv: 6599, energy: 48, concerto: 97, offtune: 2340, forte1: 4 },
     { hitFrame: 34, mv: 6599, energy: 48, concerto: 97, offtune: 2340, forte1: 4 },
     { hitFrame: 43, mv: 6599, energy: 48, concerto: 97, offtune: 2340, forte1: 4 },
   ]});
-const UBA4 = encoreAction("Basic - Cosmos: Frolicking 4", { ...RAVE, animFrames: 110, castPriority: 2, node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, bullets: [
+const UBA4 = encoreAction("Basic - Cosmos: Frolicking 4", { chains: [UBA3], ...RAVE, animFrames: 110, castPriority: 2, node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 10, mv: 19401, energy: 143, concerto: 286, offtune: 6880, forte1: 9 },
     { hitFrame: 50, commitFrame: 26, mv: 19401, energy: 143, concerto: 286, offtune: 6880, forte1: 9 },
     { hitFrame: 98, commitFrame: 26, mv: 19401, energy: 143, concerto: 286, offtune: 6880, forte1: 9 },
@@ -131,7 +131,7 @@ const USkill = encoreAction("Skill - Cosmos: Rampage", { ...RAVE, animFrames: 47
     { hitFrame: 35, mv: 6332, energy: 164, concerto: 200, offtune: 1542, forte1: 7 },
     { hitFrame: 35, mv: 6332, energy: 164, concerto: 200, offtune: 1542, forte1: 7 },
   ], castConcerto: 1000});
-const CosmosDodgeCounter = encoreAction("Dodge Counter - Cosmos", { castPriority: 8, ...RAVE, node: Node.Liberation, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 26396, energy: 192, concerto: 1388, offtune: 9360, forte1: 16 }] });
+const CosmosDodgeCounter = encoreAction("Dodge Counter - Cosmos", { chains: [DODGE], castPriority: 8, ...RAVE, node: Node.Liberation, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 26396, energy: 192, concerto: 1388, offtune: 9360, forte1: 16 }] });
 const FHA = encoreAction("Forte Heavy - Cosmos Rupture", { ...RAVE, animFrames: 239, castPriority: 10, node: Node.Forte, cast: Cast.Heavy, type: Type.Liberation, bullets: [
     { hitFrame: 42, mv: 4642, offtune: 2803 },
     { hitFrame: 72, commitFrame: 42, mv: 4642, offtune: 2803 },
@@ -142,7 +142,7 @@ const FHA = encoreAction("Forte Heavy - Cosmos Rupture", { ...RAVE, animFrames: 
     { hitFrame: 203, mv: 49521, offtune: 29891 },
   ], castConcerto: 1000, ...SPEND_MAYHEM, castForte1: -100 });
 
-const Intro = encoreAction("Intro - Woolies Helpers", { qteFrames: 60, animFrames: 80, noSwapFrames: 75, animPriority: { 92: 1 }, castPriority: 11, motionStop: [0, 56], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 60, mv: 19881, energy: 1000, offtune: 15132, forte1: 40 }], castConcerto: 1000});
+const Intro = encoreAction("Intro - Woolies Helpers", { endPosition: Position.Grounded, qteFrames: 60, animFrames: 80, noSwapFrames: 75, animPriority: { 92: 1 }, castPriority: 11, motionStop: [0, 56], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 60, mv: 19881, energy: 1000, offtune: 15132, forte1: 40 }], castConcerto: 1000});
 /** A burn zone, 4 ticks over 6s, lumped into one action same as every other periodic effect
  *  elsewhere. No handoff buff is described on her own kit page — left as a plain hit. */
 const Outro = encoreAction("Outro - Thermal Field", { animFrames: 0, cast: Cast.Outro, type: Type.Outro, bullets: [{ hitFrame: 0, mv: 17676 }, { hitFrame: 90, mv: 17676 }, { hitFrame: 180, mv: 17676 }, { hitFrame: 270, mv: 17676 }], minConcerto: 10000, castConcerto: -10000});
@@ -236,6 +236,9 @@ const ENCORE_RESONATOR = new Resonator({
   color: "#e56b9a",
   intro: Intro,
   outro: Outro,
+  // Cosmos Rave replaces the Basic Attack; her only mid-air press is the plunge
+  swapIn: () => (isHeld(COSMOS_RAVE) ? UBA1 : BA1),
+  swapInAir: MA,
   maxEnergy: 12500,
   maxForte1: 100,
 

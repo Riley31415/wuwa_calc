@@ -37,7 +37,7 @@ function cell(col: Column, { cls = [], html = "", pop = "", style = "", attr = "
 /** Which colour a cut's tag box wears (index.css `.ctag-*`). */
 const TAG_KIND: Partial<Record<ActionTag, string>> = {
   [ActionTag.InstaCancel]: "insta", [ActionTag.InstaDodge]: "insta", [ActionTag.InstaJump]: "insta", [ActionTag.InstaSwap]: "insta",
-  [ActionTag.SwapCancel]: "swap", [ActionTag.MashSwap]: "swap", [ActionTag.MashCancel]: "easy", [ActionTag.HoldCancel]: "easy", [ActionTag.Field]: "field",
+  [ActionTag.SwapCancel]: "swap", [ActionTag.MashSwap]: "swap", [ActionTag.MashCancel]: "easy", [ActionTag.HoldCancel]: "easy", [ActionTag.OffField]: "field",
   [ActionTag.DodgeCancel]: "dash", [ActionTag.JumpCancel]: "jump", [ActionTag.Cancel]: "cancel", [ActionTag.HitCancel]: "hit", [ActionTag.DodgeOnHit]: "hit", [ActionTag.JumpOnHit]: "hit",
 };
 

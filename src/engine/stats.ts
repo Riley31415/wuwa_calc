@@ -225,6 +225,14 @@ export const enum BuffTarget { Self, Team, Enemy, Next }
  *  costs the resonator coming in. `HOLD_DELAY` and `MASH_DELAY` are the least a hold and a mash
  *  cancel play of their press before letting go. */
 export const INSTA_DELAY = 6, MASH_DELAY = 6, HOLD_DELAY = 15, CANCEL_DELAY = 12, SWAP_DELAY = 12;
+/** Frames a resonator stays in the world past the end of their last press (OFF_FIELD ones aside)
+ *  with nothing pressed since: then they despawn, their position gone. */
+export const DESPAWN_TIME = 18;
+
+/** Where a resonator stands: what an action's `castPosition` asks of its caster and its
+ *  `endPosition` leaves them in. A despawned resonator has none (null). */
+export const enum Position { Grounded, Midair }
+export const POSITION_NAME: Record<Position, string> = { [Position.Grounded]: "GROUNDED", [Position.Midair]: "MIDAIR" };
 
 /** The units every number of these is held in, whole: energy and concerto in hundredths of a point,
  *  a motion value in hundredths of a percent (10000 a 1x multiplier), off-tune in ten-thousandths.
@@ -237,12 +245,11 @@ export const FULL_CONCERTO = 100 * CONCERTO_UNIT;
 export const statDisplayScale = (stat: Stat | EnemyStat): number => (stat === Stat.AddMv ? MV_UNIT : 1);
 
 /** An action's one tag — the one its row carries, and what `cancelCost()` charges. Whether its
- *  owner is on field is the engine's (`State.onField`), not the tag's: a `Field` row reads FIELD
- *  or OFF-FIELD by it. */
+ *  owner is on field is the engine's (`State.onField`), not the tag's: `OffField` is a press beside
+ *  the fight (a summon, a coordinated hit), which no chain or position check reads. */
 export enum ActionTag {
   Default = "",
-  Field = "field",
-  NoTb = "no tb", // invisible on the row: a plain press no Tune Break comes out behind (`Action.noTb()`)
+  OffField = "off field",
   Cancel = "cancel",
   
   MashCancel = "mash cancel", // a hold cancel mashed in: coming out once the next press can be cast

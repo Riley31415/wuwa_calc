@@ -138,7 +138,7 @@ export const QUIET_SNOWFALL_5PC = new Sonata({
   ],
 });
 
-const SNOWFALL_COOLDOWN = new Buff({ name: "Wishes of Quiet Snowfall 5pc: Snowfall Cooldown", duration: 60 * 25, hidden: true });
+const SNOWFALL_COOLDOWN = new Buff({ duration: 60 * 25 });
 
 export const QUIET_SNOWFALL_GLACIO = new Buff({
   name: "Wishes of Quiet Snowfall 5pc (chafe)",
@@ -178,8 +178,8 @@ export const SNOWFALL_CRIT = new Buff({
     applyCurrent(SNOWFALL_EXTEND_GAP, 1);
   },
 });
-const SNOWFALL_EXTENDS = new Buff({ name: "Wishes of Quiet Snowfall 5pc: Extensions", maxStacks: 6, hidden: true });
-const SNOWFALL_EXTEND_GAP = new Buff({ name: "Wishes of Quiet Snowfall 5pc: Extension Cooldown", duration: 30, hidden: true });
+const SNOWFALL_EXTENDS = new Buff({ maxStacks: 6 });
+const SNOWFALL_EXTEND_GAP = new Buff({ duration: 30 });
 
 export const SNOWFALL_OUTRO = handoff("Wishes of Quiet Snowfall 5pc (outro)", () => addStat(Stat.DmgBonus, 25, Attribute.Glacio));
 

@@ -33,10 +33,9 @@ export const BLAZING_BRILLIANCE = refinements((r, rank) => {
     name: `Blazing Brilliance: Crimson Phoenix${rank}`, maxStacks: 14,
     stats: [[Stat.DmgBonus, [4, 5, 6, 7, 8][r]!, Type.Skill]], perStack: true,
   });
-  const SEARING_GAP = new Buff({ name: `Blazing Brilliance: Searing Feather Cooldown${rank}`, duration: 30, hidden: true });
+  const SEARING_GAP = new Buff({ duration: 30 });
   // started at max stacks, it drops them all on its one tick 12s on
   const SEARING_EXPIRY: Buff = new Buff({
-    name: `Blazing Brilliance: Searing Feather Expiry${rank}`, hidden: true,
     tick: {
       every: 60 * 12,
       fire: () => {

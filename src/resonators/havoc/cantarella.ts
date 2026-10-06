@@ -7,7 +7,7 @@
  * `forte2: -3` (maxForte2 below) is the whole cost: the engine clamps an overrun back to that cap
  * before the spend lands, same as Electro Rover's own Overshock.
  */
-import { Stat, Attribute, WeaponType, Type, Subtype, Cast, Node, Scaling, BuffTarget } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type, Subtype, Cast, Node, Scaling, BuffTarget, Position } from "../../engine/stats.js";
 import { Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence, coordinatedBuff, matrix } from "../../engine/gear.js";
 import {
   asSource,
@@ -65,19 +65,20 @@ const MIRAGE: Buff = new Buff({
 });
 
 const BA1 = cantaAction("Basic - Illusion Collapse 1", { animFrames: 27, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 14, mv: 7953, energy: 100, concerto: 200, offtune: 3200 }]});
-const BA2 = cantaAction("Basic - Illusion Collapse 2", { animFrames: 45, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA2 = cantaAction("Basic - Illusion Collapse 2", { chains: [BA1], animFrames: 45, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 16, mv: 3644, energy: 46, concerto: 92, offtune: 1466 },
     { hitFrame: 23, mv: 3644, energy: 46, concerto: 92, offtune: 1466 },
     { hitFrame: 29, mv: 3644, energy: 46, concerto: 92, offtune: 1466 },
     { hitFrame: 35, mv: 3644, energy: 46, concerto: 92, offtune: 1466 },
   ]}); // 36.44%x4
-const BA3 = cantaAction("Basic - Illusion Collapse 3", { animFrames: 50, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+// Ripple: "Press Normal Attack shortly after casting this skill to start the Basic Attack combo from Basic Attack Stage 3"
+const BA3 = cantaAction("Basic - Illusion Collapse 3", { chains: () => [BA2, Intro], animFrames: 50, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 4, mv: 7257, energy: 92, concerto: 183, offtune: 2920, forte1: 1 },
     { hitFrame: 19, mv: 7257, energy: 92, concerto: 183, offtune: 2920 },
   ]}); // 72.57%x2
 
 // custom single hit with different frames
-const BA3hit1 = cantaAction("Basic - Illusion Collapse 3", { animFrames: 50, castPriority: 2, bullets: [{ hitFrame: 4, mv: 14514/2, energy: 184/2, concerto: 366/2, offtune: 5840/2, forte1: 1 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic}); // 72.57%x2
+const BA3hit1 = cantaAction("Basic - Illusion Collapse 3", { chains: () => [BA2, Intro], animFrames: 50, castPriority: 2, bullets: [{ hitFrame: 4, mv: 14514/2, energy: 184/2, concerto: 366/2, offtune: 5840/2, forte1: 1 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic}); // 72.57%x2
 
 // "When Cantarella has Trance, Heavy Attack becomes Delusive Dive"
 const EHA = cantaAction("Heavy - Delusive Dive", {
@@ -94,11 +95,11 @@ const FBA1 = cantaAction("Forte Basic - Phantom Sting 1", { minForte1: 1, requir
     { hitFrame: 21, mv: 3533, energy: 45, concerto: 89, offtune: 1422 },
     { hitFrame: 28, mv: 3533, energy: 45, concerto: 89, offtune: 1422 },
   ]}); // 35.33%x3
-const FBA2 = cantaAction("Forte Basic - Phantom Sting 2", { minForte1: 1, requireBuff: MIRAGE, animFrames: 41, animPriority: { 0: 5, 24: 4, 30: 2 }, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
+const FBA2 = cantaAction("Forte Basic - Phantom Sting 2", { chains: [FBA1], minForte1: 1, requireBuff: MIRAGE, animFrames: 41, animPriority: { 0: 5, 24: 4, 30: 2 }, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 16, mv: 6293, energy: 80, concerto: 159, offtune: 2532, forte2: 1, updateDebuffs: () => applyCurrent(HEALS, 1), forte1: -1 },
     { hitFrame: 32, mv: 6293, energy: 80, concerto: 159, offtune: 2532 },
   ]}); // 62.93%x2
-const FBA3 = cantaAction("Forte Basic - Phantom Sting 3", { minForte1: 1, requireBuff: MIRAGE, animFrames: 82, animPriority: { 0: 5, 48: 2 }, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
+const FBA3 = cantaAction("Forte Basic - Phantom Sting 3", { chains: [FBA2], minForte1: 1, requireBuff: MIRAGE, animFrames: 82, animPriority: { 0: 5, 48: 2 }, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 19, commitFrame: 0, mv: 6462, energy: 82, concerto: 163, offtune: 2600, forte2: 1, subtype: Subtype.Coordinated, updateDebuffs: () => applyCurrent(HEALS, 1), forte1: -1 },
     { hitFrame: 25, commitFrame: 8, mv: 6462, energy: 82, concerto: 163, offtune: 2600, subtype: Subtype.Coordinated },
     { hitFrame: 27, commitFrame: 15, mv: 6462, energy: 82, concerto: 163, offtune: 2600, subtype: Subtype.Coordinated },
@@ -140,13 +141,13 @@ const ACTION_DIFFUSION = cantaAction("Liberation - Diffusion", { node: Node.Libe
  *  Dreamweaver apiece, the same 14.54% the Liberation's own Diffusion summons. They are her own
  *  press's follow-up rather than that window's, so they carry neither its field nor its stacks;
  *  one action per trigger, so the report names each run after the cast it came off. */
-const DREAMWEAVER = { tag: ActionTag.Field, type: Type.Basic, subtype: Subtype.Coordinated };
+const DREAMWEAVER = { tag: ActionTag.OffField, type: Type.Basic, subtype: Subtype.Coordinated };
 const IntroDreamweaver = cantaAction("Intro - Dreamweaver", { animFrames: 5, node: Node.Liberation, ...DREAMWEAVER, bullets: [{ hitFrame: 5, commitFrame: 0, mv: 1454 }] });
 const StingDreamweaver = cantaAction("Basic - Dreamweaver", { animFrames: 5, node: Node.Liberation, ...DREAMWEAVER, bullets: [{ hitFrame: 5, commitFrame: 0, mv: 1454 }] });
 function dreamweavers(tick: Action): void { for (let i = 0; i < 3; i++) queue(tick); }
 
 const Intro = cantaAction("Intro - Ripple", {
-  qteFrames: 33, animFrames: 76, noSwapFrames: 80, animPriority: { 76: 2 }, castPriority: 11, motionStop: [4, 30],
+  endPosition: Position.Grounded, qteFrames: 33, animFrames: 76, noSwapFrames: 80, animPriority: { 76: 2 }, castPriority: 11, motionStop: [4, 30],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 36, mv: 4225, energy: 250, offtune: 2528 },
     { hitFrame: 42, mv: 4225, energy: 250, offtune: 2528 },
@@ -158,7 +159,7 @@ const Intro = cantaAction("Intro - Ripple", {
 /** Tidal Surge: the Intro she casts while Mirage still stands. Same motion value as Ripple, and
  *  three Coordinated Attacks on top. Her Mirage runs 8s and is gone by her own outro, so nothing
  *  in the loop below actually reaches this — it is what a quicker swap back in would cast. */
-const EIntro = cantaAction("Intro - Tidal Surge", { qteFrames: 36,
+const EIntro = cantaAction("Intro - Tidal Surge", { endPosition: Position.Grounded, qteFrames: 36,
   requireBuff: MIRAGE, animFrames: 83, noSwapFrames: 80, animPriority: { 83: 2 }, castPriority: 11, motionStop: [4, 49],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 26, mv: 1690, energy: 100, offtune: 1064, subtype: Subtype.Coordinated },
@@ -260,6 +261,8 @@ const CANTARELLA_RESONATOR = new Resonator({
   // resolved when its row is reached: whichever Intro the kit's state calls for there
   intro: () => (isHeld(MIRAGE) ? EIntro : Intro),
   outro: Outro,
+  // Mirage makes Basic Attack Phantom Sting; no Plunging Attack is modelled for a swapInAir
+  swapIn: () => (isHeld(MIRAGE) ? FBA1 : BA1),
   maxEnergy: 12500,
   maxForte1: 5,
   maxForte2: 3,

@@ -31,16 +31,9 @@ export type Trigger = (() => boolean) & { inflicts?: boolean };
 export interface Grant { on: Trigger; buff?: Buff | (() => Buff); stacks?: number | (() => number); to?: BuffTarget; onHit?: boolean }
 
 export interface GearDef {
-  /** Optional only because `toString` can cover for it entirely — a Gear whose display name is
-   *  always computed (Shorekeeper's Stellarealm, Jingran's HP folds) has no separate fixed name
-   *  to also give here. Leaving both unset means this Gear reports as "" everywhere; that's a
-   *  bug in whatever kit does it, not something worth a guard here. */
+  /** Unset on a hidden buff: a nameless one stays out of the held-buff popovers (engine
+   *  machinery, a cooldown marker). A Gear whose display name is computed sets `toString` instead. */
   name?: string;
-  /** Named for a stat's own hover, but not a buff in its own right: kept out of the held-buff
-   *  popovers. For a piece that exists only to pay a bonus on something else's behalf — the Unison
-   *  Boon's amplification, the Tune Strain payout — where the name says what pays, and the buff
-   *  that actually stands is listed elsewhere. */
-  hidden?: boolean;
   /** Runs once, the moment this Gear is `equip()`-ped during team setup — never mid-fight.
    *  For anything that happens on entering combat, not on a specific cast (Phrolova's Octet:
    *  10 Aftersound the instant she's on the team, regardless of when she first acts). */
@@ -137,8 +130,6 @@ let nextGearId = 1;
  *  eventually the resonator itself (TODO_ENGINE.md). `Buff` is a plain named subclass, same
  *  reasoning the old engine used for Debuff/GlobalBuff/Mode. */
 export class Gear {
-  /** See `GearDef.hidden` — named for a stat's hover, absent from the held-buff popovers. */
-  readonly hidden: boolean;
   name: string;
   /** How many stacks of this can be held at once. Only a `Buff` ever declares one (see `BuffDef`)
    *  — every other Gear is a single equipped piece, so 1. The field lives here rather than on
@@ -195,7 +186,6 @@ export class Gear {
   constructor(def: GearDef) {
     this.id = nextGearId++;
     this.name = def.name ?? "";
-    this.hidden = !!def.hidden;
     this.field = def.field ?? null;
     this.combatStartFn = def.combatStart;
     this.updateDebuffsFn = def.updateDebuffs;
@@ -750,6 +740,10 @@ export interface ResonatorDef extends GearDef {
   intro?: Action | (() => Action);
   /** The Outro this resonator casts, the same way (a Unison form, a sequence's). What OUTRO casts. */
   outro?: Action | (() => Action);
+  /** The press a swap-in (arriving with no Intro) must open on, coming in grounded / in mid-air —
+   *  as `intro`, a function where it depends on state. */
+  swapIn?: Action | (() => Action);
+  swapInAir?: Action | (() => Action);
   /** This resonator's own Tune Break, where it isn't their weapon class's (Qingxiao's) — an Intro
    *  Resolver-style `resolve` where it depends on their form. Unset is the class's (tunebreak.ts). */
   tuneBreak?: Action;
@@ -802,6 +796,9 @@ export class Resonator extends Gear {
   /** `ResonatorDef.intro`/`outro`, each read as it is reached. */
   intro?: () => Action;
   outro?: () => Action;
+  /** `ResonatorDef.swapIn`/`swapInAir`, read as a swap-in reaches them. */
+  swapIn?: () => Action;
+  swapInAir?: () => Action;
   tuneBreak?: Action;
   dodgeFn?: (after: Action) => Action | null;
   jumpFn?: (after: Action) => Action | null;
@@ -853,9 +850,11 @@ export class Resonator extends Gear {
     const scale = def.forteScale ?? 1;
     this.forteScale = Array.isArray(scale) ? scale : [scale, scale, scale, scale, scale];
     this.color = def.color;
-    const { intro, outro, dodge, jump } = def;
+    const { intro, outro, dodge, jump, swapIn, swapInAir } = def;
     this.intro = typeof intro === "function" ? intro : intro && (() => intro);
     this.outro = typeof outro === "function" ? outro : outro && (() => outro);
+    this.swapIn = typeof swapIn === "function" ? swapIn : swapIn && (() => swapIn);
+    this.swapInAir = typeof swapInAir === "function" ? swapInAir : swapInAir && (() => swapInAir);
     this.tuneBreak = def.tuneBreak;
     this.dodgeFn = typeof dodge === "function" ? dodge : dodge && (() => dodge);
     this.holdFn = def.holdBefore;

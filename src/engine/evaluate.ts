@@ -2,7 +2,7 @@
  * Running an action: the phase order, the snapshot each one resolves into, and `run()`, which
  * walks a rotation and drains whatever the casts queued behind them.
  */
-import { Stat, EnemyStat, Type, Cast, ActionTag, Scaling, INSTA_DELAY, SWAP_DELAY, FULL_CONCERTO, MASH_DELAY, splitStop } from "./stats.js";
+import { Stat, EnemyStat, Type, Cast, ActionTag, Scaling, INSTA_DELAY, SWAP_DELAY, FULL_CONCERTO, MASH_DELAY, DESPAWN_TIME, Position, POSITION_NAME, splitStop } from "./stats.js";
 import type { Action, ActionGroup, ActionField, CancelledStep, DashMarker, Bullet } from "./rotation.js";
 import { SWAP, SKIP, EveryOther, INTRO, DEFAULT_DODGE, ECHO_DODGE } from "./rotation.js";
 import type { GainAdd } from "./runtime.js";
@@ -175,7 +175,7 @@ export interface ResolvedSnapshot extends Result, Snapshot {
   frames: number;
   /** The press's one tag, its cut where the rotation cut it — what its row carries. */
   tag: ActionTag;
-  /** Was its owner the resonator on field (`State.onField`) — FIELD or OFF-FIELD on a Field row. */
+  /** Was its owner the resonator on field (`State.onField`) — what dims a row whose owner was off it. */
   active: boolean;
   /** Real frames of this press the game timer stood still for past its own time stop — another
    *  press's time stop still standing (`State.freeze()`). */
@@ -924,6 +924,19 @@ class StepQueue {
   take(): Step { return this.front.length ? this.front.pop()! : this.list[this.at++]!; }
   /** `steps` next, in order, ahead of everything left. */
   unshift(steps: Step[]): void { for (let k = steps.length - 1; k >= 0; k--) this.front.push(steps[k]!); }
+  /** The steps the rotation wrote still to come, past anything queued in front of them. */
+  *written(): Generator<Step> {
+    for (let k = this.front.length - 1; k >= 0; k--) if (this.front[k]!.slot < 0 && !this.front[k]!.queued) yield this.front[k]!;
+    for (let k = this.at; k < this.list.length; k++) if (this.list[k]!.slot < 0 && !this.list[k]!.queued) yield this.list[k]!;
+  }
+}
+
+/** `steps`' presses, each resolved as it is reached — none for a marker resolving to nothing or a skip. */
+function* pressesOf(steps: Iterable<Step>): Generator<Action> {
+  for (const step of steps) {
+    const a = step.action.resolveFn ? resolving(step.action.resolveFn) : step.action;
+    if (a && a !== SKIP) yield a;
+  }
 }
 
 /** `until`: a flush's end — what would land after that real frame, queued on the way included, never does. */
@@ -951,6 +964,8 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
   }
   const steps = new StepQueue(written);
   ctx.insideGroup = false;
+  const nextWas = ctx.nextPresses;
+  ctx.nextPresses = () => pressesOf(steps.written());
   // The group whose beat is still resolving — its own members, then the follow-ups they queued,
   // the last member's included. Every cast spliced in while this stands is that group's spill, and
   // the next rotation entry (or an engine event) clears it.
@@ -1136,6 +1151,8 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
       asSource(enemy, () => enemy.takesCut!(behind.action, marker.kind));
       if (ctx.cutReplaced) {
         (behind as unknown as { tag: string }).tag = ctx.cutReplaced;
+        // the dodge the rotation wrote is still what the next press follows
+        state.slot.lastPress = action;
         if (step.end) {
           behind.groupEnd = true;
           behind.dashDropped = true;
@@ -1155,7 +1172,10 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
       ctx.state = state;
       ctx.slot = state.slot;
       const enemy = state.enemy.resonator;
+      // the step reached is the press after the cut
+      ctx.nextPresses = () => pressesOf([step, ...steps.written()]);
       asSource(enemy, () => enemy.takesCut!(behind.action, cutBehind as ActionTag));
+      ctx.nextPresses = () => pressesOf(steps.written());
       if (ctx.cutReplaced) {
         (behind as unknown as { tag: string }).tag = ctx.cutReplaced;
         ctx.cutReplaced = "";
@@ -1235,8 +1255,8 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
     const ms = state.slot.mainslot;
     const uncut = !!ms && action === ms.onfield && !!step.cut && !action.cutPays(step.cut);
     const by = step.by;
-    // a FIELD press, or anything with a source to name, is nobody's press
-    const triggered = action.tag === ActionTag.Field || by !== null;
+    // an OFF_FIELD press, an Outro (a handoff), or anything with a source to name, is nobody's press
+    const triggered = action.tag === ActionTag.OffField || action.cast === Cast.Outro || by !== null;
     // a dash the next press out-prioritises is cut short by it, an insta cancel that keeps its hit:
     // its cast priority above the dash's own where an insta cut hands over
     let dash = false;
@@ -1263,6 +1283,11 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
     if (step.slot < 0 && !step.queued && !triggered && (action.cast !== null || action.bullets.length > 0) && !((action.castPriority ?? 0) >= 1)) {
       throw new Error(`${action.name}: pressed at cast priority ${action.castPriority ?? 0} — a press needs 1 or more`);
     }
+    // a member's own press off the rotation, OFF_FIELD ones aside: what it follows and where they stand
+    const mover = step.slot < 0 && !step.queued && by === null && pressed.tag !== ActionTag.OffField
+      && (pressed.cast !== null || pressed.bullets.length > 0) ? state.slot : null;
+    if (mover) checkPress(state, pressed, step.at ?? state.real);
+    const breaker = pressed.cast === Cast.TuneBreak && pressed.half === null ? state.slot : null;
     // a written cut lands only where what cuts in beats the press's priority: its dash or jump, the
     // press a cut-short dash gives way to, else the next press
     if (step.slot < 0 && !step.queued && PRIORITY_CUTS.has(kind)) {
@@ -1365,6 +1390,16 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
       insertByDue(state.timed, end);
       splitEnd = end;
     }
+    // a Tune Break is nobody's press, but it moves who casts it
+    if (breaker && pressed.endPosition !== null) breaker.position = pressed.endPosition;
+    if (mover) {
+      if (pressed.keepsChain && mover.lastPress) mover.savedChains.push(mover.lastPress);
+      mover.lastPress = pressed;
+      // cut within an insta cut's frames, a press never gets where it goes; a jump always lifts
+      const short = kind !== ActionTag.Default && ctx.actReal <= INSTA_DELAY && pressed.cast !== Cast.Jump;
+      if (pressed.endPosition !== null && !short) mover.position = pressed.endPosition;
+      mover.endsAt = splitEnd ? splitEnd.due : castAt + ctx.actReal;
+    }
     if (step.at !== undefined) {
       state.setReal(Math.max(now, state.real));
       state.onField = field;
@@ -1428,6 +1463,7 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
       if (held.length) steps.unshift(held);
     }
   }
+  ctx.nextPresses = nextWas;
   return out;
 }
 
@@ -1469,7 +1505,7 @@ function checkSwap(state: State, press: Action, kind: string, ahead: Step | null
   ctx.slot = state.slot;
   const next = ahead.action.resolveFn ? resolving(ahead.action.resolveFn) : ahead.action;
   // a press played out swaps into whatever Outro follows
-  if (next?.cast !== Cast.Outro || kind === ActionTag.Default || kind === ActionTag.NoTb || kind === ActionTag.Field) return;
+  if (next?.cast !== Cast.Outro || kind === ActionTag.Default || kind === ActionTag.OffField) return;
   if (SWAP_FORMS.has(kind) && next.animFrames) {
     throw new Error(`${press.name}: a ${kind} into ${next.name}, an Outro with an animation — write ${PLAIN_OF[kind as ActionTag]} instead`);
   }
@@ -1494,6 +1530,45 @@ function checkPriority(press: Action, cut: ActionTag | null, by: Action | null):
   if (cast === null) return;
   const c = press.cost(cut), at = c.action + c.global, tier = press.priorityAt(at);
   if (cast <= tier) throw new Error(`${press.name}: ${cut ?? press.tag} into ${by!.name} at frame ${at} — its cast priority ${cast} doesn't beat ${tier} there`);
+}
+
+/** `press` by the acting member at real frame `at`: an arrival restarts their chain and spawns them
+ *  where despawned, then its swap-in, `chains` (or a saved chain) and `castPosition` are checked. */
+function checkPress(state: State, press: Action, at: number): void {
+  const slot = state.slot, from = state.lastActor, arriving = from !== slot.index;
+  if (arriving) {
+    slot.lastPress = null;
+    slot.savedChains = [];
+    if (at - slot.endsAt >= DESPAWN_TIME) slot.position = null;
+    // still standing, they keep where they stand; despawned, they come in where the one leaving does (START: grounded)
+    if (slot.position === null) slot.position = (from >= 0 && !state.inStart ? state.slots[from]!.position : null) ?? Position.Grounded;
+    state.lastActor = slot.index;
+  }
+  // an arrival with no Intro opens on its swap-in press, its own chains waived
+  let opens = false;
+  if (arriving && press.cast !== Cast.Intro) {
+    const air = !state.inStart && slot.position === Position.Midair, swapIn = air ? slot.resonator?.swapInAir : slot.resonator?.swapIn;
+    if (!swapIn) throw new Error(`${slot.name}: swaps in ${POSITION_NAME[slot.position!]} but declares no ${air ? "swapInAir" : "swapIn"}`);
+    ctx.state = state;
+    ctx.slot = slot;
+    let want = resolving(swapIn);
+    if (want.resolveFn) want = resolving(want.resolveFn) ?? want;
+    for (let a: Action | null = press; a && !opens; a = a.cancelOf ?? a.formOf) opens = a === want;
+    if (!opens) throw new Error(`${slot.name}: swaps in ${POSITION_NAME[slot.position!]} on ${press.name} — a swap-in opens on ${want.name}`);
+  }
+  if (!opens && !press.follows(slot.lastPress)) {
+    const k = slot.savedChains.findIndex((a) => press.follows(a));
+    if (k < 0) {
+      const adv = slot.savedChains.length ? ` or the saved chains ${slot.savedChains.map((a) => a.name).join(", ")}` : "";
+      throw new Error(`${slot.name}: ${press.name} follows ${slot.lastPress?.name ?? "nothing, first in its visit"}${adv} — its chains allow only ${press.chainNames().join(", ")}`);
+    }
+    slot.savedChains.splice(k, 1);
+  }
+  if (press.castPosition !== null && slot.position !== press.castPosition) {
+    throw new Error(`${slot.name}: ${press.name} cast ${POSITION_NAME[slot.position!]} — it needs ${POSITION_NAME[press.castPosition]}`);
+  }
+  // an Intro always places its owner, wherever they came in
+  if (press.cast === Cast.Intro && press.endPosition === null) throw new Error(`${slot.name}: ${press.name} declares no endPosition — every Intro places its owner`);
 }
 
 /** A hold or mash cancel lets go short of its press's end — a mash's input delay played — or it
@@ -1733,9 +1808,9 @@ function heldRosters(state: State, slot: TeamMember, heldPools: (readonly [Gear,
   // (tunebreak.ts's own watcher), so it belongs in no popover — same exclusion equipped gear gets
   const named = (b: HeldBuff): boolean => b.name !== "";
   return [
-    heldPools[0]!.filter(([g]) => !slot.equipped.has(g) && !g.hidden).map(describe).filter(named),
-    heldPools[1]!.filter(([g]) => !g.hidden).map(describe).filter(named),
-    heldPools[2]!.filter(([g]) => !state.enemy.equipped.has(g) && !g.hidden).map(describe).filter(named),
+    heldPools[0]!.filter(([g]) => !slot.equipped.has(g)).map(describe).filter(named),
+    heldPools[1]!.map(describe).filter(named),
+    heldPools[2]!.filter(([g]) => !state.enemy.equipped.has(g)).map(describe).filter(named),
   ];
 }
 

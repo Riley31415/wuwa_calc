@@ -42,7 +42,7 @@
  * self-buff/RES shred/Film Roll grants) likewise come from that page's own description text — the
  * old migrated sheet predates Chafe mode entirely, so none of it could be cross-checked.
  */
-import { Stat, EnemyStat, Attribute, WeaponType, Type, Subtype, Cast, Node, Scaling, BuffTarget } from "../../engine/stats.js";
+import { Stat, EnemyStat, Attribute, WeaponType, Type, Subtype, Cast, Node, Scaling, BuffTarget, Position } from "../../engine/stats.js";
 import { Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, ResonanceMode, Sequence } from "../../engine/gear.js";
 import {
   typeOverride,
@@ -65,7 +65,7 @@ import {
   isActive,
   reduceCooldown,
 } from "../../engine/context.js";
-import { ActionGroup, Action, ActionField, Cooldown, Rotation, ECHO, START_LAST, INTRO_LAST, INTRO, OUTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, ActionField, Cooldown, Rotation, ECHO, START_LAST, INTRO_LAST, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
 import { GLACIO_CHAFE, GLACIO_CHAFE_ACTIONS, OWN_CHAFE_RUNGS } from "../../shared/status.js";
 import { FREEZE_FRAME, STRINGMASTER, LETHEAN_ELEGY } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
@@ -97,11 +97,11 @@ const CHAFE_RUNGS: (Action | null)[] = GLACIO_CHAFE_ACTIONS.map((a) => a?.varian
  *  Letting It Go and Clip It: Hard Cut are cast from. */
 const REMINISCENCE = new Buff({ name: "Lucilla: Reminiscence" });
 const Intro = lucillaAction("Intro - Clip It", {
-  animFrames: 81, noSwapFrames: 82, animPriority: { 42: 4 }, castPriority: 11, motionStop: [6, 79], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 38, mv: 9742, energy: 1175, concerto: 413, offtune: 5600, forte1: 100, ...CHAFES }], castConcerto: 1000,
+  endPosition: Position.Grounded, animFrames: 81, noSwapFrames: 82, animPriority: { 42: 4 }, castPriority: 11, motionStop: [6, 79], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 38, mv: 9742, energy: 1175, concerto: 413, offtune: 5600, forte1: 100, ...CHAFES }], castConcerto: 1000,
   updateBuffs: () => applyCurrent(CHAFE_WINDOW, 1),
 });
 /** Clip It's Reminiscence form: its own hit and Chafe stack, no Trace (only Clip It restores any). */
-const HardCut = lucillaAction("Intro - Clip It: Hard Cut", { qteFrames: 5,
+const HardCut = lucillaAction("Intro - Clip It: Hard Cut", { endPosition: Position.Grounded, qteFrames: 5,
   requireBuff: REMINISCENCE, animFrames: 52, noSwapFrames: 52, castPriority: 11, motionStop: [5, 51], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 27, mv: 14941, energy: 1209, concerto: 493, offtune: 6680, ...CHAFES }], castConcerto: 1000,
   updateBuffs: () => applyCurrent(CHAFE_WINDOW, 1),
 });
@@ -117,13 +117,14 @@ const Outro = lucillaAction("Outro - Montage", {
 
 // normal attacks: Basic 1/2, Basic 3 (Focus Ring, always assumed Perfect/Commendable)
 const BA1 = lucillaAction("Basic - Snapshot 1", { animFrames: 30, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 14, mv: 5929, energy: 107, concerto: 171, offtune: 3408 }]});
-const BA2 = lucillaAction("Basic - Snapshot 2", { animFrames: 32, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+// the plunge, Compensate and Spotlight each lead into Basic 2; the dodge counter into Basic 3
+const BA2 = lucillaAction("Basic - Snapshot 2", { chains: () => [BA1, MA, Compensate, Spotlight], animFrames: 32, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 2689, energy: 49, concerto: 78, offtune: 1546 },
     { hitFrame: 24, mv: 4034, energy: 73, concerto: 116, offtune: 2319 },
   ]});
-const BA3 = lucillaAction("Basic - Snapshot 3 - Commendable", { animFrames: 106, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 50, mv: 23527, energy: 423, concerto: 677, offtune: 13524, forte1: 50 }]});
-const MA = lucillaAction("Mid-air - Snapshot Plunge", { castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 8629, energy: 155, concerto: 366, offtune: 4960 }] });
-const DC = lucillaAction("Dodge Counter - Snapshot", { animFrames: 32, animPriority: { 0: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const BA3 = lucillaAction("Basic - Snapshot 3 - Commendable", { chains: () => [BA2, DC], animFrames: 106, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 50, mv: 23527, energy: 423, concerto: 677, offtune: 13524, forte1: 50 }]});
+const MA = lucillaAction("Mid-air - Snapshot Plunge", { castPosition: Position.Midair, endPosition: Position.Grounded, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 8629, energy: 155, concerto: 366, offtune: 4960 }] });
+const DC = lucillaAction("Dodge Counter - Snapshot", { chains: [DODGE], animFrames: 32, animPriority: { 0: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 6783, energy: 122, concerto: 288, offtune: 3899 },
     { hitFrame: 24, mv: 8290, energy: 149, concerto: 352, offtune: 4766 },
   ], castConcerto: 1000});
@@ -180,12 +181,13 @@ const UBA1 = lucillaAction("Basic - Tracing Forms 1", { requireBuff: REMINISCENC
     { hitFrame: 8, mv: 3064, energy: 43, concerto: 83, offtune: 1370 },
     { hitFrame: 19, mv: 4595, energy: 65, concerto: 124, offtune: 2055 },
   ]});
-const UBA2 = lucillaAction("Basic - Tracing Forms 2", { requireBuff: REMINISCENCE, animFrames: 54, castPriority: 2, node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, bullets: [
+const UBA2 = lucillaAction("Basic - Tracing Forms 2", { chains: [UBA1], requireBuff: REMINISCENCE, animFrames: 54, castPriority: 2, node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 10, mv: 5977, energy: 84, concerto: 161, offtune: 2672 },
     { hitFrame: 31, mv: 8965, energy: 126, concerto: 241, offtune: 4008 },
   ]});
+// Hard Cut leads into Stage 3 too
 const UBA3 = lucillaAction("Basic - Tracing Forms 3", {
-  requireBuff: REMINISCENCE, animFrames: 142, castPriority: 2,
+  chains: [UBA2, HardCut], requireBuff: REMINISCENCE, animFrames: 142, castPriority: 2,
   node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 34, mv: 5212, energy: 73, concerto: 140, offtune: 2330,
       // on Stage 3's hit
@@ -215,7 +217,8 @@ const OblivionChafe = lucillaAction("Forte - Oblivion (Chafe)", { animFrames: 0,
 // concerto is 7.88 off its own 3 Damage Data hits, plus a separate flat +20 the page states
 // Letting It Go "additionally restores" — both folded into the one number below.
 // Echo Skill DMG, retagged Basic Attack DMG by Chafe mode the same way the Liberation is
-const LettingGo = lucillaAction("Basic - Letting It Go", { requireBuff: REMINISCENCE, animFrames: 77, animPriority: { 0: 4 }, castPriority: 2, noSwapFrames: 90, node: Node.Liberation, cast: Cast.Basic, type: Type.Echo, bullets: [
+// performed out of Tracing Forms Stage 3, released or finished
+const LettingGo = lucillaAction("Basic - Letting It Go", { chains: [UBA3], requireBuff: REMINISCENCE, animFrames: 77, animPriority: { 0: 4 }, castPriority: 2, noSwapFrames: 90, node: Node.Liberation, cast: Cast.Basic, type: Type.Echo, bullets: [
     { hitFrame: 0, mv: 8481, energy: 34, concerto: 79, offtune: 3652 },
     { hitFrame: 12, commitFrame: 0, mv: 8481, energy: 34, concerto: 79, offtune: 3652 },
     { hitFrame: 24, commitFrame: 0, mv: 8481, energy: 34, concerto: 79, offtune: 3652 },
@@ -336,6 +339,9 @@ const LUCILLA_RESONATOR = new Resonator({
   color: "#4f74c2",
   intro: () => (isHeld(REMINISCENCE) ? HardCut : Intro),
   outro: Outro,
+  // Reminiscence replaces her Basic Attack; its own plunge has no action, so the plain one
+  swapIn: () => (isHeld(REMINISCENCE) ? UBA1 : BA1),
+  swapInAir: MA,
   maxEnergy: 0,
   maxForte1: 150,
 
@@ -354,7 +360,7 @@ const LC_ROTATION = new Rotation([
   INTRO.mashCancel(), Spotlight, Liberation,
   UBA123, LettingGo, ECHO.instaSwap(), OUTRO,
 
-  START_LAST, Spotlight, BA1.instaSwap(),
+  START_LAST, BA1.instaCancel(), Spotlight, BA1.instaSwap(),
 
   INTRO_LAST.mashCancel(), Liberation, UBA123, LettingGo.cancel(), ECHO.instaDodge(),
   Spotlight, 

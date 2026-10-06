@@ -18,9 +18,9 @@ export class PseudoTransformEcho extends Action {
   }
 }
 
-/** An echo that summons its own attack: 8 frames, cast at 12. */
+/** An echo that summons its own attack: 8 frames, cast at 12, and no break in its wearer's chain. */
 export class SummonEcho extends Action {
   constructor(name: string, def: ActionDef) {
-    super(name, { cast: Cast.Echo, animFrames: 8, castPriority: 12, ...def });
+    super(name, { cast: Cast.Echo, animFrames: 8, castPriority: 12, keepsChain: true, ...def });
   }
 }

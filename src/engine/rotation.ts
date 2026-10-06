@@ -31,7 +31,7 @@ import { ctx, resolving } from "./runtime.js";
 import type { GearDef, Mainslot } from "./gear.js";
 import type { State, TeamMember, VisitGate } from "./state.js";
 import type { Result } from "./evaluate.js";
-import { Cast, ActionTag, INSTA_DELAY, MASH_DELAY, HOLD_DELAY, CANCEL_DELAY, SWAP_DELAY, FULL_CONCERTO, splitStop } from "./stats.js";
+import { Cast, CAST_NAME, ActionTag, INSTA_DELAY, MASH_DELAY, HOLD_DELAY, CANCEL_DELAY, SWAP_DELAY, FULL_CONCERTO, Position, splitStop } from "./stats.js";
 import type { Attribute, Type, Subtype, Node, Scaling } from "./stats.js";
 
 /* ------------------------------------------------------------------------------- the action */
@@ -103,6 +103,16 @@ export interface ActionDef extends GearDef {
   /** The opposite: none of these may stand on its owner, the team or the target as it is cast (a
    *  base form a stance replaces). Reads red, warns, and holds a hold cancel the same way. */
   forbidBuff?: Gear | Gear[];
+  /** The presses this one may follow, any form of them (DODGE/JUMP/INTRO/ECHO: any press of that
+   *  cast), else it throws; unset, anything. A function where one is declared after it. */
+  chains?: readonly Action[] | (() => readonly Action[]);
+  /** It doesn't break its owner's chain: the press before it is saved (`saveChain()`) for the next
+   *  to follow — a summon echo. */
+  keepsChain?: boolean;
+  /** Where its owner must stand to cast it; unset, anywhere. A press cast elsewhere throws. */
+  castPosition?: Position;
+  /** Where it leaves its owner; unset, where they stood. */
+  endPosition?: Position;
   /** A rotation marker rather than a real cast: `run()` calls this to get whichever action to
    *  actually evaluate in its place, with the "current" pointers already aimed at the acting slot
    *  (so it can read `currentMember()` etc. the same as any other kit logic). Every marker below
@@ -124,7 +134,7 @@ export interface ActionDef extends GearDef {
    *  `noSwapFrames` instead. */
   animPriority?: Readonly<Record<number, number>>;
   /** The tier this press cuts in at (wuwalab's `skill_priority`), against the `animPriority` of
-   *  the press it cuts. Unset, nothing checks it — nor does anything for a FIELD hit or an Outro. */
+   *  the press it cuts. Unset, nothing checks it — nor does anything for an OFF_FIELD hit or an Outro. */
   castPriority?: number;
   /** The frames the resonator can't swap out for (wuwalab's `no_swap`): a swap form, or a cut
    *  into an Outro, inside them throws; a mash swap and a mash cancel into an Outro wait them out. */
@@ -156,7 +166,7 @@ export interface ActionDef extends GearDef {
    *  Trailing Lights 3s, Crescent Divinity 10s). The Cooldown's own `frames` otherwise. */
   cooldownFrames?: number;
   /** The one tag this action carries: how it is cut short, or that it plays beside the fight
-   *  (`Field`). An Outro is always `Field`; everything else `Default` unless it says otherwise. */
+   *  (`OffField`). `Default` unless it says otherwise. */
   tag?: ActionTag;
   /** A wait on the game timer (`Cooldown.wait()`): `animFrames` are game frames, and it plays
    *  however many real ones that takes, time stop landing inside it included. */
@@ -223,7 +233,8 @@ export function cancelCost(a: Action, cut: ActionTag | null): { action: number; 
   // a cut plays to its cut frame in place of its frames, never past its end — the whole press's,
   // a part holding none of its bullets
   const whole = a.half === "cast" ? a.formOf ?? a : a;
-  const action = tag === ActionTag.Default || tag === ActionTag.NoTb ? full : tag === ActionTag.Field || insta ? 0
+  // an Outro is cast on the way off, and plays its animation behind the incoming Intro
+  const action = tag === ActionTag.OffField || insta || a.cast === Cast.Outro ? 0 : tag === ActionTag.Default ? full
     : tag === ActionTag.HoldCancel ? Math.min(HOLD_DELAY, full)
     : tag === ActionTag.MashCancel ? Math.min(MASH_DELAY, full)
     : tag === ActionTag.MashSwap ? Math.min(whole.noSwapFrames + MASH_DELAY, full)
@@ -336,6 +347,12 @@ export class Action extends Gear {
   requireBuffs: Gear[] | null;
   /** `ActionDef.forbidBuff`, as a list, or null where it has none. */
   forbidBuffs: Gear[] | null;
+  /** `ActionDef.chains` as written, read by `follows()`; null where it follows anything. */
+  private readonly chainsDef: readonly Action[] | (() => readonly Action[]) | null;
+  /** `ActionDef.castPosition` / `endPosition`, null where unset, and `keepsChain`. */
+  castPosition: Position | null;
+  endPosition: Position | null;
+  keepsChain: boolean;
   /** `resetForte1`-`resetForte5` as one array, indexed the way `TeamMember.forte` is. */
   resetForte: [boolean, boolean, boolean, boolean, boolean];
   /** Per bar — energy, concerto, forte 1-5 — what the cast banks of its own and whether it empties
@@ -392,6 +409,7 @@ export class Action extends Gear {
     this.noSwapFrames = def.noSwapFrames ?? 0;
     this.qteFrames = def.qteFrames ?? 0;
     if (def.qteFrames !== undefined && def.cast !== Cast.Intro) throw new Error(`${name}: qteFrames is an Intro's alone`);
+    if (def.cast === Cast.Intro && !def.resolve && def.endPosition === undefined) throw new Error(`${name}: every Intro declares its endPosition`);
     // a hit's gains are its bullet's and a cast's its `castX`: the old action-level totals are gone
     for (const k of ["energy", "concerto", "offtune", "forte1", "forte2", "forte3", "forte4", "forte5"]) {
       if (k in def) throw new Error(`${name}: an action has no \`${k}\` of its own — declare it on a bullet, or as \`cast${k[0]!.toUpperCase()}${k.slice(1)}\``);
@@ -427,6 +445,10 @@ export class Action extends Gear {
     this.requireBuffs = req === undefined ? null : Array.isArray(req) ? (req.length ? req : null) : [req];
     const forbid = def.forbidBuff;
     this.forbidBuffs = forbid === undefined ? null : Array.isArray(forbid) ? (forbid.length ? forbid : null) : [forbid];
+    this.chainsDef = def.chains ?? null;
+    this.castPosition = def.castPosition ?? null;
+    this.endPosition = def.endPosition ?? null;
+    this.keepsChain = def.keepsChain ?? false;
     this.castForte = [def.castForte1 ?? 0, def.castForte2 ?? 0, def.castForte3 ?? 0, def.castForte4 ?? 0, def.castForte5 ?? 0];
     const banks = [this.castEnergy, this.castConcerto, ...this.castForte, this.castOfftune];
     for (const h of this.bullets) {
@@ -447,7 +469,7 @@ export class Action extends Gear {
     this.timestop = ts1 - ts0;
     this.motionStopFrom = ms0;
     this.motionStop = ms1 - ms0;
-    this.tag = def.tag ?? (def.cast === Cast.Outro ? ActionTag.Field : ActionTag.Default);
+    this.tag = def.tag ?? ActionTag.Default;
     // a bare frame count becomes this cast's own Cooldown, written back so every variant and
     // cancelled form of it draws on the same one
     this.cooldown = typeof def.cooldown === "number" ? new Cooldown({ frames: def.cooldown }) : def.cooldown ?? null;
@@ -458,10 +480,35 @@ export class Action extends Gear {
 
   /** Where a cancel cuts this press: its last bullet committed. */
   readonly cutFrame: number;
-  /** The priority this press cuts in at, null where nothing checks it: a FIELD hit, an Outro with no
-   *  animation (only a swap form reaches it, gated by no-swap frames), or a press declaring none. */
+  /** The priority this press cuts in at, null where nothing checks it: an OFF_FIELD hit, an Outro
+   *  (the press before it gates it by its no-swap frames), or a press declaring none. */
   get cutIn(): number | null {
-    return this.tag === ActionTag.Field || (this.cast === Cast.Outro && !this.animFrames) ? null : this.castPriority;
+    return this.tag === ActionTag.OffField || this.cast === Cast.Outro ? null : this.castPriority;
+  }
+  /** Does this press follow `prev`, its owner's last press of the visit (null: none yet) — any form
+   *  of a press its `chains` names, or any press of a marker's cast (`ActionDef.chains`)? */
+  follows(prev: Action | null): boolean {
+    if (!this.chainsDef) return true;
+    if (!prev) return false;
+    const list = typeof this.chainsDef === "function" ? this.chainsDef() : this.chainsDef;
+    for (const entry of list) {
+      const cast = castMarkers().get(entry);
+      for (let a: Action | null = prev; a; a = a.cancelOf ?? a.formOf) {
+        if (cast !== undefined ? a.cast === cast : a === entry) return true;
+      }
+    }
+    return false;
+  }
+  /** Does it name presses it must follow (`chains`)? */
+  get chained(): boolean { return this.chainsDef !== null; }
+  /** `chains` as names, for an error naming what a press may follow. */
+  chainNames(): string[] {
+    if (!this.chainsDef) return [];
+    const list = typeof this.chainsDef === "function" ? this.chainsDef() : this.chainsDef;
+    return list.map((a) => {
+      const cast = castMarkers().get(a);
+      return cast !== undefined ? `any ${CAST_NAME[cast]}` : a.name;
+    });
   }
   /** This press's priority at animation frame `frame` (`animPriority`), its cast priority ahead of
    *  its first window. */
@@ -575,7 +622,7 @@ export class Action extends Gear {
     return this.letGo(this.holdPaid(bars, cap, next, castGain, pending), mash, next);
   }
   /** Does this take its owner off the field — what "lost on swap" reads: an Outro or the SWAP
-   *  marker after a swap form, never the swap form itself. A FIELD press (a summon, a
+   *  marker after a swap form, never the swap form itself. An OFF_FIELD press (a summon, a
    *  coordinated hit) lands beside the fight but moves nobody. */
   get swapOut(): boolean { return this.cast === Cast.Outro || this === SWAP; }
 
@@ -589,16 +636,6 @@ export class Action extends Gear {
   /** This cast cut at its cancel frame — its hit lands, and the clock charges `cancelCost()`.
    *  The same Action runs, so every `===` a kit makes against it still holds. */
   cancel(): Action { return new CancelledStep(this, ActionTag.Cancel); }
-  /** The same press with no Tune Break behind it, played out or cut: a form of it, so
-   *  `runningAction()` still reads it, and every cut of it carries the same (`X.noTb().cancel()`
-   *  is `X.cancel().noTb()`). A marker's is whatever it resolves to, so held. */
-  noTb(): Action {
-    if (this.resolveFn) return this.swapResolver((a) => (a === SKIP ? a : a.noTb()));
-    if (this.tag !== ActionTag.Default) throw new Error(`${this.name}: already ${this.tag}, can't also be ${ActionTag.NoTb}`);
-    const out = this.variant(this.name, { tag: ActionTag.NoTb });
-    out.formOf = this;
-    return out;
-  }
   /** This press every other time its member reaches one, skipped in between (`EveryOther`). */
   everyOther(): Action {
     if (leavesField(this)) throw new Error(`${this.name}: a swap form can't be skipped — the visit would no longer leave on it`);
@@ -657,10 +694,10 @@ export class Action extends Gear {
   hitsAway(_cut: ActionTag | null): boolean {
     return this.cast === Cast.Outro;
   }
-  /** Does the cast take none of the clock — an Outro, a FIELD hit (its frames are only the time its
+  /** Does the cast take none of the clock — an Outro, an OFF_FIELD hit (its frames are only the time its
    *  hits take). */
   get castsInstantly(): boolean {
-    return this.cast === Cast.Outro || this.tag === ActionTag.Field;
+    return this.cast === Cast.Outro || this.tag === ActionTag.OffField;
   }
   /** Real frames from the cast to bullet `k`'s hit — its own frame, time stop or not. A committed
    *  bullet lands whatever cuts the animation after the cast. */
@@ -704,7 +741,7 @@ export class Action extends Gear {
         castEnergy: 0, castConcerto: 0, castOfftune: 0, castForte1: 0, castForte2: 0, castForte3: 0, castForte4: 0, castForte5: 0,
         resetEnergy: false, resetForte1: false, resetForte2: false, resetForte3: false, resetForte4: false, resetForte5: false,
         // the swap was the cast's; the hit is no cut of its own
-        tag: this.tag === ActionTag.Field ? ActionTag.Field : ActionTag.Default,
+        tag: this.tag === ActionTag.OffField ? ActionTag.OffField : ActionTag.Default,
       });
       copy.formOf = this;
       copy.half = "hit";
@@ -722,7 +759,7 @@ export class Action extends Gear {
         animFrames: 0, animPriority: undefined, noSwapFrames: 0, timestop: undefined, motionStop: undefined, cooldown: undefined,
         castEnergy: 0, castConcerto: 0, castOfftune: 0, castForte1: 0, castForte2: 0, castForte3: 0, castForte4: 0, castForte5: 0,
         resetEnergy: false, resetForte1: false, resetForte2: false, resetForte3: false, resetForte4: false, resetForte5: false,
-        tag: this.tag === ActionTag.Field ? ActionTag.Field : ActionTag.Default,
+        tag: this.tag === ActionTag.OffField ? ActionTag.OffField : ActionTag.Default,
       });
       this.endCopy.formOf = this;
       this.endCopy.half = "end";
@@ -734,8 +771,7 @@ export class Action extends Gear {
    *  cut itself; any other cut is this press, cut. */
   cutAs(kind: ActionTag | null): [Action, ActionTag | null] {
     // an action has one tag: a swap, an outro or a field hit can't be cut as well
-    // ...but a no-tb press is a plain one, cut like any other, its forms pointing back at it
-    if (kind && this.tag !== ActionTag.Default && this.tag !== ActionTag.NoTb) throw new Error(`${this.name}: already ${this.tag}, can't also be ${kind}`);
+    if (kind && this.tag !== ActionTag.Default) throw new Error(`${this.name}: already ${this.tag}, can't also be ${kind}`);
     if (kind === ActionTag.InstaCancel || kind === ActionTag.InstaDodge || kind === ActionTag.InstaJump) return [this.hitless(kind), null];
     return [this, kind];
   }
@@ -854,7 +890,6 @@ export class ActionGroup extends Action {
   override instaJump(): Action { return this.dashLast((a) => a.instaJump()); }
   override swapCancel(): Action { return this.withLast((a) => a.swapCancel()); }
   override mashSwap(): Action { return this.withLast((a) => a.mashSwap()); }
-  override noTb(): Action { return this.withLast((a) => a.noTb()); }
   override hitCancel(): Action { return this.withLast((a) => a.hitCancel()); }
   override hitDodge(): Action { return this.dashLast((a) => a.hitDodge()); }
   override jumpOnHit(): Action { return this.dashLast((a) => a.jumpOnHit()); }
@@ -888,7 +923,7 @@ function dashed(after: Action, kind: ActionTag): ActionGroup {
 
 /** The plain dash and jump — what a resonator without one of its own makes (`ResonatorDef.dodge`). */
 export const DEFAULT_DODGE = new Action("Dodge", { animFrames: 20, cast: Cast.Dodge, animPriority: { 0: 9 }, castPriority: 6 });
-export const DEFAULT_JUMP = new Action("Jump", { animFrames: 5, cast: Cast.Jump, animPriority: { 0: 9 }, castPriority: 8 });
+export const DEFAULT_JUMP = new Action("Jump", { animFrames: 5, cast: Cast.Jump, animPriority: { 0: 9 }, castPriority: 8, endPosition: Position.Midair });
 /** The dash out of an Echo cast, whoever makes it: casting at 14, it leaves even a transform (13). */
 export const ECHO_DODGE = new Action("Dodge - Out of echo", { animFrames: 20, cast: Cast.Dodge, animPriority: { 0: 9 }, castPriority: 14 });
 /** The dash (or jump) the acting resonator makes after `after`: out of an Echo cast (its `cast`, never a
@@ -941,7 +976,6 @@ export class CancelledStep extends Action {
     super(of.name);
   }
   override everyOther(): Action { return new CancelledStep(this.of.everyOther(), this.kind); }
-  override noTb(): Action { return new CancelledStep(this.of.noTb(), this.kind); }
 }
 
 /** What a marker resolves to where its press is skipped (`everyOther()`): `run()` drops it, and the
@@ -1111,6 +1145,11 @@ export const ECHO: Action = new EchoMarker("Echo Placeholder (on field)", {
   },
 });
 
+/** The markers a `chains` list reads as any press of their cast (`Action.follows()`). */
+let CAST_MARKERS: Map<Action, Cast> | null = null;
+const castMarkers = (): Map<Action, Cast> =>
+  (CAST_MARKERS ??= new Map([[DODGE, Cast.Dodge], [JUMP, Cast.Jump], [INTRO, Cast.Intro], [ECHO, Cast.Echo]]));
+
 
 /** The DOUBLE_INTRO section's entry, as the scheduler reads it. Written as the DOUBLE_INTRO marker,
  *  which casts INTRO (or the cut one written right after it, like INTRO_OPENER): a second Intro this
@@ -1148,9 +1187,9 @@ export const NOINTRO_OPENER = new Action("No Intro (Opener)");
 const SWAP_EXIT = new Action("Swap Exit");
 
 /** The swap out a swap form leaves on, played right after it unless an Outro follows
- *  (`runRotations()` puts it in): no frames, no cast — a FIELD row, dimmed. Its cast and an Outro's
+ *  (`runRotations()` puts it in): no frames, no cast — an OFF_FIELD row, dimmed. Its cast and an Outro's
  *  are the only things that take a resonator off the field: "lost on swap", the field handed on. */
-export const SWAP = new Action("Swap", { tag: ActionTag.Field });
+export const SWAP = new Action("Swap", { tag: ActionTag.OffField });
 
 /* ------------------------------------------------------------------------------ the rotation */
 
@@ -1879,6 +1918,7 @@ export function runRotations(state: State, rotations: Rotation[], count: number)
     return (at >= 0 ? r.startCombat[at] : null) ?? r.startCombat[2]!;
   };
   rotations.forEach((_, i) => { if (startOf(i)) starters.push(i); });
+  state.inStart = true;
   for (let k = 0; k < starters.length; k++) {
     const i = starters[k]!;
     const next = starters[k + 1] ?? 0;
@@ -1893,6 +1933,7 @@ export function runRotations(state: State, rotations: Rotation[], count: number)
     out[section]!.push(...run(state, chain));
     state.active = next;
   }
+  state.inStart = false;
 
   const opener = openerChain(0)!;
   runChain(0, opener);

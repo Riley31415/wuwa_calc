@@ -39,7 +39,7 @@
  * (api.wuwalab.com/api/app/characters/lucy) summed the same way, cross-checked against the
  * migrated sheet.
  */
-import { Stat, EnemyStat, Attribute, WeaponType, Type, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Stat, EnemyStat, Attribute, WeaponType, Type, Cast, Node, Scaling, Position } from "../../engine/stats.js";
 import { Buff, Debuff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, matrix } from "../../engine/gear.js";
 import {
   addStat,
@@ -63,7 +63,7 @@ import {
   casting,
   isActive,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, START_LAST, ECHO, INTRO, OUTRO, INTRO_LAST } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, START_LAST, ECHO, INTRO, OUTRO, INTRO_LAST, DODGE } from "../../engine/rotation.js";
 import { applied } from "../../engine/context.js";
 import { applyHack, tuneHackResponse, TUNE_HACK_SHIFTING, TUNE_HACK_INTERFERED, TUNE_SHIFTABLE } from "../../shared/tunebreak.js";
 import { SPECTRAL_TRIGGER } from "../../weapons/pistol.js";
@@ -107,17 +107,18 @@ const BA1 = lucyAction("Basic - Locked Thread 1", { animFrames: 31, castPriority
     { hitFrame: 14, mv: 2430, energy: 38, concerto: 124, offtune: 1504, forte1: 320 },
     { hitFrame: 19, mv: 9719, energy: 152, concerto: 493, offtune: 6016, forte1: 1280 },
   ]});
-const BA2 = lucyAction("Basic - Locked Thread 2", { animFrames: 37, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+// Stage 2 also follows the plunge, Payload's follow-up, Pulse Interference and the Intro, each "press Normal Attack shortly after"
+const BA2 = lucyAction("Basic - Locked Thread 2", { chains: () => [BA1, MA, Skill1, Skill3, Intro], animFrames: 37, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 12, mv: 2066, energy: 32, concerto: 105, offtune: 1279, forte1: 408 },
     { hitFrame: 23, mv: 2005, energy: 32, concerto: 101, offtune: 1241, forte1: 396 },
     { hitFrame: 26, mv: 2005, energy: 32, concerto: 101, offtune: 1241, forte1: 396 },
   ]});
-const BA3 = lucyAction("Basic - Locked Thread 3", { animFrames: 69, animPriority: { 0: 4, 47: 3, 69: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = lucyAction("Basic - Locked Thread 3", { chains: () => [BA2, HA1], animFrames: 69, animPriority: { 0: 4, 47: 3, 69: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 10, mv: 3606, energy: 56, concerto: 182, offtune: 2232, forte1: 540 },
     { hitFrame: 31, mv: 3606, energy: 56, concerto: 182, offtune: 2232, forte1: 540 },
     { hitFrame: 53, mv: 4808, energy: 75, concerto: 242, offtune: 2976, forte1: 720 },
   ]});
-const BA4 = lucyAction("Basic - Locked Thread 4", { animFrames: 75, animPriority: { 0: 4, 63: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA4 = lucyAction("Basic - Locked Thread 4", { chains: () => [BA3, DC], animFrames: 75, animPriority: { 0: 4, 63: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 10, mv: 3102, energy: 48, concerto: 156, offtune: 1920, forte1: 520 },
     { hitFrame: 12, mv: 1551, energy: 24, concerto: 78, offtune: 960, forte1: 260 },
     { hitFrame: 18, mv: 1551, energy: 24, concerto: 78, offtune: 960, forte1: 260 },
@@ -125,11 +126,11 @@ const BA4 = lucyAction("Basic - Locked Thread 4", { animFrames: 75, animPriority
     { hitFrame: 40, mv: 3877, energy: 60, concerto: 195, offtune: 2400, forte1: 650 },
     { hitFrame: 63, mv: 3877, energy: 60, concerto: 195, offtune: 2400, forte1: 650 },
   ]});
-const MA = lucyAction("Mid-air - Locked Thread Plunge", { animFrames: 97, animPriority: { 85: 2 }, castPriority: 5, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MA = lucyAction("Mid-air - Locked Thread Plunge", { castPosition: Position.Midair, endPosition: Position.Grounded, animFrames: 97, animPriority: { 85: 2 }, castPriority: 5, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 74, mv: 5816, energy: 113, concerto: 293, offtune: 3600, forte1: 400 },
     { hitFrame: 79, mv: 5816, energy: 113, concerto: 293, offtune: 3600, forte1: 400 },
   ]});
-const DC = lucyAction("Dodge Counter - Locked Thread", { animFrames: 70, animPriority: { 0: 4, 48: 3, 70: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const DC = lucyAction("Dodge Counter - Locked Thread", { chains: [DODGE], animFrames: 70, animPriority: { 0: 4, 48: 3, 70: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 10, mv: 5932, energy: 115, concerto: 299, offtune: 3672, forte1: 360 },
     { hitFrame: 31, mv: 7909, energy: 153, concerto: 398, offtune: 4896, forte1: 480 },
     { hitFrame: 54, mv: 5932, energy: 115, concerto: 299, offtune: 3672, forte1: 360 },
@@ -139,7 +140,8 @@ const HA1 = lucyAction("Heavy - Locked Thread 1", { animFrames: 48, animPriority
     { hitFrame: 30, mv: 2210, energy: 43, concerto: 112, offtune: 1368, forte1: 300 },
     { hitFrame: 43, mv: 2947, energy: 57, concerto: 149, offtune: 1824, forte1: 400 },
   ]});
-const HA2 = lucyAction("Heavy - Locked Thread 2", { animFrames: 109, animPriority: { 0: 4, 43: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+// "Hold Normal Attack" after Heavy Stage 1, Basic Stage 3, the Dodge Counter or Payload's follow-up
+const HA2 = lucyAction("Heavy - Locked Thread 2", { chains: () => [HA1, BA3, DC, Skill1], animFrames: 109, animPriority: { 0: 4, 43: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 8, mv: 5686, energy: 110, concerto: 286, offtune: 3520, forte1: 400 },
     { hitFrame: 17, mv: 5686, energy: 110, concerto: 286, offtune: 3520, forte1: 400 },
     { hitFrame: 25, mv: 1896, energy: 37, concerto: 96, offtune: 1174, forte1: 134 },
@@ -157,32 +159,33 @@ const EBA1 = lucyAction("Basic - Thread Shredding 1", { requireBuff: ALGORITHM_C
     { hitFrame: 21, mv: 1949, energy: 28, concerto: 112, offtune: 1120, forte2: 405 },
     { hitFrame: 23, mv: 1949, energy: 28, concerto: 112, offtune: 1120, forte2: 405 },
   ]});
-const EBA2 = lucyAction("Basic - Thread Shredding 2", { requireBuff: ALGORITHM_COMPACTION, animFrames: 55, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
+// Stage 2 also follows each press that names it as its "press Normal Attack shortly after"
+const EBA2 = lucyAction("Basic - Thread Shredding 2", { chains: () => [EBA1, EHA, DualThreading, MultiThreading, MultiThreadingSQL, MultiThreadingSQLS2, Deadlock, EMA, Intro], requireBuff: ALGORITHM_COMPACTION, animFrames: 55, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
     { hitFrame: 24, mv: 2227, energy: 32, concerto: 128, offtune: 1280, forte2: 591 },
     { hitFrame: 28, mv: 2227, energy: 32, concerto: 128, offtune: 1280, forte2: 591 },
     { hitFrame: 32, mv: 2227, energy: 32, concerto: 128, offtune: 1280, forte2: 591 },
     { hitFrame: 37, mv: 2227, energy: 32, concerto: 128, offtune: 1280, forte2: 591 },
     { hitFrame: 41, mv: 2227, energy: 32, concerto: 128, offtune: 1280, forte2: 591 },
   ]});
-const EBA3 = lucyAction("Basic - Thread Shredding 3", { requireBuff: ALGORITHM_COMPACTION, animFrames: 67, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
+const EBA3 = lucyAction("Basic - Thread Shredding 3", { chains: () => [EBA2, EDC], requireBuff: ALGORITHM_COMPACTION, animFrames: 67, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
     { hitFrame: 4, mv: 2812, energy: 41, concerto: 162, offtune: 1616, forte2: 746 },
     { hitFrame: 6, mv: 2812, energy: 41, concerto: 162, offtune: 1616, forte2: 746 },
     { hitFrame: 33, mv: 2812, energy: 41, concerto: 162, offtune: 1616, forte2: 746 },
     { hitFrame: 45, mv: 2812, energy: 41, concerto: 162, offtune: 1616, forte2: 746 },
     { hitFrame: 49, mv: 2812, energy: 41, concerto: 162, offtune: 1616, forte2: 746 },
   ]});
-const EBA4 = lucyAction("Basic - Thread Shredding 4", { requireBuff: ALGORITHM_COMPACTION, animFrames: 57, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
+const EBA4 = lucyAction("Basic - Thread Shredding 4", { chains: [EBA3], requireBuff: ALGORITHM_COMPACTION, animFrames: 57, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
     { hitFrame: 3, mv: 2506, energy: 36, concerto: 144, offtune: 1440, forte2: 665 },
     { hitFrame: 6, mv: 2506, energy: 36, concerto: 144, offtune: 1440, forte2: 665 },
     { hitFrame: 9, mv: 2506, energy: 36, concerto: 144, offtune: 1440, forte2: 665 },
     { hitFrame: 13, mv: 2506, energy: 36, concerto: 144, offtune: 1440, forte2: 665 },
     { hitFrame: 26, mv: 2506, energy: 36, concerto: 144, offtune: 1440, forte2: 665 },
   ]});
-const EMA = lucyAction("Mid-air - Algorithm Compaction Plunge", { requireBuff: ALGORITHM_COMPACTION, animFrames: 67, animPriority: { 0: 5, 30: 3 }, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const EMA = lucyAction("Mid-air - Algorithm Compaction Plunge", { castPosition: Position.Midair, endPosition: Position.Grounded, requireBuff: ALGORITHM_COMPACTION, animFrames: 67, animPriority: { 0: 5, 30: 3 }, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 34, mv: 6263, energy: 113, concerto: 293, offtune: 3600, forte1: 1661 },
     { hitFrame: 43, mv: 6263, energy: 113, concerto: 293, offtune: 3600, forte2: 3322, forte1: 1661 },
   ]});
-const EDC = lucyAction("Dodge Counter - Algorithm Compaction", { castPriority: 8, requireBuff: ALGORITHM_COMPACTION, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 19485, energy: 350, concerto: 2120, offtune: 11200, forte2: 2955 }] });
+const EDC = lucyAction("Dodge Counter - Algorithm Compaction", { chains: [DODGE], castPriority: 8, requireBuff: ALGORITHM_COMPACTION, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 19485, energy: 350, concerto: 2120, offtune: 11200, forte2: 2955 }] });
 const EHA = lucyAction("Heavy - Single Threading", { requireBuff: ALGORITHM_COMPACTION, animFrames: 67, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 8, mv: 2339, energy: 34, concerto: 135, offtune: 1344, forte2: 620 },
     { hitFrame: 13, mv: 2339, energy: 34, concerto: 135, offtune: 1344, forte2: 620 },
@@ -207,7 +210,7 @@ const DualThreading = lucyAction("Heavy - Dual Threading", { minForte2: 10000, r
   updateBuffs: () => applyCurrent(MULTI_THREADING_READY, 1),
 });
 /** Multi-threading without SQL: the bare cast (its 20% HP cost is no stat). */
-const MultiThreading = lucyAction("Heavy - Multi-threading", { animFrames: 61, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+const MultiThreading = lucyAction("Heavy - Multi-threading", { chains: [DualThreading], animFrames: 61, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 38, mv: 5965, energy: 75, offtune: 2520, ...HACKS },
     { hitFrame: 43, mv: 5965, energy: 75, offtune: 2520, ...HACKS },
     { hitFrame: 49, mv: 5965, energy: 75, offtune: 2520, ...HACKS },
@@ -319,7 +322,7 @@ const CrippleMovement = lucyAction("Liberation - Spoofing Program: Cripple Movem
 });
 
 const Intro = lucyAction("Intro - Outdated Hallucination", {
-  animFrames: 57, noSwapFrames: 54, animPriority: { 45: 2 }, castPriority: 11, motionStop: [5, 32],
+  endPosition: Position.Grounded, animFrames: 57, noSwapFrames: 54, animPriority: { 45: 2 }, castPriority: 11, motionStop: [5, 32],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 34, mv: 6914, energy: 500, offtune: 4280 }, { hitFrame: 39, mv: 6914, energy: 500, offtune: 4280 }], castConcerto: 1000,
   updateBuffs: () => applyCurrent(OUTDATED_HALLUCINATION, 1),
 });
@@ -544,6 +547,9 @@ export const LUCY_RESONATOR = new Resonator({
   color: "#efe8de",
   intro: Intro,
   outro: Outro,
+  // Algorithm Compaction replaces the Basic and Mid-air Attacks
+  swapIn: () => (isHeld(ALGORITHM_COMPACTION) ? EBA1 : BA1),
+  swapInAir: () => (isHeld(ALGORITHM_COMPACTION) ? EMA : MA),
   maxEnergy: 12500,
   forteScale: [0.01, 0.01, 1, 1, 1],
   maxForte1: 10000,
@@ -572,7 +578,7 @@ const BA234 = new ActionGroup("Basic - Locked Thread 234", [BA2, BA3, BA4]);
 const EBA234 = new ActionGroup("Basic - Thread Shredding 234", [EBA2, EBA3, EBA4]);
 
 const LC_ROTATION = new Rotation([
-  START_LAST, Lib, ECHO, HA1.instaSwap(),
+  START_LAST, BA1.instaCancel(), Lib, ECHO, HA1.instaSwap(),
 
   INTRO_LAST, BA234.cancel(), Skill1, Skill3,
   Deadlock, EBA234.holdCancel(),

@@ -59,6 +59,25 @@
   them (`INTRO_LAST, INTRO.cancel()`)
 - a loadout's `weapons` list its best signature first and its best standard weapon second — with the weapons box closed the solver runs only that one
 
+# chains and positions
+- `chains: [X, ...]` lists the presses an action may directly follow: its owner's last own press this
+  visit, any form of it (cuts, swap forms); DODGE/JUMP/INTRO/ECHO stand for any press of that cast. unset
+  follows anything (a Basic 1). read them off the kit text: stage n follows n−1, plus whatever the text
+  leads into it ("follow up with Basic Attack to start the cycle from Stage 2"); a dodge counter `[DODGE]`.
+  a press outside its chains throws; OFF_FIELD presses neither check nor count
+- an effect setting up a later press ("the next mid-air Basic Attack starts at stage 2", a string carried
+  through a dodge) saves the press it stands in for: `saveChain(MA1)`, or `saveChain(previousPress())` on
+  the dodge's cast. a press failing its chains spends the first saved chain it follows; arriving empties them.
+  a summon echo (`keepsChain`) saves the press before it, and the auto Tune Break saves itself: a press the
+  text says follows a Tune Break lists `TUNE_BREAK`
+- `castPosition`/`endPosition` (`Position.Grounded`/`Midair`): mid-air presses need MIDAIR, a plunge lands
+  GROUNDED, every jump lifts to MIDAIR, dodges change nothing; castPosition only where the text restricts a
+  press. a press cut within 6f (an insta cut, a mash at 6) leaves them where they stood, a jump aside. every Intro declares `endPosition` (GROUNDED unless its text leaves them in the air)
+- 18f (`DESPAWN_TIME`) past its last press a resonator off field despawns. an arrival still standing keeps
+  its position; a despawned one takes the outgoing one's (the fight's first actor and START: GROUNDED). the Resonator's `swapIn`/
+  `swapInAir` name the press an arrival with no Intro (NOINTRO, START) must open on, skipping its own chains
+  (Basic 1 and the mid-air Basic 1 or plunge for most, Phrolova Basic 2): `BA1.instaCancel()` where needed
+
 # cast and hit
 every press is a cast plus its `bullets` — each `{ hitFrame, commitFrame?, mv, energy, concerto, offtune,
 forteN, element?, type?, subtype?, updateDebuffs?, hitGlobal? }`, landing at its `hitFrame` — plus an end
@@ -94,7 +113,7 @@ every motion value is a bullet's
   next press. a hold or mash waits for it
   instead — a mash into an Outro for the press's `noSwapFrames` too — a hold letting go the
   frame the window opens, a mash `MASH_DELAY` after it, and throws where it lets go no earlier than
-  the press would end. a FIELD hit and an Outro with no animation carry no priority; an Outro with
+  the press would end. an OFF_FIELD hit and an Outro with no animation carry no priority; an Outro with
   animation frames is cut into like any press
 - echo casts: a summon casts at 12; a transform ("Transform into ...") at 5, holding 13; a
   pseudo-transform (Bell-Borne Geochelone, Chisa's Threnodian - Leviathan, Cartethyia's
@@ -226,7 +245,7 @@ Mourning Aix, but Zani wears Capitaneus, an Elite. slot costs are ceilings, not 
 
 # frames
 every pressed action declares `animFrames` and its `bullets`; a field's own bullets and
-coordinated/response ones (FIELD-tagged, no `cast`) take no `animFrames`. read them off wuwalab —
+coordinated/response ones (OFF_FIELD-tagged, no `cast`) take no `animFrames`. read them off wuwalab —
 `abilities[*]` of `api.wuwalab.com/api/app/characters/<slug>` — or, for a kit wuwalab lacks, off a frame
 table the user pastes (the same columns). with neither, list the nanoka row's bullets all at
 `animFrames` and mark the action `// PLACEHOLDER FRAMES`:
@@ -245,7 +264,7 @@ table the user pastes (the same columns). with neither, list the nanoka row's bu
 - `animPriority` = `priority_timeline` whole (`[[0,10],[163,2]]` -> `{ 0: 10, 163: 2 }`): a frame
   listed twice keeps the tier listed later (Schemata of Runes' `[[0,9],[0,5],...]` is `{ 0: 5, ... }`); its 0 windows and the windows on or past the last frame stay,
   for the record. `castPriority` = `skill_priority`. a `skill_priority` of 0 over an all-0 timeline
-  is missing, not 0. none on a FIELD hit or an Outro with no animation. a press wuwalab has no priority for
+  is missing, not 0. none on an OFF_FIELD hit or an Outro with no animation. a press wuwalab has no priority for
   takes the usual one for its kind, held its whole length: basics and mid-air basics 2, plunges 6,
   heavies 2 (forte heavies 6), dodge counters 8, skills 4, Liberations 10, Intros 11, animated Outros 10, dodges 6,
   echo casts as above

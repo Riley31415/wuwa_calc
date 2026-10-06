@@ -30,7 +30,7 @@
  * described on her own page (unlike every other kit so far) — Closing Remark is left as a plain
  * damage hit, nothing invented.
  */
-import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, Position } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Debuff, matrix } from "../../engine/gear.js";
 import {
   applyCurrent,
@@ -49,7 +49,7 @@ import {
   addGain,
   runningBullet,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, ECHO, INTRO, OUTRO, START } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, ECHO, INTRO, OUTRO, START, DODGE } from "../../engine/rotation.js";
 import { THE_LAST_DANCE } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
 import { FROSTY_RESOLVE_5PC, SENTRY_CONSTRUCT } from "../../echoes/rinascita.js";
@@ -93,22 +93,23 @@ const DISPERSE = { updateDebuffs: () => applyEnemy(DISPERSION, 1) };
 
 // --- basics, mid-air, dodge counter (Silent Execution)
 const BA1 = carlottaAction("Basic - Silent Execution 1", { maxForte1: 0, animFrames: 16, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 13, mv: 5408, energy: 80, concerto: 160, offtune: 2560 }]});
-const BA2 = carlottaAction("Basic - Silent Execution 2", { maxForte1: 0, animFrames: 44, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA2 = carlottaAction("Basic - Silent Execution 2", { chains: [BA1], maxForte1: 0, animFrames: 44, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 16, mv: 3955, energy: 59, concerto: 117, offtune: 1872, forte1: 3 },
     { hitFrame: 30, mv: 3955, energy: 59, concerto: 117, offtune: 1872 },
     { hitFrame: 38, mv: 5273, energy: 78, concerto: 156, offtune: 2496 },
   ]});
 // the landing opens Customary Greetings
-const MA1 = carlottaAction("Mid-air - Silent Execution Plunge", { animFrames: 47, animPriority: { 41: 2 }, castPriority: 6, bullets: [
+const MA1 = carlottaAction("Mid-air - Silent Execution Plunge", { castPosition: Position.Midair, endPosition: Position.Grounded, animFrames: 47, animPriority: { 41: 2 }, castPriority: 6, bullets: [
     { hitFrame: 36, mv: 10478, energy: 300, concerto: 600, offtune: 9600, updateDebuffs: () => applyCurrent(CUSTOMARY_GREETINGS_READY, 1) },
   ], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
-const MA2 = carlottaAction("Basic - Silent Execution: Customary Greetings", { requireBuff: CUSTOMARY_GREETINGS_READY, animFrames: 56, castPriority: 2, bullets: [
+// "Using Basic Attack shortly after the landing will cast Customary Greetings"
+const MA2 = carlottaAction("Basic - Silent Execution: Customary Greetings", { chains: [MA1], requireBuff: CUSTOMARY_GREETINGS_READY, animFrames: 56, castPriority: 2, bullets: [
     { hitFrame: 8, mv: 10799, energy: 95, concerto: 189, offtune: 3024 },
     { hitFrame: 46, mv: 13199, energy: 116, concerto: 231, offtune: 3696 },
   ], node: Node.Normal, cast: Cast.Basic, type: Type.Basic, castForte1: 3,
   updateBuffs: () => revokeCurrent(CUSTOMARY_GREETINGS_READY),
 });
-const DC = carlottaAction("Dodge Counter - Silent Execution", { minForte1: 1, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const DC = carlottaAction("Dodge Counter - Silent Execution", { chains: [DODGE], minForte1: 1, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 12, mv: 10377, energy: 154, concerto: 308, offtune: 4913, forte1: -1 },
     { hitFrame: 42, mv: 13755, energy: 204, concerto: 407, offtune: 6512, forte2: 10 },
   ], animFrames: 50, castPriority: 8, castConcerto: 1000});
@@ -118,11 +119,11 @@ const DC = carlottaAction("Dodge Counter - Silent Execution", { minForte1: 1, no
 const NM1 = carlottaAction("Basic - Silent Execution: Necessary Measures 1", { minForte1: 1, animFrames: 24, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 12, mv: 6591, energy: 98, concerto: 195, offtune: 3120, forte1: -1, forte2: 10 },
   ]});
-const NM2 = carlottaAction("Basic - Silent Execution: Necessary Measures 2", { minForte1: 1, animFrames: 46, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const NM2 = carlottaAction("Basic - Silent Execution: Necessary Measures 2", { chains: [NM1], minForte1: 1, animFrames: 46, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 16, mv: 6008, energy: 89, concerto: 178, offtune: 2844, forte1: -1 },
     { hitFrame: 36, mv: 7343, energy: 109, concerto: 218, offtune: 3476, forte2: 10 },
   ]});
-const NM3 = carlottaAction("Basic - Silent Execution: Necessary Measures 3", { minForte1: 1, animFrames: 80, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const NM3 = carlottaAction("Basic - Silent Execution: Necessary Measures 3", { chains: [NM2], minForte1: 1, animFrames: 80, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 6, mv: 2333, energy: 35, concerto: 69, offtune: 1104 },
     { hitFrame: 8, mv: 2333, energy: 35, concerto: 69, offtune: 1104 },
     { hitFrame: 12, mv: 2333, energy: 35, concerto: 69, offtune: 1104 },
@@ -161,7 +162,10 @@ const Skill1 = carlottaAction("Skill - Art of Violence", {
   ], castConcerto: 500, castForte1: 3,
   updateBuffs: () => applyCurrent(CHROMATIC_SPLENDOR_READY, 1),
 });
+// "Press Resonance Skill again shortly after"; she ends it airborne (Flawless Purity: "After casting
+// Resonance Skill Chromatic Splendor, Carlotta can perform Mid-air Attacks")
 const Skill2 = carlottaAction("Skill - Chromatic Splendor", { // CHANGED PRIO TO 5 to enforce ingame echo cant cancell
+  chains: [Skill1], endPosition: Position.Midair,
   animFrames: 121, animPriority: { 0: 5, 101: 2 }, castPriority: 4, requireBuff: CHROMATIC_SPLENDOR_READY,
   node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 40, mv: 11273, energy: 60, offtune: 2400 },
@@ -237,7 +241,7 @@ const FatalFinaleS2 = FatalFinale.variant("Liberation - Fatal Finale (S2)", { bu
 const FatalFinaleResolver = new Action("Fatal Finale Resolver", { resolve: () => (isHeld(CL_S2) ? FatalFinaleS2 : FatalFinale) });
 
 const Intro = carlottaAction("Intro - Wintertime Aria", {
-  qteFrames: 58, animFrames: 84, noSwapFrames: 70, animPriority: { 70: 2 }, castPriority: 11, motionStop: [0, 84],
+  endPosition: Position.Grounded, qteFrames: 58, animFrames: 84, noSwapFrames: 70, animPriority: { 70: 2 }, castPriority: 11, motionStop: [0, 84],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 28, element: null, type: null, subtype: null, forte1: 3 },
     { hitFrame: 56, mv: 17893, energy: 600, offtune: 5601, ...DECONSTRUCT },
@@ -361,6 +365,9 @@ const CARLOTTA_RESONATOR = new Resonator({
   color: "#8fb3d9",
   intro: Intro,
   outro: Outro,
+  // Necessary Measures replaces her Basic Attack while she holds Moldable Crystals
+  swapIn: () => (forte1() > 0 ? NM1 : BA1),
+  swapInAir: MA1,
   maxEnergy: 12500,
   maxForte1: 6,
   maxForte2: 120,
@@ -382,13 +389,13 @@ const Skill12 = new ActionGroup("Skill - Art of Violence + Chromatic Splendor", 
 const NM123 = new ActionGroup("Silent Execution: Necessary Measures 123", [NM1, NM2, NM3]);
 
 const CL_ROTATION = new Rotation([
-  START, Skill12.instaSwap(),
+  START, BA1.instaCancel(), Skill12.instaSwap(),
   INTRO, Skill12, MA1.holdCancel(), FHA.cancel(),
   Lib1, DeathKnellx4, FatalFinaleResolver,
   Skill12.mashCancel(), ECHO.instaSwap(), OUTRO,
 ]);
 const CL_ROTATION_FAST = new Rotation([
-  START, Skill12.instaSwap(),
+  START, BA1.instaCancel(), Skill12.instaSwap(),
   INTRO, Skill12, MA1.holdCancel(), FHA.cancel(),
   Lib1, DeathKnellx4, FatalFinaleResolver,
   Skill12.instaSwap(), OUTRO,

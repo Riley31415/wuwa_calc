@@ -15,7 +15,7 @@
  * forte2 (cap 100, +50 a Schemata, all of it for Learn My True Name), and Soliskin Vitality a real
  * 0-60 gauge fed by any team member's Echo cast.
  */
-import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, Position } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
   asSource,
@@ -38,8 +38,9 @@ import {
   stacksOf,
   forte2,
   lostOnSwap,
+  saveChain,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, ECHO, INTRO, OUTRO, ActionTag, START_LAST, INTRO_LAST } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, ECHO, INTRO, OUTRO, ActionTag, START_LAST, INTRO_LAST, DODGE } from "../../engine/rotation.js";
 import { SOLSWORN_CIPHERS } from "../../weapons/gauntlet.js";
 import { NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
 import { NAMELESS_EXPLORER, SOUND_OF_TRUE_NAME_5PC } from "../../echoes/lahairoi.js";
@@ -69,17 +70,21 @@ const RUNE_ANSWER = { forte1: 1, updateDebuffs: () => gainRune(2, null) };
 // --- basics, mid-air, dodge counter (One, Two, Three) — Stage 4 opens Decipher
 // "with at least 50 points of Full Stop, her Basic Attack cycle starts from Stage 2"
 const BA1 = sigrikaAction("Basic - One, Two, Three 1", { animFrames: 22, castPriority: 2, maxForte2: 49, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 14, mv: 5297, energy: 84, concerto: 167, offtune: 2664 }]});
-const BA2 = sigrikaAction("Basic - One, Two, Three 2", { animFrames: 41, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+// "Press Normal Attack shortly after casting" the Heavy, the Plunging Attack, the Mid-air Dodge Counter
+// or the Intro "to cast Basic Attack Stage 2" (at 50 Full Stop the cycle starts here: SIGRIKA_RESONATOR)
+const BA2 = sigrikaAction("Basic - One, Two, Three 2", { chains: () => [BA1, HA, MA, MDC, Intro], animFrames: 41, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 18, mv: 5034, energy: 80, concerto: 159, offtune: 2532 },
     { hitFrame: 30, mv: 5034, energy: 80, concerto: 159, offtune: 2532 },
   ]});
-const BA3 = sigrikaAction("Basic - One, Two, Three 3", { animFrames: 44, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+// BOOMY BOOM!: "Press Normal Attack shortly after casting BOOMY BOOM! to cast Basic Attack Stage 3"
+const BA3 = sigrikaAction("Basic - One, Two, Three 3", { chains: () => [BA2, Skill], animFrames: 44, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 8, mv: 3341, energy: 53, concerto: 105, offtune: 1680 },
     { hitFrame: 16, mv: 3341, energy: 53, concerto: 105, offtune: 1680 },
     { hitFrame: 34, mv: 4454, energy: 70, concerto: 140, offtune: 2240 },
   ]});
+// the Dodge Counter: "Press Normal Attack shortly after casting Dodge Counter to cast Basic Attack Stage 4"
 const BA4 = sigrikaAction("Basic - One, Two, Three 4", {
-  animFrames: 78, animPriority: { 72: 1 }, castPriority: 2,
+  chains: () => [BA3, DC], animFrames: 78, animPriority: { 72: 1 }, castPriority: 2,
   node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 22, mv: 4136, energy: 65, concerto: 130, offtune: 2080 },
     { hitFrame: 28, mv: 5170, energy: 82, concerto: 163, offtune: 2600 },
@@ -89,9 +94,11 @@ const BA4 = sigrikaAction("Basic - One, Two, Three 4", {
     { hitFrame: 72, commitFrame: 60, mv: 6203, energy: 98, concerto: 195, offtune: 3120 },
   ],
 });
-const MA = sigrikaAction("Mid-air - One, Two, Three Plunge", { animFrames: 44, animPriority: { 36: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 38, mv: 10478, energy: 155, concerto: 310, offtune: 4960 }]});
-const MDC = sigrikaAction("Dodge Counter - One, Two, Three (Mid-Air)", { animFrames: 44, animPriority: { 0: 6, 36: 2 }, castPriority: 8, bullets: [{ hitFrame: 38, mv: 20617, energy: 305, concerto: 610, offtune: 9920 }], node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, castConcerto: 1000});
-const DC = sigrikaAction("Dodge Counter - One, Two, Three", { animFrames: 42, animPriority: { 0: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const MA = sigrikaAction("Mid-air - One, Two, Three Plunge", { castPosition: Position.Midair, endPosition: Position.Grounded, animFrames: 44, animPriority: { 36: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 38, mv: 10478, energy: 155, concerto: 310, offtune: 4960 }]});
+// "after a successful Dodge in mid-air"; Basic Attack Stage 2 follows it, so it lands
+const MDC = sigrikaAction("Dodge Counter - One, Two, Three (Mid-Air)", { chains: [DODGE], castPosition: Position.Midair, endPosition: Position.Grounded, animFrames: 44, animPriority: { 0: 6, 36: 2 }, castPriority: 8, bullets: [{ hitFrame: 38, mv: 20617, energy: 305, concerto: 610, offtune: 9920 }], node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, castConcerto: 1000});
+// "after a successful Dodge on the ground"
+const DC = sigrikaAction("Dodge Counter - One, Two, Three", { chains: [DODGE], castPosition: Position.Grounded, animFrames: 42, animPriority: { 0: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 8, mv: 6591, energy: 98, concerto: 195, offtune: 3008 },
     { hitFrame: 16, mv: 6591, energy: 98, concerto: 195, offtune: 3008 },
     { hitFrame: 34, mv: 8788, energy: 130, concerto: 260, offtune: 4010 },
@@ -103,14 +110,15 @@ const HA = sigrikaAction("Heavy - One, Two, Three", { animFrames: 42, castPriori
 
 // --- Decipher-gated finishers: both grant a Rune: Trust and exit Decipher, both Echo Skill DMG
 //     (the migrated sheet only carries one row for the pair — same numbers used for both here)
-const EBA = sigrikaAction("Basic - Elucidated", { animFrames: 66, animPriority: { 66: 2 }, castPriority: 1, requireBuff: DECIPHER, node: Node.Normal, cast: Cast.Basic, type: Type.Echo, bullets: [
+// the Decipher presses are all cast "on the ground"
+const EBA = sigrikaAction("Basic - Elucidated", { castPosition: Position.Grounded, animFrames: 66, animPriority: { 66: 2 }, castPriority: 1, requireBuff: DECIPHER, node: Node.Normal, cast: Cast.Basic, type: Type.Echo, bullets: [
     { hitFrame: 8, mv: 6156, energy: 52, concerto: 104, offtune: 1652, ...RUNE_TRUST ,
        },
     { hitFrame: 16, mv: 6156, energy: 52, concerto: 104, offtune: 1652 },
     { hitFrame: 24, mv: 6156, energy: 52, concerto: 104, offtune: 1652 },
     { hitFrame: 66, commitFrame: 26, mv: 12311, energy: 104, concerto: 207, offtune: 3303 },
   ]});
-const EDC = sigrikaAction("Dodge Counter - Decipher", { animFrames: 66, animPriority: { 66: 2 }, castPriority: 8, requireBuff: DECIPHER, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Echo, bullets: [
+const EDC = sigrikaAction("Dodge Counter - Decipher", { chains: [DODGE], castPosition: Position.Grounded, animFrames: 66, animPriority: { 66: 2 }, castPriority: 8, requireBuff: DECIPHER, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Echo, bullets: [
     { hitFrame: 8, mv: 6156, energy: 52, concerto: 104, offtune: 1652, ...RUNE_TRUST ,
        },
     { hitFrame: 16, mv: 6156, energy: 52, concerto: 104, offtune: 1652 },
@@ -126,14 +134,14 @@ const Skill = sigrikaAction("Skill - BOOMY BOOM!", { animFrames: 56, animPriorit
     { hitFrame: 36, mv: 2863, energy: 45, concerto: 90, offtune: 1440 },
     { hitFrame: 48, mv: 5726, energy: 90, concerto: 180, offtune: 2880 },
   ]});
-const ESkill = sigrikaAction("Skill - BIG BOOMY BOOM!", { animFrames: 56, animPriority: { 56: 2 }, castPriority: 2, requireBuff: DECIPHER, node: Node.Skill, cast: Cast.Skill, type: Type.Echo, bullets: [
+const ESkill = sigrikaAction("Skill - BIG BOOMY BOOM!", { castPosition: Position.Grounded, animFrames: 56, animPriority: { 56: 2 }, castPriority: 2, requireBuff: DECIPHER, node: Node.Skill, cast: Cast.Skill, type: Type.Echo, bullets: [
     { hitFrame: 6, mv: 2881, energy: 25, concerto: 49, offtune: 773, ...RUNE_ANSWER,},
     { hitFrame: 18, mv: 2881, energy: 25, concerto: 49, offtune: 773 },
     { hitFrame: 30, mv: 2881, energy: 25, concerto: 49, offtune: 773 },
     { hitFrame: 42, mv: 2881, energy: 25, concerto: 49, offtune: 773 },
     { hitFrame: 54, mv: 17285, energy: 145, concerto: 290, offtune: 4637, ...RUNE_ANSWER }, // TODO unknown if this late
   ]});
-const ESkill50 = sigrikaAction("Skill - Soliskin to the Aid", { animFrames: 54, animPriority: { 54: 2 }, castPriority: 2, requireBuff: DECIPHER, minForte2: 50, node: Node.Skill, cast: Cast.Skill, type: Type.Echo, bullets: [
+const ESkill50 = sigrikaAction("Skill - Soliskin to the Aid", { castPosition: Position.Grounded, animFrames: 54, animPriority: { 54: 2 }, castPriority: 2, requireBuff: DECIPHER, minForte2: 50, node: Node.Skill, cast: Cast.Skill, type: Type.Echo, bullets: [
     { hitFrame: 6, mv: 2783, energy: 24, concerto: 47, offtune: 747, ...RUNE_ANSWER,},
     { hitFrame: 16, mv: 2783, energy: 24, concerto: 47, offtune: 747 },
     { hitFrame: 24, mv: 2783, energy: 24, concerto: 47, offtune: 747 },
@@ -171,13 +179,13 @@ const ESKILL = new Action("Decipher Skill Resolver", { cast: Cast.Skill,
 //     leftmost Runes, and its follow-up is whichever pair they were (spendRunes() below)
 // ...each a FIELD follow-up of its own commit on Schemata (25/31/35): its frames are
 // only the time until its own hit, none of the fight's
-const RunicOutburst = sigrikaAction("Forte - Runic Outburst", { tag: ActionTag.Field, animFrames: 68,
+const RunicOutburst = sigrikaAction("Forte - Runic Outburst", { tag: ActionTag.OffField, animFrames: 68,
    node: Node.Forte, type: Type.Echo, bullets: [
      { hitFrame: 20, commitFrame: 0, mv: 11767, energy: 200, concerto: 140, offtune: 4960 },
      { hitFrame: 36, commitFrame: 0, mv: 20592, energy: 350, concerto: 245, offtune: 8680 },
      { hitFrame: 68, commitFrame: 0, mv: 26475, energy: 450, concerto: 315, offtune: 11160 },
    ]});
-const RunicChainWhip = sigrikaAction("Forte - Runic Chain Whip", { tag: ActionTag.Field, animFrames: 66,
+const RunicChainWhip = sigrikaAction("Forte - Runic Chain Whip", { tag: ActionTag.OffField, animFrames: 66,
   node: Node.Forte, type: Type.Echo, bullets: [
     { hitFrame: 6, commitFrame: 0, mv: 4970, energy: 125, concerto: 88, offtune: 3100 },
     { hitFrame: 12, commitFrame: 0, mv: 4970, energy: 125, concerto: 88, offtune: 3100 },
@@ -187,7 +195,7 @@ const RunicChainWhip = sigrikaAction("Forte - Runic Chain Whip", { tag: ActionTa
     { hitFrame: 60, commitFrame: 0, mv: 6626, energy: 167, concerto: 117, offtune: 4134 },
     { hitFrame: 66, commitFrame: 0, mv: 6626, energy: 167, concerto: 117, offtune: 4134 },
   ]});
-const RunicSoliskin = sigrikaAction("Forte - Runic Soliskin", { tag: ActionTag.Field, animFrames: 78,
+const RunicSoliskin = sigrikaAction("Forte - Runic Soliskin", { tag: ActionTag.OffField, animFrames: 78,
    node: Node.Forte, type: Type.Echo, bullets: [
      { hitFrame: 18, commitFrame: 0, mv: 3976, energy: 100, concerto: 70, offtune: 2480 },
      { hitFrame: 36, commitFrame: 0, mv: 5963, energy: 150, concerto: 105, offtune: 3720 },
@@ -260,7 +268,7 @@ const Liberation = sigrikaAction("Liberation - Where Trust Leads Me!", {
   updateBuffs: () => applyCurrent(DIVERGENT),
 });
 
-const Intro = sigrikaAction("Intro - Solsworn Etymology", { qteFrames: 42, animFrames: 58, noSwapFrames: 48, animPriority: { 58: 2 }, castPriority: 11, motionStop: [5, 42], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 46, mv: 16342, energy: 1000, offtune: 7736 }], castConcerto: 1000});
+const Intro = sigrikaAction("Intro - Solsworn Etymology", { endPosition: Position.Grounded, qteFrames: 42, animFrames: 58, noSwapFrames: 48, animPriority: { 58: 2 }, castPriority: 11, motionStop: [5, 42], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 46, mv: 16342, energy: 1000, offtune: 7736 }], castConcerto: 1000});
 /** In This Very Moment carries no team buff on her own page (unlike most other kits' outros). */
 // wuwalab's priority is all 0 (missing): an Outro's usual 10, held its whole length
 const Outro = sigrikaAction("Outro - In This Very Moment", { animFrames: 48, castPriority: 10, cast: Cast.Outro, type: Type.Outro, bullets: [{ hitFrame: 18, mv: 79500 }], minConcerto: 10000, castConcerto: -10000});
@@ -420,9 +428,17 @@ const SIGRIKA_RESONATOR = new Resonator({
   color: "#e0aa7e",
   intro: Intro,
   outro: Outro,
+  swapIn: () => (forte2() >= 50 ? BA2 : BA1),
+  swapInAir: MA,
   maxEnergy: 12500,
   maxForte1: 2,
   maxForte2: 100,
+
+  // "When Sigrika has at least 50 points of Full Stop, her Basic Attack cycle starts from Stage 2":
+  // whatever she presses then, the next Basic may be Stage 2
+  updateBuffs: () => {
+    if (forte2() >= 50) saveChain(BA1);
+  },
 
   // the Rune store, empty (its always-set bit alone; see RUNES)
   combatStart: () => applyCurrent(RUNES, 1 << 8),

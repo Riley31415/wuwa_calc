@@ -148,6 +148,24 @@ export const castFrame = (): number => (ctx.act!.half === "hit" || ctx.act!.half
 
 const cooldownOf = (of: Action | Cooldown): Cooldown | null => ("wait" in of ? of : of.cooldown);
 
+/** Let the acting member's next press needing `action` before it follow it as if just pressed, once
+ *  this visit (Brant's Intro: `saveChain(MA1)`; a string kept through a dodge: `saveChain(previousPress())`). */
+export function saveChain(action: Action | null): void {
+  noteMutation(0x5e, 1);
+  if (ctx.dryRun || !action) return;
+  ctx.slot!.savedChains.push(action);
+}
+/** The next press the rotation has its acting member make, resolved — null where none is left in reach. */
+export const nextPress = (): Action | null => {
+  for (const a of ctx.nextPresses()) return a;
+  return null;
+};
+/** Every press the rotation still has the acting member make this visit, each resolved as it is reached. */
+export const nextPresses = (): Iterable<Action> => ctx.nextPresses();
+/** The acting member's press before the one being cast this visit, OFF_FIELD ones aside — null
+ *  first in it. Read it from a cast hook: a hit may already find the press itself. */
+export const previousPress = (): Action | null => ctx.slot!.lastPress;
+
 /** Give back `charges` of the acting member's cooldown on `of` (a cast or a shared Cooldown) —
  *  every charge where none is named, the kit text's "resets the Cooldown". */
 export function resetCooldown(of: Action | Cooldown, charges = Infinity): void {

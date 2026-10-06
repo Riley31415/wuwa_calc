@@ -19,7 +19,7 @@
  * `related_property` per hit). MVs and energy/concerto/off-tune off nanoka.cc (character 1209,
  * https://ww.nanoka.cc/character/1209), read the way CLAUDE.md describes.
  */
-import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, Position } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Debuff, Sequence, coordinatedBuff } from "../../engine/gear.js";
 import {
   cancelHits,
@@ -42,7 +42,7 @@ import {
   reduceCooldown,
   addGain,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, NOINTRO, ECHO, INTRO, OUTRO, START_LAST } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, NOINTRO, ECHO, INTRO, OUTRO, START_LAST, DODGE } from "../../engine/rotation.js";
 import { HEALS, heal } from "../../shared/status.js";
 import {
   TUNE_BREAK, TUNE_RUPTURE_INTERFERED, TUNE_STRAIN_INTERFERED, tuneRuptureResponse, strainPayout,
@@ -74,7 +74,8 @@ const BA1 = mornyeAction("Basic - Ground State Calibration 1", { animFrames: 25,
     { hitFrame: 13, mv: 2227, energy: 35, concerto: 112, offtune: 1120 },
     { hitFrame: 25, mv: 1671, energy: 27, concerto: 84, offtune: 840 },
   ], castForte1: 2000});
-const BA2 = mornyeAction("Basic - Ground State Calibration 2", { updateBuffs: () => revokeCurrent(PARRY), animFrames: 49, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+// the Dodge Counter, and Expectation Error's "press Normal Attack to exit the state and cast Basic Attack Stage 2"
+const BA2 = mornyeAction("Basic - Ground State Calibration 2", { chains: () => [BA1, DC, Skill], updateBuffs: () => revokeCurrent(PARRY), animFrames: 49, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 11, mv: 2386, energy: 38, concerto: 120, offtune: 1200 },
     { hitFrame: 26, mv: 2386, energy: 38, concerto: 120, offtune: 1200 },
     { hitFrame: 40, commitFrame: 34, mv: 1790, energy: 29, concerto: 90, offtune: 900 },
@@ -82,7 +83,8 @@ const BA2 = mornyeAction("Basic - Ground State Calibration 2", { updateBuffs: ()
     { hitFrame: 58, commitFrame: 34, mv: 1790, energy: 29, concerto: 90, offtune: 900 },
     { hitFrame: 67, commitFrame: 34, mv: 1790, energy: 29, concerto: 90, offtune: 900 },
   ], castForte1: 4300});
-const BA3 = mornyeAction("Basic - Ground State Calibration 3", { animFrames: 49, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+// the plunge: "Press Normal Attack within a certain time afterward to cast Basic Attack Stage 3"
+const BA3 = mornyeAction("Basic - Ground State Calibration 3", { chains: () => [BA2, MA], animFrames: 49, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 24, mv: 4136, energy: 65, concerto: 208, offtune: 2080 },
     { hitFrame: 40, mv: 1034, energy: 17, concerto: 52, offtune: 520 },
     { hitFrame: 49, commitFrame: 40, mv: 1034, energy: 17, concerto: 52, offtune: 520 },
@@ -91,29 +93,31 @@ const BA3 = mornyeAction("Basic - Ground State Calibration 3", { animFrames: 49,
     { hitFrame: 76, commitFrame: 40, mv: 1034, energy: 17, concerto: 52, offtune: 520 },
     { hitFrame: 85, commitFrame: 40, mv: 1034, energy: 17, concerto: 52, offtune: 520 },
   ], castForte1: 3700});
-const BA4 = mornyeAction("Basic - Ground State Calibration 4", { animFrames: 116, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 51, mv: 13520, energy: 213, concerto: 680, offtune: 6800 }], castForte1: 10000});
+const BA4 = mornyeAction("Basic - Ground State Calibration 4", { chains: [BA3], animFrames: 116, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 51, mv: 13520, energy: 213, concerto: 680, offtune: 6800 }], castForte1: 10000});
 const HA = mornyeAction("Heavy - Ground State Calibration", { maxForte1: 9999, animFrames: 95, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 19, mv: 1110, energy: 24, concerto: 75, offtune: 744 },
     { hitFrame: 40, mv: 1110, energy: 24, concerto: 75, offtune: 744 },
     { hitFrame: 70, mv: 1480, energy: 31, concerto: 100, offtune: 992 },
   ], castForte1: 2000});
-const MA = mornyeAction("Mid-air - Ground State Calibration Plunge", { animFrames: 42, animPriority: { 42: 2 }, castPriority: 5, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 36, mv: 9861, energy: 155, concerto: 496, offtune: 4960 }]});
-const DC = mornyeAction("Dodge Counter - Ground State Calibration", { animFrames: 26, animPriority: { 0: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 9, mv: 16223, energy: 255, concerto: 816, offtune: 8160 }], castForte1: 2000, castConcerto: 1000});
+const MA = mornyeAction("Mid-air - Ground State Calibration Plunge", { castPosition: Position.Midair, endPosition: Position.Grounded, animFrames: 42, animPriority: { 42: 2 }, castPriority: 5, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 36, mv: 9861, energy: 155, concerto: 496, offtune: 4960 }]});
+const DC = mornyeAction("Dodge Counter - Ground State Calibration", { chains: [DODGE], animFrames: 26, animPriority: { 0: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 9, mv: 16223, energy: 255, concerto: 816, offtune: 8160 }], castForte1: 2000, castConcerto: 1000});
 
-// --- Wide Field Observation Mode, the airborne state the Syntony Field lives in
-const WBA1 = mornyeAction("Basic - Wide Field Observation 1", { requireBuff: WIDE_FIELD, maxForte2: 9999, animFrames: 21, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+// --- Wide Field Observation Mode, the airborne state the Syntony Field lives in: "The state also ends
+//     when Mornye is no longer airborne", so every press cast in it is cast in mid-air
+const WBA1 = mornyeAction("Basic - Wide Field Observation 1", { castPosition: Position.Midair, requireBuff: WIDE_FIELD, maxForte2: 9999, animFrames: 21, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 26, commitFrame: 14, mv: 1392, energy: 22, concerto: 35, offtune: 700, forte2: 250 },
     { hitFrame: 34, commitFrame: 14, mv: 1392, energy: 22, concerto: 35, offtune: 700, forte2: 250 },
     { hitFrame: 42, commitFrame: 14, mv: 1392, energy: 22, concerto: 35, offtune: 700, forte2: 250 },
     { hitFrame: 49, commitFrame: 14, mv: 1392, energy: 22, concerto: 35, offtune: 700, forte2: 250 },
   ]});
-const WBA2 = mornyeAction("Basic - Wide Field Observation 2", { requireBuff: WIDE_FIELD, maxForte2: 9999, animFrames: 39, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const WBA2 = mornyeAction("Basic - Wide Field Observation 2", { chains: [WBA1], castPosition: Position.Midair, requireBuff: WIDE_FIELD, maxForte2: 9999, animFrames: 39, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 17, mv: 2585, energy: 41, concerto: 64, offtune: 1300, forte2: 300 },
     { hitFrame: 33, commitFrame: 17, mv: 2585, energy: 41, concerto: 64, offtune: 1300, forte2: 300 },
     { hitFrame: 49, commitFrame: 17, mv: 2585, energy: 41, concerto: 64, offtune: 1300, forte2: 300 },
     { hitFrame: 65, commitFrame: 17, mv: 2585, energy: 41, concerto: 64, offtune: 1300, forte2: 300 },
   ]});
-const WBA3 = mornyeAction("Basic - Wide Field Observation 3", { requireBuff: WIDE_FIELD, maxForte2: 9999, animFrames: 41, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+// and its Dodge Counter: "Within a certain time afterward, press Normal Attack to cast ... Stage 3"
+const WBA3 = mornyeAction("Basic - Wide Field Observation 3", { chains: () => [WBA2, WDC], castPosition: Position.Midair, requireBuff: WIDE_FIELD, maxForte2: 9999, animFrames: 41, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 31, commitFrame: 13, mv: 931, energy: 15, concerto: 23, offtune: 468, forte2: 900 },
     { hitFrame: 34, commitFrame: 13, mv: 931, energy: 15, concerto: 23, offtune: 468, forte2: 450 },
     { hitFrame: 41, commitFrame: 13, mv: 931, energy: 15, concerto: 23, offtune: 468, forte2: 450 },
@@ -121,7 +125,7 @@ const WBA3 = mornyeAction("Basic - Wide Field Observation 3", { requireBuff: WID
     { hitFrame: 67, commitFrame: 13, mv: 931, energy: 15, concerto: 23, offtune: 468 },
     { hitFrame: 100, commitFrame: 13, mv: 3309, energy: 52, concerto: 82, offtune: 1664 },
   ]});
-const WDC = mornyeAction("Dodge Counter - Wide Field Observation", { requireBuff: WIDE_FIELD, animFrames: 41, animPriority: { 0: 5, 38: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const WDC = mornyeAction("Dodge Counter - Wide Field Observation", { chains: [DODGE], castPosition: Position.Midair, requireBuff: WIDE_FIELD, animFrames: 41, animPriority: { 0: 5, 38: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 17, mv: 2585, energy: 41, concerto: 64, offtune: 1300, forte1: 300 },
     { hitFrame: 33, commitFrame: 17, mv: 2585, energy: 41, concerto: 64, offtune: 1300, forte1: 300 },
     { hitFrame: 49, commitFrame: 17, mv: 2585, energy: 41, concerto: 64, offtune: 1300, forte1: 300 },
@@ -132,14 +136,15 @@ const WDC = mornyeAction("Dodge Counter - Wide Field Observation", { requireBuff
 //     Inversion is the payoff once Relative Momentum tops out.
 // her Intro is what puts her airborne; the field comes up where wuwalab's generate_syntony_field
 // does — 70f into the Intro (sure from 38f), 58f into the Heavy, which spends Rest Mass Energy there
-const GeopotentialShift = mornyeAction("Forte Heavy - Geopotential Shift", { minForte1: 10000, animFrames: 92, castPriority: 5, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+// "Afterward, Mornye jumps into mid-air"
+const GeopotentialShift = mornyeAction("Forte Heavy - Geopotential Shift", { endPosition: Position.Midair, minForte1: 10000, animFrames: 92, castPriority: 5, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 22, mv: 4414, energy: 93, concerto: 296, offtune: 2960 },
     { hitFrame: 58, element: null, type: null, subtype: null, forte1: -10000, updateDebuffs: raiseSyntonyField },
     { hitFrame: 80, mv: 9902, energy: 208, concerto: 665, offtune: 6640 },
   ],
   updateBuffs: () => applyCurrent(WIDE_FIELD, 1),
 });
-const Inversion = mornyeAction("Forte Heavy - Inversion", { minForte2: 10000, requireBuff: WIDE_FIELD,
+const Inversion = mornyeAction("Forte Heavy - Inversion", { castPosition: Position.Midair, minForte2: 10000, requireBuff: WIDE_FIELD,
   animFrames: 76, castPriority: 6, noSwapFrames: 76, motionStop: [0, 76],
   node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 76, mv: 25846, energy: 325, concerto: 1196, offtune: 10400 }], castForte2: -10000,
   updateDebuffs: () => applyEnemy(OBSERVATION_MARKER, 1),
@@ -198,7 +203,7 @@ const OptimalSolution = mornyeAction("Skill - Optimal Solution", {
     reduceCooldown(Skill, 60 * 2);
   },
 });
-const DistributedArray = mornyeAction("Skill - Distributed Array", { requireBuff: WIDE_FIELD, animFrames: 60, castPriority: 4, cooldown: 60 * 16, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+const DistributedArray = mornyeAction("Skill - Distributed Array", { castPosition: Position.Midair, requireBuff: WIDE_FIELD, animFrames: 60, castPriority: 4, cooldown: 60 * 16, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     // wuwalab heals at 0f, ahead of the first damage
     { hitFrame: 0, element: null, type: null, subtype: null, ...SKILL_HEAL },
     { hitFrame: 46, commitFrame: 22, mv: 3977, energy: 463, offtune: 2000, forte2: 1500 },
@@ -223,7 +228,8 @@ const Liberation = mornyeAction("Liberation - Critical Protocol", {
   },
 });
 
-const Intro = mornyeAction("Intro - Convergence", { qteFrames: 35, animFrames: 105, animPriority: { 80: 6 }, castPriority: 11, motionStop: [4, 79], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
+// "Attack the target to deal Fusion DMG, then jump into mid-air"
+const Intro = mornyeAction("Intro - Convergence", { endPosition: Position.Midair, qteFrames: 35, animFrames: 105, animPriority: { 80: 6 }, castPriority: 11, motionStop: [4, 79], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 38, mv: 20279, energy: 1000, offtune: 13600 },
     { hitFrame: 70, commitFrame: 38, element: null, type: null, subtype: null, updateDebuffs: raiseSyntonyField },
   ], castConcerto: 1000,
@@ -416,6 +422,9 @@ const MORNYE_RESONATOR = new Resonator({
   color: "#d2d4ff",
   intro: Intro,
   outro: Outro,
+  // Wide Field Observation Mode ends on a swap, so she always arrives in Baseline Mode; no mid-air chain, only the plunge
+  swapIn: BA1,
+  swapInAir: MA,
   maxEnergy: 17500,
   forteScale: [0.01, 0.01, 1, 1, 1],
   maxForte1: 10000,
@@ -437,7 +446,7 @@ const BA123 = new ActionGroup("Basic - Ground State Calibration 123", [BA1, BA2,
 const WBA123 = new ActionGroup("Basic - Wide Field Observation 123", [WBA1, WBA2, WBA3]);
 
 const MO_ROTATION = new Rotation([
-  START_LAST, Skill.instaSwap(),
+  START_LAST, BA1.instaCancel(), Skill.instaSwap(),
   NOINTRO, BA123, GeopotentialShift, 
 
   INTRO.mashCancel(), Liberation, 
@@ -449,7 +458,7 @@ const MO_ROTATION = new Rotation([
  *  chain and goes straight from it into Inversion — the Concerto that chain carried comes back off
  *  S3. The opener alone ends 1.4 Concerto short of its Outro — it has no Intro paying it 30. */
 const MO_ROTATION_S3 = new Rotation([
-  START_LAST, Skill.instaSwap(),
+  START_LAST, BA1.instaCancel(), Skill.instaSwap(),
 
   NOINTRO, BA123, GeopotentialShift, 
 

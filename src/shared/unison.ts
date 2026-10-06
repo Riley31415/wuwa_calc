@@ -121,7 +121,7 @@ export const NINE_SHADOWS = new Buff({ name: "Suoming S6: Nine Shadows at Her Si
 
 /** A Unison Boon reactor — Hsin in her Unison mode, Suoming — the only members who can gain the
  *  Boon. Their kit grants it from its own combatStart. */
-export const BOON_REACTOR = new Buff({ name: "Unison Boon Reactor", hidden: true });
+export const BOON_REACTOR = new Buff({});
 
 /** Unison Boon: +3% Total DMG a stack (+4.5% beside Suoming's S6), two at most — three with Hsin's
  *  Gleaning Simple Joys and four with her S6, each of which is both a cap raise and the extra grant

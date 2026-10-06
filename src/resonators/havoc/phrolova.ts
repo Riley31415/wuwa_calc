@@ -11,7 +11,7 @@
  * her Outro — else Hecate 1 then 2, cut the moment an enhanced is queued. Any cast of hers but
  * Hecate's ends Maestro, and that takes the queue, every Hecate hit in flight and her notes with it.
  */
-import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, BuffTarget, SWAP_DELAY } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, BuffTarget, SWAP_DELAY, Position } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
   applyCurrent,
@@ -85,9 +85,9 @@ const BA1 = phroAction("Basic - Movement of Life and Death 1", { animFrames: 44,
     { hitFrame: 18, mv: 5345, energy: 84, concerto: 168, offtune: 2688 },
     { hitFrame: 35, mv: 5345, energy: 84, concerto: 168, offtune: 2688 },
   ]});
-const BA2 = phroAction("Basic - Movement of Life and Death 2", { animFrames: 36, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 12, mv: 9543, energy: 150, concerto: 300, offtune: 4800 }]});
-// "When performing Basic Attack Stage 3, enter Reincarnate state"
-const BA3 = phroAction("Basic - Movement of Life and Death 3", { animFrames: 81, animPriority: { 0: 4, 81: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic,
+const BA2 = phroAction("Basic - Movement of Life and Death 2", { chains: [BA1], animFrames: 36, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 12, mv: 9543, energy: 150, concerto: 300, offtune: 4800 }]});
+// "When performing Basic Attack Stage 3, enter Reincarnate state"; either Intro leads into it too
+const BA3 = phroAction("Basic - Movement of Life and Death 3", { chains: [BA2, INTRO], animFrames: 81, animPriority: { 0: 4, 81: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic,
   updateBuffs: () => applyCurrent(REINCARNATE, 1), bullets: [
     { hitFrame: 30, mv: 3269, energy: 52, concerto: 103, offtune: 1644, forte1: 1,
       updateDebuffs: () => gainNote(1) },
@@ -106,7 +106,8 @@ const Skill = phroAction("Skill - Whispers in a Fleeting Dream", { animFrames: 3
   updateBuffs: () => applyCurrent(REINCARNATE, 1),
 });
 
-const FBA = phroAction("Forte Basic - Movement of Fate and Finality", { animFrames: 92, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Skill,
+// both Forte casts: "When in Reincarnate, press ... on the ground"
+const FBA = phroAction("Forte Basic - Movement of Fate and Finality", { castPosition: Position.Grounded, animFrames: 92, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Skill,
   requireBuff: REINCARNATE, updateBuffs: () => revokeCurrent(REINCARNATE), bullets: [
     { hitFrame: 8, commitFrame: 2, mv: 3788, energy: 24, concerto: 75, offtune: 762, forte1: 1,
       updateDebuffs: () => gainNote(1) },
@@ -117,7 +118,7 @@ const FBA = phroAction("Forte Basic - Movement of Fate and Finality", { animFram
     { hitFrame: 60, commitFrame: 2, mv: 11783, energy: 75, concerto: 234, offtune: 2371 },
     { hitFrame: 67, commitFrame: 2, mv: 11783, energy: 75, concerto: 234, offtune: 2371 },
   ]});
-const FSkill = phroAction("Forte Skill - Murmurs in a Haunting Dream", { animFrames: 79, animPriority: { 79: 2 }, castPriority: 4, node: Node.Forte, cast: Cast.Skill, type: Type.Skill,
+const FSkill = phroAction("Forte Skill - Murmurs in a Haunting Dream", { castPosition: Position.Grounded, animFrames: 79, animPriority: { 79: 2 }, castPriority: 4, node: Node.Forte, cast: Cast.Skill, type: Type.Skill,
   requireBuff: REINCARNATE, updateBuffs: () => revokeCurrent(REINCARNATE), bullets: [
     { hitFrame: 10, mv: 2321, energy: 15, concerto: 50, offtune: 467, forte1: 1,
       updateDebuffs: () => gainNote(2) },
@@ -148,9 +149,10 @@ const ScarletCoda = phroAction("Forte Heavy - Scarlet Coda", { minForte1: 6,
 
 // concerto only — Liberation costs no Resonance Energy (maxEnergy: 0 below). The sheet's separate
 // "Lib2" row (465.22% MV) has no matching action here — a known gap, flagged rather than guessed.
-// Opens Maestro and banks the ten auto-cast chances (NOTES' own bits 12-15).
+// Opens Maestro and banks the ten auto-cast chances (NOTES' own bits 12-15). In Maestro "Phrolova
+// floats in the air and commands Hecate".
 const Liberation = phroAction("Liberation - Waltz of Forsaken Depths", {
-  animFrames: 240, castPriority: 10, timestop: [0, 240], motionStop: [0, 240],
+  endPosition: Position.Midair, animFrames: 240, castPriority: 10, timestop: [0, 240], motionStop: [0, 240],
   node: Node.Liberation, cast: Cast.Liberation, castConcerto: 2000, resetForte1: true,
   requireBuff: RESOLVING_CHORD,
   updateBuffs: () => {
@@ -170,13 +172,13 @@ export const CurtainCall = phroAction("Liberation - Curtain Call", {
 });
 
 const Intro = phroAction("Intro - Suite of Quietus", {
-  qteFrames: 36, animFrames: 80, noSwapFrames: 76, animPriority: { 80: 1 }, castPriority: 11, motionStop: [6, 38],
+  endPosition: Position.Grounded, qteFrames: 36, animFrames: 80, noSwapFrames: 76, animPriority: { 80: 1 }, castPriority: 11, motionStop: [6, 38],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 43, commitFrame: 40, mv: 8061, energy: 400, offtune: 4055 }, { hitFrame: 62, commitFrame: 59, mv: 12091, energy: 600, offtune: 6082 }], castConcerto: 1000,
 });
 /** Maestro-replaced Intro — used whenever she re-enters with Maestro still open. Playing it is
  *  also what closes Maestro back out. */
 const EIntro = phroAction("Intro - Suite of Immortality", {
-  qteFrames: 10, animFrames: 93, noSwapFrames: 90, animPriority: { 93: 1 }, castPriority: 11, motionStop: [6, 56],
+  endPosition: Position.Grounded, qteFrames: 10, animFrames: 93, noSwapFrames: 90, animPriority: { 93: 1 }, castPriority: 11, motionStop: [6, 56],
   node: Node.Intro, cast: Cast.Intro, type: Type.Skill, bullets: [{ hitFrame: 60, mv: 59643, energy: 1000, offtune: 9600 }], castConcerto: 1000,resetForte1: true,
   requireBuff: MAESTRO,
   // the Waltz ends here, and the notes it was playing through go with it
@@ -198,7 +200,7 @@ function hecateAction(id: string, def: object): Action {
 /** One Hecate attack beside the fight: its bullets on their frames (wuwalab), and its end playing
  *  whatever she has queued next (`hecateEnded()`). Its priority is for its pressed form, below. */
 const hecateMove = (id: string, animFrames: number, bullets: [number, number, object?][], animPriority: Record<number, number>, castPriority: number): Action => hecateAction(id, {
-  tag: ActionTag.Field, animFrames, animPriority, castPriority, bullets: bullets.map(([hitFrame, mv, extra]) => ({ hitFrame, mv, ...extra })), afterAction: () => hecateEnded(),
+  tag: ActionTag.OffField, animFrames, animPriority, castPriority, bullets: bullets.map(([hitFrame, mv, extra]) => ({ hitFrame, mv, ...extra })), afterAction: () => hecateEnded(),
 });
 const HECATE_1 = hecateMove("Basic - Hecate 1", 40, [[10, 2784]], { 0: 2, 35: 0 }, 2);
 const HECATE_2 = hecateMove("Basic - Hecate 2", 49, [[4, 1392], [22, 1392]], { 0: 2, 43: 0 }, 2);
@@ -215,7 +217,7 @@ const NOTE_MOVES = [
 // its swap form (`EnhancedHecate.instaSwap()`), Hecate carrying on from its end once Phrolova is out.
 // the cues only exist in Maestro
 const HBA1 = HECATE_1.variant(HECATE_1.name, { cast: Cast.Basic, tag: ActionTag.Default, afterAction: undefined, requireBuff: MAESTRO });
-const HBA2 = HECATE_2.variant(HECATE_2.name, { cast: Cast.Basic, tag: ActionTag.Default, afterAction: undefined, requireBuff: MAESTRO });
+const HBA2 = HECATE_2.variant(HECATE_2.name, { chains: [HBA1], cast: Cast.Basic, tag: ActionTag.Default, afterAction: undefined, requireBuff: MAESTRO });
 const COMMANDS = NOTE_MOVES.map((move) => move.variant(`${move.name} (Command)`, {
   cast: Cast.Basic, tag: ActionTag.Default, requireBuff: MAESTRO, updateBuffs: () => startEnhanced(),
 }));
@@ -266,10 +268,10 @@ function gainNote(note: number): void {
 /** Hecate's queue, one packed word on Phrolova (bit 16 always set): bits 0-5 the basic attacks
  *  queued, 6-11 the enhanced, 12-13 what she is playing now — 0 nothing, 1 Hecate 1, 2 Hecate 2,
  *  3 an enhanced attack. */
-const HECATE_QUEUE = new Buff({ name: "Phrolova: Hecate Queue", hidden: true, maxStacks: 0x1ffff });
+const HECATE_QUEUE = new Buff({ maxStacks: 0x1ffff });
 /** The real frame Phrolova lands on after a hold for Hecate (`hecateHold()`), plus one, 0 for
  *  none: Hecate starts nothing then — the enhanced attack waited out is the last she plays. */
-const ARRIVING = new Buff({ name: "Phrolova: Arriving", hidden: true, maxStacks: 1 << 24 });
+const ARRIVING = new Buff({ maxStacks: 1 << 24 });
 const her = () => currentTeam().memberOf(PHROLOVA_RESONATOR);
 const queued = (): number => her().stacksOf(HECATE_QUEUE);
 function setQueue(basic: number, enhanced: number, playing: number): void {
@@ -481,7 +483,7 @@ const PHROLOVA_OUTRO = new Buff({
 
 /** S6's own Hecate cast, queued out of her two Forte actions — she's on the field for those, so
  *  unlike the Maestro notes this is an active action. */
-const Apparition = phroAction("Hecate - Apparition of Beyond", { tag: ActionTag.Field, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 21642 }] });
+const Apparition = phroAction("Hecate - Apparition of Beyond", { tag: ActionTag.OffField, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 21642 }] });
 HECATE_ACTIONS.add(Apparition);
 
 /** S1: the out-of-combat top-up only ever reads, in a rotation, as opening the fight holding 2
@@ -570,6 +572,8 @@ export const PHROLOVA_RESONATOR = new Resonator({
   // resolved when its row is reached: whichever Intro the kit's state calls for there
   intro: () => (stacksOf(MAESTRO) ? EIntro : Intro),
   outro: Outro,
+  // switching to her in Maestro without an Intro casts Curtain Call; no Plunging Attack is modelled
+  swapIn: () => (stacksOf(MAESTRO) ? CurtainCall : BA2),
   // Maestro still open means Suite of Immortality (EIntro) instead of plain Intro
   maxEnergy: 0,
   maxForte1: 6,

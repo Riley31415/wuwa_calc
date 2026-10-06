@@ -1,7 +1,7 @@
 /**
  * Galbrena, ported to the new engine — sequence-0 core loop, a limited 5-star
  * (`Tier.Limited`). A fusion pistols main DPS. Threshold State (default) banks Sinflame
- * (forte1) off her own hits, out of 27; full, Resonance Skill - Encroach is replaced by Ascent of Malice,
+ * (forte1) off her own hits, out of 270; full, Resonance Skill - Encroach is replaced by Ascent of Malice,
  * which drops her into Demon Hypostasis — Basic/Heavy/Skill are all replaced by their own
  * "enhanced" forms (Seraphic Execution, Flamewing Verdict, Ravage), scaled up by Afterflame.
  *
@@ -10,7 +10,7 @@
  *
  * Purging Flame (forte2) is a real gauge: Ascent of Malice converts 100 Sinflame into it, and each
  * enhanced-mode action's own declared forte2 cost spends it down. forte1 (Sinflame)/forte2
- * (Purging Flame) are both on the real 0-100 scale (the migrated sheet's own ×100 numbers ÷100).
+ * (Purging Flame) read 0-270 and 0-100; Purging Flame is held in hundredths (`forteScale`).
  * Afterflame (0-40, +1.5%/point Demon Hypostasis DMG scaling, own
  * ceiling 60%) is a genuine live-tracked gauge on top of that, same "self-held Resonator reacting
  * to any teammate's own Echo cast" shape Sigrika's own Soliskin Vitality uses — GALBRENA_RESONATOR's own
@@ -25,7 +25,7 @@
  * Sinflame come off the migrated (old-engine) sheet. Mid-air Sustained Fire and the Dodge
  * Counter have no sheet row at all, so they're still bare (nanoka's own MV only).
  */
-import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, Position } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
   asSource,
@@ -40,8 +40,10 @@ import {
   isHeld,
   forte2,
   currentHit,
+  previousPress,
+  saveChain,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, INTRO, OUTRO, ECHO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, INTRO, OUTRO, ECHO, DODGE } from "../../engine/rotation.js";
 import { LUX_UMBRA } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
 import { CLAWPRINT_2PC, CORROSAURUS, FLAMEWING_SHADOW_3PC } from "../../echoes/septimont.js";
@@ -72,73 +74,82 @@ const DEMON_HYPOSTASIS: Buff = new Buff({
 // sheet's own per-hit costs — they sum to ~97.56 of the 100 Ascent of Malice converts in,
 // confirming they're the real spend. Ravage has no forte2 row at all, so it's left bare (0 cost).
 // --- Threshold State basics: Slayer's Trigger. Stages 1-3 Heavy Attack DMG, Stage 4 Echo Skill.
-const BA1 = galbrenaAction("Basic - Slayer's Trigger 1", { animFrames: 20, castPriority: 2, bullets: [{ hitFrame: 12, mv: 5918, energy: 83, concerto: 116, offtune: 2646, forte1: 2 }], node: Node.Normal, cast: Cast.Basic, type: Type.Heavy});
+const BA1 = galbrenaAction("Basic - Slayer's Trigger 1", { animFrames: 20, castPriority: 2, bullets: [{ hitFrame: 12, mv: 5918, energy: 83, concerto: 116, offtune: 2646, forte1: 20 }], node: Node.Normal, cast: Cast.Basic, type: Type.Heavy});
+// "Press Normal Attack right after" Stage 4, Volley of Death Stage 1, the Liberation or the Intro "to perform Basic Attack Stage 2"
 // PLACEHOLDER FRAMES
-const BA2 = galbrenaAction("Basic - Slayer's Trigger 2", { animFrames: 41, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
+const BA2 = galbrenaAction("Basic - Slayer's Trigger 2", { chains: () => [BA1, BA4, HA1, Liberation, Intro], animFrames: 41, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
     { hitFrame: 32, mv: 2631, energy: 37, concerto: 52, offtune: 1176 },
     { hitFrame: 32, mv: 2631, energy: 37, concerto: 52, offtune: 1176 },
-    { hitFrame: 32, mv: 7891, energy: 111, concerto: 155, offtune: 3528, forte1: 5 },
+    { hitFrame: 32, mv: 7891, energy: 111, concerto: 155, offtune: 3528, forte1: 50 },
   ]});
+// Volley of Death Stage 2 or 3 and the Plunging Attack lead into Stage 3 too
 // PLACEHOLDER FRAMES
-const BA3 = galbrenaAction("Basic - Slayer's Trigger 3", { animFrames: 47, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
+const BA3 = galbrenaAction("Basic - Slayer's Trigger 3", { chains: () => [BA2, HA2, HA3, MA], animFrames: 47, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
     { hitFrame: 41, mv: 2860, energy: 40, concerto: 56, offtune: 1279 },
     { hitFrame: 41, mv: 2860, energy: 40, concerto: 56, offtune: 1279 },
     { hitFrame: 41, mv: 4289, energy: 60, concerto: 84, offtune: 1918 },
-    { hitFrame: 41, mv: 4289, energy: 60, concerto: 84, offtune: 1918, forte1: 5 },
+    { hitFrame: 41, mv: 4289, energy: 60, concerto: 84, offtune: 1918, forte1: 50 },
   ]});
-const BA4 = galbrenaAction("Basic - Slayer's Trigger 4", { animFrames: 62, castPriority: 2, bullets: [{ hitFrame: 36, mv: 17786, energy: 249, concerto: 348, offtune: 7952, forte1: 4 }], node: Node.Normal, cast: Cast.Basic, type: Type.Echo});
+// and Blood for Blood into Stage 4
+const BA4 = galbrenaAction("Basic - Slayer's Trigger 4", { chains: () => [BA3, DC], animFrames: 62, castPriority: 2, bullets: 
+  [{ hitFrame: 36, mv: 17786, energy: 249, concerto: 348, offtune: 7952, forte1: 40 }],
+   node: Node.Normal, cast: Cast.Basic, type: Type.Echo});
 
 // PLACEHOLDER FRAMES
-const DC = galbrenaAction("Dodge Counter - Blood for Blood", { animFrames: 47, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Heavy, bullets: [
+const DC = galbrenaAction("Dodge Counter - Blood for Blood", { chains: [DODGE], animFrames: 47, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Heavy, bullets: [
     { hitFrame: 41, mv: 4105, energy: 40, concerto: 56, offtune: 1279 },
     { hitFrame: 41, mv: 4105, energy: 40, concerto: 56, offtune: 1279 },
     { hitFrame: 41, mv: 6157, energy: 60, concerto: 84, offtune: 1918 },
     { hitFrame: 41, mv: 6157, energy: 60, concerto: 84, offtune: 1918 },
   ], castConcerto: 1000});
-const MA = galbrenaAction("Mid-air - Ashfall Barrage (Plunge)", { castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 14315, energy: 200, concerto: 280, offtune: 6400 }] });
-const MASustained = galbrenaAction("Mid-air - Ashfall Barrage (Sustained Fire)", { castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 2684, energy: 38, concerto: 53, offtune: 1200 }] });
+const MA = galbrenaAction("Mid-air - Ashfall Barrage (Plunge)", { castPosition: Position.Midair, endPosition: Position.Grounded,
+  castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets:
+   [{ hitFrame: 0, mv: 14315, energy: 200, concerto: 280, offtune: 6400, forte1: 27 }] });
+const MASustained = galbrenaAction("Mid-air - Ashfall Barrage (Sustained Fire)", { castPosition: Position.Midair, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 2684, energy: 38, concerto: 53, offtune: 1200 }] });
 
 // Threshold State heavy: Volley of Death, 3 held stages
 // PLACEHOLDER FRAMES
 const HA1 = galbrenaAction("Heavy - Volley of Death 1", { animFrames: 36, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 27, mv: 5330, energy: 75, concerto: 105, offtune: 2383 },
-    { hitFrame: 27, mv: 5330, energy: 75, concerto: 105, offtune: 2383, forte1: 2 },
+    { hitFrame: 27, mv: 5330, energy: 75, concerto: 105, offtune: 2383, forte1: 20 },
   ]});
+// the Intro's "Hold Normal Attack after casting this skill to cast Heavy Attack - Volley of Death Stage 2"
 // PLACEHOLDER FRAMES
-const HA2 = galbrenaAction("Heavy - Volley of Death 2", { animFrames: 26, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+const HA2 = galbrenaAction("Heavy - Volley of Death 2", { chains: () => [HA1, Intro], animFrames: 26, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 22, mv: 3459, energy: 49, concerto: 68, offtune: 1547 },
-    { hitFrame: 22, mv: 3459, energy: 49, concerto: 68, offtune: 1547, forte1: 7 },
+    { hitFrame: 22, mv: 3459, energy: 49, concerto: 68, offtune: 1547, forte1: 70 },
   ]});
 // PLACEHOLDER FRAMES
-const HA3 = galbrenaAction("Heavy - Volley of Death 3", { animFrames: 73, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Echo, bullets: [
+const HA3 = galbrenaAction("Heavy - Volley of Death 3", { chains: [HA2], animFrames: 73, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Echo, bullets: [
     { hitFrame: 34, mv: 1677, energy: 24, concerto: 33, offtune: 750 },
     { hitFrame: 34, mv: 1677, energy: 24, concerto: 33, offtune: 750 },
     { hitFrame: 34, mv: 1677, energy: 24, concerto: 33, offtune: 750 },
-    { hitFrame: 34, mv: 11739, energy: 165, concerto: 230, offtune: 5249, forte1: 5 },
+    { hitFrame: 34, mv: 11739, energy: 165, concerto: 230, offtune: 5249, forte1: 50 },
   ]});
 
-// Threshold State resonance skill: Encroach (base), Ascent of Malice (27 Sinflame, opens Demon
+// Threshold State resonance skill: Encroach (base), Ascent of Malice (270 Sinflame, opens Demon
 // Hypostasis)
 // the five casts that bank a Burning Drive stack
 const DRIVE = { updateBuffs: () => applyCurrent(BURNING_DRIVE, 1) };
 /** Encroach and Ravage draw on one 5s cooldown. */
 const ENCROACH_CD = new Cooldown({ frames: 60 * 5 });
+// "Dash forward and leap into the air. Flip backward upon hitting the target": she ends airborne
 // PLACEHOLDER FRAMES
-const Encroach = galbrenaAction("Skill - Encroach", { maxForte1: 26, animFrames: 39, castPriority: 4, cooldown: ENCROACH_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Heavy, bullets: [
+const Encroach = galbrenaAction("Skill - Encroach", { endPosition: Position.Midair, maxForte1: 269, animFrames: 39, castPriority: 4, cooldown: ENCROACH_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Heavy, bullets: [
     { hitFrame: 39, mv: 1074, energy: 198, concerto: 67, offtune: 1512 },
-    { hitFrame: 39, mv: 2504, energy: 461, concerto: 155, offtune: 3527, forte1: 5 },
+    { hitFrame: 39, mv: 2504, energy: 461, concerto: 155, offtune: 3527, forte1: 50 },
   ], ...DRIVE });
-/** Converts Sinflame into Purging Flame — declared as real deltas (forte1: -27, forte2:
+/** Converts Sinflame into Purging Flame — declared as real deltas (forte1: -270, forte2:
  *  +100) so they show in the hover trace, but GALBRENA_RESONATOR's own updateBuffs() below first normalizes
  *  each gauge to what these deltas expect to land on 0/100 from (forte gauges have no floor or
  *  ceiling, so a bare relative delta could land short). */
 // PLACEHOLDER FRAMES
-const AscentOfMalice = galbrenaAction("Skill - Ascent of Malice", { minForte1: 27,
+const AscentOfMalice = galbrenaAction("Skill - Ascent of Malice", { minForte1: 270,
   animFrames: 42, castPriority: 4, cooldown: 60 * 13,
   node: Node.Skill, cast: Cast.Skill, type: Type.Heavy, bullets: [
     { hitFrame: 30, mv: 5157, energy: 738, offtune: 2794 },
     { hitFrame: 30, mv: 5157, energy: 738, offtune: 2794, forte2: 10000 },
-  ], castConcerto: 1000, castForte1: -27,
+  ], castConcerto: 1000, castForte1: -270,
   // the conversion is a top-off, not a top-up: Purging Flame is emptied ahead of the +100 above,
   // so it lands on exactly 100 from wherever the enhanced chain left it
   resetForte2: true,
@@ -154,27 +165,30 @@ const AscentOfMalice = galbrenaAction("Skill - Ascent of Malice", { minForte1: 2
 // State's Slayer's Trigger Stage 4.
 const SeraphicExecution1 = galbrenaAction("Forte Basic - Seraphic Execution 1", { requireBuff: DEMON_HYPOSTASIS, animFrames: 24, castPriority: 2, bullets: [{ hitFrame: 20, mv: 5899, energy: 100, concerto: 554, offtune: 2374, forte2: -488 }], node: Node.Forte, cast: Cast.Basic, type: Type.Heavy});
 // PLACEHOLDER FRAMES
-const SeraphicExecution2 = galbrenaAction("Forte Basic - Seraphic Execution 2", { requireBuff: DEMON_HYPOSTASIS, animFrames: 47, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, bullets: [
+// Ascent of Malice "Can be followed by Basic Attack - Seraphic Execution Stage 2"; Flamewing Verdict
+// Stage 1, the Liberation and the Intro lead into it in Demon Hypostasis too
+const SeraphicExecution2 = galbrenaAction("Forte Basic - Seraphic Execution 2", { chains: () => [SeraphicExecution1, AscentOfMalice, FlamewingVerdict1, Liberation, Intro], requireBuff: DEMON_HYPOSTASIS, animFrames: 47, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, bullets: [
     { hitFrame: 37, mv: 2784, energy: 40, concerto: 139, offtune: 1120 },
     { hitFrame: 37, mv: 2784, energy: 40, concerto: 139, offtune: 1120 },
     { hitFrame: 37, mv: 8351, energy: 120, concerto: 417, offtune: 3360, forte2: -976 },
   ]});
+// "after casting Basic Attack - Seraphic Execution Stage 5" and Flamewing Verdict Stage 2 & 3 too
 // PLACEHOLDER FRAMES
-const SeraphicExecution3 = galbrenaAction("Forte Basic - Seraphic Execution 3", { requireBuff: DEMON_HYPOSTASIS, animFrames: 69, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, bullets: [
+const SeraphicExecution3 = galbrenaAction("Forte Basic - Seraphic Execution 3", { chains: () => [SeraphicExecution2, SeraphicExecution5, FlamewingVerdict2, FlamewingVerdict3], requireBuff: DEMON_HYPOSTASIS, animFrames: 69, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, bullets: [
     { hitFrame: 40, mv: 2432, energy: 34, concerto: 88, offtune: 979 },
     { hitFrame: 40, mv: 2432, energy: 34, concerto: 88, offtune: 979 },
     { hitFrame: 40, mv: 2432, energy: 34, concerto: 88, offtune: 979 },
     { hitFrame: 40, mv: 17021, energy: 232, concerto: 615, offtune: 6849, forte2: -1829 },
   ]});
 // PLACEHOLDER FRAMES
-const SeraphicExecution4 = galbrenaAction("Forte Basic - Seraphic Execution 4", { requireBuff: DEMON_HYPOSTASIS, animFrames: 56, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Echo, bullets: [
+const SeraphicExecution4 = galbrenaAction("Forte Basic - Seraphic Execution 4", { chains: [SeraphicExecution3], requireBuff: DEMON_HYPOSTASIS, animFrames: 56, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Echo, bullets: [
     { hitFrame: 42, mv: 1815, energy: 26, concerto: 77, offtune: 731 },
     { hitFrame: 42, mv: 1815, energy: 26, concerto: 77, offtune: 731 },
     { hitFrame: 42, mv: 1815, energy: 26, concerto: 77, offtune: 731 },
     { hitFrame: 42, mv: 12702, energy: 178, concerto: 539, offtune: 5112, forte2: -1341 },
   ], ...DRIVE });
 // PLACEHOLDER FRAMES
-const SeraphicExecution5 = galbrenaAction("Forte Basic - Seraphic Execution 5", { requireBuff: DEMON_HYPOSTASIS, animFrames: 85, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Echo, bullets: [
+const SeraphicExecution5 = galbrenaAction("Forte Basic - Seraphic Execution 5", { chains: [SeraphicExecution4], requireBuff: DEMON_HYPOSTASIS, animFrames: 85, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Echo, bullets: [
     { hitFrame: 42, commitFrame: 42, mv: 6728, energy: 93, concerto: 254, offtune: 2708 },
     { hitFrame: 78, commitFrame: 42, mv: 15699, energy: 215, concerto: 592, offtune: 6317, forte2: -1951 },
   ]});
@@ -184,21 +198,23 @@ const FlamewingVerdict1 = galbrenaAction("Forte Heavy - Flamewing Verdict 1", { 
     { hitFrame: 27, mv: 5922, energy: 87, concerto: 330, offtune: 2383 },
     { hitFrame: 27, mv: 5922, energy: 87, concerto: 330, offtune: 2383, forte2: -976 },
   ]});
+// held after the Intro in Demon Hypostasis too
 // PLACEHOLDER FRAMES
-const FlamewingVerdict2 = galbrenaAction("Forte Heavy - Flamewing Verdict 2", { requireBuff: DEMON_HYPOSTASIS, animFrames: 26, castPriority: 6, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+const FlamewingVerdict2 = galbrenaAction("Forte Heavy - Flamewing Verdict 2", { chains: () => [FlamewingVerdict1, Intro], requireBuff: DEMON_HYPOSTASIS, animFrames: 26, castPriority: 6, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 22, mv: 3835, energy: 61, concerto: 293, offtune: 1543 },
     { hitFrame: 22, mv: 3835, energy: 61, concerto: 293, offtune: 1543, forte2: -732 },
   ]});
 // PLACEHOLDER FRAMES
-const FlamewingVerdict3 = galbrenaAction("Forte Heavy - Flamewing Verdict 3", { requireBuff: DEMON_HYPOSTASIS, animFrames: 73, castPriority: 6, node: Node.Forte, cast: Cast.Heavy, type: Type.Echo, bullets: [
+const FlamewingVerdict3 = galbrenaAction("Forte Heavy - Flamewing Verdict 3", { chains: [FlamewingVerdict2], requireBuff: DEMON_HYPOSTASIS, animFrames: 73, castPriority: 6, node: Node.Forte, cast: Cast.Heavy, type: Type.Echo, bullets: [
     { hitFrame: 34, mv: 1769, energy: 25, concerto: 77, offtune: 712 },
     { hitFrame: 34, mv: 1769, energy: 25, concerto: 77, offtune: 712 },
     { hitFrame: 34, mv: 1769, energy: 25, concerto: 77, offtune: 712 },
     { hitFrame: 34, mv: 12377, energy: 174, concerto: 533, offtune: 4981, forte2: -1463 },
   ]});
 
+// leaps into the air like Encroach
 // PLACEHOLDER FRAMES
-const Ravage = galbrenaAction("Forte Skill - Ravage", { castPriority: 4,
+const Ravage = galbrenaAction("Forte Skill - Ravage", { endPosition: Position.Midair, castPriority: 4,
   cooldown: ENCROACH_CD, requireBuff: DEMON_HYPOSTASIS,
   node: Node.Forte, cast: Cast.Skill, type: Type.Heavy, bullets: [
     { hitFrame: 0, mv: 1074, energy: 198, concerto: 67, offtune: 1512 },
@@ -228,7 +244,7 @@ const Liberation = galbrenaAction("Liberation - Hellfire Absolution", { castPrio
   updateBuffs: () => applyCurrent(HELLFIRE_WINDOW, 1),
 });
 
-const Intro = galbrenaAction("Intro - Hellflare Overload", { animFrames: 57, castPriority: 11, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 57, mv: 9412, energy: 1000, offtune: 4208, forte1: 3 }], castConcerto: 1000, ...DRIVE });
+const Intro = galbrenaAction("Intro - Hellflare Overload", { endPosition: Position.Grounded, animFrames: 57, castPriority: 11, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 57, mv: 9412, energy: 1000, offtune: 4208, forte1: 30 }], castConcerto: 1000, ...DRIVE });
 /** Unlike most outros, this one deals real damage (795% MV) on top of the handoff concerto
  *  reset; its OFF-FIELD tag still marks it as her leaving the field for lostOnSwap purposes. */
 // PLACEHOLDER FRAMES
@@ -366,7 +382,7 @@ const GALBRENA_TALENTS = new Talent({
 
 /** Hellstride: a dodge on the ground during any of her own casts — a fixed 666 Fusion, Basic
  *  Attack DMG no DMG buff touches. */
-const Hellstride = galbrenaAction("Dodge - Hellstride", { cast: Cast.Dodge, animFrames: 22, castPriority: 6, type: Type.Basic, scaling: Scaling.Fixed, bullets: [{ hitFrame: 5, mv: 66600 }], ...DRIVE });
+const Hellstride = galbrenaAction("Dodge - Hellstride", { castPosition: Position.Grounded, cast: Cast.Dodge, animFrames: 22, castPriority: 6, type: Type.Basic, scaling: Scaling.Fixed, bullets: [{ hitFrame: 5, mv: 66600 }], ...DRIVE });
 
 const GALBRENA_RESONATOR = new Resonator({
   name: "Galbrena",
@@ -380,14 +396,22 @@ const GALBRENA_RESONATOR = new Resonator({
   color: "#3454ac",
   intro: Intro,
   outro: Outro,
+  // Demon Hypostasis replaces Basic Attack with Seraphic Execution; she has no mid-air chain, only the plunge
+  swapIn: () => (isHeld(DEMON_HYPOSTASIS) ? SeraphicExecution1 : BA1),
+  swapInAir: MA,
   maxEnergy: 12500,
   forteScale: [1, 0.01, 1, 1, 1],
-  maxForte1: 27,
+  maxForte1: 270,
   maxForte2: 10000,
 
   // reacts to *any* team member's own Echo cast, not just her own — see AFTERFLAME's own comment
   updateGlobal: () => {
     if (casting(Cast.Echo) && !isHeld(DEMON_HYPOSTASIS)) applyTeam(AFTERFLAME, 8);
+  },
+
+  // Hellstride "does not reset the attack cycles": the press it cut is still the one the next follows
+  updateBuffs: () => {
+    if (casting(Cast.Dodge)) saveChain(previousPress());
   },
 });
 
@@ -407,8 +431,8 @@ const BA34 = new ActionGroup("Basic - Slayer's Trigger 34", [BA3, BA4]);
 const BA23 = new ActionGroup("Basic - Slayer's Trigger 23", [BA2, BA3]);
 
 const GB_ROTATION = new Rotation([
-  INTRO, BA23, HA123.cancel(), ECHO,
-  AscentOfMalice, Liberation, 
+  INTRO, HA23, Encroach, MA, BA34,
+  AscentOfMalice, Liberation, ECHO,
   SeraphicExecution2345.dodgeCancel(),
   SeraphicExecution345.dodgeCancel(), 
   SeraphicExecution3.instaSwap(),

@@ -22,7 +22,7 @@
  *    +15 more on top the next time a teammate shields, then is spent).
  * The teammate half is a hidden team buff, so it sees a shield gained on anyone's cast or hit.
  */
-import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, BuffTarget } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, BuffTarget, Position } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
   asSource,
@@ -47,13 +47,13 @@ import {
   inflicting,
   runningBullet,
 } from "../../engine/context.js";
-import { ActionGroup, Action, ActionField, Rotation, ECHO, ActionTag, INTRO, OUTRO, START } from "../../engine/rotation.js";
+import { ActionGroup, Action, ActionField, Rotation, ECHO, ActionTag, INTRO, OUTRO, START, DODGE } from "../../engine/rotation.js";
 import { applied, applyTeam } from "../../engine/context.js";
 import { SHIELD, gainShield } from "../../shared/status.js";
 import { JINGRAN_SIG, THUNDERFLARE_DOMINION, VERDANT_SUMMIT } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { MYRIAD_SNARE, LAMP_5PC, LAMP_2PC } from "../../echoes/mengzhou.js";
-import { tuneBreak } from "../../shared/tunebreak.js";
+import { TUNE_BREAK, tuneBreak } from "../../shared/tunebreak.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { COV_3PC } from "../../echoes/septimont.js";
@@ -77,35 +77,40 @@ const YIN_CLEANSE = new Buff({ name: "Jingran: Cleanse of Impurity (Yin)", durat
 // --- basics and mid-air. Stages 3/4 restore Qi. Unprefixed = Yang Font's own basic combo
 //     (Devil's Bane); "Drink Soul" is Yin Vessel's.
 const BA1 = jingranAction("Basic - Devil's Bane 1", { requireBuff: YANG_FONT, animFrames: 20, animPriority: { 20: 0 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 14, mv: 3982, energy: 67, concerto: 134, offtune: 2136 }]});
-const BA2 = jingranAction("Basic - Devil's Bane 2", { requireBuff: YANG_FONT, animFrames: 43, animPriority: { 43: 0 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+// "press or hold Normal Attack shortly after" the plunge, Shadow Step, Afterlife's Guide, Soul Raid or the Intro
+// his Tune Break: "press or hold Normal Attack shortly after casting this skill to Basic Attack - ... Stage 2"
+const BA2 = jingranAction("Basic - Devil's Bane 2", { chains: () => [BA1, MA, ShadowStep, Skill2, EFHA, Intro, TUNE_BREAK], requireBuff: YANG_FONT, animFrames: 43, animPriority: { 43: 0 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 16, mv: 5968, energy: 101, concerto: 201, offtune: 3202 },
     { hitFrame: 30, mv: 3979, energy: 67, concerto: 134, offtune: 2135 },
   ]});
-const BA3 = jingranAction("Basic - Devil's Bane 3", { requireBuff: YANG_FONT, animFrames: 67, animPriority: { 67: 0 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
+const BA3 = jingranAction("Basic - Devil's Bane 3", { chains: [BA2], requireBuff: YANG_FONT, animFrames: 67, animPriority: { 67: 0 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
     { hitFrame: 6, mv: 4773, energy: 81, concerto: 161, offtune: 2561 },
     { hitFrame: 18, mv: 4773, energy: 81, concerto: 161, offtune: 2561 },
     { hitFrame: 43, mv: 6364, energy: 107, concerto: 214, offtune: 3415 },
   ], castForte1: 50});
-const BA4 = jingranAction("Basic - Devil's Bane 4", { requireBuff: YANG_FONT, animFrames: 52, animPriority: { 52: 0 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
+// and Light Watch into Stage 4
+const BA4 = jingranAction("Basic - Devil's Bane 4", { chains: () => [BA3, DC], requireBuff: YANG_FONT, animFrames: 52, animPriority: { 52: 0 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
     { hitFrame: 6, mv: 8695, energy: 146, concerto: 292, offtune: 4665 },
     { hitFrame: 14, mv: 1243, energy: 21, concerto: 42, offtune: 667 },
     { hitFrame: 22, mv: 1243, energy: 21, concerto: 42, offtune: 667 },
     { hitFrame: 30, mv: 1243, energy: 21, concerto: 42, offtune: 667 },
   ], castForte1: 50});
-const MA = jingranAction("Mid-air - Edge of Life and Death Plunge", { castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 9245, energy: 155, concerto: 310, offtune: 4960 }] });
+const MA = jingranAction("Mid-air - Edge of Life and Death Plunge", { castPosition: Position.Midair, endPosition: Position.Grounded, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 9245, energy: 155, concerto: 310, offtune: 4960 }] });
 
 const EBA1 = jingranAction("Basic - Drink Soul 1", { requireBuff: YIN_VESSEL, animFrames: 20, animPriority: { 20: 0 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 12, mv: 4474, energy: 75, concerto: 150, offtune: 2400 }]});
-const EBA2 = jingranAction("Basic - Drink Soul 2", { requireBuff: YIN_VESSEL, animFrames: 33, animPriority: { 33: 0 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+// the same leads in Yin Vessel: plunge, Shadow Step, Netherworld Traverse, Stardome Meander, Intro
+const EBA2 = jingranAction("Basic - Drink Soul 2", { chains: () => [EBA1, MA, ShadowStep, ESkill2, FHA, Intro, TUNE_BREAK], requireBuff: YIN_VESSEL, animFrames: 33, animPriority: { 33: 0 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 10, mv: 3728, energy: 63, concerto: 125, offtune: 2000 },
     { hitFrame: 22, mv: 3728, energy: 63, concerto: 125, offtune: 2000 },
   ]});
-const EBA3 = jingranAction("Basic - Drink Soul 3", { requireBuff: YIN_VESSEL, animFrames: 46, animPriority: { 46: 0 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
+const EBA3 = jingranAction("Basic - Drink Soul 3", { chains: [EBA2], requireBuff: YIN_VESSEL, animFrames: 46, animPriority: { 46: 0 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
     { hitFrame: 12, mv: 2733, energy: 46, concerto: 92, offtune: 1466 },
     { hitFrame: 20, mv: 2733, energy: 46, concerto: 92, offtune: 1466 },
     { hitFrame: 28, mv: 2733, energy: 46, concerto: 92, offtune: 1466 },
     { hitFrame: 36, mv: 2733, energy: 46, concerto: 92, offtune: 1466 },
   ], castForte1: 50});
-const EBA4 = jingranAction("Basic - Drink Soul 4", { requireBuff: YIN_VESSEL, animFrames: 81, animPriority: { 81: 0 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
+// and Nether Dive into Stage 4
+const EBA4 = jingranAction("Basic - Drink Soul 4", { chains: () => [EBA3, EDC], requireBuff: YIN_VESSEL, animFrames: 81, animPriority: { 81: 0 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
     { hitFrame: 14, mv: 4595, energy: 78, concerto: 155, offtune: 2465 },
     { hitFrame: 24, mv: 4595, energy: 78, concerto: 155, offtune: 2465 },
     { hitFrame: 51, mv: 3063, energy: 52, concerto: 103, offtune: 1644 },
@@ -113,12 +118,12 @@ const EBA4 = jingranAction("Basic - Drink Soul 4", { requireBuff: YIN_VESSEL, an
   ], castForte1: 50});
 
 // --- dodge counters: Light Watch (Yang Font), Nether Dive (Yin Vessel), 100 Qi each
-const DC = jingranAction("Dodge Counter - Light Watch", { requireBuff: YANG_FONT, animFrames: 67, animPriority: { 67: 0 }, castPriority: 2, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Heavy, bullets: [
+const DC = jingranAction("Dodge Counter - Light Watch", { chains: [DODGE], requireBuff: YANG_FONT, animFrames: 67, animPriority: { 67: 0 }, castPriority: 2, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Heavy, bullets: [
     { hitFrame: 6, mv: 7457, energy: 126, concerto: 251, offtune: 4001 },
     { hitFrame: 18, mv: 7457, energy: 126, concerto: 251, offtune: 4001 },
     { hitFrame: 43, mv: 9943, energy: 167, concerto: 334, offtune: 5335 },
   ], castConcerto: 1000, castForte1: 100 });
-const EDC = jingranAction("Dodge Counter - Nether Dive", { requireBuff: YIN_VESSEL, animFrames: 46, animPriority: { 46: 0 }, castPriority: 2, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Heavy, bullets: [
+const EDC = jingranAction("Dodge Counter - Nether Dive", { chains: [DODGE], requireBuff: YIN_VESSEL, animFrames: 46, animPriority: { 46: 0 }, castPriority: 2, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Heavy, bullets: [
     { hitFrame: 12, mv: 4970, energy: 84, concerto: 167, offtune: 2666 },
     { hitFrame: 20, mv: 4970, energy: 84, concerto: 167, offtune: 2666 },
     { hitFrame: 28, mv: 4970, energy: 84, concerto: 167, offtune: 2666 },
@@ -127,24 +132,26 @@ const EDC = jingranAction("Dodge Counter - Nether Dive", { requireBuff: YIN_VESS
 
 // --- resonance skill. Scorching Yang/Afterlife's Guide are Yang Font's own tap+hold pair;
 //     Encroaching Yin/Netherworld Traverse are Yin Vessel's.
-const Skill1 = jingranAction("Skill - Scorching Yang", { requireBuff: YANG_FONT, animFrames: 47, animPriority: { 47: 0 }, castPriority: 4, cooldown: 60 * 15, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+// Afterlife's Guide is "[E]+[LeftMouseButton]", pressed "in mid-air": Scorching Yang leaves him airborne
+const Skill1 = jingranAction("Skill - Scorching Yang", { endPosition: Position.Midair, requireBuff: YANG_FONT, animFrames: 47, animPriority: { 47: 0 }, castPriority: 4, cooldown: 60 * 15, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 14, mv: 6561, energy: 70, concerto: 140, offtune: 2240 },
     { hitFrame: 24, mv: 3281, energy: 35, concerto: 70, offtune: 1120 },
     { hitFrame: 37, mv: 3281, energy: 35, concerto: 70, offtune: 1120 },
     { hitFrame: 47, mv: 3281, energy: 35, concerto: 70, offtune: 1120 },
   ], updateBuffs: () => applyCurrent(YANG_CLEANSE, 1) });
-const Skill2 = jingranAction("Skill - Afterlife's Guide", { requireBuff: YANG_CLEANSE, animFrames: 79, animPriority: { 79: 0 }, castPriority: 4, node: Node.Skill, cast: Cast.Skill, type: Type.Heavy, bullets: [
+const Skill2 = jingranAction("Skill - Afterlife's Guide", { castPosition: Position.Midair, requireBuff: YANG_CLEANSE, animFrames: 79, animPriority: { 79: 0 }, castPriority: 4, node: Node.Skill, cast: Cast.Skill, type: Type.Heavy, bullets: [
     { hitFrame: 12, mv: 6587, energy: 86, concerto: 125, offtune: 2734 },
     { hitFrame: 30, mv: 6587, energy: 86, concerto: 125, offtune: 2734 },
     { hitFrame: 71, mv: 13174, energy: 171, concerto: 250, offtune: 5468 },
   ], castForte1: 100, updateBuffs: () => revokeCurrent(YANG_CLEANSE) });
-const ESkill1 = jingranAction("Skill - Encroaching Yin", { requireBuff: YIN_VESSEL, animFrames: 48, animPriority: { 48: 0 }, castPriority: 4, cooldown: 60 * 15, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+// the same for Netherworld Traverse
+const ESkill1 = jingranAction("Skill - Encroaching Yin", { endPosition: Position.Midair, requireBuff: YIN_VESSEL, animFrames: 48, animPriority: { 48: 0 }, castPriority: 4, cooldown: 60 * 15, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 14, mv: 6561, energy: 70, concerto: 140, offtune: 2240 },
     { hitFrame: 24, mv: 3281, energy: 35, concerto: 70, offtune: 1120 },
     { hitFrame: 37, mv: 3281, energy: 35, concerto: 70, offtune: 1120 },
     { hitFrame: 47, mv: 3281, energy: 35, concerto: 70, offtune: 1120 },
   ], updateBuffs: () => applyCurrent(YIN_CLEANSE, 1) });
-const ESkill2 = jingranAction("Skill - Netherworld Traverse", { requireBuff: YIN_CLEANSE, animFrames: 80, animPriority: { 74: 0 }, castPriority: 4, node: Node.Skill, cast: Cast.Skill, type: Type.Heavy, bullets: [
+const ESkill2 = jingranAction("Skill - Netherworld Traverse", { castPosition: Position.Midair, requireBuff: YIN_CLEANSE, animFrames: 80, animPriority: { 74: 0 }, castPriority: 4, node: Node.Skill, cast: Cast.Skill, type: Type.Heavy, bullets: [
     { hitFrame: 8, mv: 5169, energy: 67, concerto: 100, offtune: 2133 },
     { hitFrame: 24, mv: 2585, energy: 34, concerto: 50, offtune: 1067 },
     { hitFrame: 32, mv: 2585, energy: 34, concerto: 50, offtune: 1067 },
@@ -169,13 +176,13 @@ const Lib = jingranAction("Liberation - Burial of Thousand Souls", {
 });
 /** One per heavy attack while Mingfire is up. Node Liberation (attributed to it) but no `cast`:
  *  it's a summon, not a press. */
-const ACTION_LIB_FUA = jingranAction("Liberation - Chimei Wangliang", { tag: ActionTag.Field, animFrames: 54, node: Node.Liberation, type: Type.Heavy, bullets: [{ hitFrame: 54, commitFrame: 0, mv: 8351 }]});
+const ACTION_LIB_FUA = jingranAction("Liberation - Chimei Wangliang", { tag: ActionTag.OffField, animFrames: 54, node: Node.Liberation, type: Type.Heavy, bullets: [{ hitFrame: 54, commitFrame: 0, mv: 8351 }]});
 
 // his Intro trades every Ghost Shroud held for the same count of Fortune in Disguise — run here,
 // ahead of JINGRAN_RESONATOR's own per-shield grant, so a shield the Intro itself grants carries into the
 // next cycle rather than being spent by that same cast
 const Intro = jingranAction("Intro - Question the Tombs", {
-  animFrames: 63, noSwapFrames: 60, animPriority: { 60: 0 }, castPriority: 11, motionStop: [5, 58],
+  endPosition: Position.Grounded, animFrames: 63, noSwapFrames: 60, animPriority: { 60: 0 }, castPriority: 11, motionStop: [5, 58],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 46, mv: 19881, energy: 1000, offtune: 8000 }], castConcerto: 1000, castForte1: 100,
   updateBuffs: () => {
     const shroud = stacksOfTeam(JINGRAN_GHOST_SHROUD);
@@ -273,7 +280,7 @@ const JINGRAN_FORTUNE = new Buff({
  *  team-wide so the watcher below can spend it on whoever's turn the shield lands. */
 const JINGRAN_FIXATION = new Buff({ name: "Jingran: Fixation" });
 /** Trace the Vestige's own 0.5s trigger cooldown. */
-const VESTIGE_COOLDOWN = new Buff({ name: "Jingran: Trace the Vestige Cooldown", duration: 30, hidden: true });
+const VESTIGE_COOLDOWN = new Buff({ duration: 30 });
 // a teammate's shield, gained on their cast or their hit: +2 Ghost Shroud, +15 more on Fixation
 const vestige = (): void => {
   if (currentTeam().slot.resonator === JINGRAN_RESONATOR || !applied(SHIELD) || stacksOfTeam(VESTIGE_COOLDOWN)) return;
@@ -285,7 +292,7 @@ const vestige = (): void => {
 };
 /** The watcher itself, team-held so it runs on every member's turn — after the caster's own gear,
  *  so a shield their cast grants is already applied. */
-const VESTIGE = new Buff({ name: "Jingran: Trace the Vestige", hidden: true, updateBuffs: vestige, hitGlobal: vestige });
+const VESTIGE = new Buff({ updateBuffs: vestige, hitGlobal: vestige });
 const JR_INHERENT_2 = new Inherent({
   name: "Inherent: Trace the Vestige",
   combatStart: () => {
@@ -455,7 +462,7 @@ const JINGRAN_TALENTS = new Talent({
 
 /** Shadow Step: every dodge she makes on the ground in combat — a fixed 30 + 25 Fusion, Basic
  *  Attack DMG. */
-const ShadowStep = jingranAction("Dodge - Shadow Step", { cast: Cast.Dodge, animFrames: 20, animPriority: { 20: 0 }, castPriority: 6, type: Type.Basic, scaling: Scaling.Fixed, bullets: [{ hitFrame: 4, mv: 3000 }, { hitFrame: 16, mv: 2500 }]});
+const ShadowStep = jingranAction("Dodge - Shadow Step", { castPosition: Position.Grounded, cast: Cast.Dodge, animFrames: 20, animPriority: { 20: 0 }, castPriority: 6, type: Type.Basic, scaling: Scaling.Fixed, bullets: [{ hitFrame: 4, mv: 3000 }, { hitFrame: 16, mv: 2500 }]});
 
 export const JINGRAN_RESONATOR = new Resonator({
   name: "Jingran",
@@ -469,6 +476,9 @@ export const JINGRAN_RESONATOR = new Resonator({
   color: "#f2c13c",
   intro: Intro,
   outro: Outro,
+  // Qi Modulation picks the Basic Attack; in mid-air it is the plunge
+  swapIn: () => (isHeld(YIN_VESSEL) ? EBA1 : BA1),
+  swapInAir: MA,
   // his broadblade break lands its last hit at 80, not the class's 66
   tuneBreak: tuneBreak(94, [0, 94], [0, 64], [[4, 17334], [26, 22666], [80, 120000]]),
   maxEnergy: 12500,
@@ -512,7 +522,7 @@ const JR_ROTATION = new Rotation([
 ]);
 
 const JR_ROTATION_S2 = new Rotation([
-  START, FHA.instaSwap(),
+  START, BA1.instaCancel(), FHA.instaSwap(),
 
   INTRO,
   Lib, EFHA,

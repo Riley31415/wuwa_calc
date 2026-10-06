@@ -2,7 +2,7 @@
  * Hover panels: the markup every popover is built from (stat traces, action info, held buffs,
  * damage breakdowns, loadouts, the DPR table) and `wireSourcePanels`, which opens them.
  */
-import { Stat, Attribute, Type, Subtype, scopedStat, splitStat, isPercent, statLabel, TAG_NAME, NODE_NAME, statDisplayScale, splitStop } from "../engine/stats.js";
+import { Stat, Attribute, Type, Subtype, Cast, scopedStat, splitStat, isPercent, statLabel, TAG_NAME, NODE_NAME, statDisplayScale, splitStop } from "../engine/stats.js";
 import type { StatKey, Tag } from "../engine/stats.js";
 import type { StatEntry } from "../engine/state.js";
 import { Sonata } from "../engine/gear.js";
@@ -1061,13 +1061,13 @@ function teamCell(sections: ChainGroup[][], section: string, slotHue: Map<string
   const by = new Map<string, number>();
   let total = 0;
   sections.forEach((lines) => {
-    // a FIELD action dealing under 2% of its own section (Hsin's coordinated pillars) is noise on
+    // an OFF_FIELD action or an Outro dealing under 2% of its own section (Hsin's coordinated pillars) is noise on
     // the axis: its hits still count toward the total, they just take no bar
     let own = 0;
     const field = new Map<string, number>();
     eachHit(lines, null, (snap, avg) => {
       own += avg;
-      if (snap.action.tag !== ActionTag.Field) return;
+      if (snap.action.tag !== ActionTag.OffField && snap.action.cast !== Cast.Outro) return;
       const key = `${snap.slot} ${snap.action.name}`;
       field.set(key, (field.get(key) ?? 0) + avg);
     });
@@ -1093,7 +1093,7 @@ function teamCell(sections: ChainGroup[][], section: string, slotHue: Map<string
       acts[at]!.casts++;
       // real frames, time stop and all: a press played off field (a swap form, an Outro, a summon)
       // runs its whole animation, the rest their cut — a hold or mash where it let go
-      const off = !snap.active || snap.tag === ActionTag.Field || snap.tag === ActionTag.InstaSwap || snap.tag === ActionTag.SwapCancel || snap.tag === ActionTag.MashSwap;
+      const off = !snap.active || snap.tag === ActionTag.OffField || snap.tag === ActionTag.InstaSwap || snap.tag === ActionTag.SwapCancel || snap.tag === ActionTag.MashSwap;
       const cost = snap.action.cost(snap.tag);
       const frames = off ? act.animFrames : snap.holdCut >= 0 ? snap.holdCut : cost.action + cost.global;
       bars.push({ dmg: avg, frames, color, act: at });

@@ -23,7 +23,7 @@
  * "Damage Data" table — see the comment above the action definitions for the column mapping.
  * Resonance Cost (`maxEnergy` below) is her own real 100%, not the generic 125% default.
  */
-import { Tier, Stat, Attribute, WeaponType, Type, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Tier, Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, Position } from "../../engine/stats.js";
 import { Buff, Debuff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   applyCurrent,
@@ -41,7 +41,7 @@ import {
   queueQTE,
   forte1,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, ECHO, INTRO, OUTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, ECHO, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
 import { tuneBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
 import { HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
@@ -83,19 +83,19 @@ const READY_EROSION = { updateBuffs: () => applyCurrent(EROSION_READY, 1) };
 
 // --- basics, mid-air, dodge counter (Execution)
 const BA1 = danjinAction("Basic - Execution 1", { animFrames: 16, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 9, mv: 5726, energy: 90, concerto: 108, offtune: 1680 }]});
-const BA2 = danjinAction("Basic - Execution 2", { animFrames: 25, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 10, mv: 5885, energy: 92, concerto: 111, offtune: 2960 }], ...READY_EROSION });
-const BA3 = danjinAction("Basic - Execution 3", { animFrames: 28, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 12, mv: 7953, energy: 125, concerto: 150, offtune: 3120 }],
+const BA2 = danjinAction("Basic - Execution 2", { chains: [BA1], animFrames: 25, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 10, mv: 5885, energy: 92, concerto: 111, offtune: 2960 }], ...READY_EROSION });
+const BA3 = danjinAction("Basic - Execution 3", { chains: [BA2], animFrames: 28, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 12, mv: 7953, energy: 125, concerto: 150, offtune: 3120 }],
   updateBuffs: () => applyCurrent(SANGUINE_READY, 1),
 });
 
-const MA = danjinAction("Mid-air - Execution Plunge", { animFrames: 62, animPriority: { 50: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 36, mv: 9861, energy: 51, concerto: 100, offtune: 9600 }]});
+const MA = danjinAction("Mid-air - Execution Plunge", { castPosition: Position.Midair, endPosition: Position.Grounded, animFrames: 62, animPriority: { 50: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 36, mv: 9861, energy: 51, concerto: 100, offtune: 9600 }]});
 const HA = danjinAction("Heavy - Execution", { animFrames: 40, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 9, mv: 3712, energy: 58, concerto: 70, offtune: 1786 },
     { hitFrame: 13, commitFrame: 12, mv: 3712, energy: 58, concerto: 70, offtune: 1786 },
     { hitFrame: 17, commitFrame: 16, mv: 3712, energy: 58, concerto: 70, offtune: 1786 },
   ]}); // 37.12% x3
 /** A successful Dodge Counter opens the Skill's own Crimson Erosion form, and grants Crimson Light. */
-const DC = danjinAction("Dodge Counter - Ruby Shades", { animFrames: 43, castPriority: 2, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const DC = danjinAction("Dodge Counter - Ruby Shades", { chains: [DODGE], animFrames: 43, castPriority: 2, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 6, mv: 6362, energy: 100, concerto: 60, offtune: 1600 },
     { hitFrame: 15, mv: 6362, energy: 100, concerto: 60, offtune: 1600 },
     { hitFrame: 29, mv: 6362, energy: 100, concerto: 60, offtune: 1600 },
@@ -109,12 +109,13 @@ const CarmineGleam = danjinAction("Skill - Carmine Gleam", { animFrames: 29, cas
     { hitFrame: 21, mv: 3818, energy: 60, offtune: 1480 },
     { hitFrame: 25, element: null, type: null, subtype: null, forte1: 5 },
   ]}); // 38.18% x2
-const CrimsonErosion1 = danjinAction("Skill - Crimson Erosion 1", { requireBuff: EROSION_READY, animFrames: 37, castPriority: 2, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+// "After Basic Attack 2, Dodge Counter or Intro Skill Vindication, use Resonance Skill"
+const CrimsonErosion1 = danjinAction("Skill - Crimson Erosion 1", { chains: () => [BA2, DC, Intro], requireBuff: EROSION_READY, animFrames: 37, castPriority: 2, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 10, mv: 6442, energy: 125, concerto: 800, offtune: 2120, forte1: 5 },
     { hitFrame: 18, mv: 6442, energy: 125, offtune: 2120, forte1: 5 },
   ]}); // 64.42% x2
 const CrimsonErosion2 = danjinAction("Skill - Crimson Erosion 2", {
-  requireBuff: EROSION_READY, animFrames: 46, castPriority: 2,
+  chains: [CrimsonErosion1], requireBuff: EROSION_READY, animFrames: 46, castPriority: 2,
   node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 11, mv: 5965, energy: 125, concerto: 800, offtune: 2000, forte1: 10, updateDebuffs: () => applyEnemy(INCINERATING_WILL, 1) },
     { hitFrame: 20, mv: 5965, energy: 125, offtune: 2000 },
@@ -122,18 +123,19 @@ const CrimsonErosion2 = danjinAction("Skill - Crimson Erosion 2", {
 });
 
 // NOTE 40.5 forte for sanguine pulse 123, not sure on individual
-const SanguinePulse1 = danjinAction("Skill - Sanguine Pulse 1", { requireBuff: SANGUINE_READY, animFrames: 33, castPriority: 2, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+// "Use Resonance Skill after Basic Attack 3"
+const SanguinePulse1 = danjinAction("Skill - Sanguine Pulse 1", { chains: [BA3], requireBuff: SANGUINE_READY, animFrames: 33, castPriority: 2, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 8, mv: 5607, energy: 150, concerto: 800, offtune: 1880, forte1: 5 },
     { hitFrame: 20, mv: 5607, energy: 150, offtune: 1880, forte1: 5 },
   ]}); // 56.07% x2
-const SanguinePulse2 = danjinAction("Skill - Sanguine Pulse 2", { requireBuff: SANGUINE_READY, animFrames: 37, castPriority: 2, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+const SanguinePulse2 = danjinAction("Skill - Sanguine Pulse 2", { chains: [SanguinePulse1], requireBuff: SANGUINE_READY, animFrames: 37, castPriority: 2, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 4, mv: 4295, energy: 100, offtune: 1413 },
     { hitFrame: 6, element: null, type: null, subtype: null, forte1: 5 },
     { hitFrame: 8, mv: 4295, energy: 100, offtune: 1413, forte1: 5 },
     { hitFrame: 9, element: null, type: null, subtype: null, concerto: 800 },
     { hitFrame: 24, mv: 4295, energy: 100, offtune: 1413, forte1: 5 },
   ]}); // 42.95% x3
-const SanguinePulse3 = danjinAction("Skill - Sanguine Pulse 3", { requireBuff: SANGUINE_READY, animFrames: 59, castPriority: 2, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+const SanguinePulse3 = danjinAction("Skill - Sanguine Pulse 3", { chains: [SanguinePulse2], requireBuff: SANGUINE_READY, animFrames: 59, castPriority: 2, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 6, mv: 6442, energy: 133, offtune: 2133, forte1: 5 },
     { hitFrame: 9, element: null, type: null, subtype: null, concerto: 800 },
     { hitFrame: 16, mv: 6442, energy: 133, offtune: 2133, forte1: 5 },
@@ -158,7 +160,8 @@ const Chaoscleave = danjinAction("Forte Heavy - Chaoscleave", { minForte1: 60, m
     { hitFrame: 62, commitFrame: 61, mv: 5965, energy: 200, offtune: 1654 },
   ], castConcerto: 5000, resetForte1: true
 });
-const Scatterbloom = danjinAction("Forte Heavy - Scatterbloom", { animFrames: 49, castPriority: 2, bullets: [{ hitFrame: 19, mv: 17893, energy: 600, offtune: 5360 }], node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy});
+// "Use Basic Attack after Heavy Attack Chaoscleave"
+const Scatterbloom = danjinAction("Forte Heavy - Scatterbloom", { chains: [Chaoscleave], animFrames: 49, castPriority: 2, bullets: [{ hitFrame: 19, mv: 17893, energy: 600, offtune: 5360 }], node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy});
 /** Full Energy variants, at 120 Ruby Blossom — spends 120 instead of 60. No separate Concerto
  *  Regen is given, so it carries Chaoscleave's own. */
 const FullChaoscleave = danjinAction("Forte Heavy - Chaoscleave (Full Energy)", { minForte1: 120,
@@ -174,7 +177,7 @@ const FullChaoscleave = danjinAction("Forte Heavy - Chaoscleave (Full Energy)", 
     { hitFrame: 62, commitFrame: 61, mv: 14315, energy: 200, offtune: 1654 },
   ], castForte1: -120, castConcerto: 5000,
 });
-const FullScatterbloom = danjinAction("Heavy - Scatterbloom (Full Energy)", { animFrames: 49, castPriority: 2, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 19, mv: 42943, energy: 600, offtune: 5360 }]});
+const FullScatterbloom = danjinAction("Heavy - Scatterbloom (Full Energy)", { chains: [FullChaoscleave], animFrames: 49, castPriority: 2, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 19, mv: 42943, energy: 600, offtune: 5360 }]});
 
 // consecutive attacks plus one Scarlet Burst, lumped into one hit
 const Liberation = danjinAction("Liberation - Crimson Bloom", { animFrames: 192, castPriority: 10, timestop: [0, 195], motionStop: [0, 180], cooldown: 60 * 16, node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [
@@ -189,7 +192,7 @@ const Liberation = danjinAction("Liberation - Crimson Bloom", { animFrames: 192,
     { hitFrame: 169, mv: 39265, offtune: 30720 },
   ], castConcerto: 2000, resetEnergy: true }); // 49.09%x8+392.65%
 
-const Intro = danjinAction("Intro - Vindication", { qteFrames: 62, animFrames: 103, noSwapFrames: 92, animPriority: { 99: 1 }, castPriority: 11, motionStop: [4, 51], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
+const Intro = danjinAction("Intro - Vindication", { endPosition: Position.Grounded, qteFrames: 62, animFrames: 103, noSwapFrames: 92, animPriority: { 99: 1 }, castPriority: 11, motionStop: [4, 51], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 54, mv: 4971, energy: 250, offtune: 3060 },
     { hitFrame: 64, mv: 4971, energy: 250, offtune: 3060 },
     { hitFrame: 73, mv: 4971, energy: 250, offtune: 3060 },
@@ -263,6 +266,8 @@ const DANJIN_RESONATOR = new Resonator({
   color: "#a83250",
   intro: Intro,
   outro: Outro,
+  swapIn: BA1,
+  swapInAir: MA,
   tuneBreak: tuneBreak(91, [0, 91], [0, 70], SWORD_BREAK),
   maxEnergy: 10000,
   maxForte1: 120,
@@ -344,7 +349,7 @@ const DJ_S6 = new Sequence({
 // killing S4's threshold after the first pass. She's never the team's own lead, so this covers
 // both opener and loop.
 
-const BA23 = new ActionGroup("Basic - Execution 23", [BA2, BA3]);
+const BA123 = new ActionGroup("Basic - Execution 123", [BA1, BA2, BA3]);
 const Crimson12 = new ActionGroup("Skill - Crimson Erosion 12", [CrimsonErosion1, CrimsonErosion2])
 const Sanguine123 = new ActionGroup("Skill - Sanguine Pulse 123", [SanguinePulse1, SanguinePulse2, SanguinePulse3])
 const Forte12 = new ActionGroup("Forte Heavy - Chaoscleave + Scatterbloom", [Chaoscleave, Scatterbloom])
@@ -352,7 +357,7 @@ const Forte12 = new ActionGroup("Forte Heavy - Chaoscleave + Scatterbloom", [Cha
 const DJ_ROTATION = new Rotation([
   INTRO, Crimson12.cancel(),
   Liberation,
-  CarmineGleam, BA23,
+  CarmineGleam, BA123,
   Sanguine123,
   Forte12,
   ECHO.instaSwap(), OUTRO,

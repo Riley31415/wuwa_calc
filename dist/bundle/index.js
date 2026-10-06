@@ -67,7 +67,7 @@ import {
   teamAt,
   teamKey,
   weaponBase
-} from "./chunk-UMFBYTIE.js";
+} from "./chunk-LDJYL6DP.js";
 
 // dist/src/page/display.js
 var shown = (s, i) => s.shownAfter?.[i] ?? [s.energy, s.concerto, s.offtune, ...s.forte][i];
@@ -346,16 +346,15 @@ var actionInfo = (snap) => {
   let press = action;
   while (press.cancelOf ?? press.formOf)
     press = press.cancelOf ?? press.formOf;
-  push("Frames", `${press.animFrames}`);
-  push("Priority", press.castPriority === null ? null : String(press.castPriority));
-  const windows = press.castPriority !== null && press.animPriority[0]?.[0] !== 0 ? [[0, press.castPriority], ...press.animPriority] : press.animPriority;
-  push("Animation", windows.length ? windows.map(([f, t]) => `${f}f: ${t}`).join(", ") : null);
+  push("Animation", `${press.animFrames}f`);
+  push("Cast Priority", press.castPriority === null ? null : String(press.castPriority));
+  push("Anim Priority", press.animPriority.length ? press.animPriority.map(([f, t]) => `${f}f: ${t}`).join(", ") : null);
   push("No Swap", press.noSwapFrames ? `${press.noSwapFrames}f` : null);
   push("Outro Buff", press.qteFrames ? `${press.qteFrames}f` : null);
   push("Time Stop", press.timestop ? `${press.timestopFrom}f-${press.timestopFrom + press.timestop}f` : null);
   push("Motion Stop", press.motionStop ? `${press.motionStopFrom}f-${press.motionStopFrom + press.motionStop}f` : null);
-  push("Bullets", press.bullets.length ? press.bullets.map((h) => h.hitFrame).join(", ") : null);
-  push("Commits", press.bullets.some((h) => h.commitFrame !== h.hitFrame) ? press.bullets.map((h) => h.commitFrame).join(", ") : null);
+  push("Bullets", press.bullets.length ? press.bullets.map((h) => `${h.hitFrame}f`).join(", ") : null);
+  push("Commits", press.bullets.some((h) => h.commitFrame !== h.hitFrame) ? press.bullets.map((h) => `${h.commitFrame}f`).join(", ") : null);
   const bars = ["Energy", "Concerto", ...FORTE_GAUGES.map((_, i) => `Forte ${i + 1}`)];
   const scale = [1 / ENERGY_UNIT, 1 / CONCERTO_UNIT, ...snap.forteScale];
   bars.forEach((bar, k) => {
@@ -483,7 +482,7 @@ var OFFTUNE_RATE = "Buildup Rate";
 var ENERGY_RATE = "Regen Multiplier";
 var ENERGY_REGEN = "Energy Regen";
 var MV_MULTIPLIER = "MV Multiplier";
-var tagOf = (snap) => snap.tag === ActionTag.Field || snap.tag === ActionTag.NoTb ? "" : snap.tag;
+var tagOf = (snap) => snap.tag === ActionTag.OffField ? "" : snap.tag;
 function ownShares(snap, cast, hit) {
   if (cast && hit) {
     return [
@@ -2332,7 +2331,7 @@ function teamCell(sections, section, slotHue) {
     const field = /* @__PURE__ */ new Map();
     eachHit(lines, null, (snap, avg) => {
       own += avg;
-      if (snap.action.tag !== ActionTag.Field)
+      if (snap.action.tag !== ActionTag.OffField && snap.action.cast !== 6)
         return;
       const key = `${snap.slot} ${snap.action.name}`;
       field.set(key, (field.get(key) ?? 0) + avg);
@@ -2355,7 +2354,7 @@ function teamCell(sections, section, slotHue) {
       }
       acts[at].dmg += avg;
       acts[at].casts++;
-      const off = !snap.active || snap.tag === ActionTag.Field || snap.tag === ActionTag.InstaSwap || snap.tag === ActionTag.SwapCancel || snap.tag === ActionTag.MashSwap;
+      const off = !snap.active || snap.tag === ActionTag.OffField || snap.tag === ActionTag.InstaSwap || snap.tag === ActionTag.SwapCancel || snap.tag === ActionTag.MashSwap;
       const cost = snap.action.cost(snap.tag);
       const frames = off ? act.animFrames : snap.holdCut >= 0 ? snap.holdCut : cost.action + cost.global;
       bars.push({ dmg: avg, frames, color, act: at });
@@ -4109,7 +4108,7 @@ var TAG_KIND = {
   [ActionTag.MashSwap]: "swap",
   [ActionTag.MashCancel]: "easy",
   [ActionTag.HoldCancel]: "easy",
-  [ActionTag.Field]: "field",
+  [ActionTag.OffField]: "field",
   [ActionTag.DodgeCancel]: "dash",
   [ActionTag.JumpCancel]: "jump",
   [ActionTag.Cancel]: "cancel",

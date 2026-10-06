@@ -23,7 +23,7 @@
  *    Liberation - Glory" text is where Glory (team Fusion RES ignore) actually comes from — not a
  *    bare base-kit Liberation effect (see GLORY's own trigger below).
  */
-import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, BuffTarget } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, BuffTarget, Position } from "../../engine/stats.js";
 import { Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
   asSource,
@@ -46,8 +46,10 @@ import {
   queueOn,
   queueQTE,
   onCast,
+  previousPress,
+  saveChain,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, NOINTRO, ECHO, ActionTag, INTRO, OUTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, NOINTRO, ECHO, ActionTag, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
 import { WILDFIRE_MARK } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { LIONESS_OF_GLORY, CLAWPRINT_5PC } from "../../echoes/septimont.js";
@@ -90,8 +92,11 @@ const BA1 = lupaAction("Basic - Flaming Star 1", { animFrames: 42, castPriority:
     { hitFrame: 23, mv: 2252, energy: 34, concerto: 67, offtune: 1066, forte1: 18750 },
     { hitFrame: 34, mv: 4504, energy: 67, concerto: 134, offtune: 2132, forte1: 37500 },
   ]});
-const BA2 = lupaAction("Basic - Flaming Star 2", { animFrames: 32, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 10, mv: 9008, energy: 134, concerto: 267, offtune: 4264, forte1: 75000 }]});
-const BA3 = lupaAction("Basic - Flaming Star 3", { animFrames: 67, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+// "After Dodge Counter, Basic Attack Starfall, Resonance Skill Shewolf's Hunt, or Resonance Skill Feral Fang,
+// press Normal Attack in time to cast Basic Attack Stage 2"
+const BA2 = lupaAction("Basic - Flaming Star 2", { chains: () => [BA1, DC, EBA, Skill1, Skill2], animFrames: 32, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 10, mv: 9008, energy: 134, concerto: 267, offtune: 4264, forte1: 75000 }]});
+// "After Basic Attack Stage 3, press Normal Attack in the right time to cast Mid-air Attack Stage 1"
+const BA3 = lupaAction("Basic - Flaming Star 3", { chains: [BA2], endPosition: Position.Midair, animFrames: 67, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 20, mv: 7884, energy: 117, concerto: 234, offtune: 3732, forte1: 62287 },
     { hitFrame: 24, mv: 1314, energy: 20, concerto: 39, offtune: 622, forte1: 10452 },
     { hitFrame: 30, mv: 1314, energy: 20, concerto: 39, offtune: 622, forte1: 10452 },
@@ -100,14 +105,15 @@ const BA3 = lupaAction("Basic - Flaming Star 3", { animFrames: 67, castPriority:
     { hitFrame: 46, mv: 1314, energy: 20, concerto: 39, offtune: 622, forte1: 10452 },
     { hitFrame: 51, mv: 1314, energy: 20, concerto: 39, offtune: 622, forte1: 10453 },
   ]});
-const BA4 = lupaAction("Basic - Flaming Star 4", { animFrames: 89, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA4 = lupaAction("Basic - Flaming Star 4", { chains: [BA3], animFrames: 89, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 10, mv: 7387, energy: 110, concerto: 219, offtune: 3497, forte1: 52481 },
     { hitFrame: 47, mv: 7387, energy: 110, concerto: 219, offtune: 3497, forte1: 52481 },
     { hitFrame: 66, mv: 4925, energy: 73, concerto: 146, offtune: 2331, forte1: 35019 },
     { hitFrame: 73, mv: 4925, energy: 73, concerto: 146, offtune: 2331, forte1: 35019 },
   ]});
 /** Basic Attack - Starfall, the enhanced follow-up after a plunging attack or dodge counter. */
-const EBA = lupaAction("Basic - Flaming Star: Starfall", { animFrames: 73, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+// "After performing this attack, press Normal Attack in time to perform Basic Attack Starfall"; Sprint's route has no press here
+const EBA = lupaAction("Basic - Flaming Star: Starfall", { chains: () => [MA], animFrames: 73, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 6, mv: 1265, energy: 19, concerto: 38, offtune: 599, forte1: 3760 },
     { hitFrame: 13, commitFrame: 6, mv: 1265, energy: 19, concerto: 38, offtune: 599, forte1: 3760 },
     { hitFrame: 20, commitFrame: 6, mv: 1265, energy: 19, concerto: 38, offtune: 599, forte1: 3760 },
@@ -116,13 +122,13 @@ const EBA = lupaAction("Basic - Flaming Star: Starfall", { animFrames: 73, castP
   ]});
 
 /** Wolf's Descent, her plunging attack — never placed in the rotation below, kept for completeness. */
-const MA = lupaAction("Mid-air - Flaming Star: Plunge", { animFrames: 69, animPriority: { 0: 6, 40: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MA = lupaAction("Mid-air - Flaming Star: Plunge", { castPosition: Position.Midair, endPosition: Position.Grounded, animFrames: 69, animPriority: { 0: 6, 40: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 26, mv: 2620, energy: 39, concerto: 78, offtune: 1240, forte1: 12500 },
     { hitFrame: 40, mv: 5239, energy: 78, concerto: 155, offtune: 2480, forte1: 25000 },
     { hitFrame: 55, mv: 2620, energy: 39, concerto: 78, offtune: 1240, forte1: 12500 },
   ]});
 /** Flaming Star, her dodge counter — same treatment as `MA` above. */
-const DC = lupaAction("Dodge Counter - Flaming Star", { animFrames: 73, animPriority: { 63: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const DC = lupaAction("Dodge Counter - Flaming Star", { chains: [DODGE], animFrames: 73, animPriority: { 63: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 15, mv: 3418, energy: 51, concerto: 102, offtune: 1618 },
     { hitFrame: 23, commitFrame: 15, mv: 3418, energy: 51, concerto: 102, offtune: 1618 },
     { hitFrame: 30, commitFrame: 15, mv: 3418, energy: 51, concerto: 102, offtune: 1618 },
@@ -130,15 +136,16 @@ const DC = lupaAction("Dodge Counter - Flaming Star", { animFrames: 73, animPrio
     { hitFrame: 49, mv: 13672, energy: 203, concerto: 405, offtune: 6472 },
   ], castConcerto: 1000});
 
-const MA1 = lupaAction("Mid-air - Flaming Star 1", { animFrames: 30, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 14, mv: 7673, energy: 114, concerto: 227, offtune: 3632, forte1: 70000 }]});
-const MA2 = lupaAction("Mid-air - Flaming Star 2", { animFrames: 56, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MA1 = lupaAction("Mid-air - Flaming Star 1", { castPosition: Position.Midair, animFrames: 30, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 14, mv: 7673, energy: 114, concerto: 227, offtune: 3632, forte1: 70000 }]});
+const MA2 = lupaAction("Mid-air - Flaming Star 2", { chains: [MA1], castPosition: Position.Midair, animFrames: 56, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 10, mv: 7723, energy: 115, concerto: 229, offtune: 3656, forte1: 65000 },
     { hitFrame: 23, mv: 1931, energy: 29, concerto: 58, offtune: 914, forte1: 16250 },
     { hitFrame: 27, commitFrame: 23, mv: 1931, energy: 29, concerto: 58, offtune: 914, forte1: 16250 },
     { hitFrame: 32, commitFrame: 23, mv: 1931, energy: 29, concerto: 58, offtune: 914, forte1: 16250 },
     { hitFrame: 36, commitFrame: 23, mv: 1931, energy: 29, concerto: 58, offtune: 914, forte1: 16250 },
   ]});
-const MA3 = lupaAction("Mid-air - Flaming Star 3", { maxForte1: 499999, animFrames: 71, animPriority: { 0: 6, 46: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+// "Press Normal Attack following Intro Skill Try Focusing, Eh? to cast Mid-air Attack Stage 3"
+const MA3 = lupaAction("Mid-air - Flaming Star 3", { chains: () => [MA2, Intro], castPosition: Position.Midair, maxForte1: 499999, animFrames: 71, animPriority: { 0: 6, 46: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 19, mv: 2848, energy: 43, concerto: 85, offtune: 1348 },
     { hitFrame: 50, mv: 2848, energy: 43, concerto: 85, offtune: 1348 },
   ]});
@@ -150,7 +157,8 @@ const HA = lupaAction("Heavy - Flaming Star", { maxForte1: 499999, animFrames: 5
     { hitFrame: 28, mv: 5636, energy: 84, concerto: 167, offtune: 2668 },
   ]});
 /** Firestrike, at Wolflame 50+. Counts as Heavy Attack DMG. */
-const EMA3 = lupaAction("Mid-air - Firestrike", { minForte1: 500000, animFrames: 71, animPriority: { 0: 6, 46: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
+// it replaces Mid-air Attack Stage 3, so it follows what Stage 3 does
+const EMA3 = lupaAction("Mid-air - Firestrike", { chains: () => [MA2, Intro], castPosition: Position.Midair, minForte1: 500000, animFrames: 71, animPriority: { 0: 6, 46: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
     { hitFrame: 32, mv: 2848, energy: 43, concerto: 500, offtune: 1348 },
     { hitFrame: 50, mv: 2848, energy: 43, concerto: 500, offtune: 1348, forte2: 1 },
   ], castForte1: -500000});
@@ -183,8 +191,9 @@ const Skill2 = lupaAction("Skill - Feral Fang", { requireBuff: FERAL_FANG_READY,
 /** Foebreaker: consumes every point of Wolflame. Always placed right after Liberation, whose own
  *  updateBuffs() hard-resets Wolflame to exactly 100 first, so forte1: -100 always lands on 0. Opens
  *  Burning Matchpoint (see BURNING_MATCHPOINT below). */
+// "Use Basic Attack or Resonance Skill in time to cast Resonance Skill Foebreaker"
 const USkill = lupaAction("Skill - Foebreaker", {
-  animFrames: 58, animPriority: { 10: 6, 54: 2 }, castPriority: 4,
+  endPosition: Position.Midair, chains: () => [Liberation], animFrames: 58, animPriority: { 10: 6, 54: 2 }, castPriority: 4,
   node: Node.Liberation, cast: Cast.Skill, type: Type.Skill, bullets: [{ hitFrame: 48, mv: 30446, concerto: 2000, offtune: 6448 }], castForte1: -1000000,
   requireBuff: FOEBREAKER_READY,
   updateBuffs: () => {
@@ -232,9 +241,10 @@ const UFSkill = lupaAction("Forte Skill - Dance With the Wolf: Climax", { minFor
   ], castForte2: -2, ...BACKUP });
 /** Set the Arena Ablaze — queued by LUPA_BACKUP_READY the moment a teammate's Liberation earns
  *  it, not placed in the rotation directly. */
-const fskillFUA = lupaAction("Forte Skill - Set the Arena Ablaze", { tag: ActionTag.Field, animFrames: 96, node: Node.Forte, type: Type.Skill, bullets: [{ hitFrame: 57, mv: 4235, offtune: 1920 }, { hitFrame: 70, mv: 16940, offtune: 7680 }]});
+const fskillFUA = lupaAction("Forte Skill - Set the Arena Ablaze", { tag: ActionTag.OffField, animFrames: 96, node: Node.Forte, type: Type.Skill, bullets: [{ hitFrame: 57, mv: 4235, offtune: 1920 }, { hitFrame: 70, mv: 16940, offtune: 7680 }]});
 
-const Intro = lupaAction("Intro - Try Focusing, Eh?", { qteFrames: 10, animFrames: 70, noSwapFrames: 60, animPriority: { 60: 2 }, castPriority: 11, motionStop: [6, 60], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
+// Mid-air Attack Stage 3 follows it, so it leaves her airborne
+const Intro = lupaAction("Intro - Try Focusing, Eh?", { endPosition: Position.Midair, qteFrames: 10, animFrames: 70, noSwapFrames: 60, animPriority: { 60: 2 }, castPriority: 11, motionStop: [6, 60], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 24, mv: 2976, energy: 150, offtune: 1409 },
     { hitFrame: 34, mv: 4216, energy: 213, offtune: 1996 },
     { hitFrame: 38, commitFrame: 34, mv: 4216, energy: 213, offtune: 1996 },
@@ -245,7 +255,7 @@ const Intro = lupaAction("Intro - Try Focusing, Eh?", { qteFrames: 10, animFrame
  *  selector below). Casting it ends Pack Hunt/Glory, ahead of every other hook of its cast and of
  *  its own damage — bar S6, which keeps both windows. */
 const EIntro = lupaAction("Intro - Nowhere to Run!", {
-  qteFrames: 68, animFrames: 150, animPriority: { 140: 2 }, castPriority: 11, timestop: [6, 90], motionStop: [6, 150], node: Node.Intro, cast: Cast.Intro, type: Type.Liberation,
+  endPosition: Position.Grounded, qteFrames: 68, animFrames: 150, animPriority: { 140: 2 }, castPriority: 11, timestop: [6, 90], motionStop: [6, 150], node: Node.Intro, cast: Cast.Intro, type: Type.Liberation,
   requireBuff: WILD_HUNT,
   updateGlobal: () => {
     revokeTeam(WILD_HUNT);
@@ -453,6 +463,8 @@ const LUPA_RESONATOR = new Resonator({
   // resolved when its row is reached: whichever Intro the kit's state calls for there
   intro: () => (stacksOfTeam(WILD_HUNT) ? EIntro : Intro),
   outro: Outro,
+  swapIn: BA1,
+  swapInAir: MA1,
   maxEnergy: 12500,
   forteScale: [0.0001, 1, 1, 1, 1],
   maxForte1: 1000000,
@@ -468,6 +480,11 @@ const LUPA_RESONATOR = new Resonator({
     if (runningAction(Skill2) || runningAction(EHA3) || runningAction(EHA4) || runningAction(EMA3) || runningAction(Liberation) || runningAction(FSkill) || runningAction(UFSkill)) {
       applyCurrent(WILDFIRE_BANNER, 1);
     }
+    // "The Mid-air Attack cycle will not be reset": a press between two stages keeps the one before it
+    if (runningAction(MA2) || runningAction(MA3) || runningAction(EMA3)) return;
+    for (let p = previousPress(); p; p = p.cancelOf ?? p.formOf) {
+      if (p === MA1 || p === MA2) saveChain(p);
+    }
   },
 
 });
@@ -476,7 +493,7 @@ const MA12 = new ActionGroup("Mid-air - Flaming Star 12", [MA1, MA2]);
 const Skill12 = new ActionGroup("Skill - Shewolf's Hunt + Feral Fang", [Skill1, Skill2]);
 
 const LP_LOOP = new Rotation([
-  NOINTRO, Skill1, INTRO, ECHO.instaDodge(),
+  NOINTRO, BA1.instaCancel(), Skill1, INTRO, ECHO.instaDodge(),
   Liberation, USkill, MA12, EMA3, EHA4.mashCancel(), UFSkill.swapCancel(), OUTRO,
 ]);
 

@@ -341,7 +341,6 @@ export const LINGERING_TUNES_5PC = new Sonata({
   grants: [{ on: isActive, buff: () => LINGERING_TUNES_CLOCK }],
 });
 const LINGERING_TUNES_CLOCK: Buff = new Buff({
-  name: "Lingering Tunes 5pc", hidden: true,
   tick: { every: 90, fire: () => applyCurrent(LINGERING_TUNES_STACKS, 1) },
   updateBuffs: () => lostOnSwap(),
 });

@@ -132,7 +132,7 @@ function collapseRepeats(lines: ChainGroup<Result>[]): ChainGroup<Result>[] {
     if (!head.isChain && snap.triggered && !snap.action.field) {
       while (j < lines.length) {
         const next = lines[j]!;
-        if (next.isChain || !next.snap.triggered || !!next.spill !== !!head.spill) break;
+        if (next.isChain || !next.snap.triggered || !!next.spill !== !!head.spill || next.snap.action.field) break;
         // by name, not identity: a same-named variant reads as the same cast
         if (next.snap.action.name !== snap.action.name || next.snap.slot !== snap.slot) break;
         j++;
