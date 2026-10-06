@@ -252,10 +252,11 @@ var ActionTag;
   ActionTag2["DodgeCancel"] = "dodge cancel";
   ActionTag2["JumpCancel"] = "jump cancel";
   ActionTag2["SwapCancel"] = "swap cancel";
+  ActionTag2["MashSwap"] = "mash swap";
   ActionTag2["InstaCancel"] = "instant cancel";
   ActionTag2["InstaDodge"] = "instant dodge";
   ActionTag2["InstaJump"] = "instant jump";
-  ActionTag2["InstaSwap"] = "instant swap";
+  ActionTag2["InstaSwap"] = "insta swap";
   ActionTag2["HitCancel"] = "cancel on hit";
   ActionTag2["DodgeOnHit"] = "dodge on hit";
   ActionTag2["JumpOnHit"] = "jump on hit";
@@ -445,6 +446,7 @@ var ctx = {
   inHit: false,
   inEnd: false,
   hit: null,
+  hitsLeft: 1,
   gain: [0, 0, 0, 0, 0, 0, 0, 0, 0],
   adds: [],
   wrote: 0,
@@ -1416,7 +1418,7 @@ var TeamMember = class {
   }
 };
 function timedEntry(due, action, slot, by, away, apply, frames, closes, triggered) {
-  return { due, action, slot, into: null, by, away, apply, frames, closes, triggered, cut: void 0 };
+  return { due, action, slot, into: null, by, away, apply, frames, closes, triggered, cut: void 0, check: void 0, behind: void 0, at: void 0 };
 }
 function sortByDue(list) {
   for (let i = 1; i < list.length; i++) {
@@ -1450,10 +1452,10 @@ var State = class {
   presser = -1;
   /** The last press the on-field member made of their own — what an Outro's swap delay is charged
    *  to, the Outro itself never carrying it — and whether that delay is already on the clock (a
-   *  swap cancel's own, or the one charged ahead of the Outro). */
+   *  swap form's own, or the one charged ahead of the Outro). */
   lastOwn = null;
   swapPaid = false;
-  /** The cut `lastOwn` was pressed with — what tells a swap cancel's swap still to come. */
+  /** The cut `lastOwn` was pressed with — what tells a swap form's swap still to come. */
   lastOwnCut = "";
   /** The visit a handoff into slot `to` opens, timed off its presses (rotation.ts's `chainGates`),
    *  for a handoff with no visit learned yet — set by `runRotations()`, null outside one. */
@@ -1639,6 +1641,8 @@ var State = class {
   enemyMaxSources = /* @__PURE__ */ new Map();
   // TODO change Gear to Debuff
   outroQueue = [];
+  /** An Outro's own buffs for whoever intros next, landing on that Intro's QTE frame (`queueQTE`). */
+  qteQueue = [];
   /** Hits waiting on the clock, each landing on its owner at `due` — earliest first; `run()` plays
    *  them before any cast the clock has passed them for. A press's own queued hit fills in `into`,
    *  the cast's row; one a
@@ -1941,6 +1945,11 @@ function currentHit() {
   if (ctx.hit === null || ctx.inEnd)
     throw new Error(`${ctx.buff?.name ?? "?"}: currentHit() outside a hit hook (${ctx.act?.name ?? "?"})`);
   return ctx.hit;
+}
+function lastHit() {
+  if (ctx.hit === null || ctx.inEnd)
+    throw new Error(`${ctx.buff?.name ?? "?"}: lastHit() outside a hit hook (${ctx.act?.name ?? "?"})`);
+  return ctx.hitsLeft <= 1;
 }
 var hitting = () => ctx.hit !== null && !ctx.inEnd;
 var midActionGroup = () => ctx.insideGroup;
@@ -2400,6 +2409,13 @@ function queueOutro(buff) {
     return;
   attribute(buff);
   ctx.state.outroQueue.push(buff);
+}
+function queueQTE(buff) {
+  noteMutation(buff.id, 3e6 + 1);
+  if (ctx.dryRun)
+    return;
+  attribute(buff);
+  ctx.state.qteQueue.push(buff);
 }
 var queuedBy = () => {
   const gear = ctx.buff;
@@ -3047,7 +3063,7 @@ var Mainslot = class extends Gear {
     this.action = def2.action;
     const a = def2.action;
     this.onfield = a;
-    this.outro = a.swapCutFrame > INSTA_DELAY ? a.swapCancel() : a.instaSwap();
+    this.outro = a.cutFrame > INSTA_DELAY ? a.swapCancel() : a.instaSwap();
     this.cancel = a.instaForm(a.animFrames < 18 ? ActionTag.InstaCancel : ActionTag.InstaDodge);
     this.instaOut = a.instaSwap();
   }
@@ -3077,8 +3093,8 @@ function cancelCost(a, cut) {
   const tag = cut ?? a.tag;
   const insta = tag === ActionTag.InstaCancel || tag === ActionTag.InstaDodge || tag === ActionTag.InstaJump || tag === ActionTag.InstaSwap;
   const whole = a.half === "cast" ? a.formOf ?? a : a;
-  const action = tag === ActionTag.Default || tag === ActionTag.NoTb ? full : tag === ActionTag.Field || insta ? 0 : tag === ActionTag.HoldCancel ? Math.min(HOLD_DELAY, full) : tag === ActionTag.MashCancel ? Math.min(MASH_DELAY, full) : Math.min(whole.onHitAt ?? (tag === ActionTag.SwapCancel ? whole.swapCutFrame : whole.cutFrame), full);
-  const global = tag === ActionTag.InstaSwap || tag === ActionTag.SwapCancel ? SWAP_DELAY : insta ? INSTA_DELAY : tag === ActionTag.Cancel || tag === ActionTag.DodgeCancel || tag === ActionTag.JumpCancel || tag === ActionTag.HitCancel || tag === ActionTag.DodgeOnHit || tag === ActionTag.JumpOnHit ? CANCEL_DELAY : 0;
+  const action = tag === ActionTag.Default || tag === ActionTag.NoTb ? full : tag === ActionTag.Field || insta ? 0 : tag === ActionTag.HoldCancel ? Math.min(HOLD_DELAY, full) : tag === ActionTag.MashCancel ? Math.min(MASH_DELAY, full) : tag === ActionTag.MashSwap ? Math.min(whole.noSwapFrames + MASH_DELAY, full) : Math.min(whole.onHitAt ?? whole.cutFrame, full);
+  const global = insta ? INSTA_DELAY : tag === ActionTag.Cancel || tag === ActionTag.DodgeCancel || tag === ActionTag.JumpCancel || tag === ActionTag.SwapCancel || tag === ActionTag.HitCancel || tag === ActionTag.DodgeOnHit || tag === ActionTag.JumpOnHit ? CANCEL_DELAY : 0;
   const timestop = splitStop(a.timestopFrom, a.timestop, action, action + global).own;
   return { action, timestop, global, total: action - timestop + global };
 }
@@ -3242,7 +3258,6 @@ var Action = class _Action extends Gear {
     }));
     this.mv = this.bullets.reduce((n, h) => n + h.mv, 0);
     this.cutFrame = this.bullets.reduce((at, h) => Math.max(at, h.commitFrame), 0);
-    this.swapCutFrame = Math.max(this.noSwapFrames, this.cutFrame);
     if (this.mv !== 0 && this.scaling === null)
       throw new Error(`${name}: an action with a motion value must declare its scaling`);
     this.castEnergy = def2.castEnergy ?? 0;
@@ -3288,10 +3303,10 @@ var Action = class _Action extends Gear {
   }
   /** Where a cancel cuts this press: its last bullet committed. */
   cutFrame;
-  /** The priority this press cuts in at, null where nothing checks it: a FIELD hit or an Outro (a
-   *  swap is gated by no-swap frames), or a press declaring none. */
+  /** The priority this press cuts in at, null where nothing checks it: a FIELD hit, an Outro with no
+   *  animation (only a swap form reaches it, gated by no-swap frames), or a press declaring none. */
   get cutIn() {
-    return this.tag === ActionTag.Field || this.cast === 6 ? null : this.castPriority;
+    return this.tag === ActionTag.Field || this.cast === 6 && !this.animFrames ? null : this.castPriority;
   }
   /** This press's priority at animation frame `frame` (`animPriority`), its cast priority ahead of
    *  its first window. */
@@ -3314,9 +3329,6 @@ var Action = class _Action extends Gear {
         return f;
     return Infinity;
   }
-  /** Where a swap cancel cuts it: its last bullet committed, and never inside its no-swap frames —
-   *  priority holds no swap back. */
-  swapCutFrame;
   /** What the clock charges this press cut short by `kind` (`cancelCost()`) — a method, so
    *  evaluate.ts reaches it through the type-only import it keeps on this module. */
   cost(cut) {
@@ -3400,9 +3412,10 @@ var Action = class _Action extends Gear {
     return Math.min(last, this.animFrames);
   }
   /** The first frame from `from` on where `next` can follow this press: where `next`'s priority beats
-   *  this one's, and past its no-swap frames where `next` swaps out (an Outro, a swap form). */
-  freeForNext(next, from = 0) {
-    const swaps = !!next && (next.cast === 6 || next.tag === ActionTag.InstaSwap || next.tag === ActionTag.SwapCancel);
+   *  this one's, and — for a `mash` into an Outro, the one cut that waits for them — past its no-swap
+   *  frames. */
+  freeForNext(next, from = 0, mash = false) {
+    const swaps = mash && next?.cast === 6;
     return this.freeFor(next?.cutIn ?? null, swaps ? Math.max(from, this.noSwapFrames) : from);
   }
   /** Where a hold (or `mash`) cancel paid at `paid` (`holdPaid()`) lets go. A hold lets go the frame
@@ -3411,7 +3424,7 @@ var Action = class _Action extends Gear {
    *  whatever held it or nothing. Its press's end where `next` never can — a cut the engine then
    *  refuses (`checkHoldCut()`). */
   letGo(paid, mash = false, next = null) {
-    const at = mash ? this.freeForNext(next, paid) + MASH_DELAY : this.freeForNext(next, Math.max(HOLD_DELAY, paid));
+    const at = mash ? this.freeForNext(next, paid, true) + MASH_DELAY : this.freeForNext(next, Math.max(HOLD_DELAY, paid));
     return Math.min(at, this.animFrames);
   }
   /** `letGo()` of `holdPaid()`: where a hold (or `mash`) cancel of this press lets go. */
@@ -3419,7 +3432,7 @@ var Action = class _Action extends Gear {
     return this.letGo(this.holdPaid(bars, cap, next, castGain, pending), mash, next);
   }
   /** Does this take its owner off the field — what "lost on swap" reads: an Outro or the SWAP
-   *  marker after a swap cancel, never the swap cancel itself. A FIELD press (a summon, a
+   *  marker after a swap form, never the swap form itself. A FIELD press (a summon, a
    *  coordinated hit) lands beside the fight but moves nobody. */
   get swapOut() {
     return this.cast === 6 || this === SWAP;
@@ -3660,8 +3673,9 @@ var Action = class _Action extends Gear {
     return new ActionGroup(this.resolveFn ? "" : this.name, [cut, new DashMarker(kind === ActionTag.JumpOnHit, this, kind)], 1);
   }
   /** The same cast made on the way out, under its own name and a SWAP CANCEL tag — identical in
-   *  every field: it plays to its cancel frame, its hit landing on field, then `SWAP_DELAY`, and the
-   *  SWAP after it (or the Outro) takes it off the field. */
+   *  every field: it plays to its last commit (never inside its no-swap frames, which throws), its
+   *  hit landing on field, then `CANCEL_DELAY`, and the SWAP after it (or a 0-MV Outro) takes it off
+   *  the field. */
   swapCancel() {
     if (this.resolveFn)
       return this.swapResolver((a) => a.swapCancel(), ActionTag.SwapCancel);
@@ -3680,8 +3694,18 @@ var Action = class _Action extends Gear {
     out.cancelOf = this;
     return out;
   }
-  /** The same cast swapped out of the moment it is pressed — `SWAP_DELAY`, then the SWAP after it
-   *  (or the Outro) — its hit still landing once the press would have reached it (`splitsHit()`). */
+  /** The same cast swapped out of `MASH_DELAY` after its no-swap frames end, the SWAP after it (or a
+   *  0-MV Outro) taking it off the field — a press whose last commit falls inside them. */
+  mashSwap() {
+    if (this.resolveFn)
+      return this.swapResolver((a) => a.mashSwap(), ActionTag.MashSwap);
+    const out = this.variant(this.name, { tag: ActionTag.MashSwap });
+    out.formOf = this;
+    return out;
+  }
+  /** The same cast swapped out of the moment it is pressed — `INSTA_DELAY`, then the SWAP after it
+   *  (or a 0-MV Outro) — its hit still landing once the press would have reached it (`splitsHit()`).
+   *  A press with no-swap frames can't be (it throws). */
   instaSwap() {
     if (this.resolveFn)
       return this.swapResolver((a) => a.instaSwap(), ActionTag.InstaSwap);
@@ -3751,6 +3775,9 @@ var ActionGroup = class _ActionGroup extends Action {
   }
   swapCancel() {
     return this.withLast((a) => a.swapCancel());
+  }
+  mashSwap() {
+    return this.withLast((a) => a.mashSwap());
   }
   noTb() {
     return this.withLast((a) => a.noTb());
@@ -3886,6 +3913,9 @@ var EveryOther = class extends Action {
   }
   swapCancel() {
     return this.gated.swapCancel().everyOther();
+  }
+  mashSwap() {
+    return this.gated.mashSwap().everyOther();
   }
   instaSwap() {
     return this.gated.instaSwap().everyOther();
@@ -4264,7 +4294,7 @@ function leavesField(a) {
   const last = a instanceof ActionGroup ? a.actions[a.actions.length - 1] : a;
   if (last === ECHO_SWAP_FORM || last === ECHO_INSTA_SWAP_FORM)
     return true;
-  return (last.tag === ActionTag.SwapCancel || last.tag === ActionTag.InstaSwap) && (last.formOf ?? last.cancelOf) !== null;
+  return (last.tag === ActionTag.SwapCancel || last.tag === ActionTag.InstaSwap || last.tag === ActionTag.MashSwap) && (last.formOf ?? last.cancelOf) !== null;
 }
 function checkSwapOuts(who, list) {
   list.forEach((a, k) => {
@@ -4272,7 +4302,7 @@ function checkSwapOuts(who, list) {
     const inner = a instanceof ActionGroup && a.actions.slice(0, -1).some(leavesField);
     if (!inner && !(leavesField(a) && next && !isOutro(next)))
       return;
-    throw new Error(`${who}: ${a.name} swaps out with ${next?.name ?? "its own group"} still to play \u2014 a swap cancel goes last in its chain, or right before its Outro`);
+    throw new Error(`${who}: ${a.name} swaps out with ${next?.name ?? "its own group"} still to play \u2014 a swap form goes last in its chain, or right before its Outro`);
   });
 }
 function staysOnField(a) {
@@ -5123,13 +5153,14 @@ function evaluate(state, action, triggered = false, source = null, cut = null) {
     5
     /* Cast.Intro */
   )) {
+    for (const gear of state.outroQueue.splice(0))
+      slot.addStack(gear, 1);
     const intro = action.formOf ?? action, qte = intro.qteFrames;
     if (!qte)
-      for (const gear of state.outroQueue.splice(0))
+      for (const gear of state.qteQueue.splice(0))
         slot.addStack(gear, 1);
-    else {
-      insertByDue(state.timed, outroLanding(state, slot, state.real + qte));
-    }
+    else
+      insertByDue(state.timed, qteLanding(state, slot, state.real + qte));
     pendingQueue.push(...state.introQueue.splice(0));
   }
   const gain = ctx.gain;
@@ -5161,7 +5192,7 @@ function evaluate(state, action, triggered = false, source = null, cut = null) {
         kind: tag,
         start: realStart,
         least: realStart + held.letGo(holdPaid, mash, next),
-        paid: Math.min(held.freeForNext(next, holdPaid), held.animFrames),
+        paid: Math.min(held.freeForNext(next, holdPaid, mash), held.animFrames),
         cut: 0,
         playsToBefore: state.playsTo,
         result: null
@@ -5169,11 +5200,14 @@ function evaluate(state, action, triggered = false, source = null, cut = null) {
       holdPaid = held.bullets.length ? Math.max(holdPaid, held.lastHitDelay()) : held.animFrames;
     }
     ctx.holdCut = held.letGo(holdPaid, mash, next);
-    holdPaid = Math.min(held.freeForNext(next, holdPaid), held.animFrames);
+    holdPaid = Math.min(held.freeForNext(next, holdPaid, mash), held.animFrames);
     if (watched)
       state.holdWatch.cut = ctx.holdCut;
     else
       checkHoldCut(held, tag, ctx.holdCut);
+    if (!mash && next?.cast === 6 && ctx.holdCut < held.noSwapFrames) {
+      throw new Error(`${held.name}: its ${tag} lets go into ${next.name} at frame ${ctx.holdCut}, inside its ${held.noSwapFrames} no-swap frames \u2014 mash it instead`);
+    }
     charged = action.holdCost(ctx.holdCut);
   }
   const holdCut = held ? ctx.holdCut : -1;
@@ -5517,7 +5551,8 @@ function evaluate(state, action, triggered = false, source = null, cut = null) {
     realStarts: realStart,
     ends: realStart + (half === "cast" ? (action.formOf ?? action).lastHitDelay() : 0),
     // filled in by the first hit landing (`landHit()`); present from the start so every row is one shape
-    hitAt: void 0
+    hitAt: void 0,
+    pending: void 0
   };
   const snapshot = !ctx.tracing ? null : {
     ...result,
@@ -5762,6 +5797,18 @@ function run(state, rotation, flush = false, until = Infinity) {
         takeQueued(steps, spillGroup, step.at);
       continue;
     }
+    const presses = step.action.cast !== null || step.action.bullets.length > 0 || !!step.action.resolveFn;
+    if (!step.queued && step.slot < 0 && presses && step.action !== SWAP && step.action.cast !== 6) {
+      const owner = state.active, now2 = state.real;
+      const ends = state.timed.filter((h) => h.behind && h.slot === owner && h.due > now2);
+      const open = state.timed.filter((h) => ends.some((e) => e === h || h.into !== null && h.into === e.into && (h.at ?? h.due) <= now2));
+      if (open.length) {
+        state.timed = state.timed.filter((h) => !open.includes(h));
+        open.sort((a, b) => Number(!!a.closes) - Number(!!b.closes) || a.due - b.due);
+        steps.unshift([...open.map((h) => newStep(h.action, h.slot, h.by, null, false, null, true, null, now2, h)), step]);
+        continue;
+      }
+    }
     if (!step.queued && !step.hold && state.presser >= 0 && state.presser !== state.active) {
       const holdFn = state.slot.resonator?.holdFn;
       if (holdFn && step.slot < 0) {
@@ -5909,7 +5956,7 @@ function run(state, rotation, flush = false, until = Infinity) {
     const checked = !dash && action.half === null;
     if (checked && LENGTH_CHECKED.has(kind))
       checkCutLength(pressed.cancelOf ?? pressed, kind);
-    const slow = checked && !step.action.resolveFn && SLOW_CUTS.has(kind), cutAt = !slow ? 0 : kind === ActionTag.SwapCancel ? action.swapCutFrame : action.cutFrame;
+    const slow = checked && !step.action.resolveFn && SLOW_CUTS.has(kind), cutAt = !slow ? 0 : action.cutFrame;
     if (slow && cutAt <= INSTA_DELAY) {
       throw new Error(`${action.name}: cuts at frame ${cutAt}, inside an insta cut's ${INSTA_DELAY} \u2014 write it as ${INSTA_OF[kind]} instead of ${kind}`);
     }
@@ -5923,14 +5970,20 @@ function run(state, rotation, flush = false, until = Infinity) {
       const after = !ahead2 || ahead2.queued || ahead2.slot >= 0 ? null : ahead2.action.resolveFn ? resolving(ahead2.action.resolveFn) : ahead2.action;
       checkPriority(action, cut, after);
     }
+    if (step.slot < 0 && !step.queued && checked)
+      checkSwap(state, action, kind, steps.peek());
     const whole = action;
     const splits = whole.splitsHit(cut);
     const castAt = step.at ?? state.real, away = splits && whole.hitsAway(cut);
     let split = null, splitEnd = null;
     if (splits) {
       split = [];
-      for (let k = 0; k < whole.bullets.length; k++)
-        split.push(timedEntry(castAt + whole.hitDelay(k), whole.hitPart(k), state.active, null, away, void 0, 0, void 0, false));
+      for (let k = 0; k < whole.bullets.length; k++) {
+        const due = castAt + whole.hitDelay(k);
+        const hit = timedEntry(due, whole.hitPart(k), state.active, null, away, void 0, 0, void 0, false);
+        hit.at = due;
+        split.push(hit);
+      }
     }
     if (split) {
       for (const h of split)
@@ -5959,7 +6012,11 @@ function run(state, rotation, flush = false, until = Infinity) {
       const after = steps.peek()?.action ?? ctx.holdBeyond;
       ctx.holdNext = after?.resolveFn ? resolving(after.resolveFn) : after;
     }
+    ctx.hitsLeft = step.into?.pending ?? 1;
     const result = evaluate(state, action, triggered, by, cut);
+    if (step.into?.pending)
+      step.into.pending--;
+    ctx.hitsLeft = 1;
     if (action === SWAP)
       state.onField = -1;
     ctx.holdNext = null;
@@ -5996,9 +6053,11 @@ function run(state, rotation, flush = false, until = Infinity) {
       let last = castAt;
       for (const h of split)
         last = Math.max(last, h.due);
-      const runs = whole.castsInstantly ? whole.animFrames : ctx.actReal;
-      const end = timedEntry(Math.max(last, castAt + runs + (step.holdShift ?? 0)), whole.endPart(), state.active, null, away, void 0, ctx.actFrames, true, triggered);
+      const plays = whole.castsInstantly || SWAP_FORMS.has(kind);
+      const stops = castAt + (plays ? whole.animFrames : ctx.actReal) + (step.holdShift ?? 0);
+      const end = timedEntry(cut && !plays ? stops : Math.max(last, stops), whole.endPart(), state.active, null, away, void 0, ctx.actFrames, true, triggered);
       end.cut = kind;
+      end.behind = SWAP_FORMS.has(kind);
       insertByDue(state.timed, end);
       splitEnd = end;
     }
@@ -6016,12 +6075,13 @@ function run(state, rotation, flush = false, until = Infinity) {
       if (split) {
         for (const h of split)
           h.into = result;
+        result.pending = split.length;
         splitEnd.into = result;
         result.action = whole;
       }
       out.push(result);
       const tag = cut ?? action.tag;
-      if (tag === ActionTag.SwapCancel || tag === ActionTag.InstaSwap)
+      if (SWAP_FORMS.has(tag))
         state.swapPaid = true;
       if (!step.queued && !triggered && !isCast(
         action,
@@ -6033,7 +6093,9 @@ function run(state, rotation, flush = false, until = Infinity) {
         const enemy = state.enemy.resonator;
         if (enemy?.atCut && TAKEN_CUTS.has(tag)) {
           const check = () => asSource(enemy, () => enemy.atCut(whole, tag));
-          insertByDue(state.timed, { ...timedEntry(castAt + whole.cost(tag).action, null, state.active, null, false, void 0, void 0, void 0, void 0), check });
+          const entry = timedEntry(castAt + whole.cost(tag).action, null, state.active, null, false, void 0, void 0, void 0, void 0);
+          entry.check = check;
+          insertByDue(state.timed, entry);
         }
       }
     }
@@ -6066,8 +6128,47 @@ var INSTA_OF = {
   [ActionTag.HoldCancel]: ".instaCancel()",
   [ActionTag.DodgeCancel]: ".instaDodge()",
   [ActionTag.JumpCancel]: ".instaJump()",
-  [ActionTag.SwapCancel]: ".instaSwap()"
+  [ActionTag.SwapCancel]: ".instaSwap()",
+  [ActionTag.MashSwap]: ".instaSwap()"
 };
+var SWAP_FORMS = /* @__PURE__ */ new Set([ActionTag.SwapCancel, ActionTag.InstaSwap, ActionTag.MashSwap]);
+var PLAIN_OF = {
+  [ActionTag.SwapCancel]: ".cancel()",
+  [ActionTag.InstaSwap]: ".cancel()",
+  [ActionTag.MashSwap]: ".mashCancel()"
+};
+var SWAP_OF = {
+  [ActionTag.Cancel]: ".swapCancel()",
+  [ActionTag.InstaCancel]: ".instaSwap()",
+  [ActionTag.MashCancel]: ".mashSwap()",
+  [ActionTag.HoldCancel]: ".mashSwap()",
+  [ActionTag.HitCancel]: ".swapCancel()"
+};
+function checkSwap(state, press, kind, ahead) {
+  const at = press.cost(kind).action, block = press.noSwapFrames;
+  if (kind === ActionTag.MashSwap && press.animFrames && block + MASH_DELAY >= press.animFrames) {
+    throw new Error(`${press.name}: its mash swap lets go at frame ${block + MASH_DELAY} of ${press.animFrames}, saving nothing over playing it out`);
+  }
+  if ((kind === ActionTag.SwapCancel || kind === ActionTag.InstaSwap) && at < block) {
+    throw new Error(`${press.name}: its ${kind} swaps at frame ${at}, inside its ${block} no-swap frames \u2014 write .mashSwap() instead`);
+  }
+  if (!ahead || ahead.queued || ahead.slot >= 0)
+    return;
+  ctx.state = state;
+  ctx.slot = state.slot;
+  const next = ahead.action.resolveFn ? resolving(ahead.action.resolveFn) : ahead.action;
+  if (next?.cast !== 6 || kind === ActionTag.Default || kind === ActionTag.NoTb || kind === ActionTag.Field)
+    return;
+  if (SWAP_FORMS.has(kind) && next.animFrames) {
+    throw new Error(`${press.name}: a ${kind} into ${next.name}, an Outro with an animation \u2014 write ${PLAIN_OF[kind]} instead`);
+  }
+  if (!SWAP_FORMS.has(kind) && !next.animFrames) {
+    throw new Error(`${press.name}: a ${kind} into ${next.name}, an Outro with no animation \u2014 write ${SWAP_OF[kind] ?? "a swap form"} instead`);
+  }
+  if (!SWAP_FORMS.has(kind) && kind !== ActionTag.MashCancel && kind !== ActionTag.HoldCancel && at < block) {
+    throw new Error(`${press.name}: its ${kind} into ${next.name} lets go at frame ${at}, inside its ${block} no-swap frames`);
+  }
+}
 var PRIORITY_CUTS = /* @__PURE__ */ new Set([
   ActionTag.Cancel,
   ActionTag.DodgeCancel,
@@ -6096,7 +6197,7 @@ function checkHoldCut(press, kind, cut) {
 }
 var STEP_CUTS = /* @__PURE__ */ new Set([ActionTag.SwapCancel, ActionTag.Cancel, ActionTag.HitCancel, ActionTag.InstaCancel]);
 var TAKEN_CUTS = /* @__PURE__ */ new Set([...STEP_CUTS, ActionTag.DodgeCancel, ActionTag.InstaDodge, ActionTag.DodgeOnHit]);
-var LENGTH_CHECKED = /* @__PURE__ */ new Set([ActionTag.Cancel, ActionTag.MashCancel, ActionTag.HoldCancel, ActionTag.DodgeCancel, ActionTag.InstaDodge, ActionTag.JumpCancel, ActionTag.InstaJump, ActionTag.InstaCancel, ActionTag.SwapCancel]);
+var LENGTH_CHECKED = /* @__PURE__ */ new Set([ActionTag.Cancel, ActionTag.MashCancel, ActionTag.HoldCancel, ActionTag.DodgeCancel, ActionTag.InstaDodge, ActionTag.JumpCancel, ActionTag.InstaJump, ActionTag.InstaCancel, ActionTag.SwapCancel, ActionTag.MashSwap]);
 function checkCutLength(base, kind) {
   if (!base.animFrames)
     return;
@@ -6294,15 +6395,16 @@ function newStep(action, slot, by, group, end, spill, queued2, cut, at = void 0,
     endCut: from?.cut,
     hold,
     waited: false,
-    holdShift: void 0
+    holdShift: void 0,
+    check: void 0
   };
 }
 function unwrap(a) {
   return a.of !== void 0 ? [a.of, a.kind] : [a, null];
 }
-function outroLanding(state, slot, due) {
+function qteLanding(state, slot, due) {
   const land = () => {
-    for (const gear of state.outroQueue.splice(0))
+    for (const gear of state.qteQueue.splice(0))
       slot.addStack(gear, 1);
   };
   return timedEntry(due, null, state.active, null, void 0, land, void 0, void 0, void 0);
@@ -7051,8 +7153,8 @@ var TUNE_BREAK_ENEMY = new Resonator({
       applyEnemy(READY_AT_CUT, 1);
   },
   // A break castable on that cut frame plays once the cut's delay is out — in a plain dodge's place,
-  // or ahead of the next step after a swap cancel or a plain cancel — mid-group or not: the cut
-  // becomes a plain one, and a swap cancel's Outro still comes after the break
+  // or ahead of the next step after a swap form or a plain cancel — mid-group or not: the cut
+  // becomes a plain one, and a swap form's Outro still comes after the break
   takesCut: (behind, cut) => {
     const plain = BREAK_CUTS.get(cut), ready = stacksOfEnemy(READY_AT_CUT) > 0;
     revokeEnemy(READY_AT_CUT);
@@ -8179,11 +8281,12 @@ var unisonOutro = (outro) => {
 var gainedUnison = inflicting(() => applied2(UNISON) > 0);
 var UNISON_INTRO = new Buff({
   //name: "Unison Intro",
+  afterHit: () => {
+    if (introPaid())
+      revokeCurrent(UNISON_INTRO);
+  },
   afterAction: () => {
-    if (casting(
-      5
-      /* Cast.Intro */
-    ))
+    if (introPaid())
       revokeCurrent(UNISON_INTRO);
   }
 });
@@ -8192,14 +8295,21 @@ function unisonIntro() {
 }
 var UNISON_RESPONSE = new Buff({
   //name: "Unison Response",
+  afterHit: () => {
+    if (introPaid())
+      revokeCurrent(UNISON_RESPONSE);
+  },
   afterAction: () => {
-    if (casting(
-      5
-      /* Cast.Intro */
-    ))
+    if (introPaid())
       revokeCurrent(UNISON_RESPONSE);
   }
 });
+function introPaid() {
+  return casting(
+    5
+    /* Cast.Intro */
+  ) && (hitting() ? lastHit() : !currentCast().bullets.length);
+}
 function respondToUnison() {
   if (isHeld(UNISON_INTRO))
     applyCurrent(UNISON_RESPONSE, 1);
@@ -9792,6 +9902,7 @@ var Skill = cartethyiaAction("Skill - Sword to Bear Their Names", {
   castConcerto: 1e3
 });
 var Intro = cartethyiaAction("Intro - Sword to Mark Tide's Trace", {
+  qteFrames: 32,
   animFrames: 56,
   noSwapFrames: 40,
   animPriority: { 56: 2 },
@@ -9905,6 +10016,7 @@ var FSkill2 = cartethyiaAction("Skill - May Tempest Break the Tides", {
   updateBuffs: () => revokeCurrent(MAY_TEMPEST_READY)
 });
 var FIntro = cartethyiaAction("Intro - Sword to Call for Freedom", {
+  qteFrames: 47,
   requireBuff: MANIFEST,
   animFrames: 71,
   noSwapFrames: 56,
@@ -10941,7 +11053,7 @@ var ACTION_FALLACY = new SummonEcho("Echo - Fallacy of No Return", {
   scaling: 1,
   type: 28672,
   bullets: [{ hitFrame: 0, mv: 1585, energy: 304 }],
-  afterAction: () => applyTeam(FALLACY_TEAM, 1)
+  updateBuffs: () => applyTeam(FALLACY_TEAM, 1)
 });
 var FALLACY_TEAM = new Buff({ name: "Fallacy of No Return", duration: 60 * 20, stats: [[6, 10]] });
 var FALLACY = new Mainslot({
@@ -11098,6 +11210,7 @@ var Liberation2 = cadenza("Liberation - Singer's Triple Cadenza", () => applyEne
 var LiberationYellow = cadenza("Liberation - Singer's Triple Cadenza (Yellow Tonic)", () => applyEnemy(SPECTRO_FRAZZLE, 1));
 var CADENZAS = /* @__PURE__ */ new Set([Liberation2, LiberationYellow]);
 var Intro2 = ciacconaAction("Intro - Roaming with the Wind", {
+  qteFrames: 40,
   animFrames: 54,
   noSwapFrames: 61,
   animPriority: { 54: 2 },
@@ -12037,6 +12150,7 @@ var Liberation3 = roverAction("Liberation - Omega Storm", { animFrames: 211, cas
   { hitFrame: 151, element: null, type: null, subtype: null, updateDebuffs: () => applyCurrent(HEALS, 1) }
 ], castConcerto: 2e3, resetEnergy: true });
 var Intro3 = roverAction("Intro - Relentless Squall", {
+  qteFrames: 34,
   motionStop: [0, 30],
   animFrames: 85,
   animPriority: { 85: 2 },
@@ -12319,6 +12433,7 @@ var Liberation4 = iunoAction("Liberation - Beneath Lunar Tides", {
   }
 });
 var Intro4 = iunoAction("Intro - Illuminated Manifestation", {
+  qteFrames: 36,
   animFrames: 81,
   noSwapFrames: 84,
   animPriority: { 81: 2 },
@@ -12351,7 +12466,7 @@ var Outro4 = iunoAction("Outro - From Gloom to Gleam", {
   bullets: [{ hitFrame: 0, mv: 1e4 }],
   minConcerto: 1e4,
   castConcerto: -1e4,
-  updateBuffs: () => queueOutro(IUNO_OUTRO)
+  updateBuffs: () => queueQTE(IUNO_OUTRO)
 });
 var JumpHeavy = iunoAction("Heavy - Flux: Moonbow", {
   requireBuff: LUNAR_CYCLE,
@@ -12603,9 +12718,11 @@ var IUNO = new Loadout({
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
     new EchoLoadout(FALLACY, REJUV_5PC)
   ],
+  // an ER 3-cost is on the table: behind Roccia her bar wants more Energy than her spread can carry
   mainstats: mainstatOptions(
     0,
     1,
+    5,
     6,
     12,
     15
@@ -12810,7 +12927,7 @@ var Outro5 = jianxinAction("Outro - Transcendence", {
   cast: 6,
   minConcerto: 1e4,
   castConcerto: -1e4,
-  updateBuffs: () => queueOutro(TRANSCENDENCE)
+  updateBuffs: () => queueQTE(TRANSCENDENCE)
 });
 var TRANSCENDENCE = new Buff({
   name: "Jianxin: Outro",
@@ -13368,8 +13485,8 @@ var Outro6 = jiyanAction("Outro - Discipline", {
   castConcerto: -1e4,
   // queued twice so the adopter picks the buff up at both charges
   updateBuffs: () => {
-    queueOutro(JIYAN_OUTRO);
-    queueOutro(JIYAN_OUTRO);
+    queueQTE(JIYAN_OUTRO);
+    queueQTE(JIYAN_OUTRO);
   }
 });
 var DISCIPLINE_FIELD = new ActionField("Jiyan: Discipline");
@@ -14154,6 +14271,7 @@ var Liberation7 = qxAction("Liberation - Billows Beneath Heaven", {
   updateBuffs: () => applyCurrent(HEAVENS_CLARITY, 1)
 });
 var Intro7 = qxAction("Intro - Tonality Shift", {
+  qteFrames: 28,
   animFrames: 64,
   noSwapFrames: 57,
   animPriority: { 64: 0 },
@@ -14513,6 +14631,7 @@ var Liberation8 = qiuyuanAction("Liberation - Sundering Strike", {
   updateBuffs: () => applyTeam(SUNDERING_STRIKE, 1)
 });
 var Intro8 = qiuyuanAction("Intro - Attack the Must-Defend", {
+  qteFrames: 48,
   animFrames: 74,
   noSwapFrames: 70,
   castPriority: 11,
@@ -14534,12 +14653,14 @@ var Intro8 = qiuyuanAction("Intro - Attack the Must-Defend", {
 });
 var Outro8 = qiuyuanAction("Outro - Strike Before Ready", {
   animFrames: 65,
+  animPriority: { 0: 10, 65: 1 },
+  castPriority: 10,
   cast: 6,
   type: 28672,
   bullets: [{ hitFrame: 82, commitFrame: 40, mv: 1e4 }],
   minConcerto: 1e4,
   castConcerto: -1e4,
-  updateBuffs: () => queueOutro(QIUYUAN_OUTRO)
+  updateBuffs: () => queueQTE(QIUYUAN_OUTRO)
 });
 var StrawCape = qiuyuanAction("Skill - Straw Cape in Drizzly Rain (S3)", {
   animFrames: 44,
@@ -14567,6 +14688,8 @@ var StrawCape = qiuyuanAction("Skill - Straw Cape in Drizzly Rain (S3)", {
 });
 var OutroS3 = qiuyuanAction("Outro - Sheath Fallen, New Shoots Revealed (S3)", {
   animFrames: 65,
+  animPriority: { 0: 10, 65: 1 },
+  castPriority: 10,
   requireBuff: STRAW_CAPE,
   cast: 6,
   type: 28672,
@@ -14574,7 +14697,7 @@ var OutroS3 = qiuyuanAction("Outro - Sheath Fallen, New Shoots Revealed (S3)", {
   minConcerto: 1e4,
   castConcerto: -1e4,
   updateBuffs: () => {
-    queueOutro(QIUYUAN_OUTRO);
+    queueQTE(QIUYUAN_OUTRO);
     revokeCurrent(STRAW_CAPE);
   }
 });
@@ -14766,14 +14889,14 @@ var QY_ROTATION = new Rotation([
   EBA4.instaDodge(),
   EBA12.instaDodge(),
   EBA12.holdCancel(),
-  FHA123.swapCancel(),
+  FHA123.cancel(),
   OUTRO,
   INTRO,
   SkillHold.instaCancel(),
   ECHO.instaDodge(),
   Liberation8,
   EBA12.holdCancel(),
-  FHA123.swapCancel(),
+  FHA123.cancel(),
   OUTRO
 ]);
 var QY_ROTATION_MDPS = new Rotation([
@@ -15383,9 +15506,10 @@ var BA47 = sigrikaAction("Basic - One, Two, Three 4", {
     { hitFrame: 22, mv: 4136, energy: 65, concerto: 130, offtune: 2080 },
     { hitFrame: 28, mv: 5170, energy: 82, concerto: 163, offtune: 2600 },
     { hitFrame: 46, mv: 5170, energy: 82, concerto: 163, offtune: 2600 },
+    // Decipher (Elucidated's window) opens on frame 60, not on the cast
+    { hitFrame: 60, element: null, type: null, subtype: null, updateDebuffs: () => applyCurrent(DECIPHER, 1) },
     { hitFrame: 72, commitFrame: 60, mv: 6203, energy: 98, concerto: 195, offtune: 3120 }
-  ],
-  updateBuffs: () => applyCurrent(DECIPHER, 1)
+  ]
 });
 var MA6 = sigrikaAction("Mid-air - One, Two, Three Plunge", { animFrames: 44, animPriority: { 36: 2 }, castPriority: 6, node: 0, cast: 1, type: 4096, bullets: [{ hitFrame: 38, mv: 10478, energy: 155, concerto: 310, offtune: 4960 }] });
 var MDC2 = sigrikaAction("Dodge Counter - One, Two, Three (Mid-Air)", { animFrames: 44, animPriority: { 0: 6, 36: 2 }, castPriority: 8, bullets: [{ hitFrame: 38, mv: 20617, energy: 305, concerto: 610, offtune: 9920 }], node: 0, cast: 0, type: 4096, castConcerto: 1e3 });
@@ -15548,7 +15672,7 @@ function spendRunes(follow) {
 }
 var FSkill = sigrikaAction("Forte Skill - Learn My True Name", {
   minForte2: 100,
-  animFrames: 138,
+  animFrames: 146,
   noSwapFrames: 132,
   animPriority: { 0: 10, 132: 9, 138: 2 },
   castPriority: 5,
@@ -15557,8 +15681,8 @@ var FSkill = sigrikaAction("Forte Skill - Learn My True Name", {
   cast: 3,
   type: 28672,
   bullets: [
-    { hitFrame: 86, mv: 30287, energy: 136, concerto: 500, offtune: 25334 },
-    { hitFrame: 130, commitFrame: 86, mv: 90861, energy: 407, concerto: 1500, offtune: 76002 }
+    { hitFrame: 88, mv: 30287, energy: 136, concerto: 500, offtune: 25334 },
+    { hitFrame: 140, commitFrame: 88, mv: 90861, energy: 407, concerto: 1500, offtune: 76002 }
   ],
   castConcerto: 1e3,
   castForte2: -100,
@@ -15583,8 +15707,8 @@ var Liberation9 = sigrikaAction("Liberation - Where Trust Leads Me!", {
   resetEnergy: true,
   updateBuffs: () => applyCurrent(DIVERGENT)
 });
-var Intro9 = sigrikaAction("Intro - Solsworn Etymology", { animFrames: 58, noSwapFrames: 48, animPriority: { 58: 2 }, castPriority: 11, motionStop: [5, 42], node: 4, cast: 5, type: 20480, bullets: [{ hitFrame: 46, mv: 16342, energy: 1e3, offtune: 7736 }], castConcerto: 1e3 });
-var Outro9 = sigrikaAction("Outro - In This Very Moment", { animFrames: 48, cast: 6, type: 24576, bullets: [{ hitFrame: 18, mv: 79500 }], minConcerto: 1e4, castConcerto: -1e4 });
+var Intro9 = sigrikaAction("Intro - Solsworn Etymology", { qteFrames: 42, animFrames: 58, noSwapFrames: 48, animPriority: { 58: 2 }, castPriority: 11, motionStop: [5, 42], node: 4, cast: 5, type: 20480, bullets: [{ hitFrame: 46, mv: 16342, energy: 1e3, offtune: 7736 }], castConcerto: 1e3 });
+var Outro9 = sigrikaAction("Outro - In This Very Moment", { animFrames: 48, castPriority: 10, cast: 6, type: 24576, bullets: [{ hitFrame: 18, mv: 79500 }], minConcerto: 1e4, castConcerto: -1e4 });
 var BLESSING_OF_RUNES = new Buff({
   name: "Sigrika: Blessing of Runes",
   maxStacks: 6,
@@ -15708,20 +15832,15 @@ var INNATE_GIFT = new Buff({
     }
   },
   updateBuffs: () => {
-    if (isHeld(SR_S3))
-      return;
-    lostOnSwap();
-    if (isHeld(INNATE_SPENT) && !runningAction(RunicOutburst) && !runningAction(RunicChainWhip) && !runningAction(RunicSoliskin)) {
-      revokeCurrent(INNATE_GIFT);
-      revokeCurrent(INNATE_SPENT);
-    }
+    if (!isHeld(SR_S3))
+      lostOnSwap();
   },
+  // spent once Learn My True Name ends: a hit of it landing behind a cut no longer runs it, and pays nothing
   afterAction: () => {
     if (runningAction(FSkill) && !isHeld(SR_S3))
-      applyCurrent(INNATE_SPENT, 1);
+      revokeCurrent(INNATE_GIFT);
   }
 });
-var INNATE_SPENT = new Buff({ name: "Sigrika: Innate Gift? (spent)", hidden: true, lostOnSwap: true });
 var SOLISKIN_VITALITY = new Buff({
   name: "Sigrika: Soliskin Vitality",
   maxStacks: 60,
@@ -15828,7 +15947,7 @@ var SR_ROTATION = new Rotation([
   FSkill,
   Skill8,
   BA343,
-  EBASIC.instaSwap(),
+  EBASIC.cancel(),
   OUTRO
 ]);
 var SR_ROTATION_DOUBLE = new Rotation([
@@ -15843,13 +15962,13 @@ var SR_ROTATION_DOUBLE = new Rotation([
   BA2343,
   ESKILL,
   BA2343,
-  EBASIC.hitCancel(),
-  Liberation9,
+  EBASIC.cancel(),
   FHA5.holdCancel(),
   FSkill,
+  Liberation9,
   Skill8,
   BA343,
-  EBASIC.instaSwap(),
+  EBASIC.cancel(),
   OUTRO
 ]);
 var SR_ROTATION_FAST = new Rotation([
@@ -16494,6 +16613,7 @@ var CurtainCall = phroAction("Liberation - Curtain Call", {
   }
 });
 var Intro10 = phroAction("Intro - Suite of Quietus", {
+  qteFrames: 36,
   animFrames: 80,
   noSwapFrames: 76,
   animPriority: { 80: 1 },
@@ -16506,6 +16626,7 @@ var Intro10 = phroAction("Intro - Suite of Quietus", {
   castConcerto: 1e3
 });
 var EIntro = phroAction("Intro - Suite of Immortality", {
+  qteFrames: 10,
   animFrames: 93,
   noSwapFrames: 90,
   animPriority: { 93: 1 },
@@ -16527,7 +16648,7 @@ var Outro10 = phroAction("Outro - Unfinished Piece", {
   minConcerto: 1e4,
   castConcerto: -1e4,
   updateBuffs: () => {
-    queueOutro(PHROLOVA_OUTRO);
+    queueQTE(PHROLOVA_OUTRO);
     if (stacksOf(MAESTRO))
       queueEnhanced(2, true);
   }
@@ -17208,13 +17329,13 @@ var Lib22 = augustaAction("Liberation - Sublime is the Sun", {
   updateBuffs: () => applyTeam(RULERS_REALM, 1)
 });
 var ThunderRage = augustaAction("Heavy - Thunder Rage (S6)", { node: 2, type: 8192, bullets: [{ hitFrame: 0, mv: 2e4 }] });
-var Intro11 = augustaAction("Intro - Stride of Goldenflare", { animFrames: 73, noSwapFrames: 68, animPriority: { 73: 2 }, castPriority: 11, motionStop: [6, 15], node: 4, cast: 5, type: 20480, bullets: [{ hitFrame: 46, mv: 9941, energy: 500, offtune: 4800 }, { hitFrame: 63, mv: 9941, energy: 500, offtune: 4800 }], castConcerto: 1e3, castForte1: 660, castForte2: 1e3 });
+var Intro11 = augustaAction("Intro - Stride of Goldenflare", { qteFrames: 59, animFrames: 73, noSwapFrames: 68, animPriority: { 73: 2 }, castPriority: 11, motionStop: [6, 15], node: 4, cast: 5, type: 20480, bullets: [{ hitFrame: 46, mv: 9941, energy: 500, offtune: 4800 }, { hitFrame: 63, mv: 9941, energy: 500, offtune: 4800 }], castConcerto: 1e3, castForte1: 660, castForte2: 1e3 });
 var Outro11 = augustaAction("Outro - Battlesong of the Unyielding", {
   animFrames: 0,
   cast: 6,
   minConcerto: 1e4,
   castConcerto: -1e4,
-  updateBuffs: () => queueOutro(BATTLESONG)
+  updateBuffs: () => queueQTE(BATTLESONG)
 });
 var CROWN_OF_WILLS = new Buff({
   name: "Augusta: Crown of Wills",
@@ -17573,6 +17694,7 @@ var Liberation11 = jinhsiAction("Liberation - Purge of Light", {
   resetEnergy: true
 });
 var Intro12 = jinhsiAction("Intro - Loong's Halo", {
+  qteFrames: 42,
   animFrames: 60,
   noSwapFrames: 78,
   animPriority: { 60: 1 },
@@ -18192,15 +18314,15 @@ var Outro13 = suomingAction("Outro - Canopy Rumble", {
   minConcerto: 1e4,
   castConcerto: -1e4,
   updateBuffs: () => {
-    queueOutro(CANOPY_RUMBLE);
-    queueOutro(CANOPY_RUMBLE_SKILL);
+    queueQTE(CANOPY_RUMBLE);
+    queueQTE(CANOPY_RUMBLE_SKILL);
     if (isHeld(UNISON)) {
       applyCurrent(ALIGNED_SEALS, 1);
       revokeCurrent(SEAL_MASTER);
       applyTeam(BLIGHT_RAIN, BLIGHT_RAIN.maxStacks);
     }
     if (isHeld(ALIGNED_SEALS))
-      queueOutro(ALIGNED_SEALS_HANDOFF);
+      queueQTE(ALIGNED_SEALS_HANDOFF);
   }
 });
 var OutroUnison2 = unisonOutro(Outro13);
@@ -19090,6 +19212,7 @@ var ManifoldAnswering = hsinAction("Intro - Answering Form: Manifold Unison", {
   castForte1: 6e3
 });
 var UIIntro = hsinAction("Intro - Illumining Form", {
+  qteFrames: 8,
   requireBuff: ILLUMINING_FORM,
   animFrames: 152,
   noSwapFrames: 151,
@@ -19117,6 +19240,7 @@ var UIIntro = hsinAction("Intro - Illumining Form", {
   updateBuffs: () => applyCurrent(MECHANISM_DOMINION, 1)
 });
 var ManifoldIllumining = hsinAction("Intro - Illumining Form: Manifold Unison", {
+  qteFrames: 8,
   requireBuff: ILLUMINING_FORM,
   animFrames: 152,
   noSwapFrames: 151,
@@ -19824,6 +19948,7 @@ var FiveThundersArray = bulingAction("Liberation - Five Thunders Spell Array", {
 });
 var ARRAYS = /* @__PURE__ */ new Set([FiveThundersArray]);
 var Intro13 = bulingAction("Intro - Summon and Smite", {
+  qteFrames: 7,
   animFrames: 80,
   noSwapFrames: 59,
   animPriority: { 70: 2 },
@@ -20312,7 +20437,7 @@ var Outro16 = lucyAction("Outro - Countermeasure Program", {
   minConcerto: 1e4,
   castConcerto: -1e4,
   updateBuffs: () => {
-    queueOutro(COUNTERMEASURE_HANDOFF);
+    queueQTE(COUNTERMEASURE_HANDOFF);
     applyTeam(COUNTERMEASURE_MARKER, 1);
   }
 });
@@ -21249,7 +21374,7 @@ var Outro18 = rebeccaAction("Outro - Preem Choom", {
       applyTeam(REBECCA_TURRET_LUCY, 4);
     else
       applyTeam(REBECCA_TURRET, 14);
-    queueOutro(EDGERUNNER_BONDS);
+    queueQTE(EDGERUNNER_BONDS);
     addGain({ forte2: 120 });
   }
 });
@@ -21732,6 +21857,7 @@ var THRUMS = /* @__PURE__ */ new Set([
 ]);
 var Liberation13 = roverAction2("Liberation - Ultimate Tactics", { animFrames: 224, castPriority: 10, bullets: [{ hitFrame: 190, mv: 119286, offtune: 57600 }], timestop: [0, 224], motionStop: [0, 224], cooldown: 60 * 25, node: 3, cast: 4, type: 16384, castConcerto: 2e3, resetEnergy: true });
 var Intro17 = roverAction2("Intro - Thunderous Fury", {
+  qteFrames: 70,
   animFrames: 72,
   noSwapFrames: 72,
   motionStop: [5, 37],
@@ -21752,7 +21878,7 @@ var Outro19 = roverAction2("Outro - Rumbling Thunders", {
   minConcerto: 1e4,
   castConcerto: -1e4,
   resetForte2: true,
-  updateBuffs: () => queueOutro(ELECTRO_CORE)
+  updateBuffs: () => queueQTE(ELECTRO_CORE)
 });
 var RAGE_DRAIN = new Buff({
   name: "Electro Rover: Thunder Rage Drain",
@@ -22090,9 +22216,9 @@ var Outro20 = xlyAction("Outro - Chain Rule", {
   castConcerto: -1e4,
   // queued three times so the adopter picks the buff up at all three charges
   updateBuffs: () => {
-    queueOutro(XLY_OUTRO);
-    queueOutro(XLY_OUTRO);
-    queueOutro(XLY_OUTRO);
+    queueQTE(XLY_OUTRO);
+    queueQTE(XLY_OUTRO);
+    queueQTE(XLY_OUTRO);
   }
 });
 var CHAIN_RULE_FIELD = new ActionField("Xiangli Yao: Chain Rule");
@@ -22392,7 +22518,7 @@ var Outro21 = yinlinAction("Outro - Strategist", {
   cast: 6,
   minConcerto: 1e4,
   castConcerto: -1e4,
-  updateBuffs: () => queueOutro(YINLIN_OUTRO)
+  updateBuffs: () => queueQTE(YINLIN_OUTRO)
 });
 var SINNERS_MARK = new Debuff({
   name: "Yinlin: Sinner's Mark",
@@ -22826,12 +22952,12 @@ var Lib25 = aemeathAction("Liberation - Heavenfall Edict: Finale", {
   }
 });
 var INTRO_DEF = { node: 4, cast: 5, type: 20480, updateBuffs: () => applyCurrent(STARLUME, 1) };
-var Intro20 = aemeathAction("Intro - Songs Across the Universe", { ...AE, ...laysEvery3s("Songs Across the Universe"), animFrames: 72, noSwapFrames: 60, animPriority: { 74: 2 }, castPriority: 11, motionStop: [5, 49], ...INTRO_DEF, bullets: [
+var Intro20 = aemeathAction("Intro - Songs Across the Universe", { qteFrames: 48, ...AE, ...laysEvery3s("Songs Across the Universe"), animFrames: 72, noSwapFrames: 60, animPriority: { 74: 2 }, castPriority: 11, motionStop: [5, 49], ...INTRO_DEF, bullets: [
   { hitFrame: 52, mv: 1346, energy: 100, offtune: 774 },
   { hitFrame: 56, mv: 1346, energy: 100, offtune: 774 },
   { hitFrame: 59, mv: 10766, energy: 800, offtune: 6189 }
 ], castConcerto: 1e3, castForte1: 4e3 });
-var EIntro3 = aemeathAction("Intro - Debut of Meteoric Radiance", { ...MECH, ...laysEvery3s("Debut of Meteoric Radiance"), animFrames: 74, noSwapFrames: 72, animPriority: { 76: 2 }, castPriority: 11, motionStop: [5, 44], ...INTRO_DEF, bullets: [
+var EIntro3 = aemeathAction("Intro - Debut of Meteoric Radiance", { qteFrames: 40, ...MECH, ...laysEvery3s("Debut of Meteoric Radiance"), animFrames: 74, noSwapFrames: 72, animPriority: { 76: 2 }, castPriority: 11, motionStop: [5, 44], ...INTRO_DEF, bullets: [
   { hitFrame: 42, mv: 6530, energy: 400, offtune: 3754 },
   { hitFrame: 60, mv: 9795, energy: 600, offtune: 5631 }
 ], castConcerto: 1e3, castForte1: 4e3 });
@@ -23292,7 +23418,7 @@ var Intro21 = brantAction("Intro - Applaud for Me!", {
   ],
   castConcerto: 1e3
 });
-var Outro23 = brantAction("Outro - The Course is Set!", { cast: 6, minConcerto: 1e4, castConcerto: -1e4, updateBuffs: () => queueOutro(BRANT_OUTRO) });
+var Outro23 = brantAction("Outro - The Course is Set!", { cast: 6, minConcerto: 1e4, castConcerto: -1e4, updateBuffs: () => queueQTE(BRANT_OUTRO) });
 var Skill19 = brantAction("Skill - Anchors Aweigh!", { animFrames: 46, castPriority: 4, cooldown: 60 * 4, node: 1, cast: 3, type: 12288, bullets: [
   { hitFrame: 21, mv: 20035, energy: 431, offtune: 6096 },
   { hitFrame: 21, mv: 13357, energy: 287, offtune: 4064, forte1: 788 }
@@ -23351,7 +23477,13 @@ var FSkill5 = brantAction("Forte Skill - Returned from Ashes", {
     { hitFrame: 109, mv: 132209, energy: 2100, concerto: 2100, offtune: 44240 }
   ],
   castConcerto: 2e3,
-  castForte1: -1e4
+  castForte1: -1e4,
+  // its own end, not Aflame's: behind a swap it can run out after Aflame's 12s already has
+  afterAction: () => {
+    revokeCurrent(AFLAME);
+    revokeCurrent(MY_MOMENT);
+    applyCurrent(THEATRICAL_MOMENT, 1);
+  }
 });
 var BA121 = brantAction("Basic - Captain's Rhapsody 1", { castPriority: 2, node: 0, cast: 1, type: 4096, bullets: [{ hitFrame: 0, mv: 5053, energy: 75, concerto: 150, offtune: 2392, forte1: 130 }] });
 var BA221 = brantAction("Basic - Captain's Rhapsody 2", { castPriority: 2, node: 0, cast: 1, type: 4096, bullets: [
@@ -23446,16 +23578,9 @@ var AFLAME = new Buff({
     const node = currentCast().node;
     if (node === 0 || node === 1)
       addGain({ forte1: currentHit().forte1 });
-  },
-  // ...and hands the conversion back down once that press runs out, so every hit of it still
-  // gets the Aflame rate.
-  afterAction: () => {
-    if (!runningAction(FSkill5))
-      return;
-    revokeCurrent(AFLAME);
-    revokeCurrent(MY_MOMENT);
-    applyCurrent(THEATRICAL_MOMENT, 1);
   }
+  // ...and Returned from Ashes hands the conversion back down once it runs out (its own
+  // afterAction), so every hit of it still gets the Aflame rate.
 });
 var THEATRICAL_MOMENT = new Buff({
   name: "Brant: Theatrical Moment",
@@ -23765,7 +23890,7 @@ var Liberation17 = changliAction("Liberation - Radiance of Fealty", {
   resetEnergy: true,
   updateBuffs: () => applyCurrent(FIERY_FEATHER, 1)
 });
-var Intro22 = changliAction("Intro - Obedience of Rules", { animFrames: 45, noSwapFrames: 46, animPriority: { 45: 2 }, castPriority: 11, motionStop: [5, 44], node: 4, cast: 5, type: 20480, bullets: [
+var Intro22 = changliAction("Intro - Obedience of Rules", { qteFrames: 12, animFrames: 45, noSwapFrames: 46, animPriority: { 45: 2 }, castPriority: 11, motionStop: [5, 44], node: 4, cast: 5, type: 20480, bullets: [
   { hitFrame: 6, mv: 4450, energy: 300, offtune: 1791, updateDebuffs: () => applyCurrent(TRUE_SIGHT, 1) },
   { hitFrame: 18, commitFrame: 6, mv: 2596, energy: 175, offtune: 1045 },
   { hitFrame: 24, commitFrame: 6, mv: 2596, energy: 175, offtune: 1045 },
@@ -23777,7 +23902,7 @@ var Outro24 = changliAction("Outro - Strategy of Duality", {
   cast: 6,
   minConcerto: 1e4,
   castConcerto: -1e4,
-  updateBuffs: () => queueOutro(CHANGLI_OUTRO)
+  updateBuffs: () => queueQTE(CHANGLI_OUTRO)
 });
 var CH_INHERENT_1 = new Inherent({
   name: "Inherent: Secret Strategist",
@@ -24154,6 +24279,7 @@ var Liberation18 = luukAction("Liberation - Rewritten in Winter's Margins", {
   updateBuffs: () => revokeCurrent(GAVEL_READY)
 });
 var Intro23 = luukAction("Intro - Before Injection of Dawn", {
+  qteFrames: 23,
   animFrames: 75,
   noSwapFrames: 57,
   animPriority: { 73: 0 },
@@ -24482,8 +24608,9 @@ var DARK_CORE = new Buff({
     if (runningAction(Banish2))
       addStat(17, 150 * frozenStacks());
   },
-  afterAction: () => {
-    if (runningAction(Banish2))
+  // spent with the hit that pays them, which a cut ahead of it still lands
+  afterHit: () => {
+    if (runningAction(Banish2) && lastHit())
       revokeCurrent(DARK_CORE);
   }
 });
@@ -24653,6 +24780,7 @@ ErosionFieldS4.formOf = ErosionField;
 var FIELDS = /* @__PURE__ */ new Set([ErosionField]);
 var EROSION_SET = new Buff({ name: "Denia: Erosion Field" });
 var Intro24 = deniaAction("Intro - It's Been A While!", {
+  qteFrames: 25,
   ...STAGE,
   animFrames: 53,
   noSwapFrames: 47,
@@ -24668,6 +24796,7 @@ var Intro24 = deniaAction("Intro - It's Been A While!", {
   updateBuffs: () => applyCurrent(DARK_CORE)
 });
 var EIntro4 = deniaAction("Intro - Knock Knock", {
+  qteFrames: 38,
   ...BREAK,
   animFrames: 81,
   noSwapFrames: 75,
@@ -24699,7 +24828,7 @@ var Outro26 = deniaAction("Outro - Unfinished Lies", {
     if (isHeld(MODE_BURST2))
       applyTeam(UNFINISHED_LIES_BURST, 1);
     else
-      queueOutro(UNFINISHED_LIES_STRAIN);
+      queueQTE(UNFINISHED_LIES_STRAIN);
   }
 });
 function deniaLays(n) {
@@ -24908,9 +25037,9 @@ var DN_S3 = new Sequence({
     if ((runningBullet(BA420, -1) || runningBullet(Skill25, -1)) && stacksOf(DARK_CORE) >= 5)
       addStat(16, 12e4);
   },
-  // the lot is spent once that press runs out, so every hit of it pays
-  afterAction: () => {
-    if ((runningAction(BA420) || runningAction(Skill25)) && stacksOf(DARK_CORE) >= 5)
+  // the lot is spent once that press's last hit lands, so every hit of it pays
+  afterHit: () => {
+    if ((runningAction(BA420) || runningAction(Skill25)) && lastHit() && stacksOf(DARK_CORE) >= 5)
       revokeCurrent(DARK_CORE);
   }
 });
@@ -25202,7 +25331,7 @@ var FHA9 = encoreAction("Forte Heavy - Cosmos Rupture", { ...RAVE, animFrames: 2
   { hitFrame: 192, commitFrame: 42, mv: 4642, offtune: 2803 },
   { hitFrame: 203, mv: 49521, offtune: 29891 }
 ], castConcerto: 1e3, ...SPEND_MAYHEM, castForte1: -100 });
-var Intro25 = encoreAction("Intro - Woolies Helpers", { animFrames: 80, noSwapFrames: 75, animPriority: { 92: 1 }, castPriority: 11, motionStop: [0, 56], node: 4, cast: 5, type: 20480, bullets: [{ hitFrame: 60, mv: 19881, energy: 1e3, offtune: 15132, forte1: 40 }], castConcerto: 1e3 });
+var Intro25 = encoreAction("Intro - Woolies Helpers", { qteFrames: 60, animFrames: 80, noSwapFrames: 75, animPriority: { 92: 1 }, castPriority: 11, motionStop: [0, 56], node: 4, cast: 5, type: 20480, bullets: [{ hitFrame: 60, mv: 19881, energy: 1e3, offtune: 15132, forte1: 40 }], castConcerto: 1e3 });
 var Outro27 = encoreAction("Outro - Thermal Field", { animFrames: 0, cast: 6, type: 24576, bullets: [{ hitFrame: 0, mv: 17676 }, { hitFrame: 90, mv: 17676 }, { hitFrame: 180, mv: 17676 }, { hitFrame: 270, mv: 17676 }], minConcerto: 1e4, castConcerto: -1e4 });
 var WOOLIES_CHEER_DANCE = new Buff({
   name: "Inherent: Woolies Cheer Dance",
@@ -25877,7 +26006,7 @@ var UFSkill = lupaAction("Forte Skill - Dance With the Wolf: Climax", { minForte
   { hitFrame: 102, mv: 45375, energy: 1800, concerto: 1800, offtune: 32650 }
 ], castForte2: -2, ...BACKUP });
 var fskillFUA = lupaAction("Forte Skill - Set the Arena Ablaze", { tag: ActionTag.Field, animFrames: 96, node: 2, type: 12288, bullets: [{ hitFrame: 57, mv: 4235, offtune: 1920 }, { hitFrame: 70, mv: 16940, offtune: 7680 }] });
-var Intro27 = lupaAction("Intro - Try Focusing, Eh?", { animFrames: 70, noSwapFrames: 60, animPriority: { 60: 2 }, castPriority: 11, motionStop: [6, 60], node: 4, cast: 5, type: 20480, bullets: [
+var Intro27 = lupaAction("Intro - Try Focusing, Eh?", { qteFrames: 10, animFrames: 70, noSwapFrames: 60, animPriority: { 60: 2 }, castPriority: 11, motionStop: [6, 60], node: 4, cast: 5, type: 20480, bullets: [
   { hitFrame: 24, mv: 2976, energy: 150, offtune: 1409 },
   { hitFrame: 34, mv: 4216, energy: 213, offtune: 1996 },
   { hitFrame: 38, commitFrame: 34, mv: 4216, energy: 213, offtune: 1996 },
@@ -25885,6 +26014,7 @@ var Intro27 = lupaAction("Intro - Try Focusing, Eh?", { animFrames: 70, noSwapFr
   { hitFrame: 47, commitFrame: 34, mv: 4216, energy: 213, offtune: 1996 }
 ], castConcerto: 1e3 });
 var EIntro5 = lupaAction("Intro - Nowhere to Run!", {
+  qteFrames: 68,
   animFrames: 150,
   animPriority: { 140: 2 },
   castPriority: 11,
@@ -25915,7 +26045,7 @@ var Outro29 = lupaAction("Outro - Stand by Me, Warrior", {
   cast: 6,
   minConcerto: 1e4,
   castConcerto: -1e4,
-  updateBuffs: () => queueOutro(LUPA_OUTRO)
+  updateBuffs: () => queueQTE(LUPA_OUTRO)
 });
 var PACK_HUNT = new Buff({
   name: "Lupa: Pack Hunt",
@@ -26374,6 +26504,7 @@ var Liberation22 = mornyeAction("Liberation - Critical Protocol", {
   }
 });
 var Intro28 = mornyeAction("Intro - Convergence", {
+  qteFrames: 35,
   animFrames: 105,
   animPriority: { 80: 6 },
   castPriority: 11,
@@ -26579,7 +26710,7 @@ var MO_ROTATION_S3 = new Rotation([
 ]);
 var MO_ECHOES = [
   new EchoLoadout(REACTOR_HUSK, STARRY_RADIANCE_5PC),
-  new EchoLoadout(SPACETREK_EXPLORER, STARRY_RADIANCE_5PC)
+  new EchoLoadout(SPACETREK_EXPLORER, STARRY_RADIANCE_5PC).requires(JINGRAN_RESONATOR)
 ];
 var MORNYE = new Loadout({
   // 260% Energy Regen on the character screen at least, Blueprint's own +10% counted in it
@@ -26675,13 +26806,13 @@ var ACTION_S5_MARCATO = mortefiAction("Liberation - Marcato (S5 Funerary Quartet
   updateBuffs: () => applyCurrent(VIBRATO, 1),
   applyStats: () => addStat(18, -50)
 });
-var Intro29 = mortefiAction("Intro - Dissonance", { animFrames: 90, noSwapFrames: 90, castPriority: 11, motionStop: [4, 49], node: 4, cast: 5, type: 20480, bullets: [{ hitFrame: 44, mv: 16899, energy: 1e3, offtune: 8e3, forte1: 60 }], castConcerto: 1e3 });
+var Intro29 = mortefiAction("Intro - Dissonance", { qteFrames: 50, animFrames: 90, noSwapFrames: 90, castPriority: 11, motionStop: [4, 49], node: 4, cast: 5, type: 20480, bullets: [{ hitFrame: 44, mv: 16899, energy: 1e3, offtune: 8e3, forte1: 60 }], castConcerto: 1e3 });
 var Outro31 = mortefiAction("Outro - Rage Transposition", {
   animFrames: 0,
   cast: 6,
   minConcerto: 1e4,
   castConcerto: -1e4,
-  updateBuffs: () => queueOutro(MORTEFI_OUTRO)
+  updateBuffs: () => queueQTE(MORTEFI_OUTRO)
 });
 var PASSIONATE_TAIL = new Buff({
   name: "Mortefi: Passionate Variation",
@@ -27109,6 +27240,7 @@ var FatalFinale = carlottaAction("Liberation - Fatal Finale", {
 var FatalFinaleS2 = FatalFinale.variant("Liberation - Fatal Finale (S2)", { bullets: [{ hitFrame: 138, mv: 145617, offtune: 50400 }] });
 var FatalFinaleResolver = new Action("Fatal Finale Resolver", { resolve: () => isHeld(CL_S2) ? FatalFinaleS2 : FatalFinale });
 var Intro30 = carlottaAction("Intro - Wintertime Aria", {
+  qteFrames: 58,
   animFrames: 84,
   noSwapFrames: 70,
   animPriority: { 70: 2 },
@@ -27643,6 +27775,7 @@ var FROSTEDGE = {
   }
 };
 var Intro31 = hiyukiAction("Intro - Frostedge: Present Self", {
+  qteFrames: 30,
   requireBuff: PRESENT_SELF,
   animFrames: 64,
   noSwapFrames: 60,
@@ -27658,6 +27791,7 @@ var Intro31 = hiyukiAction("Intro - Frostedge: Present Self", {
   ...FROSTEDGE
 });
 var FIntro2 = hiyukiAction("Intro - Frostedge: Foreclaimed Self", {
+  qteFrames: 30,
   requireBuff: FORECLAIMED_SELF,
   animFrames: 68,
   noSwapFrames: 60,
@@ -28126,6 +28260,7 @@ var Intro32 = lucillaAction("Intro - Clip It", {
   updateBuffs: () => applyCurrent(CHAFE_WINDOW, 1)
 });
 var HardCut = lucillaAction("Intro - Clip It: Hard Cut", {
+  qteFrames: 5,
   requireBuff: REMINISCENCE,
   animFrames: 52,
   noSwapFrames: 52,
@@ -28147,7 +28282,7 @@ var Outro34 = lucillaAction("Outro - Montage", {
     if (isHeld(MODE_CHAFE))
       applyTeam(MONTAGE_CHAFE, 1);
     else
-      queueOutro(MONTAGE_HANDOFF);
+      queueQTE(MONTAGE_HANDOFF);
   }
 });
 var BA135 = lucillaAction("Basic - Snapshot 1", { animFrames: 30, castPriority: 2, node: 0, cast: 1, type: 4096, bullets: [{ hitFrame: 14, mv: 5929, energy: 107, concerto: 171, offtune: 3408 }] });
@@ -28584,6 +28719,7 @@ function sanhuaAction(id, def2) {
   return new Action(id, { element: 256, scaling: 0, ...def2 });
 }
 var Intro33 = sanhuaAction("Intro - Freezing Thorns", {
+  qteFrames: 52,
   animFrames: 60,
   animPriority: { 0: 8 },
   castPriority: 11,
@@ -28601,7 +28737,7 @@ var Outro35 = sanhuaAction("Outro - Silversnow", {
   cast: 6,
   minConcerto: 1e4,
   castConcerto: -1e4,
-  updateBuffs: () => queueOutro(SANHUA_OUTRO)
+  updateBuffs: () => queueQTE(SANHUA_OUTRO)
 });
 var Skill31 = sanhuaAction("Skill - Eternal Frost", {
   animFrames: 60,
@@ -29501,6 +29637,7 @@ var ACTION_HERALD_S6 = zhezhiAction("Skill - Ivory Herald (S6)", {
   bullets: [{ hitFrame: 0, mv: 35786 }]
 });
 var Intro35 = zhezhiAction("Intro - Radiant Ruin", {
+  qteFrames: 60,
   animFrames: 80,
   noSwapFrames: 80,
   castPriority: 11,
@@ -29521,7 +29658,7 @@ var Outro37 = zhezhiAction("Outro - Carve and Draw", {
   cast: 6,
   minConcerto: 1e4,
   castConcerto: -1e4,
-  updateBuffs: () => queueOutro(ZHEZHI_OUTRO)
+  updateBuffs: () => queueQTE(ZHEZHI_OUTRO)
 });
 var INKLIT_SPIRITS = coordinatedBuff("Zhezhi: Inklit Spirits", 27, () => ZHEZHI_RESONATOR, ACTION_INKLIT, {
   // S5: one extra spirit every third one summoned. The node is her own local gear, so it is read
@@ -29900,6 +30037,7 @@ var Perennial = camellyaAction("Forte Skill - Perennial (S6)", {
 });
 var Liberation28 = camellyaAction("Liberation - Fervor Efflorescent", { animFrames: 264, animPriority: { 239: 0 }, castPriority: 10, timestop: [0, 240], motionStop: [0, 240], cooldown: 60 * 25, node: 3, cast: 4, type: 16384, bullets: [{ hitFrame: 176, mv: 120281, offtune: 84e3 }], castConcerto: 2e3, resetEnergy: true });
 var Intro36 = camellyaAction("Intro - Everblooming", {
+  qteFrames: 36,
   animPriority: { 77: 1 },
   castPriority: 11,
   motionStop: [6, 34],
@@ -30361,6 +30499,7 @@ function dreamweavers(tick) {
     queue(tick);
 }
 var Intro37 = cantaAction("Intro - Ripple", {
+  qteFrames: 33,
   animFrames: 76,
   noSwapFrames: 80,
   animPriority: { 76: 2 },
@@ -30381,6 +30520,7 @@ var Intro37 = cantaAction("Intro - Ripple", {
   updateBuffs: () => applyCurrent(ABYSSAL_REBIRTH, 6)
 });
 var EIntro6 = cantaAction("Intro - Tidal Surge", {
+  qteFrames: 36,
   requireBuff: MIRAGE,
   animFrames: 83,
   noSwapFrames: 80,
@@ -30430,7 +30570,7 @@ var Outro39 = cantaAction("Outro - Gentle Tentacles", {
   cast: 6,
   minConcerto: 1e4,
   castConcerto: -1e4,
-  updateBuffs: () => queueOutro(CANTARELLA_OUTRO)
+  updateBuffs: () => queueQTE(CANTARELLA_OUTRO)
 });
 var ESKILL_JOLT = new Action("Jolt", { animFrames: 0, node: 1, element: 384, scaling: 0, type: 4096, bullets: [{ hitFrame: 0, mv: 19881 }] });
 var DIFFUSION_WINDOW = coordinatedBuff("Cantarella: Diffusion", 26, () => CANTARELLA_RESONATOR, ACTION_DIFFUSION);
@@ -30667,6 +30807,7 @@ var CHAINSAW_MODE = new Buff({ name: "Chisa: Chainsaw Mode" });
 var RENDING_LUNGE_READY = new Buff({ name: "Chisa: Rending Lunge Ready" });
 var READY_LUNGE = { updateBuffs: () => applyCurrent(RENDING_LUNGE_READY, 1) };
 var Intro38 = chisaAction("Intro - Reverberance - Return", {
+  qteFrames: 34,
   animFrames: 55,
   noSwapFrames: 54,
   animPriority: { 55: 2 },
@@ -31433,7 +31574,7 @@ var Liberation31 = danjinAction("Liberation - Crimson Bloom", { animFrames: 192,
   { hitFrame: 128, mv: 4909, offtune: 3840 },
   { hitFrame: 169, mv: 39265, offtune: 30720 }
 ], castConcerto: 2e3, resetEnergy: true });
-var Intro39 = danjinAction("Intro - Vindication", { animFrames: 103, noSwapFrames: 92, animPriority: { 99: 1 }, castPriority: 11, motionStop: [4, 51], node: 4, cast: 5, type: 20480, bullets: [
+var Intro39 = danjinAction("Intro - Vindication", { qteFrames: 62, animFrames: 103, noSwapFrames: 92, animPriority: { 99: 1 }, castPriority: 11, motionStop: [4, 51], node: 4, cast: 5, type: 20480, bullets: [
   { hitFrame: 54, mv: 4971, energy: 250, offtune: 3060 },
   { hitFrame: 64, mv: 4971, energy: 250, offtune: 3060 },
   { hitFrame: 73, mv: 4971, energy: 250, offtune: 3060 },
@@ -31444,7 +31585,7 @@ var Outro41 = danjinAction("Outro - Duality", {
   cast: 6,
   minConcerto: 1e4,
   castConcerto: -1e4,
-  updateBuffs: () => queueOutro(DANJIN_OUTRO)
+  updateBuffs: () => queueQTE(DANJIN_OUTRO)
 });
 var INCINERATING_WILL = new Debuff({
   name: "Danjin: Incinerating Will",
@@ -31745,12 +31886,12 @@ var Liberation32 = rocciaAction("Liberation - Commedia Improvviso!", {
   resetEnergy: true,
   updateBuffs: () => applyTeam(COMMEDIA_TEAM_ATK)
 });
-var Intro40 = rocciaAction("Intro - Pero, Help", { animFrames: 68, noSwapFrames: 84, animPriority: { 68: 2 }, castPriority: 11, motionStop: [6, 32], node: 4, cast: 5, type: 20480, bullets: [{ hitFrame: 52, mv: 16899, energy: 1e3, offtune: 10824 }], castConcerto: 1e3, castForte1: 100 });
+var Intro40 = rocciaAction("Intro - Pero, Help", { qteFrames: 48, animFrames: 68, noSwapFrames: 84, animPriority: { 68: 2 }, castPriority: 11, motionStop: [6, 32], node: 4, cast: 5, type: 20480, bullets: [{ hitFrame: 52, mv: 16899, energy: 1e3, offtune: 10824 }], castConcerto: 1e3, castForte1: 100 });
 var Outro42 = rocciaAction("Outro - Applause, Please!", {
   cast: 6,
   minConcerto: 1e4,
   castConcerto: -1e4,
-  updateBuffs: () => queueOutro(APPLAUSE_HANDOFF)
+  updateBuffs: () => queueQTE(APPLAUSE_HANDOFF)
 });
 var MAGIC_BOX = rocciaAction("Utility - Super Attractive Magic Box", {
   castPriority: 6,
@@ -31802,10 +31943,11 @@ var RC_INHERENT_2 = new Inherent({
   name: "Inherent: Super Attractive Magic Box",
   updateGlobal: () => {
     const acting = currentTeam().slot;
+    const handed = acting.isHeld(APPLAUSE_HANDOFF) || currentTeam().qteQueue.includes(APPLAUSE_HANDOFF);
     if (casting(
       5
       /* Cast.Intro */
-    ) && acting.isHeld(APPLAUSE_HANDOFF))
+    ) && handed)
       queueOn(acting.resonator, MAGIC_BOX);
   }
 });
@@ -32351,8 +32493,8 @@ var INTRO2 = {
   castConcerto: 1e3,
   castForte2: 1
 };
-var IntroAzure = yangyangAction("Intro - Skybound Feather (Azure)", { ...INTRO2, requireBuff: AZURE_STANCE });
-var IntroFeather = yangyangAction("Intro - Skybound Feather (Feather)", { ...INTRO2, requireBuff: FEATHER_STANCE });
+var IntroAzure = yangyangAction("Intro - Skybound Feather (Azure)", { qteFrames: 32, ...INTRO2, requireBuff: AZURE_STANCE });
+var IntroFeather = yangyangAction("Intro - Skybound Feather (Feather)", { qteFrames: 32, ...INTRO2, requireBuff: FEATHER_STANCE });
 var INTROS3 = /* @__PURE__ */ new Set([IntroAzure, IntroFeather]);
 var Outro43 = yangyangAction("Outro - As the Wind Wills", {
   animFrames: 0,
@@ -32836,6 +32978,8 @@ var Intro41 = lynaeAction("Intro - Time to Show Some Colors!", { animFrames: 76,
 ], castConcerto: 1e3, castForte1: 100 });
 var Outro44 = lynaeAction("Outro - Let's Hit the Road!", {
   animFrames: 159,
+  animPriority: { 0: 9, 157: 2 },
+  castPriority: 9,
   cast: 6,
   type: 24576,
   bullets: [
@@ -32865,7 +33009,7 @@ var Outro44 = lynaeAction("Outro - Let's Hit the Road!", {
   minConcerto: 1e4,
   castConcerto: -1e4,
   updateBuffs: () => {
-    queueOutro(LYNAE_OUTRO);
+    queueQTE(LYNAE_OUTRO);
     if (!isHeld(LY_S6))
       revokeCurrent(KALEIDOSCOPIC_PARADE);
   }
@@ -33025,7 +33169,7 @@ var LY_ROTATION = new Rotation([
   Liberation33,
   SparkCollision.cancel(),
   PolychromeLeap123,
-  VisualImpact.swapCancel(),
+  VisualImpact.cancel(),
   OUTRO
 ]);
 var LY_ECHOES = [
@@ -33294,6 +33438,7 @@ var Liberation34 = new Action("Liberation Resolver", {
   }
 });
 var Intro42 = phoebeAction("Intro - Golden Grace", {
+  qteFrames: 53,
   animFrames: 98,
   noSwapFrames: 69,
   animPriority: { 69: 9 },
@@ -33307,6 +33452,8 @@ var Intro42 = phoebeAction("Intro - Golden Grace", {
 });
 var Outro45 = phoebeAction("Outro - Attentive Heart", {
   animFrames: 180,
+  animPriority: { 0: 10 },
+  castPriority: 10,
   cast: 6,
   type: 24576,
   bullets: [
@@ -33618,7 +33765,7 @@ var Liberation35 = roverAction3("Liberation - Echoing Orchestra", {
   castConcerto: 2e3,
   resetEnergy: true
 });
-var Intro43 = roverAction3("Intro - Waveshock", { animFrames: 72, noSwapFrames: 71, animPriority: { 72: 1 }, castPriority: 11, motionStop: [4, 51], node: 4, cast: 5, type: 20480, bullets: [{ hitFrame: 56, mv: 16899, energy: 1e3, offtune: 4880 }], castConcerto: 1e3, castForte1: 50 });
+var Intro43 = roverAction3("Intro - Waveshock", { qteFrames: 56, animFrames: 72, noSwapFrames: 71, animPriority: { 72: 1 }, castPriority: 11, motionStop: [4, 51], node: 4, cast: 5, type: 20480, bullets: [{ hitFrame: 56, mv: 16899, energy: 1e3, offtune: 4880 }], castConcerto: 1e3, castForte1: 50 });
 var Outro46 = roverAction3("Outro - Instant", { animFrames: 0, cast: 6, minConcerto: 1e4, castConcerto: -1e4 });
 var SPR_INHERENT_1 = new Inherent({
   name: "Inherent: Reticence",
@@ -33853,7 +34000,7 @@ var Liberation36 = skAction("Liberation - End Loop", {
     applyTeam(REALM_HEALS, 1);
   }
 });
-var Intro44 = skAction("Intro - Enlightenment", { animFrames: 85, noSwapFrames: 65, animPriority: { 85: 2 }, castPriority: 10, motionStop: [6, 34], node: 4, cast: 5, type: 12288, bullets: [
+var Intro44 = skAction("Intro - Enlightenment", { qteFrames: 40, animFrames: 85, noSwapFrames: 65, animPriority: { 85: 2 }, castPriority: 10, motionStop: [6, 34], node: 4, cast: 5, type: 12288, bullets: [
   { hitFrame: 38, element: null, type: null, subtype: null, updateDebuffs: () => applyCurrent(HEALS, 1) },
   // its heal, ahead of the hits
   { hitFrame: 83, commitFrame: 44, mv: 4530, energy: 200, concerto: 200, offtune: 2279 },
@@ -33863,6 +34010,7 @@ var Intro44 = skAction("Intro - Enlightenment", { animFrames: 85, noSwapFrames: 
   { hitFrame: 92, commitFrame: 44, mv: 4530, energy: 200, concerto: 200, offtune: 2279 }
 ], castConcerto: 1e3 });
 var EIntro7 = skAction("Intro - Discernment", {
+  qteFrames: 142,
   // "When a Supernal Stellarealm is generated, Shorekeeper's first Intro Skill ... is replaced"
   requireBuff: SUPERNAL_REALM,
   animFrames: 215,
@@ -34158,7 +34306,7 @@ var S6Tick = PhotosynthesisTick.variant("Liberation - Photosynthesis Mark", {
   field: null,
   bullets: [{ hitFrame: 32, commitFrame: 0, mv: 995, updateDebuffs: () => applyCurrent(HEALS, 1) }]
 });
-var Intro45 = verinaAction("Intro - Verdant Growth", { animFrames: 98, noSwapFrames: 83, animPriority: { 52: 4, 76: 1 }, castPriority: 11, motionStop: [4, 54], node: 4, cast: 5, type: 20480, bullets: [{ hitFrame: 62, mv: 9941, energy: 1e3, offtune: 11230 }], castConcerto: 1e3, castForte1: 1 });
+var Intro45 = verinaAction("Intro - Verdant Growth", { qteFrames: 52, animFrames: 98, noSwapFrames: 83, animPriority: { 52: 4, 76: 1 }, castPriority: 11, motionStop: [4, 54], node: 4, cast: 5, type: 20480, bullets: [{ hitFrame: 62, mv: 9941, energy: 1e3, offtune: 11230 }], castConcerto: 1e3, castForte1: 1 });
 var Outro48 = verinaAction("Outro - Blossom", {
   animFrames: 0,
   cast: 6,
@@ -34537,6 +34685,7 @@ var Lib27 = zaniAction("Liberation - The Last Stand", {
   }
 });
 var Intro46 = zaniAction("Intro - Immediate Execution", {
+  qteFrames: 74,
   animFrames: 90,
   noSwapFrames: 80,
   animPriority: { 78: 5, 90: 2 },
@@ -34842,6 +34991,7 @@ var TEAMS = [
   // sigrika: aero + echo
   [[SHOREKEEPER, VERINA, MORNYE], [QIUYUAN, CIACCONA, CANTARELLA], SIGRIKA_EBA],
   [[QIUYUAN], [LUCILLA], SIGRIKA_FAST],
+  //[[SHOREKEEPER], [QIUYUAN], SIGRIKA_DOUBLE],
   [[PHRO_10s], [QIUYUAN, LUCILLA], SIGRIKA_FAST],
   [[MORNYE, SHOREKEEPER, VERINA], [LYNAE_RUPTURE], SIGRIKA_FAST],
   [[CIACCONA], [QIUYUAN, LUCILLA], SIGRIKA_FAST],
@@ -35127,7 +35277,7 @@ function sequenceLevels(m, filters, holds = true) {
   const from = Math.max(l.minSequence, l.resonator.tier === 2 ? 0 : base);
   return Array.from({ length: max - from + 1 }, (_, i) => from + i);
 }
-var hasBuild = (m, filters) => eligibleWeapons(m, filters).length > 0 && sequenceLevels(m, filters, !grantToOne(filters.cost)).length > 0;
+var hasBuild = (m, filters) => eligibleWeapons(m, filters).length > 0 && sequenceLevels(m, filters, !grantToOne(filters.cost) || m.mainDps).length > 0;
 var isSignature = (l, i) => l.weapons[i].tier === 0;
 var standardWeapon = (l) => Math.max(0, l.weapons.findIndex(
   (w) => w.tier !== 0
@@ -35331,18 +35481,22 @@ function bestMainstats(teamKey2, members, picks, who) {
 function optimizeTeam(teamKey2, members, filters) {
   const one = grantToOne(filters.cost);
   const fillsAll = (trial) => shortOf(teamKey2, members, trial.map((p, j) => comboOf(members[j].loadout, p))).every((s) => s === null);
-  const holders = [null];
+  const holders = [];
   if (one) {
     for (let i = 0; i < members.length; i++)
       if (members[i].mainDps)
         holders.push(i);
   }
+  if (!holders.length)
+    holders.push(null);
   const everyone = members.map((_, k) => k);
   let best = null;
   for (const holder of holders) {
     const options = members.map((m, i) => {
       const holds = !one || holder === i;
-      const base = sequenceLevels(m, filters, !one)[0];
+      const base = sequenceLevels(m, filters, !one || holds)[0];
+      if (base === void 0)
+        return [];
       const level = one && holds ? costLevel(m, filters.cost, true) : null;
       const sequence = level === null ? base : Math.max(level, base);
       const list = [];

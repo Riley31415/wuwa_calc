@@ -38,7 +38,7 @@ import {
   runningAction,
   currentHit, addGain,
   addStat,
-  queueOutro,
+  queueQTE,
   forte1,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, ECHO, INTRO, OUTRO } from "../../engine/rotation.js";
@@ -189,7 +189,7 @@ const Liberation = danjinAction("Liberation - Crimson Bloom", { animFrames: 192,
     { hitFrame: 169, mv: 39265, offtune: 30720 },
   ], castConcerto: 2000, resetEnergy: true }); // 49.09%x8+392.65%
 
-const Intro = danjinAction("Intro - Vindication", { animFrames: 103, noSwapFrames: 92, animPriority: { 99: 1 }, castPriority: 11, motionStop: [4, 51], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
+const Intro = danjinAction("Intro - Vindication", { qteFrames: 62, animFrames: 103, noSwapFrames: 92, animPriority: { 99: 1 }, castPriority: 11, motionStop: [4, 51], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 54, mv: 4971, energy: 250, offtune: 3060 },
     { hitFrame: 64, mv: 4971, energy: 250, offtune: 3060 },
     { hitFrame: 73, mv: 4971, energy: 250, offtune: 3060 },
@@ -198,7 +198,7 @@ const Intro = danjinAction("Intro - Vindication", { animFrames: 103, noSwapFrame
 const Outro = danjinAction("Outro - Duality", {
   animFrames: 0,
   cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000,
-  updateBuffs: () => queueOutro(DANJIN_OUTRO),
+  updateBuffs: () => queueQTE(DANJIN_OUTRO),
 });
 
 /* ------------------------------------------------------------------------------------ buffs */

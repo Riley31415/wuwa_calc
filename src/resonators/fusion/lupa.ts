@@ -44,7 +44,7 @@ import {
   frozenStacks,
   stacksOfTeam,
   queueOn,
-  queueOutro,
+  queueQTE,
   onCast,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, NOINTRO, ECHO, ActionTag, INTRO, OUTRO } from "../../engine/rotation.js";
@@ -234,7 +234,7 @@ const UFSkill = lupaAction("Forte Skill - Dance With the Wolf: Climax", { minFor
  *  it, not placed in the rotation directly. */
 const fskillFUA = lupaAction("Forte Skill - Set the Arena Ablaze", { tag: ActionTag.Field, animFrames: 96, node: Node.Forte, type: Type.Skill, bullets: [{ hitFrame: 57, mv: 4235, offtune: 1920 }, { hitFrame: 70, mv: 16940, offtune: 7680 }]});
 
-const Intro = lupaAction("Intro - Try Focusing, Eh?", { animFrames: 70, noSwapFrames: 60, animPriority: { 60: 2 }, castPriority: 11, motionStop: [6, 60], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
+const Intro = lupaAction("Intro - Try Focusing, Eh?", { qteFrames: 10, animFrames: 70, noSwapFrames: 60, animPriority: { 60: 2 }, castPriority: 11, motionStop: [6, 60], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 24, mv: 2976, energy: 150, offtune: 1409 },
     { hitFrame: 34, mv: 4216, energy: 213, offtune: 1996 },
     { hitFrame: 38, commitFrame: 34, mv: 4216, energy: 213, offtune: 1996 },
@@ -245,7 +245,7 @@ const Intro = lupaAction("Intro - Try Focusing, Eh?", { animFrames: 70, noSwapFr
  *  selector below). Casting it ends Pack Hunt/Glory, ahead of every other hook of its cast and of
  *  its own damage — bar S6, which keeps both windows. */
 const EIntro = lupaAction("Intro - Nowhere to Run!", {
-  animFrames: 150, animPriority: { 140: 2 }, castPriority: 11, timestop: [6, 90], motionStop: [6, 150], node: Node.Intro, cast: Cast.Intro, type: Type.Liberation,
+  qteFrames: 68, animFrames: 150, animPriority: { 140: 2 }, castPriority: 11, timestop: [6, 90], motionStop: [6, 150], node: Node.Intro, cast: Cast.Intro, type: Type.Liberation,
   requireBuff: WILD_HUNT,
   updateGlobal: () => {
     revokeTeam(WILD_HUNT);
@@ -264,7 +264,7 @@ const EIntro = lupaAction("Intro - Nowhere to Run!", {
 const Outro = lupaAction("Outro - Stand by Me, Warrior", {
   animFrames: 0,
   cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000,
-  updateBuffs: () => queueOutro(LUPA_OUTRO),
+  updateBuffs: () => queueQTE(LUPA_OUTRO),
 });
 
 /* ------------------------------------------------------------------------------------ buffs */

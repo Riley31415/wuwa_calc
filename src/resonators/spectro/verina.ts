@@ -132,7 +132,7 @@ const S6Tick = PhotosynthesisTick.variant("Liberation - Photosynthesis Mark", { 
   bullets: [{ hitFrame: 32, commitFrame: 0, mv: 995, updateDebuffs: () => applyCurrent(HEALS, 1) }],
 });
 
-const Intro = verinaAction("Intro - Verdant Growth", { animFrames: 98, noSwapFrames: 83, animPriority: { 52: 4, 76: 1 }, castPriority: 11, motionStop: [4, 54], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 62, mv: 9941, energy: 1000, offtune: 11230 }], castConcerto: 1000, castForte1: 1});
+const Intro = verinaAction("Intro - Verdant Growth", { qteFrames: 52, animFrames: 98, noSwapFrames: 83, animPriority: { 52: 4, 76: 1 }, castPriority: 11, motionStop: [4, 54], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 62, mv: 9941, energy: 1000, offtune: 11230 }], castConcerto: 1000, castForte1: 1});
 /** Blossom: no damage of its own, just the outro handoff, the Gift of Nature/S4 trigger and its
  *  heals on the incoming resonator — the first on cast, five more a second apart (wuwalab 0-300f). */
 const Outro = verinaAction("Outro - Blossom", {

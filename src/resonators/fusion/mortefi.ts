@@ -26,7 +26,7 @@ import {
   revokeCurrent,
   queue,
   queueOn,
-  queueOutro,
+  queueQTE,
   elapsed,
   addGain,
 } from "../../engine/context.js";
@@ -107,11 +107,11 @@ const ACTION_S5_MARCATO = mortefiAction("Liberation - Marcato (S5 Funerary Quart
 });
 
 // --- intro / outro
-const Intro = mortefiAction("Intro - Dissonance", { animFrames: 90, noSwapFrames: 90, castPriority: 11, motionStop: [4, 49], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 44, mv: 16899, energy: 1000, offtune: 8000, forte1: 60 }], castConcerto: 1000});
+const Intro = mortefiAction("Intro - Dissonance", { qteFrames: 50, animFrames: 90, noSwapFrames: 90, castPriority: 11, motionStop: [4, 49], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 44, mv: 16899, energy: 1000, offtune: 8000, forte1: 60 }], castConcerto: 1000});
 const Outro = mortefiAction("Outro - Rage Transposition", {
   animFrames: 0,
   cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000,
-  updateBuffs: () => queueOutro(MORTEFI_OUTRO),
+  updateBuffs: () => queueQTE(MORTEFI_OUTRO),
 });
 
 /* ------------------------------------------------------------------------------------ buffs */

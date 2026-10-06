@@ -34,7 +34,7 @@ import {
   runningAction,
   addStat,
   queue,
-  queueOutro,
+  queueQTE,
   runningAnyOf,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Cooldown, Rotation, ECHO, INTRO, OUTRO } from "../../engine/rotation.js";
@@ -215,7 +215,7 @@ const THRUMS = new Set<Action>([
 
 // --- liberation / intro / outro
 const Liberation = roverAction("Liberation - Ultimate Tactics", { animFrames: 224, castPriority: 10, bullets: [{ hitFrame: 190, mv: 119286, offtune: 57600 }], timestop: [0, 224], motionStop: [0, 224], cooldown: 60 * 25, node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, castConcerto: 2000, resetEnergy: true });
-const Intro = roverAction("Intro - Thunderous Fury", { animFrames: 72, noSwapFrames: 72, motionStop: [5, 37], castPriority: 11,
+const Intro = roverAction("Intro - Thunderous Fury", { qteFrames: 70, animFrames: 72, noSwapFrames: 72, motionStop: [5, 37], castPriority: 11,
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 44, mv: 3341, energy: 60, concerto: 216, offtune: 1920, forte1: 1060 },
     { hitFrame: 50, commitFrame: 44, mv: 3341, energy: 60, concerto: 216, offtune: 1920, forte1: 1060 },
@@ -224,7 +224,7 @@ const Intro = roverAction("Intro - Thunderous Fury", { animFrames: 72, noSwapFra
 // ...and clears all Thunder Rage, from wherever the Thrum hits left it (they gain past 100 here)
 const Outro = roverAction("Outro - Rumbling Thunders", { animFrames: 0,
   cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000, resetForte2: true,
-  updateBuffs: () => queueOutro(ELECTRO_CORE),
+  updateBuffs: () => queueQTE(ELECTRO_CORE),
 });
 
 /* ------------------------------------------------------------------------------------ buffs */

@@ -235,7 +235,7 @@ const FiveThundersArray = bulingAction("Liberation - Five Thunders Spell Array",
 const ARRAYS = new Set<Action>([FiveThundersArray]);
 
 const Intro = bulingAction("Intro - Summon and Smite", {
-  animFrames: 80, noSwapFrames: 59, animPriority: { 70: 2 }, castPriority: 11, motionStop: [7, 60],
+  qteFrames: 7, animFrames: 80, noSwapFrames: 59, animPriority: { 70: 2 }, castPriority: 11, motionStop: [7, 60],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     // her team heal, at the cast (wuwalab's heals[0])
     { hitFrame: 0, element: null, type: null, subtype: null, updateDebuffs: () => applyCurrent(HEALS, 1) },

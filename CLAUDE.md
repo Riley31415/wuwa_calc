@@ -66,14 +66,20 @@ where the press runs out. a bullet's `commitFrame` (default `hitFrame`) is where
 after it can't stop it. the action itself has no element/type/subtype: a def's own are only what its
 bullets share. no `bullets` = a cast alone that deals as nothing. an action has no `mv` of its own:
 every motion value is a bullet's
-- cuts: `cancel`/`dodgeCancel`/`jump` cut at `cutFrame` — the last bullet's
-  commit; `swapCancel` at `swapCutFrame`, the last commit or
-  `noSwapFrames` where that is later, priority aside — then the animation runs on past the cut:
-  `CANCEL_DELAY` (12), a swap cancel's and an insta swap's `SWAP_DELAY` (12) the same way. a swap cancel
-  goes last in its chain or section, or right before its Outro (anything else throws); where no Outro
-  follows, the scheduler plays `SWAP` after it — no frames, no cast, a dimmed row. the cast of a `SWAP`
-  or of an Outro is the only thing that takes a resonator off the field (lost on swap, the field handed
-  on); the swap cancel itself never does. a `holdCancel` / `mashCancel` instead lets go the moment the next press's cast condition is met
+- cuts: `cancel`/`dodgeCancel`/`jump`/`swapCancel` cut at `cutFrame` — the last bullet's
+  commit — then the animation runs on past the cut: `CANCEL_DELAY` (12); an insta cut, an insta swap
+  included, `INSTA_DELAY` (6). the swap forms are `swapCancel` (SWAP CANCEL), `instaSwap` (INSTA
+  SWAP) and `mashSwap` (MASH SWAP, `MASH_DELAY` after its `noSwapFrames` end, throwing where that is
+  its animation's end or later); a swap cancel or insta swap inside `noSwapFrames` throws (write
+  the mash swap). a swap form goes last in its chain or section, or right before an Outro with no
+  animation frames — before one with any it throws: write the plain cut (`.cancel()`, which keeps
+  every hit an insta swap did); a plain cut into an Outro with none throws: write a swap form. where no Outro follows, the scheduler plays `SWAP` after it — no frames, no
+  cast, a dimmed row; the swap form's own delay is the handoff, which a plain `SWAP` or an Outro
+  otherwise pays as `SWAP_DELAY` (12). the cast of a `SWAP` or of an Outro is the only thing that takes
+  a resonator off the field (lost on swap, the field handed on); the swap form itself never does, and
+  plays on behind the swap to its own end — until its owner presses again, which ends it there (its
+  hits a hold kept past their own frame landing first). any cut into an Outro inside `noSwapFrames`
+  or under its priority throws, a mash cancel aside, which waits out both. a `holdCancel` / `mashCancel` instead lets go the moment the next press's cast condition is met
   (`minConcerto`, `maxForte2`, `requireBuff`, ...) — on its cast or on a bullet, an earlier press's still-landing ones
   included — a hold never before `HOLD_DELAY` (15), at its last bullet if it never is, and right away
   where the next press has none; a mash `MASH_DELAY` (6) after whatever held it last gives way (the
@@ -86,10 +92,10 @@ every motion value is a bullet's
   weighs the dash (the plain dodge casts at 6, the jump at 8, both holding 9; after any `cast:
   Cast.Echo` press, never a subcast, the dodge is `Dodge - Out of echo`, casting at 14), the rest the
   next press. a hold or mash waits for it
-  instead — into an Outro or a swap form, for the press's `noSwapFrames` too — a hold letting go the
+  instead — a mash into an Outro for the press's `noSwapFrames` too — a hold letting go the
   frame the window opens, a mash `MASH_DELAY` after it, and throws where it lets go no earlier than
-  the press would end. an Outro and a FIELD
-  hit carry no priority
+  the press would end. a FIELD hit and an Outro with no animation carry no priority; an Outro with
+  animation frames is cut into like any press
 - echo casts: a summon casts at 12; a transform ("Transform into ...") at 5, holding 13; a
   pseudo-transform (Bell-Borne Geochelone, Chisa's Threnodian - Leviathan, Cartethyia's
   Fleurdelys) at 5. an echo's cast is a `SummonEcho` (8 frames), `TransformEcho` (60) or
@@ -98,15 +104,16 @@ every motion value is a bullet's
   an insta cut keeps the bullets committed by `INSTA_DELAY`; `.cancelOnHit()` (CANCEL ON HIT),
   `.dodgeOnHit()` and `.jumpOnHit()` cut `CANCEL_DELAY` after the first bullet hits, keeping the
   bullets committed by the end of that delay — bullets keep firing until the next press truly starts; each throws on a press whose bullets hit on one frame
-- an Intro's `qteFrames` (default 0, Intros only) is where the Outro buffs queued for it land, their
-  durations starting there
+- an Intro's `qteFrames` (default 0, Intros only, wuwalab's `qte_tag_frame`) is where the Outro's own
+  buffs land (`queueQTE`), their durations starting there. every other handoff — a sonata's, an echo's,
+  a sequence's or inherent's riding the outro, a marker — is `queueOutro`, landing as the Intro is cast
 - every hook runs on one side of the press: the cast, a hit, or the end. `currentCast()` is the press
   (its name, node, `castX`) in any of the three; `currentHit()` is the bullet landing (its own `mv`,
   `forteN`, `index`, ...) and only in a hit's hooks — it throws on a cast or at the end. an action
   has no combined `forteN`/`energy`/`concerto`/`offtune`: read the cast's `castX` or the hit's own
 - cast: `updateGlobal` (every slot's gear), then `updateBuffs` and plain `grants`. `casting()` grants,
-  stance switches, spends on cast, Outro handoffs (`queueOutro` — an Outro's bullets land after the next
-  Intro), `respondToUnison`. a cast has no type: never ask `isType()`/`onType` there. a press with no
+  stance switches, spends on cast, Outro handoffs (`queueQTE` for the Outro's own buffs, `queueOutro`
+  for the rest — an Outro's bullets land after the next Intro), `respondToUnison`. a cast has no type: never ask `isType()`/`onType` there. a press with no
   `bullets` is a cast alone: none of the hit's hooks run for it, so what it does (a heal marker, a
   gain) goes in its cast hooks, and a status it lays goes on a bullet that deals nothing
   (`{ hitFrame: 0, element: null, type: null, subtype: null, updateDebuffs }`)
@@ -124,13 +131,17 @@ every motion value is a bullet's
   what a press does once (a status it lays, a heal marker, a queued follow-up) goes on the hit that
   does it (`bullets: [{ hitFrame, ..., updateDebuffs }]`) — a held Gear's effect on one action goes there too,
   reading the Gear (`isHeld(S3)`), rather than the Gear asking `runningAction(X)` on every hit
-- end: `afterAction`, once the press is over
+- end: `afterAction`, where the press stops — a cut one at its cut frame plus the cut's delay, ahead of
+  any committed bullet still to land; a swap form at its animation's end (or its owner's next press);
+  an uncut one past its last bullet. state the press ends (a stance, a window it closes) goes here, and
+  a hit landing behind it no longer finds it. `runningAction(X)` stays true on every bullet of X
 - stats pay into hits only: a cast runs no stat hook, so what it banks (`castEnergy`, `castOfftune`, a
   cast hook's `addGain()`) is flat — not scaled by ER, the Energy Regen Multiplier or Buildup Rate, and
   `castEnergy` not shared with the team. the stat hooks (`applyStats`, `convertStats`, `lateConvertStats`,
   `constantStats`) only write stats: no buff, debuff, gauge, queue, gain or `lostOnSwap()` changes
-  there (the engine throws). a buff the press consumes pays in applyStats and is revoked in a guarded
-  `afterAction`. nothing is split across a press's hits: each hit has its own resource values and a
+  there (the engine throws). a buff the press consumes pays in applyStats and is revoked by the hit
+  that pays it last — a guarded `afterHit` on `lastHit()`, which a cut ahead of it still lands (Denia's
+  Dark Core); `afterAction` only where the press has no bullets. nothing is split across a press's hits: each hit has its own resource values and a
   stat hook's adds pay on every hit in full. a gain the press makes once on cast ("+30 Concerto on
   cast") is `addGain()` from a cast hook; a gain one hit makes, gated on gear (a sequence's "+30
   Substance when it hits"), is that gear's `updateDebuffs` calling `addGain()` on that bullet alone
@@ -154,7 +165,7 @@ every motion value is a bullet's
   see only the part being run
 
 # wording of buffs
-- "lost on swap / switching out" = `lostOnSwap: true` (or `lostOnSwap()` in a hook): lost on the swap-out action — the Outro's cast, or the `SWAP` after a swap cancel (the swap cancel itself pays in full); "while on field" = `isActive()`
+- "lost on swap / switching out" = `lostOnSwap: true` (or `lostOnSwap()` in a hook): lost on the swap-out action — the Outro's cast, or the `SWAP` after a swap form (the swap form itself pays in full); "while on field" = `isActive()`
 - a buff lasts its stated `duration`; with none stated it is permanent
 - "all active resonators" = no stat on inactive actions; "all nearby resonators" = applies even when inactive
 - "all attribute dmg bonus/amp" = plain dmg bonus/amp, no tag
@@ -168,7 +179,7 @@ every motion value is a bullet's
 - mid-air presses are Basic Attacks: `cast: Cast.Basic` and `Mid-air - <name>` (no "(Mid-Air)" suffix), so `casting(Cast.Basic)` already covers them; there is no mid-air cast type, so a "mid-air attack" clause names its presses with `runningAction(X)`; mid-air heavies/dodge counters keep their own cast and carry "(Mid-Air)" in the name
 - a plunging attack is a mid-air press too: `Mid-air - <name>` (`Mid-air - Plunging Attack` for a bare one), and a "mid-air attack" clause lists it alongside the aerial chain — unless its cast is not Basic (`Forte Skill - Undying Sunlight: Plunge`), which keeps its own prefix like any other mid-air non-Basic
 - every dodge counter is `cast: Cast.DodgeCounter`, named `Dodge Counter - <chain name>` (a bare one takes the basic chain's name: `Dodge Counter - Captain's Rhapsody`)
-- extras after the name go in parentheses: `(Charged)`, `(Hold)`, `(Follow-Up)`, `(S6 Blast)`; sub-moves after a colon: `Thrum: Aero Plunge`. A swap form (`.swapCancel()`, `.instaSwap()`) keeps its cast's name: its tag marks it
+- extras after the name go in parentheses: `(Charged)`, `(Hold)`, `(Follow-Up)`, `(S6 Blast)`; sub-moves after a colon: `Thrum: Aero Plunge`. A swap form (`.swapCancel()`, `.instaSwap()`, `.mashSwap()`) keeps its cast's name: its tag marks it
 - actions with no cast (coordinated hits, ticks, fields, responses) carry the source they belong to instead: `Liberation - Marcato`, `Tune Rupture Response - Starburst`
 
 # units
@@ -234,12 +245,12 @@ table the user pastes (the same columns). with neither, list the nanoka row's bu
 - `animPriority` = `priority_timeline` whole (`[[0,10],[163,2]]` -> `{ 0: 10, 163: 2 }`): a frame
   listed twice keeps the tier listed later (Schemata of Runes' `[[0,9],[0,5],...]` is `{ 0: 5, ... }`); its 0 windows and the windows on or past the last frame stay,
   for the record. `castPriority` = `skill_priority`. a `skill_priority` of 0 over an all-0 timeline
-  is missing, not 0. none on an Outro or a FIELD hit. a press wuwalab has no priority for
+  is missing, not 0. none on a FIELD hit or an Outro with no animation. a press wuwalab has no priority for
   takes the usual one for its kind, held its whole length: basics and mid-air basics 2, plunges 6,
-  heavies 2 (forte heavies 6), dodge counters 8, skills 4, Liberations 10, Intros 11, dodges 6,
+  heavies 2 (forte heavies 6), dodge counters 8, skills 4, Liberations 10, Intros 11, animated Outros 10, dodges 6,
   echo casts as above
-- priority never holds back a swap: `noSwapFrames` = `no_swap` does, gating a swap cancel the way
-  priority gates every other cut (Denia's Final Act - Breakdown 160); left out where it is 0. a kit
+- priority never holds back a swap: `noSwapFrames` = `no_swap` does, gating a swap form or a cut into
+  an Outro the way priority gates every other cut (Denia's Final Act - Breakdown 160); left out where it is 0. a kit
   wuwalab lacks takes its `motionStop`'s end
 - pair an engine action to its ability by name, then check off-tune/MV agree; a row the kit has no
   action for is left alone, and a kit action with no row keeps what it has — say which

@@ -61,7 +61,7 @@ import {
   runningAction,
   isHeld,
   maxStackIncrease,
-  queueOutro,
+  queueQTE,
   revokeCurrent as revokeCurrent,
   revokeTeam,
   frozenStacks,
@@ -75,7 +75,7 @@ import {
 } from "../../engine/context.js";
 import { Action, Cooldown, Rotation, NOINTRO, ECHO, ActionGroup, INTRO, OUTRO } from "../../engine/rotation.js";
 import type { BulletDef } from "../../engine/rotation.js";
-import { applied, applyEnemy } from "../../engine/context.js";
+import { applied, applyEnemy, lastHit } from "../../engine/context.js";
 import { FUSION_BURST, FUSION_BURST_ACTIONS, queueOnApplier } from "../../shared/status.js";
 import { ENEMY_MAX_OFFTUNE, TUNE_STRAIN_SHIFTING } from "../../shared/tunebreak.js";
 import { applyStrain, TUNE_STRAIN_INTERFERED, TUNE_SHIFTABLE, strainPayout } from "../../shared/tunebreak.js";
@@ -133,7 +133,8 @@ const DARK_CORE = new Buff({
     if (over > 0) removeStack(DARK_CORE, over);
   },
   applyStats: () => { if (runningAction(Banish2)) addStat(Stat.MulMv, 150 * frozenStacks()); },
-  afterAction: () => { if (runningAction(Banish2)) revokeCurrent(DARK_CORE); },
+  // spent with the hit that pays them, which a cut ahead of it still lands
+  afterHit: () => { if (runningAction(Banish2) && lastHit()) revokeCurrent(DARK_CORE); },
 });
 
 function deniaAction(id: string, def: object): Action {
@@ -303,13 +304,13 @@ const FIELDS = new Set<Action>([ErosionField]);
 const EROSION_SET = new Buff({ name: "Denia: Erosion Field" });
 
 // --- Intros, one per form. Both bank a Dark Core and 25 Void Particle.
-const Intro = deniaAction("Intro - It's Been A While!", { ...STAGE,
+const Intro = deniaAction("Intro - It's Been A While!", { qteFrames: 25, ...STAGE,
   animFrames: 53, noSwapFrames: 47, animPriority: { 50: 2 }, castPriority: 11, motionStop: [5, 46],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 28, mv: 10462, energy: 1000, offtune: 7016, updateDebuffs: () => deniaLays(2) }], castConcerto: 1000, castForte1: 25,
   updateBuffs: () => applyCurrent(DARK_CORE),
 });
 // Knock Knock is the Breakdown-form Intro: it grants the Breakdown shift and banks its own Dark Core
-const EIntro = deniaAction("Intro - Knock Knock", { ...BREAK,
+const EIntro = deniaAction("Intro - Knock Knock", { qteFrames: 38, ...BREAK,
   animFrames: 81, noSwapFrames: 75, animPriority: { 77: 2 }, castPriority: 11, motionStop: [5, 43],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 73, commitFrame: 49, mv: 5174, energy: 334, offtune: 3470, updateDebuffs: () => deniaLays(2) },
@@ -328,7 +329,7 @@ const Outro = deniaAction("Outro - Unfinished Lies", {
   cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000,
   updateBuffs: () => {
     if (isHeld(MODE_BURST)) applyTeam(UNFINISHED_LIES_BURST, 1);
-    else queueOutro(UNFINISHED_LIES_STRAIN);
+    else queueQTE(UNFINISHED_LIES_STRAIN);
   }
 });
 
@@ -556,9 +557,9 @@ const DN_S3 = new Sequence({
     if (runningAction(Lib2)) addStat(Stat.MulMv, 80);
     if ((runningBullet(BA4, -1) || runningBullet(Skill, -1)) && stacksOf(DARK_CORE) >= 5) addStat(Stat.AddMv, 120000);
   },
-  // the lot is spent once that press runs out, so every hit of it pays
-  afterAction: () => {
-    if ((runningAction(BA4) || runningAction(Skill)) && stacksOf(DARK_CORE) >= 5) revokeCurrent(DARK_CORE);
+  // the lot is spent once that press's last hit lands, so every hit of it pays
+  afterHit: () => {
+    if ((runningAction(BA4) || runningAction(Skill)) && lastHit() && stacksOf(DARK_CORE) >= 5) revokeCurrent(DARK_CORE);
   },
 });
 

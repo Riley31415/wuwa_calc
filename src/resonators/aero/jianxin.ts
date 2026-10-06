@@ -32,7 +32,7 @@ import {
   onAction,
   runningAction,
   isHeld,
-  queueOutro,
+  queueQTE,
   revokeCurrent,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Cooldown, Rotation, ECHO, INTRO, OUTRO } from "../../engine/rotation.js";
@@ -188,7 +188,7 @@ const Intro = jianxinAction("Intro - Essence of Tao", { animFrames: 60, castPrio
   ], castConcerto: 1000});
 const Outro = jianxinAction("Outro - Transcendence", {
   cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000,
-  updateBuffs: () => queueOutro(TRANSCENDENCE),
+  updateBuffs: () => queueQTE(TRANSCENDENCE),
 });
 
 /* ------------------------------------------------------------------------------------- buffs */

@@ -31,7 +31,7 @@ import {
   addStat,
   removeStack,
   queueOn,
-  queueOutro,
+  queueQTE,
   queue,
   setStacksSelf,
   onCast,
@@ -163,7 +163,7 @@ const Intro = xlyAction("Intro - Principle", { animFrames: 84, castPriority: 11,
 const Outro = xlyAction("Outro - Chain Rule", {
   cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000,
   // queued three times so the adopter picks the buff up at all three charges
-  updateBuffs: () => { queueOutro(XLY_OUTRO); queueOutro(XLY_OUTRO); queueOutro(XLY_OUTRO); },
+  updateBuffs: () => { queueQTE(XLY_OUTRO); queueQTE(XLY_OUTRO); queueQTE(XLY_OUTRO); },
 });
 /** One laser beam — queued onto his own slot by XLY_OUTRO below, once per stack the incoming
  *  resonator's Basic casts consume. */

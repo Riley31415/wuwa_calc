@@ -71,6 +71,8 @@ export const ctx: {
   inEnd: boolean;
   /** The bullet landing (`currentHit()`), from the hit's first hook to its last; null on a cast. */
   hit: Bullet | null;
+  /** How many of its press's hits are still to land, the one landing included (`lastHit()`). */
+  hitsLeft: number;
   /** What hooks added to the part being evaluated (`addGain()`): energy, concerto, forte 1-5,
    *  off-tune, direct off-tune. */
   gain: number[];
@@ -150,6 +152,7 @@ export const ctx: {
   inHit: false,
   inEnd: false,
   hit: null,
+  hitsLeft: 1,
   gain: [0, 0, 0, 0, 0, 0, 0, 0, 0],
   adds: [],
   wrote: 0,

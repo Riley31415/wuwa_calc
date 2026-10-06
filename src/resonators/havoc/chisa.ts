@@ -106,7 +106,7 @@ const RENDING_LUNGE_READY = new Buff({ name: "Chisa: Rending Lunge Ready" });
 const READY_LUNGE = { updateBuffs: () => applyCurrent(RENDING_LUNGE_READY, 1) };
 
 const Intro = chisaAction("Intro - Reverberance - Return", {
-  animFrames: 55, noSwapFrames: 54, animPriority: { 55: 2 }, castPriority: 11, motionStop: [5, 36],
+  qteFrames: 34, animFrames: 55, noSwapFrames: 54, animPriority: { 55: 2 }, castPriority: 11, motionStop: [5, 36],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 39, mv: 9543, energy: 1000, offtune: 6400 }], castConcerto: 1000, castForte1: 20,
 });
 const Outro = chisaAction("Outro - Unraveling - Law Zero", {

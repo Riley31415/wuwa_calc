@@ -350,14 +350,14 @@ const FROSTEDGE = {
   },
 };
 /** Frostedge in Present Self, the only form that banks Dedication (200). */
-const Intro = hiyukiAction("Intro - Frostedge: Present Self", {
+const Intro = hiyukiAction("Intro - Frostedge: Present Self", { qteFrames: 30,
   requireBuff: PRESENT_SELF, animFrames: 64, noSwapFrames: 60, animPriority: { 64: 1 }, castPriority: 11, motionStop: [4, 36],
   node: Node.Intro, cast: Cast.Intro, type: Type.Liberation, bullets: [{ hitFrame: 42, mv: 15615, energy: 1000, offtune: 8976, ...CHAFE }], castConcerto: 1000,
   castForte1: 200,
   ...FROSTEDGE,
 });
 /** Frostedge in Foreclaimed Self: the same hit and Concerto Regen, no Dedication. */
-const FIntro = hiyukiAction("Intro - Frostedge: Foreclaimed Self", {
+const FIntro = hiyukiAction("Intro - Frostedge: Foreclaimed Self", { qteFrames: 30,
   requireBuff: FORECLAIMED_SELF, animFrames: 68, noSwapFrames: 60, animPriority: { 64: 1 }, castPriority: 11, motionStop: [5, 36],
   node: Node.Intro, cast: Cast.Intro, type: Type.Liberation, bullets: [{ hitFrame: 42, mv: 15615, energy: 1000, offtune: 8976, ...CHAFE }], castConcerto: 1000,
   ...FROSTEDGE,

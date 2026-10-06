@@ -51,7 +51,7 @@ import {
   runningAction,
   isHeld,
   queue,
-  queueOutro,
+  queueQTE,
   resetCooldown,
   revokeCurrent as revokeCurrent,
   revokeTeam,
@@ -326,7 +326,7 @@ const Intro = lucyAction("Intro - Outdated Hallucination", {
 const Outro = lucyAction("Outro - Countermeasure Program", {
   animFrames: 0,
   cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000,
-  updateBuffs: () => { queueOutro(COUNTERMEASURE_HANDOFF); applyTeam(COUNTERMEASURE_MARKER, 1); }
+  updateBuffs: () => { queueQTE(COUNTERMEASURE_HANDOFF); applyTeam(COUNTERMEASURE_MARKER, 1); }
 });
 
 /** Her answer to a Hack break — tune-scaled, so it reads Tune Break Boost and nothing else.

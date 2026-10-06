@@ -42,6 +42,8 @@ export interface Result {
   member: string;
   slot: string;
   triggered: boolean;
+  /** A split press's hits still to land, counted down as each does (`lastHit()`). */
+  pending?: number;
   /** The ActionGroup this row was pressed as part of, and whether it is that group's last cast —
    *  stamped by `run()` as it expands a group, and read by nothing but the report, which folds a
    *  group's members into one row. Null/false on every action pressed on its own, and on every
@@ -332,12 +334,12 @@ export function evaluate(state: State, action: Action, triggered = false, source
   if (ctx.tracing) { slot.entries = []; slot.totals = new Map(); }
 
   if (castSide && casting(Cast.Intro)) {
-    // the Outro's buffs land on the Intro's QTE frame, their durations starting there
+    // what an outro handed over lands as the Intro is cast; the Outro's own buffs on its QTE frame,
+    // their durations starting there
+    for (const gear of state.outroQueue.splice(0)) slot.addStack(gear, 1);
     const intro = action.formOf ?? action, qte = intro.qteFrames;
-    if (!qte) for (const gear of state.outroQueue.splice(0)) slot.addStack(gear, 1);
-    else {
-      insertByDue(state.timed, outroLanding(state, slot, state.real + qte));
-    }
+    if (!qte) for (const gear of state.qteQueue.splice(0)) slot.addStack(gear, 1);
+    else insertByDue(state.timed, qteLanding(state, slot, state.real + qte));
     // ...and whatever was waiting on this Intro lands right behind it (see `queueOnIntro()`)
     pendingQueue.push(...state.introQueue.splice(0));
   }
@@ -368,7 +370,8 @@ export function evaluate(state: State, action: Action, triggered = false, source
   }
   let holdPaid = held ? held.holdPaid([slot.energy, slot.concerto, ...slot.forte], cap, ctx.holdNext, gain, pending) : -1;
   if (held) {
-    // it holds on until the next press can cut in as well: its priority, or an Outro's no-swap frames
+    // it holds on until the next press can cut in as well: its priority, and a mash into an Outro
+    // the press's no-swap frames
     const next = ctx.holdNext;
     // a buff the next press needs and doesn't find yet: held to its last bullet, and let go where
     // the buff lands instead (`settleHold()`)
@@ -376,16 +379,19 @@ export function evaluate(state: State, action: Action, triggered = false, source
     if (watched) {
       state.holdWatch = {
         press: held, owner: slot, next: ctx.holdNext!, kind: tag, start: realStart, least: realStart + held.letGo(holdPaid, mash, next),
-        paid: Math.min(held.freeForNext(next, holdPaid), held.animFrames), cut: 0, playsToBefore: state.playsTo, result: null,
+        paid: Math.min(held.freeForNext(next, holdPaid, mash), held.animFrames), cut: 0, playsToBefore: state.playsTo, result: null,
       };
       holdPaid = held.bullets.length ? Math.max(holdPaid, held.lastHitDelay()) : held.animFrames;
     }
     ctx.holdCut = held.letGo(holdPaid, mash, next);
     // what the press played before holding out its least, or its mash input: to where the bars paid
     // and the next press could follow
-    holdPaid = Math.min(held.freeForNext(next, holdPaid), held.animFrames);
+    holdPaid = Math.min(held.freeForNext(next, holdPaid, mash), held.animFrames);
     if (watched) state.holdWatch!.cut = ctx.holdCut;
     else checkHoldCut(held, tag, ctx.holdCut);
+    if (!mash && next?.cast === Cast.Outro && ctx.holdCut < held.noSwapFrames) {
+      throw new Error(`${held.name}: its ${tag} lets go into ${next.name} at frame ${ctx.holdCut}, inside its ${held.noSwapFrames} no-swap frames — mash it instead`);
+    }
     charged = action.holdCost(ctx.holdCut);
   }
   const holdCut = held ? ctx.holdCut : -1;
@@ -815,6 +821,7 @@ export function evaluate(state: State, action: Action, triggered = false, source
     ends: realStart + (half === "cast" ? (action.formOf ?? action).lastHitDelay() : 0),
     // filled in by the first hit landing (`landHit()`); present from the start so every row is one shape
     hitAt: undefined,
+    pending: undefined,
   };
   const snapshot: ResolvedSnapshot | null = !ctx.tracing ? null : {
     ...result,
@@ -1041,6 +1048,22 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
       if (pendingQueue.length) takeQueued(steps, spillGroup, step.at);
       continue;
     }
+    // a member pressing again is done with any press of theirs still playing on behind a swap: its end
+    // lands now, ahead of the new cast, behind the hits a hold kept past their own frame — the hits
+    // still to come stay where they are, the kit's to cut (an Outro or SWAP is the swap-out itself)
+    // ...a real press: a wait (a cooldown's, a handoff's) has no cast and no bullets, and presses nothing
+    const presses = step.action.cast !== null || step.action.bullets.length > 0 || !!step.action.resolveFn;
+    if (!step.queued && step.slot < 0 && presses && step.action !== SWAP && step.action.cast !== Cast.Outro) {
+      const owner = state.active, now = state.real;
+      const ends = state.timed.filter((h) => h.behind && h.slot === owner && h.due > now);
+      const open = state.timed.filter((h) => ends.some((e) => e === h || (h.into !== null && h.into === e.into && (h.at ?? h.due) <= now)));
+      if (open.length) {
+        state.timed = state.timed.filter((h) => !open.includes(h));
+        open.sort((a, b) => Number(!!a.closes) - Number(!!b.closes) || a.due - b.due);
+        steps.unshift([...open.map((h) => newStep(h.action!, h.slot, h.by, null, false, null, true, null, now, h)), step]);
+        continue;
+      }
+    }
     // A new resonator's first press pays the swap: SWAP_DELAY on the clock, charged to the row that
     // handed the field over. The buff clocks run through them, and what a tick queues there plays
     // ahead of the press.
@@ -1058,7 +1081,7 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
         }
       }
       if (state.swapPaid) {
-        // an Outro or a swap cancel handed over: the swap was paid before it
+        // an Outro or a swap form handed over: the swap was paid before it
         state.swapPaid = false;
         state.presser = state.active;
         steps.unshift([step]);
@@ -1122,9 +1145,9 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
         continue;
       }
     }
-    // ...and the same behind a swap cancel or a plain, on-hit or insta cancel, read once on the frame
+    // ...and the same behind a swap form or a plain, on-hit or insta cancel, read once on the frame
     // the rotation's next step would be cast: the cut's delay already played, what goes in plays
-    // there ahead of that step — a swap cancel's Outro or SWAP still after it
+    // there ahead of that step — a swap form's Outro or SWAP still after it
     const cutBehind = state.lastOwnCut;
     if (step.slot < 0 && !step.queued && STEP_CUTS.has(cutBehind)
       && behind && behind.member === state.slot.name && state.enemy.resonator?.takesCut) {
@@ -1231,7 +1254,7 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
     const checked = !dash && action.half === null;
     if (checked && LENGTH_CHECKED.has(kind)) checkCutLength(pressed.cancelOf ?? pressed, kind);
     // a marker resolving to presses of either kind can't be written insta for the hitless one alone
-    const slow = checked && !step.action.resolveFn && SLOW_CUTS.has(kind), cutAt = !slow ? 0 : kind === ActionTag.SwapCancel ? action.swapCutFrame : action.cutFrame;
+    const slow = checked && !step.action.resolveFn && SLOW_CUTS.has(kind), cutAt = !slow ? 0 : action.cutFrame;
     if (slow && cutAt <= INSTA_DELAY) {
       throw new Error(`${action.name}: cuts at frame ${cutAt}, inside an insta cut's ${INSTA_DELAY} — write it as ${INSTA_OF[kind as ActionTag]} instead of ${kind}`);
     }
@@ -1249,6 +1272,7 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
       const after = !ahead || ahead.queued || ahead.slot >= 0 ? null : ahead.action.resolveFn ? resolving(ahead.action.resolveFn) : ahead.action;
       checkPriority(action, cut, after);
     }
+    if (step.slot < 0 && !step.queued && checked) checkSwap(state, action, kind, steps.peek());
     // a press that takes time casts now and queues each hit on the time-ordered queue at its own
     // frame, and its end where it runs out
     const whole = action;
@@ -1257,7 +1281,13 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
     let split: Timed[] | null = null, splitEnd: Timed | null = null;
     if (splits) {
       split = [];
-      for (let k = 0; k < whole.bullets.length; k++) split.push(timedEntry(castAt + whole.hitDelay(k), whole.hitPart(k), state.active, null, away, undefined, 0, undefined, false));
+      for (let k = 0; k < whole.bullets.length; k++) {
+        const due = castAt + whole.hitDelay(k);
+        // `at` keeps its own frame, where a motion stop's hold moves `due` on
+        const hit = timedEntry(due, whole.hitPart(k), state.active, null, away, undefined, 0, undefined, false);
+        hit.at = due;
+        split.push(hit);
+      }
     }
     if (split) {
       for (const h of split) insertByDue(state.timed, h);
@@ -1283,7 +1313,10 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
       const after = steps.peek()?.action ?? ctx.holdBeyond;
       ctx.holdNext = after?.resolveFn ? resolving(after.resolveFn) : after;
     }
+    ctx.hitsLeft = step.into?.pending ?? 1;
     const result = evaluate(state, action, triggered, by, cut);
+    if (step.into?.pending) step.into.pending--;
+    ctx.hitsLeft = 1;
     // SWAP takes its owner off the field, as an Outro does: whoever presses next takes it
     if (action === SWAP) state.onField = -1;
     ctx.holdNext = null;
@@ -1310,8 +1343,8 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
     // what this evaluation dealt, at the frame it landed: what the rotations' damage is summed from
     if (result.avg !== 0 || result.variantAvg) state.hits.push({ at: result.starts, slot: result.slot, member: result.member, avg: result.avg, variantAvg: result.variantAvg });
     if (ctx.offFieldShift !== 0) shiftOffField(state, ctx.offFieldShift, Math.max(now, ctx.offFieldFrom));
-    // each hit carries its press's length, and the end — where what a swap cancel loses goes — is
-    // where the press runs out, never ahead of a hit it committed
+    // each hit carries its press's length, and the end (afterAction) is where the press stops: a cut
+    // one at its cut and delay, ahead of any committed hit still to land, else past its last hit
     if (split) {
       for (const h of split) {
         h.frames = ctx.actFrames;
@@ -1319,12 +1352,16 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
       }
       let last = castAt;
       for (const h of split) last = Math.max(last, h.due);
-      const runs = whole.castsInstantly ? whole.animFrames : ctx.actReal;
+      // a swap form cuts nothing: the press plays on behind the swap to its own end
+      const plays = whole.castsInstantly || SWAP_FORMS.has(kind);
+      const stops = castAt + (plays ? whole.animFrames : ctx.actReal) + (step.holdShift ?? 0);
       const end = timedEntry(
-        Math.max(last, castAt + runs + (step.holdShift ?? 0)), whole.endPart(), state.active, null, away, undefined,
+        cut && !plays ? stops : Math.max(last, stops), whole.endPart(), state.active, null, away, undefined,
         ctx.actFrames, true, triggered,
       );
       end.cut = kind;
+      // ...and a swap form's plays on behind the swap, until its owner presses again
+      end.behind = SWAP_FORMS.has(kind);
       insertByDue(state.timed, end);
       splitEnd = end;
     }
@@ -1342,13 +1379,14 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
       // one row stands for the whole press, in cast order: each hit adds itself in as it lands
       if (split) {
         for (const h of split) h.into = result;
+        result.pending = split.length;
         splitEnd!.into = result;
         result.action = whole;
       }
       out.push(result);
-      // a swap cancel's own delay is the swap's: the Outro or SWAP after it pays none
+      // a swap form's own delay is the swap's: the Outro or SWAP after it pays none
       const tag = cut ?? action.tag;
-      if (tag === ActionTag.SwapCancel || tag === ActionTag.InstaSwap) state.swapPaid = true;
+      if (SWAP_FORMS.has(tag)) state.swapPaid = true;
       if (!step.queued && !triggered && !isCast(action, Cast.Outro)) {
         state.lastOwn = result;
         state.lastOwnCut = tag;
@@ -1357,7 +1395,9 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
         const enemy = state.enemy.resonator;
         if (enemy?.atCut && TAKEN_CUTS.has(tag)) {
           const check = (): void => asSource(enemy, () => enemy.atCut!(whole, tag));
-          insertByDue(state.timed, { ...timedEntry(castAt + whole.cost(tag).action, null, state.active, null, false, undefined, undefined, undefined, undefined), check });
+          const entry = timedEntry(castAt + whole.cost(tag).action, null, state.active, null, false, undefined, undefined, undefined, undefined);
+          entry.check = check;
+          insertByDue(state.timed, entry);
         }
       }
     }
@@ -1397,8 +1437,50 @@ const SLOW_CUTS = new Set<string>([ActionTag.Cancel, ActionTag.DodgeCancel, Acti
 /** What each of those is written as instead, cut insta. */
 const INSTA_OF: Partial<Record<ActionTag, string>> = {
   [ActionTag.Cancel]: ".instaCancel()", [ActionTag.MashCancel]: ".instaCancel()", [ActionTag.HoldCancel]: ".instaCancel()", [ActionTag.DodgeCancel]: ".instaDodge()",
-  [ActionTag.JumpCancel]: ".instaJump()", [ActionTag.SwapCancel]: ".instaSwap()",
+  [ActionTag.JumpCancel]: ".instaJump()", [ActionTag.SwapCancel]: ".instaSwap()", [ActionTag.MashSwap]: ".instaSwap()",
 };
+
+/** The swap forms: a press swapped out of, playing on behind the swap. */
+const SWAP_FORMS = new Set<string>([ActionTag.SwapCancel, ActionTag.InstaSwap, ActionTag.MashSwap]);
+/** What a swap form is written as in front of an Outro with an animation, which it can't be — a
+ *  plain cancel keeping the hits an insta swap let land, where an insta cancel would drop them. */
+const PLAIN_OF: Partial<Record<ActionTag, string>> = {
+  [ActionTag.SwapCancel]: ".cancel()", [ActionTag.InstaSwap]: ".cancel()", [ActionTag.MashSwap]: ".mashCancel()",
+};
+/** ...and what a plain cut is written as in front of one with none, which only a swap reaches. */
+const SWAP_OF: Partial<Record<ActionTag, string>> = {
+  [ActionTag.Cancel]: ".swapCancel()", [ActionTag.InstaCancel]: ".instaSwap()", [ActionTag.MashCancel]: ".mashSwap()",
+  [ActionTag.HoldCancel]: ".mashSwap()", [ActionTag.HitCancel]: ".swapCancel()",
+};
+
+/** The swap rules on `press` cut by `kind`, the next written press `ahead` read as it resolves: a swap
+ *  form never inside its no-swap frames (a mash swap waits them out); in front of an Outro, a swap
+ *  form where it has no animation and a plain cut where it has one — never inside them either. */
+function checkSwap(state: State, press: Action, kind: string, ahead: Step | null | undefined): void {
+  const at = press.cost(kind as ActionTag).action, block = press.noSwapFrames;
+  if (kind === ActionTag.MashSwap && press.animFrames && block + MASH_DELAY >= press.animFrames) {
+    throw new Error(`${press.name}: its mash swap lets go at frame ${block + MASH_DELAY} of ${press.animFrames}, saving nothing over playing it out`);
+  }
+  if ((kind === ActionTag.SwapCancel || kind === ActionTag.InstaSwap) && at < block) {
+    throw new Error(`${press.name}: its ${kind} swaps at frame ${at}, inside its ${block} no-swap frames — write .mashSwap() instead`);
+  }
+  if (!ahead || ahead.queued || ahead.slot >= 0) return;
+  ctx.state = state;
+  ctx.slot = state.slot;
+  const next = ahead.action.resolveFn ? resolving(ahead.action.resolveFn) : ahead.action;
+  // a press played out swaps into whatever Outro follows
+  if (next?.cast !== Cast.Outro || kind === ActionTag.Default || kind === ActionTag.NoTb || kind === ActionTag.Field) return;
+  if (SWAP_FORMS.has(kind) && next.animFrames) {
+    throw new Error(`${press.name}: a ${kind} into ${next.name}, an Outro with an animation — write ${PLAIN_OF[kind as ActionTag]} instead`);
+  }
+  if (!SWAP_FORMS.has(kind) && !next.animFrames) {
+    throw new Error(`${press.name}: a ${kind} into ${next.name}, an Outro with no animation — write ${SWAP_OF[kind as ActionTag] ?? "a swap form"} instead`);
+  }
+  // a mash cancel waits them out (`Action.letGo()`), and a hold is checked where it lets go
+  if (!SWAP_FORMS.has(kind) && kind !== ActionTag.MashCancel && kind !== ActionTag.HoldCancel && at < block) {
+    throw new Error(`${press.name}: its ${kind} into ${next.name} lets go at frame ${at}, inside its ${block} no-swap frames`);
+  }
+}
 
 /** The cuts weighed against the priority of the press they cut (`checkPriority()`); a hold or a mash
  *  waits for it instead (`Action.letGo()`), and a swap answers to no-swap frames. */
@@ -1431,7 +1513,7 @@ const TAKEN_CUTS = new Set<string>([...STEP_CUTS, ActionTag.DodgeCancel, ActionT
 
 /** The cuts weighed against the press they cut (`checkCutLength()`) — not an insta swap, which
  *  may run past a short press. */
-const LENGTH_CHECKED = new Set<string>([ActionTag.Cancel, ActionTag.MashCancel, ActionTag.HoldCancel, ActionTag.DodgeCancel, ActionTag.InstaDodge, ActionTag.JumpCancel, ActionTag.InstaJump, ActionTag.InstaCancel, ActionTag.SwapCancel]);
+const LENGTH_CHECKED = new Set<string>([ActionTag.Cancel, ActionTag.MashCancel, ActionTag.HoldCancel, ActionTag.DodgeCancel, ActionTag.InstaDodge, ActionTag.JumpCancel, ActionTag.InstaJump, ActionTag.InstaCancel, ActionTag.SwapCancel, ActionTag.MashSwap]);
 
 /** A cut whose input timing runs longer than the press played out only made it longer — raw
  *  frames, time stop and all; the dash or jump itself isn't counted. An unmeasured press has none. */
@@ -1615,7 +1697,7 @@ function newStep(
     action, slot, by, group, end, spill, queued, event: false, cut, at,
     into: from ? from.into : undefined, away: from ? from.away : undefined,
     frames: from ? from.frames : undefined, closes: from ? from.closes : undefined, triggered: from ? from.triggered : undefined, endCut: from?.cut,
-    hold, waited: false, holdShift: undefined,
+    hold, waited: false, holdShift: undefined, check: undefined,
   };
 }
 
@@ -1624,10 +1706,10 @@ function unwrap(a: Action): [Action, ActionTag | null] {
   return (a as CancelledStep).of !== undefined ? [(a as CancelledStep).of, (a as CancelledStep).kind] : [a, null];
 }
 
-/** The clock entry that lands an Outro's queued buffs on the Intro's QTE frame `due`. */
-function outroLanding(state: State, slot: TeamMember, due: number): Timed {
+/** The clock entry that lands an Outro's own buffs (`queueQTE`) on the Intro's QTE frame `due`. */
+function qteLanding(state: State, slot: TeamMember, due: number): Timed {
   const land = (): void => {
-    for (const gear of state.outroQueue.splice(0)) slot.addStack(gear, 1);
+    for (const gear of state.qteQueue.splice(0)) slot.addStack(gear, 1);
   };
   return timedEntry(due, null, state.active, null, undefined, land, undefined, undefined, undefined);
 }

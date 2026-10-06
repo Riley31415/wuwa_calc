@@ -240,7 +240,7 @@ const Liberation = jinhsiAction("Liberation - Purge of Light", {
 });
 
 const Intro = jinhsiAction("Intro - Loong's Halo", {
-  animFrames: 60, noSwapFrames: 78, animPriority: { 60: 1 }, castPriority: 11, motionStop: [4, 37],
+  qteFrames: 42, animFrames: 60, noSwapFrames: 78, animPriority: { 60: 1 }, castPriority: 11, motionStop: [4, 37],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 49, mv: 15905, energy: 1000, offtune: 8000 }], castConcerto: 1000,
   // "while not in Incarnation", it opens the Overflowing Radiance window
   updateBuffs: () => {

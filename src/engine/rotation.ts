@@ -126,8 +126,8 @@ export interface ActionDef extends GearDef {
   /** The tier this press cuts in at (wuwalab's `skill_priority`), against the `animPriority` of
    *  the press it cuts. Unset, nothing checks it — nor does anything for a FIELD hit or an Outro. */
   castPriority?: number;
-  /** The frames the resonator can't swap out for (wuwalab's `no_swap`): no swap cancel lands
-   *  before them (`swapCutFrame`). */
+  /** The frames the resonator can't swap out for (wuwalab's `no_swap`): a swap form, or a cut
+   *  into an Outro, inside them throws; a mash swap and a mash cancel into an Outro wait them out. */
   noSwapFrames?: number;
   /** An Intro's frame the Outro buffs queued for it land on, their durations starting there. */
   qteFrames?: number;
@@ -212,7 +212,8 @@ export interface Bullet extends Readonly<BulletDef> {
 /** A press's frames as the clock charges them: the action up to its cut (its whole length when
  *  it runs out; `cutFrame`, or an on-hit cut's first hit), less the world's time stop inside that,
  *  plus the delay its cut runs on past that point — `CANCEL_DELAY` for a plain, dodge, jump or on-hit
- *  cancel, `INSTA_DELAY`, a swap cancel's or insta swap's `SWAP_DELAY`. A hold or mash cancel
+ *  cancel or swap cancel, `INSTA_DELAY` for an insta one (an insta swap too); a mash swap lets go
+ *  `MASH_DELAY` after its no-swap frames, and plays no delay past that. A hold or mash cancel
  *  lets go where the next press can pay (`holdAt()`), `HOLD_DELAY` / `MASH_DELAY` at the least. An insta cut
  *  is made on the press and a field press lands beside the fight, so neither plays any of its own. */
 export function cancelCost(a: Action, cut: ActionTag | null): { action: number; timestop: number; global: number; total: number } {
@@ -225,10 +226,12 @@ export function cancelCost(a: Action, cut: ActionTag | null): { action: number; 
   const action = tag === ActionTag.Default || tag === ActionTag.NoTb ? full : tag === ActionTag.Field || insta ? 0
     : tag === ActionTag.HoldCancel ? Math.min(HOLD_DELAY, full)
     : tag === ActionTag.MashCancel ? Math.min(MASH_DELAY, full)
-    : Math.min(whole.onHitAt ?? (tag === ActionTag.SwapCancel ? whole.swapCutFrame : whole.cutFrame), full);
-  // a swap's SWAP_DELAY runs on past its cut like any other cancel's delay
-  const global = tag === ActionTag.InstaSwap || tag === ActionTag.SwapCancel ? SWAP_DELAY : insta ? INSTA_DELAY
-    : tag === ActionTag.Cancel || tag === ActionTag.DodgeCancel || tag === ActionTag.JumpCancel || tag === ActionTag.HitCancel || tag === ActionTag.DodgeOnHit || tag === ActionTag.JumpOnHit ? CANCEL_DELAY : 0;
+    : tag === ActionTag.MashSwap ? Math.min(whole.noSwapFrames + MASH_DELAY, full)
+    : Math.min(whole.onHitAt ?? whole.cutFrame, full);
+  // a swap's delay runs on past its cut like any other cancel's: an insta one's, else a cancel's
+  const global = insta ? INSTA_DELAY
+    : tag === ActionTag.Cancel || tag === ActionTag.DodgeCancel || tag === ActionTag.JumpCancel || tag === ActionTag.SwapCancel
+      || tag === ActionTag.HitCancel || tag === ActionTag.DodgeOnHit || tag === ActionTag.JumpOnHit ? CANCEL_DELAY : 0;
   const timestop = splitStop(a.timestopFrom, a.timestop, action, action + global).own;
   return { action, timestop, global, total: action - timestop + global };
 }
@@ -407,7 +410,6 @@ export class Action extends Gear {
     // an action's motion value is only ever its bullets'
     this.mv = this.bullets.reduce((n, h) => n + h.mv, 0);
     this.cutFrame = this.bullets.reduce((at, h) => Math.max(at, h.commitFrame), 0);
-    this.swapCutFrame = Math.max(this.noSwapFrames, this.cutFrame);
     // No default: an action that deals damage says what it multiplies, so a kit that forgets
     // fails here rather than silently scaling off ATK. Only a rotation marker (INTRO and
     // friends below), which carries no motion value, is allowed to leave it null.
@@ -456,10 +458,10 @@ export class Action extends Gear {
 
   /** Where a cancel cuts this press: its last bullet committed. */
   readonly cutFrame: number;
-  /** The priority this press cuts in at, null where nothing checks it: a FIELD hit or an Outro (a
-   *  swap is gated by no-swap frames), or a press declaring none. */
+  /** The priority this press cuts in at, null where nothing checks it: a FIELD hit, an Outro with no
+   *  animation (only a swap form reaches it, gated by no-swap frames), or a press declaring none. */
   get cutIn(): number | null {
-    return this.tag === ActionTag.Field || this.cast === Cast.Outro ? null : this.castPriority;
+    return this.tag === ActionTag.Field || (this.cast === Cast.Outro && !this.animFrames) ? null : this.castPriority;
   }
   /** This press's priority at animation frame `frame` (`animPriority`), its cast priority ahead of
    *  its first window. */
@@ -478,9 +480,6 @@ export class Action extends Gear {
     for (const [f, t] of this.animPriority) if (f > from && t < cast) return f;
     return Infinity;
   }
-  /** Where a swap cancel cuts it: its last bullet committed, and never inside its no-swap frames —
-   *  priority holds no swap back. */
-  readonly swapCutFrame: number;
   /** What the clock charges this press cut short by `kind` (`cancelCost()`) — a method, so
    *  evaluate.ts reaches it through the type-only import it keeps on this module. */
   cost(cut: ActionTag | null): ReturnType<typeof cancelCost> {
@@ -555,9 +554,10 @@ export class Action extends Gear {
     return Math.min(last, this.animFrames);
   }
   /** The first frame from `from` on where `next` can follow this press: where `next`'s priority beats
-   *  this one's, and past its no-swap frames where `next` swaps out (an Outro, a swap form). */
-  freeForNext(next: Action | null, from = 0): number {
-    const swaps = !!next && (next.cast === Cast.Outro || next.tag === ActionTag.InstaSwap || next.tag === ActionTag.SwapCancel);
+   *  this one's, and — for a `mash` into an Outro, the one cut that waits for them — past its no-swap
+   *  frames. */
+  freeForNext(next: Action | null, from = 0, mash = false): number {
+    const swaps = mash && next?.cast === Cast.Outro;
     return this.freeFor(next?.cutIn ?? null, swaps ? Math.max(from, this.noSwapFrames) : from);
   }
   /** Where a hold (or `mash`) cancel paid at `paid` (`holdPaid()`) lets go. A hold lets go the frame
@@ -566,7 +566,7 @@ export class Action extends Gear {
    *  whatever held it or nothing. Its press's end where `next` never can — a cut the engine then
    *  refuses (`checkHoldCut()`). */
   letGo(paid: number, mash = false, next: Action | null = null): number {
-    const at = mash ? this.freeForNext(next, paid) + MASH_DELAY : this.freeForNext(next, Math.max(HOLD_DELAY, paid));
+    const at = mash ? this.freeForNext(next, paid, true) + MASH_DELAY : this.freeForNext(next, Math.max(HOLD_DELAY, paid));
     return Math.min(at, this.animFrames);
   }
   /** `letGo()` of `holdPaid()`: where a hold (or `mash`) cancel of this press lets go. */
@@ -575,7 +575,7 @@ export class Action extends Gear {
     return this.letGo(this.holdPaid(bars, cap, next, castGain, pending), mash, next);
   }
   /** Does this take its owner off the field — what "lost on swap" reads: an Outro or the SWAP
-   *  marker after a swap cancel, never the swap cancel itself. A FIELD press (a summon, a
+   *  marker after a swap form, never the swap form itself. A FIELD press (a summon, a
    *  coordinated hit) lands beside the fight but moves nobody. */
   get swapOut(): boolean { return this.cast === Cast.Outro || this === SWAP; }
 
@@ -762,8 +762,9 @@ export class Action extends Gear {
     return new ActionGroup(this.resolveFn ? "" : this.name, [cut, new DashMarker(kind === ActionTag.JumpOnHit, this, kind)], 1);
   }
   /** The same cast made on the way out, under its own name and a SWAP CANCEL tag — identical in
-   *  every field: it plays to its cancel frame, its hit landing on field, then `SWAP_DELAY`, and the
-   *  SWAP after it (or the Outro) takes it off the field. */
+   *  every field: it plays to its last commit (never inside its no-swap frames, which throws), its
+   *  hit landing on field, then `CANCEL_DELAY`, and the SWAP after it (or a 0-MV Outro) takes it off
+   *  the field. */
   swapCancel(): Action {
     if (this.resolveFn) return this.swapResolver((a) => a.swapCancel(), ActionTag.SwapCancel);
     const out = this.variant(this.name, { tag: ActionTag.SwapCancel });
@@ -781,8 +782,17 @@ export class Action extends Gear {
     return out;
   }
 
-  /** The same cast swapped out of the moment it is pressed — `SWAP_DELAY`, then the SWAP after it
-   *  (or the Outro) — its hit still landing once the press would have reached it (`splitsHit()`). */
+  /** The same cast swapped out of `MASH_DELAY` after its no-swap frames end, the SWAP after it (or a
+   *  0-MV Outro) taking it off the field — a press whose last commit falls inside them. */
+  mashSwap(): Action {
+    if (this.resolveFn) return this.swapResolver((a) => a.mashSwap(), ActionTag.MashSwap);
+    const out = this.variant(this.name, { tag: ActionTag.MashSwap });
+    out.formOf = this;
+    return out;
+  }
+  /** The same cast swapped out of the moment it is pressed — `INSTA_DELAY`, then the SWAP after it
+   *  (or a 0-MV Outro) — its hit still landing once the press would have reached it (`splitsHit()`).
+   *  A press with no-swap frames can't be (it throws). */
   instaSwap(): Action {
     if (this.resolveFn) return this.swapResolver((a) => a.instaSwap(), ActionTag.InstaSwap);
     const out = this.variant(this.name, { tag: ActionTag.InstaSwap });
@@ -843,6 +853,7 @@ export class ActionGroup extends Action {
   override instaDodge(): Action { return this.dashLast((a) => a.instaDodge()); }
   override instaJump(): Action { return this.dashLast((a) => a.instaJump()); }
   override swapCancel(): Action { return this.withLast((a) => a.swapCancel()); }
+  override mashSwap(): Action { return this.withLast((a) => a.mashSwap()); }
   override noTb(): Action { return this.withLast((a) => a.noTb()); }
   override hitCancel(): Action { return this.withLast((a) => a.hitCancel()); }
   override hitDodge(): Action { return this.dashLast((a) => a.hitDodge()); }
@@ -962,6 +973,7 @@ export class EveryOther extends Action {
   override hitDodge(): Action { return this.gated.hitDodge().everyOther(); }
   override jumpOnHit(): Action { return this.gated.jumpOnHit().everyOther(); }
   override swapCancel(): Action { return this.gated.swapCancel().everyOther(); }
+  override mashSwap(): Action { return this.gated.mashSwap().everyOther(); }
   override instaSwap(): Action { return this.gated.instaSwap().everyOther(); }
 }
 
@@ -1135,7 +1147,7 @@ export const NOINTRO_OPENER = new Action("No Intro (Opener)");
  *  NOINTRO chain, which they must declare. */
 const SWAP_EXIT = new Action("Swap Exit");
 
-/** The swap out a swap cancel leaves on, played right after it unless an Outro follows
+/** The swap out a swap form leaves on, played right after it unless an Outro follows
  *  (`runRotations()` puts it in): no frames, no cast — a FIELD row, dimmed. Its cast and an Outro's
  *  are the only things that take a resonator off the field: "lost on swap", the field handed on. */
 export const SWAP = new Action("Swap", { tag: ActionTag.Field });
@@ -1460,16 +1472,16 @@ const unstep = (a: Action): [Action, CancelledStep | null] => (a instanceof Canc
 function leavesField(a: Action): boolean {
   const last = a instanceof ActionGroup ? a.actions[a.actions.length - 1]! : a;
   if (last === ECHO_SWAP_FORM || last === ECHO_INSTA_SWAP_FORM) return true;
-  return (last.tag === ActionTag.SwapCancel || last.tag === ActionTag.InstaSwap) && (last.formOf ?? last.cancelOf) !== null;
+  return (last.tag === ActionTag.SwapCancel || last.tag === ActionTag.InstaSwap || last.tag === ActionTag.MashSwap) && (last.formOf ?? last.cancelOf) !== null;
 }
-/** A swap cancel goes last in its chain or section, or right before its Outro — `list` as `who`
+/** A swap form goes last in its chain or section, or right before its Outro — `list` as `who`
  *  plays it. */
 function checkSwapOuts(who: string, list: Action[]): void {
   list.forEach((a, k) => {
     const next = list[k + 1];
     const inner = a instanceof ActionGroup && a.actions.slice(0, -1).some(leavesField);
     if (!inner && !(leavesField(a) && next && !isOutro(next))) return;
-    throw new Error(`${who}: ${a.name} swaps out with ${next?.name ?? "its own group"} still to play — a swap cancel goes last in its chain, or right before its Outro`);
+    throw new Error(`${who}: ${a.name} swaps out with ${next?.name ?? "its own group"} still to play — a swap form goes last in its chain, or right before its Outro`);
   });
 }
 /** The same entry pressed without leaving: what a start section's closing cast plays when there
@@ -1633,7 +1645,7 @@ export function runRotations(state: State, rotations: Rotation[], count: number)
     } else if (finalTo >= 0) {
       playIntro(finalTo, finalVisit);
     } else {
-      // the last member's swap out: its delay is already the swap cancel's own, and SWAP played
+      // the last member's swap out: its delay is already the swap form's own, and SWAP played
       cutoff = endReal = Math.max(state.real, state.playsTo);
       end = state.gameOf(endReal);
     }

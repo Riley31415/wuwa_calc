@@ -31,7 +31,7 @@ import {
   onAction,
   runningAction,
   maxStackIncrease,
-  queueOutro,
+  queueQTE,
   revokeCurrent,
   asSource,
   currentTeam,
@@ -238,7 +238,7 @@ const Intro = lynaeAction("Intro - Time to Show Some Colors!", { animFrames: 76,
     { hitFrame: 98, commitFrame: 44, mv: 2248, energy: 134, concerto: 120, offtune: 1064 },
   ], castConcerto: 1000, castForte1: 100});
 const Outro = lynaeAction("Outro - Let's Hit the Road!", {
-  animFrames: 159,
+  animFrames: 159, animPriority: { 0: 9, 157: 2 }, castPriority: 9,
   cast: Cast.Outro, type: Type.Outro, bullets: [
     { hitFrame: 52, mv: 455 },
     { hitFrame: 58, mv: 455 },
@@ -264,7 +264,7 @@ const Outro = lynaeAction("Outro - Let's Hit the Road!", {
     { hitFrame: 164, commitFrame: 110, mv: 445 },
   ], minConcerto: 10000, castConcerto: -10000,
   updateBuffs: () => {
-    queueOutro(LYNAE_OUTRO);
+    queueQTE(LYNAE_OUTRO);
     if (!isHeld(LY_S6)) revokeCurrent(KALEIDOSCOPIC_PARADE);
   },
 });
@@ -452,7 +452,7 @@ const PolychromeLeap123 = new ActionGroup("Forte - Polychrome Leap 123", [Polych
 const LY_ROTATION = new Rotation([
   INTRO.mashCancel(), Skill.cancel(), ECHO.instaDodge(), Liberation, SparkCollision.cancel(),
   PolychromeLeap123,
-  VisualImpact.swapCancel(), OUTRO,
+  VisualImpact.cancel(), OUTRO,
 ]);
 
 

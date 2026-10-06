@@ -290,12 +290,12 @@ const Lib2 = aemeathAction("Liberation - Heavenfall Edict: Finale", { requireBuf
 
 // --- Intros, one per form: 40 Synchronization Rate and Starlume Acceleration
 const INTRO_DEF = { node: Node.Intro, cast: Cast.Intro, type: Type.Intro, updateBuffs: () => applyCurrent(STARLUME, 1) };
-const Intro = aemeathAction("Intro - Songs Across the Universe", { ...AE, ...laysEvery3s("Songs Across the Universe"), animFrames: 72, noSwapFrames: 60, animPriority: { 74: 2 }, castPriority: 11, motionStop: [5, 49], ...INTRO_DEF, bullets: [
+const Intro = aemeathAction("Intro - Songs Across the Universe", { qteFrames: 48, ...AE, ...laysEvery3s("Songs Across the Universe"), animFrames: 72, noSwapFrames: 60, animPriority: { 74: 2 }, castPriority: 11, motionStop: [5, 49], ...INTRO_DEF, bullets: [
     { hitFrame: 52, mv: 1346, energy: 100, offtune: 774 },
     { hitFrame: 56, mv: 1346, energy: 100, offtune: 774 },
     { hitFrame: 59, mv: 10766, energy: 800, offtune: 6189 },
   ], castConcerto: 1000, castForte1: 4000});
-const EIntro = aemeathAction("Intro - Debut of Meteoric Radiance", { ...MECH, ...laysEvery3s("Debut of Meteoric Radiance"), animFrames: 74, noSwapFrames: 72, animPriority: { 76: 2 }, castPriority: 11, motionStop: [5, 44], ...INTRO_DEF, bullets: [
+const EIntro = aemeathAction("Intro - Debut of Meteoric Radiance", { qteFrames: 40, ...MECH, ...laysEvery3s("Debut of Meteoric Radiance"), animFrames: 74, noSwapFrames: 72, animPriority: { 76: 2 }, castPriority: 11, motionStop: [5, 44], ...INTRO_DEF, bullets: [
     { hitFrame: 42, mv: 6530, energy: 400, offtune: 3754 },
     { hitFrame: 60, mv: 9795, energy: 600, offtune: 5631 },
   ], castConcerto: 1000, castForte1: 4000});

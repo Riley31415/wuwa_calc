@@ -26,7 +26,7 @@ import {
   runningAction,
   casting,
   revokeCurrent,
-  queueOutro,
+  queueOutro, queueQTE,
   applyTeam,
   isHeld,
   queue,
@@ -149,7 +149,7 @@ const ACTION_HERALD_S6 = zhezhiAction("Skill - Ivory Herald (S6)", {
 });
 
 const Intro = zhezhiAction("Intro - Radiant Ruin", {
-  animFrames: 80, noSwapFrames: 80, castPriority: 11, motionStop: [5, 59],
+  qteFrames: 60, animFrames: 80, noSwapFrames: 80, castPriority: 11, motionStop: [5, 59],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 66, commitFrame: 36, mv: 8616, energy: 334, offtune: 3467 },
     { hitFrame: 72, commitFrame: 36, mv: 8616, energy: 334, offtune: 3467 },
@@ -159,7 +159,7 @@ const Intro = zhezhiAction("Intro - Radiant Ruin", {
 const Outro = zhezhiAction("Outro - Carve and Draw", {
   animFrames: 0,
   cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000,
-  updateBuffs: () => queueOutro(ZHEZHI_OUTRO),
+  updateBuffs: () => queueQTE(ZHEZHI_OUTRO),
 });
 
 /* ------------------------------------------------------------------------------------ buffs */

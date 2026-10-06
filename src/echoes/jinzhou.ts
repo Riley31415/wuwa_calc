@@ -400,7 +400,7 @@ export const VOID_THUNDER_5PC = new Sonata({
 export const ACTION_FALLACY = new SummonEcho("Echo - Fallacy of No Return", {
   cooldown: 60 * 20,
   element: Attribute.Spectro, scaling: Scaling.Hp, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 1585, energy: 304 }],
-  afterAction: () => applyTeam(FALLACY_TEAM, 1),
+  updateBuffs: () => applyTeam(FALLACY_TEAM, 1),
 });
 
 export const FALLACY_TEAM = new Buff({ name: "Fallacy of No Return", duration: 60 * 20, stats: [[Stat.BonusAtk, 10]] });

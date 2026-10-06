@@ -37,7 +37,7 @@ import {
   currentTeam,
   addStat,
   queue,
-  queueOutro,
+  queueQTE,
   removeStack,
   addForte3,
   frozenStacks,
@@ -190,13 +190,13 @@ const Lib2 = augustaAction("Liberation - Sublime is the Sun", {
  *  casts Spinslash or Uppercut. Not a row on the kit page, so no energy, concerto or off-tune. */
 const ThunderRage = augustaAction("Heavy - Thunder Rage (S6)", { node: Node.Forte, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 20000 }] });
 
-const Intro = augustaAction("Intro - Stride of Goldenflare", { animFrames: 73, noSwapFrames: 68, animPriority: { 73: 2 }, castPriority: 11, motionStop: [6, 15], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 46, mv: 9941, energy: 500, offtune: 4800 }, { hitFrame: 63, mv: 9941, energy: 500, offtune: 4800 }], castConcerto: 1000, castForte1: 660, castForte2: 1000});
+const Intro = augustaAction("Intro - Stride of Goldenflare", { qteFrames: 59, animFrames: 73, noSwapFrames: 68, animPriority: { 73: 2 }, castPriority: 11, motionStop: [6, 15], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 46, mv: 9941, energy: 500, offtune: 4800 }, { hitFrame: 63, mv: 9941, energy: 500, offtune: 4800 }], castConcerto: 1000, castForte1: 660, castForte2: 1000});
 /** No damage of its own, just the outro handoff (BATTLESONG) — her own Majesty/Crown of Wills
  *  grant is earned later, off the recipient's own Outro. */
 const Outro = augustaAction("Outro - Battlesong of the Unyielding", {
   animFrames: 0,
   cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000,
-  updateBuffs: () => queueOutro(BATTLESONG),
+  updateBuffs: () => queueQTE(BATTLESONG),
 });
 
 /* ------------------------------------------------------------------------------------ buffs */

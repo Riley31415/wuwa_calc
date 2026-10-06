@@ -16,7 +16,7 @@ import {
   applyTeam,
   runningAction,
   casting,
-  queueOutro,
+  queueQTE,
   addStat,
   frozenStacks,
   applied,
@@ -145,7 +145,7 @@ const Liberation = iunoAction("Liberation - Beneath Lunar Tides", {
 
 // --- intro / outro
 const Intro = iunoAction("Intro - Illuminated Manifestation", {
-  animFrames: 81, noSwapFrames: 84, animPriority: { 81: 2 }, castPriority: 11, motionStop: [6, 32],
+  qteFrames: 36, animFrames: 81, noSwapFrames: 84, animPriority: { 81: 2 }, castPriority: 11, motionStop: [6, 32],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 48, mv: 1591, energy: 100, offtune: 1040 },
     { hitFrame: 52, mv: 1591, energy: 100, offtune: 1040 },
@@ -161,7 +161,7 @@ const Intro = iunoAction("Intro - Illuminated Manifestation", {
 const Outro = iunoAction("Outro - From Gloom to Gleam", {
   animFrames: 0,
   cast: Cast.Outro, type: Type.Outro, bullets: [{ hitFrame: 0, mv: 10000 }], minConcerto: 10000, castConcerto: -10000,
-  updateBuffs: () => queueOutro(IUNO_OUTRO),
+  updateBuffs: () => queueQTE(IUNO_OUTRO),
 });
 
 // --- forte (jump / Flux) casts, all liberation damage while in Lunar Cycle, same shielding
@@ -339,11 +339,9 @@ const IO_S6 = new Sequence({
 const IO_SEQUENCES = [IO_S1, IO_S2, IO_S3, IO_S4, IO_S5, IO_S6];
 
 const IO_ROTATION = new Rotation([
-  INTRO, ECHO.instaDodge(), Liberation,
-  JumpHeavy,
-  FMA123.cancel(), 
-  FMSkill, 
-  FMSkill.cancel(), 
+  INTRO, ECHO.instaDodge(), 
+  Liberation, JumpHeavy,
+  FMA123.cancel(), FMSkill, FMSkill.cancel(), 
   FHA.instaSwap(), OUTRO,
 ]);
 
@@ -360,7 +358,8 @@ const IO_ROTATION_MDPS = new Rotation([
 /** The same at S6 — see IO_ROTATION_S6. */
 const IO_ROTATION_MDPS_S6 = new Rotation([
   INTRO, Liberation, JumpHeavy,
-  FMSkill, FMA123.cancel(), FMSkill.cancel(),
+  FMSkill, 
+  FMA123.cancel(), FMSkill.cancel(),
   FHA, ECHO, 
   FMSkill, FMA123.cancel(), FMSkill, OUTRO,
 ]);
@@ -377,7 +376,8 @@ export const IUNO = new Loadout({
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
     new EchoLoadout(FALLACY, REJUV_5PC),
   ],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
+  // an ER 3-cost is on the table: behind Roccia her bar wants more Energy than her spread can carry
+  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
   substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Skill),
   highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Skill, Substat.Basic),
   rotation: IO_ROTATION,

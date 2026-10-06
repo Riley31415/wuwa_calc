@@ -25,7 +25,7 @@ import {
   addStat,
   getStat,
   queue,
-  queueOutro,
+  queueOutro, queueQTE,
   removeStack,
   queueOn,
   onType,
@@ -63,7 +63,7 @@ const Intro = brantAction("Intro - Applaud for Me!", {
     { hitFrame: 106, mv: 5070, offtune: 2400, forte1: 2500 },
   ], castConcerto: 1000,
 });
-const Outro = brantAction("Outro - The Course is Set!", { cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000, updateBuffs: () => queueOutro(BRANT_OUTRO) });
+const Outro = brantAction("Outro - The Course is Set!", { cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000, updateBuffs: () => queueQTE(BRANT_OUTRO) });
 
 // --- resonance skill: Anchors Aweigh!, and liberation: To the Horizon (opens Aflame)
 // PLACEHOLDER FRAMES
@@ -87,7 +87,7 @@ const Liberation = brantAction("Liberation - To the Horizon", {
 });
 
 /** At 100 Bravo — considered Basic Attack DMG, spends the whole gauge, and ends Aflame (if up)
- *  once it resolves — see AFLAME's own afterAction() below. Shields on cast, and pre-clamps an
+ *  once it resolves — its own afterAction() below. Shields on cast, and pre-clamps an
  *  overshot Bravo back to exactly 100 so its own declared `forte1: -100` lands exactly on 0;
  *  under 100, left alone (matches Galbrena's own Purging Flame). */
 // PLACEHOLDER FRAMES
@@ -108,6 +108,12 @@ const FSkill = brantAction("Forte Skill - Returned from Ashes", { minForte1: 100
     { hitFrame: 109, mv: 18887, energy: 300, concerto: 300, offtune: 6320 },
     { hitFrame: 109, mv: 132209, energy: 2100, concerto: 2100, offtune: 44240 },
   ], castConcerto: 2000, castForte1: -10000,
+  // its own end, not Aflame's: behind a swap it can run out after Aflame's 12s already has
+  afterAction: () => {
+    revokeCurrent(AFLAME);
+    revokeCurrent(MY_MOMENT);
+    applyCurrent(THEATRICAL_MOMENT, 1);
+  },
 });
 
 
@@ -229,13 +235,8 @@ const AFLAME = new Buff({
     const node = currentCast().node;
     if (node === Node.Normal || node === Node.Skill) addGain({ forte1: currentHit().forte1 });
   },
-  // ...and hands the conversion back down once that press runs out, so every hit of it still
-  // gets the Aflame rate.
-  afterAction: () => {
-    if (!runningAction(FSkill)) return;
-    revokeCurrent(AFLAME);
-    revokeCurrent(MY_MOMENT); applyCurrent(THEATRICAL_MOMENT, 1);
-  },
+  // ...and Returned from Ashes hands the conversion back down once it runs out (its own
+  // afterAction), so every hit of it still gets the Aflame rate.
 });
 
 /** +12 ATK per 1% Energy Regen over 150%, capped at +1560 (280% ER). Read in convertStats() so

@@ -299,7 +299,7 @@ export interface BuffDef extends GearDef {
   /** `stats` pay only while this holds (`() => isActive()`, say). */
   when?: Trigger;
   /** "Lost on switching out": revoked by the action that takes its holder off field — before that
-   *  action pays, bar a swap cancel, whose hit lands on field and pays first (`lostOnSwap()`). */
+   *  action pays, bar a swap form, whose hit lands on field and pays first (`lostOnSwap()`). */
   lostOnSwap?: boolean;
   /** How long this stands once granted, in frames at 60 a second (`60 * 30` for thirty seconds).
    *  Every grant refreshes it, and it is dropped ahead of the first action that starts at or past
@@ -767,7 +767,7 @@ export interface ResonatorDef extends GearDef {
    *  cut's delay after it being only the input. */
   atCut?: (behind: Action, cut: ActionTag) => void;
   /** The enemy's own: read on the frame a plain dodge would be cast, or the rotation's next step
-   *  after a swap cancel or a plain, on-hit or insta cancel, `behind` the press its `cut` cut short
+   *  after a swap form or a plain, on-hit or insta cancel, `behind` the press its `cut` cut short
    *  — it may `replaceCut()` and queue what plays there (tunebreak.ts's ready break). */
   takesCut?: (behind: Action, cut: ActionTag) => void;
   /** How hard this resonator is to own, which is what sets the resonance-chain level their build
@@ -901,7 +901,7 @@ export class Mainslot extends Gear {
     const a = def.action;
     this.onfield = a;
     // a swap cut inside the insta window is the insta swap, which keeps every hit committed that early
-    this.outro = a.swapCutFrame > INSTA_DELAY ? a.swapCancel() : a.instaSwap();
+    this.outro = a.cutFrame > INSTA_DELAY ? a.swapCancel() : a.instaSwap();
     // an echo under 18 frames cancels without a dodge at all
     this.cancel = a.instaForm(a.animFrames < 18 ? ActionTag.InstaCancel : ActionTag.InstaDodge);
     this.instaOut = a.instaSwap();

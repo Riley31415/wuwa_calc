@@ -223,7 +223,7 @@ export function sequenceLevels(m: Member, filters: Filters, holds = true): numbe
 /** Whether a member has any build under these filters: a weapon it may hold and a chain level
  *  its rotation covers. A team with a member that has none is not shown. */
 export const hasBuild = (m: Member, filters: Filters): boolean =>
-  eligibleWeapons(m, filters).length > 0 && sequenceLevels(m, filters, !grantToOne(filters.cost)).length > 0;
+  eligibleWeapons(m, filters).length > 0 && sequenceLevels(m, filters, !grantToOne(filters.cost) || m.mainDps).length > 0;
 
 export const isSignature = (l: Loadout, i: number): boolean => l.weapons[i]!.tier === Tier.Limited;
 /** A loadout lists its best signature first and its best standard right after (CLAUDE.md). */
@@ -461,7 +461,7 @@ function bestMainstats(teamKey: string, members: Member[], picks: Pick[], who: n
 
 /**
  * The team's best build: every weapon and echo set the cost allows on every member — and, where the
- * cost's grant goes to one main DPS, every choice of who holds it (or nobody) — each with every
+ * cost's grant goes to one main DPS, every choice of which one holds it — each with every
  * member's best main stat, which one run scores for the whole team (`bestMainstats`: a main stat only
  * feeds its wearer, so each member's best stands whatever the others wear). The highest total whose
  * every bar fills wins; a climb from one build to the next can stall on a build the team cannot fund,
@@ -473,18 +473,22 @@ export function optimizeTeam(teamKey: string, members: Member[], filters: Filter
    *  another's Liberation, so a build is judged whole. */
   const fillsAll = (trial: Pick[]): boolean =>
     shortOf(teamKey, members, trial.map((p, j) => comboOf(members[j]!.loadout, p))).every((s) => s === null);
-  // who the one grant goes to: nobody, or a main DPS — never a support, whatever it would buy
-  const holders: (number | null)[] = [null];
+  // who the one grant goes to: a main DPS, never a support, whatever it would buy — and never nobody
+  // while one stands to take it, since a grant only adds kit and leaving it unheld ties at best
+  const holders: (number | null)[] = [];
   if (one) {
     for (let i = 0; i < members.length; i++) if (members[i]!.mainDps) holders.push(i);
   }
+  if (!holders.length) holders.push(null);
   const everyone = members.map((_, k) => k);
   let best: { picks: Pick[]; total: number; fills: boolean } | null = null;
   for (const holder of holders) {
-    // each member's weapon x echo set, at the level and rank the cost gives them under this holder
+    // each member's weapon x echo set, at the level and rank the cost gives them under this holder —
+    // none where that leaves somebody below every level their rotation covers (an S6-only build)
     const options = members.map((m, i) => {
       const holds = !one || holder === i;
-      const base = sequenceLevels(m, filters, !one)[0]!;
+      const base = sequenceLevels(m, filters, !one || holds)[0];
+      if (base === undefined) return [];
       const level = one && holds ? costLevel(m, filters.cost, true) : null;
       const sequence = level === null ? base : Math.max(level, base);
       const list: Pick[] = [];

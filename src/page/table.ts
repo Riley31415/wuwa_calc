@@ -27,7 +27,7 @@ import {
 } from "./model.js";
 import type { ResonatorFilter, OptionKind, TeamRow } from "./model.js";
 import type { SearchKind, SearchHit } from "./filterbar.js";
-import { esc, deferredPop, rect, clearPops, subsLabel, CLICK } from "./panels.js";
+import { esc, deferredPop, rect, zoom, clearPops, subsLabel, CLICK, dropPanel, holdPanels, copyBlock } from "./panels.js";
 
 const app = document.getElementById("app")!;
 const topbar = document.getElementById("topbar")!;
@@ -729,6 +729,168 @@ export function drawWindow(force = false, scrollTop?: number): void {
   }
 }
 
+/* ------------------------------------------------------------------------------ cell block */
+
+/** A block of cells pressed and dragged over, read by Ctrl+C. Rows are indexes into the sorted
+ *  table (-1 the heading), since only a window of them is ever drawn; columns are grid tracks. */
+interface Block { ar: number; ac: number; r0: number; r1: number; c0: number; c1: number }
+let block: Block | null = null;
+let blockBox: HTMLElement | null = null;
+/** The press that may yet become a block, and the pointer in page px. */
+let blockPress: { x: number; y: number; scale: number } | null = null;
+let blocking = false;
+let bx = 0, by = 0;
+
+const rowTopOf = (i: number): number => i * rowHeight + tableView!.extra[i]! * lineHeight;
+
+function clearBlock(): void {
+  block = null;
+  blockBox?.remove();
+  blockBox = null;
+}
+
+/** The row and track under page point `x`/`y`: the heading wherever it is pinned, else the row its
+ *  height puts there. */
+function blockCellAt(grid: HTMLElement, x: number, y: number): [number, number] {
+  const heads = [...grid.querySelectorAll(".thead > .c")].map(rect);
+  let col = 0;
+  while (col < heads.length - 1 && x >= heads[col + 1]!.left) col++;
+  const head = heads[0]!;
+  if (y < head.bottom) return [-1, col];
+  const at = y - rect(grid).top - head.height;
+  let lo = 0, hi = tableView!.sorted.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (rowTopOf(mid) <= at) lo = mid;
+    else hi = mid - 1;
+  }
+  return [lo, col];
+}
+
+/** Draw the block's outline over its cells, inside the table's wrap — the grid itself is redrawn
+ *  under every scroll window. The heading is outlined where it sits unpinned. */
+function paintBlock(): void {
+  const wrap = app.querySelector<HTMLElement>(".tcwrap");
+  const grid = wrap?.querySelector<HTMLElement>(".tgrid");
+  if (!block || !wrap || !grid) return;
+  const heads = [...grid.querySelectorAll(".thead > .c")].map(rect);
+  const w = rect(wrap), g = rect(grid);
+  const y = (i: number): number => (i < 0 ? 0 : heads[0]!.height + rowTopOf(i));
+  if (!blockBox?.isConnected) {
+    blockBox = wrap.appendChild(document.createElement("div"));
+    blockBox.className = "cellbox";
+  }
+  const top = g.top - w.top + y(block.r0);
+  blockBox.style.left = `${heads[block.c0]!.left - w.left}px`;
+  blockBox.style.top = `${top}px`;
+  blockBox.style.width = `${heads[block.c1]!.right - heads[block.c0]!.left}px`;
+  blockBox.style.height = `${g.top - w.top + y(block.r1 + 1) - top}px`;
+}
+
+function trackTableBlock(): void {
+  const grid = app.querySelector<HTMLElement>(".tgrid");
+  if (!blocking || !grid || !tableView?.sorted.length) return;
+  const [row, col] = blockCellAt(grid, bx, by);
+  if (!block) block = { ar: row, ac: col, r0: row, r1: row, c0: col, c1: col };
+  block.r0 = Math.min(block.ar, row);
+  block.r1 = Math.max(block.ar, row);
+  block.c0 = Math.min(block.ac, col);
+  block.c1 = Math.max(block.ac, col);
+  // a block over the Compare column measures it against its own bottom row, which reads 100%
+  const compare = [...grid.querySelectorAll(".thead > .c")].findIndex((c) => c.classList.contains("huehead"));
+  const bottom = tableView.sorted[block.r1]?.[0];
+  if (bottom && block.c0 <= compare && compare <= block.c1 && baselineTeam !== bottom) {
+    baselineTeam = bottom;
+    tableView.ranks = rankAll(tableView.sorted);
+    drawWindow(true);
+  }
+  paintBlock();
+}
+
+let blockRaf = 0;
+const queueBlock = (): void => {
+  if (blockRaf) return;
+  blockRaf = requestAnimationFrame(() => {
+    blockRaf = 0;
+    trackTableBlock();
+  });
+};
+
+/** A press anywhere takes the block off; one on the table that then moves a few px lays a new one
+ *  down from where it landed, and the click it ends on is swallowed. A press that stays put is a
+ *  plain click on its cell. */
+addEventListener("pointerdown", (e) => {
+  clearBlock();
+  if (e.button !== 0 || !(e.target as Element).closest?.(".tgrid .c")) return;
+  const scale = zoom();
+  blockPress = { x: e.clientX / scale, y: e.clientY / scale, scale };
+});
+addEventListener("pointermove", (e) => {
+  if (!blockPress) return;
+  bx = e.clientX / blockPress.scale;
+  by = e.clientY / blockPress.scale;
+  if (!blocking) {
+    if (Math.abs(bx - blockPress.x) < 5 && Math.abs(by - blockPress.y) < 5) return;
+    blocking = true;
+    dropPanel();
+    holdPanels(true);
+    // the block's own corner is where the press landed, not where the drag was noticed
+    const grid = app.querySelector<HTMLElement>(".tgrid");
+    if (!grid || !tableView?.sorted.length) return;
+    const [row, col] = blockCellAt(grid, blockPress.x, blockPress.y);
+    block = { ar: row, ac: col, r0: row, r1: row, c0: col, c1: col };
+  }
+  queueBlock();
+});
+const endBlockPress = (): void => {
+  blockPress = null;
+  if (!blocking) return;
+  blocking = false;
+  if (blockRaf) {
+    cancelAnimationFrame(blockRaf);
+    blockRaf = 0;
+  }
+  holdPanels(false);
+  const swallow = (e: Event): void => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+  addEventListener("click", swallow, { capture: true, once: true });
+  setTimeout(() => removeEventListener("click", swallow, true), 0);
+};
+addEventListener("pointerup", endBlockPress);
+addEventListener("pointercancel", endBlockPress);
+addEventListener("scroll", () => {
+  if (blocking) queueBlock();
+}, true);
+
+/** A cell's text as it reads: an echo cell's lines joined, the loop time and arrows left off. */
+const cellText = (c: Element): string => {
+  c.querySelectorAll("sub, .arrow").forEach((el) => el.remove());
+  c.querySelectorAll("br").forEach((br) => br.replaceWith(" / "));
+  return (c.textContent ?? "").trim();
+};
+
+/** Ctrl+C copies the block, a row to a line and a tab between columns — rows off the scroll window
+ *  are drawn for it on the side. */
+addEventListener("keydown", (e) => {
+  if (e.key === "Escape") clearBlock();
+  const view = tableView;
+  if (!block || !view || e.key !== "c" || !(e.ctrlKey || e.metaKey) || e.altKey || !app.querySelector(".tgrid")) return;
+  const loose = getSelection();
+  if (loose && !loose.isCollapsed) return;
+  e.preventDefault();
+  const tpl = document.createElement("template");
+  const lines: string[][] = [];
+  for (let i = block.r0; i <= block.r1; i++) {
+    const at = view.sorted[i];
+    tpl.innerHTML = i < 0 ? view.head : view.rowHtml(at![0], at![1], view.ranks[i]!);
+    const cells = [...tpl.content.firstElementChild!.children].slice(block.c0, block.c1 + 1);
+    lines.push(cells.map(cellText));
+  }
+  copyBlock(lines);
+});
+
 /** Beside the table the aside must not set the page's height: its own height is taken back off
  *  as a negative bottom margin, so the table alone decides. */
 const sideFit = new ResizeObserver((entries) => {
@@ -810,6 +972,7 @@ export function renderComparison(): void {
   topbar.hidden = true;
   clearPops();
   const scrollTop = app.querySelector(".tgrid") ? (app.querySelector("main")?.scrollTop ?? 0) : tableScrollTop;
+  clearBlock();
   app.innerHTML = comparisonTable(visibleRows);
   app.className = "";
   measured = false;

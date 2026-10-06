@@ -229,6 +229,9 @@ function dressAs(menu: HTMLElement, cell: HTMLElement): void {
   const look = LOOK.map((p) => `${p}:${cs.getPropertyValue(p)}`).join(";");
   const r = cell.getBoundingClientRect();
   menu.classList.add("pickdrop");
+  // the compare % is laid on this ground, over any name running under it (index.css `.pickpct`)
+  menu.style.setProperty("--pickground", ground);
+  cell.style.setProperty("--pickground", ground);
   menu.style.left = `${r.left}px`;
   menu.style.width = `${r.width}px`;
   for (const box of menu.querySelectorAll<HTMLElement>(".ctxitem")) {
@@ -273,6 +276,7 @@ const openPickMenu = (e: MouseEvent): void => {
     el.classList.remove("picking");
     openCell = null;
     el.querySelector(".pickpct")?.remove();
+    el.style.removeProperty("--pickground");
   });
   dressAs(menu, el);
   const boxes = new Map(offered.map((c, n): [Choice, HTMLElement] => [c, menu.querySelectorAll<HTMLElement>(".ctxitem")[n]!]));

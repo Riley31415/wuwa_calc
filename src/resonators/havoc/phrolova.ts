@@ -20,7 +20,7 @@ import {
   runningAction,
   casting,
   queue,
-  queueOutro,
+  queueQTE,
   revokeCurrent,
   addStat,
   frozenStacks,
@@ -170,13 +170,13 @@ export const CurtainCall = phroAction("Liberation - Curtain Call", {
 });
 
 const Intro = phroAction("Intro - Suite of Quietus", {
-  animFrames: 80, noSwapFrames: 76, animPriority: { 80: 1 }, castPriority: 11, motionStop: [6, 38],
+  qteFrames: 36, animFrames: 80, noSwapFrames: 76, animPriority: { 80: 1 }, castPriority: 11, motionStop: [6, 38],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 43, commitFrame: 40, mv: 8061, energy: 400, offtune: 4055 }, { hitFrame: 62, commitFrame: 59, mv: 12091, energy: 600, offtune: 6082 }], castConcerto: 1000,
 });
 /** Maestro-replaced Intro — used whenever she re-enters with Maestro still open. Playing it is
  *  also what closes Maestro back out. */
 const EIntro = phroAction("Intro - Suite of Immortality", {
-  animFrames: 93, noSwapFrames: 90, animPriority: { 93: 1 }, castPriority: 11, motionStop: [6, 56],
+  qteFrames: 10, animFrames: 93, noSwapFrames: 90, animPriority: { 93: 1 }, castPriority: 11, motionStop: [6, 56],
   node: Node.Intro, cast: Cast.Intro, type: Type.Skill, bullets: [{ hitFrame: 60, mv: 59643, energy: 1000, offtune: 9600 }], castConcerto: 1000,resetForte1: true,
   requireBuff: MAESTRO,
   // the Waltz ends here, and the notes it was playing through go with it
@@ -187,7 +187,7 @@ const Outro = phroAction("Outro - Unfinished Piece", {
   animFrames: 0,
   cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000,
   updateBuffs: () => {
-    queueOutro(PHROLOVA_OUTRO);
+    queueQTE(PHROLOVA_OUTRO);
     if (stacksOf(MAESTRO)) queueEnhanced(2, true);
   },
 });

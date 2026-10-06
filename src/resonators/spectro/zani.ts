@@ -240,7 +240,7 @@ const Lib2 = zaniAction("Liberation - The Last Stand", { requireBuff: INFERNO_MO
 });
 
 const Intro = zaniAction("Intro - Immediate Execution", {
-  animFrames: 90, noSwapFrames: 80, animPriority: { 78: 5, 90: 2 }, castPriority: 11, motionStop: [4, 80],
+  qteFrames: 74, animFrames: 90, noSwapFrames: 80, animPriority: { 78: 5, 90: 2 }, castPriority: 11, motionStop: [4, 80],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 20, mv: 2424, energy: 120, offtune: 1220 },
     { hitFrame: 26, commitFrame: 20, mv: 2424, energy: 120, offtune: 1220 },

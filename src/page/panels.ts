@@ -60,6 +60,24 @@ export const rect = (el: Element): DOMRect => {
   return z === 1 ? r : new DOMRect(r.x / z, r.y / z, r.width / z, r.height / z);
 };
 
+/** Copy a block of cells: plain text padded to each column's longest in a ``` block, which lines up in a
+ *  fixed-width font, and an HTML table for spreadsheets and rich editors, which split it into cells. */
+export function copyBlock(rows: string[][]): void {
+  const wide = rows[0]?.map((_, c) => Math.max(...rows.map((r) => r[c]!.length))) ?? [];
+  const text = rows.map((r) => r.map((t, c) => t.padEnd(wide[c]!)).join("  ").trimEnd()).join("\n");
+  const plain = "```\n" + text + "\n```";
+  const html = `<table>${rows.map((r) => `<tr>${r.map((t) => `<td>${esc(t)}</td>`).join("")}</tr>`).join("")}</table>`;
+  const clip = navigator.clipboard;
+  if (!clip) return;
+  const write = typeof ClipboardItem === "undefined"
+    ? clip.writeText(plain)
+    : clip.write([new ClipboardItem({
+      "text/plain": new Blob([plain], { type: "text/plain" }),
+      "text/html": new Blob([html], { type: "text/html" }),
+    })]);
+  write.catch(() => clip.writeText(plain).catch(() => { /* nowhere to put it */ }));
+}
+
 /** Open panels are parked in <body> and outlive the page they belong to. */
 export const clearPops = (): void => { document.body.querySelectorAll(":scope > .pop").forEach((el) => el.remove()); };
 
@@ -166,6 +184,7 @@ export function framesPopover(snaps: ResolvedSnapshot[]): string {
     || s.tag === ActionTag.DodgeCancel
     || s.tag === ActionTag.JumpCancel
     || s.tag === ActionTag.SwapCancel
+    || s.tag === ActionTag.MashSwap
     || s.tag === ActionTag.HitCancel
     || s.tag === ActionTag.DodgeOnHit
     || s.tag === ActionTag.JumpOnHit
@@ -179,7 +198,7 @@ export function framesPopover(snaps: ResolvedSnapshot[]): string {
     // the world stood still for part of it: the clock takes it back off
     if (cost.timestop) rows.push(line("Timestop", -cost.timestop));
     // the cut it paid, right under it
-    const swaps = s.tag === ActionTag.InstaSwap || s.tag === ActionTag.SwapCancel;
+    const swaps = s.tag === ActionTag.InstaSwap || s.tag === ActionTag.SwapCancel || s.tag === ActionTag.MashSwap;
     if (cost.global) rows.push(line(swaps ? "Swap Delay" : insta ? "Input Delay" : "Cancel Timing", cost.global));
     // ...all of it played inside an earlier press's time stop, as far as that still stood
     if (s.timestopBanked) rows.push(line("Banked Timestop", -s.timestopBanked));
@@ -1074,7 +1093,7 @@ function teamCell(sections: ChainGroup[][], section: string, slotHue: Map<string
       acts[at]!.casts++;
       // real frames, time stop and all: a press played off field (a swap form, an Outro, a summon)
       // runs its whole animation, the rest their cut — a hold or mash where it let go
-      const off = !snap.active || snap.tag === ActionTag.Field || snap.tag === ActionTag.InstaSwap || snap.tag === ActionTag.SwapCancel;
+      const off = !snap.active || snap.tag === ActionTag.Field || snap.tag === ActionTag.InstaSwap || snap.tag === ActionTag.SwapCancel || snap.tag === ActionTag.MashSwap;
       const cost = snap.action.cost(snap.tag);
       const frames = off ? act.animFrames : snap.holdCut >= 0 ? snap.holdCut : cost.action + cost.global;
       bars.push({ dmg: avg, frames, color, act: at });

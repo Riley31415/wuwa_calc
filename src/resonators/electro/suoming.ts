@@ -53,7 +53,7 @@ import {
   casting,
   runningAction,
   isHeld,
-  queueOutro,
+  queueQTE,
   resetCooldown,
   revokeCurrent,
   setForte1,
@@ -327,13 +327,13 @@ const Outro = suomingAction("Outro - Canopy Rumble", {
   animFrames: 0,
   cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000,
   updateBuffs: () => {
-    queueOutro(CANOPY_RUMBLE);
-    queueOutro(CANOPY_RUMBLE_SKILL);
+    queueQTE(CANOPY_RUMBLE);
+    queueQTE(CANOPY_RUMBLE_SKILL);
     if (isHeld(UNISON)) {
       applyCurrent(ALIGNED_SEALS, 1); revokeCurrent(SEAL_MASTER);
       applyTeam(BLIGHT_RAIN, BLIGHT_RAIN.maxStacks);
     }
-    if (isHeld(ALIGNED_SEALS)) queueOutro(ALIGNED_SEALS_HANDOFF);
+    if (isHeld(ALIGNED_SEALS)) queueQTE(ALIGNED_SEALS_HANDOFF);
   },
 });
 const OutroUnison = unisonOutro(Outro);

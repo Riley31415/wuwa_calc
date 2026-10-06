@@ -52,7 +52,7 @@ import {
   currentTeam,
   isHeld,
   queue,
-  queueOutro,
+  queueQTE,
   revokeCurrent,
   forte2,
   setForte2,
@@ -286,7 +286,7 @@ const Outro = rebeccaAction("Outro - Preem Choom", {
     const next = st.slots[(st.active + st.outroDir + st.slots.length) % st.slots.length]!;
     if (next.resonator?.name === "Lucy") applyTeam(REBECCA_TURRET_LUCY, 4);
     else applyTeam(REBECCA_TURRET, 14);
-    queueOutro(EDGERUNNER_BONDS);
+    queueQTE(EDGERUNNER_BONDS);
     addGain({ forte2: 120 }); // from 12 seconds offfield
   },
 });

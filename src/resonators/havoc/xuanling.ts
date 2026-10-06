@@ -325,8 +325,8 @@ const INTRO = {
   ], castConcerto: 1000,
   castForte2: 1,
 };
-const IntroAzure = yangyangAction("Intro - Skybound Feather (Azure)", { ...INTRO, requireBuff: AZURE_STANCE });
-const IntroFeather = yangyangAction("Intro - Skybound Feather (Feather)", { ...INTRO, requireBuff: FEATHER_STANCE });
+const IntroAzure = yangyangAction("Intro - Skybound Feather (Azure)", { qteFrames: 32, ...INTRO, requireBuff: AZURE_STANCE });
+const IntroFeather = yangyangAction("Intro - Skybound Feather (Feather)", { qteFrames: 32, ...INTRO, requireBuff: FEATHER_STANCE });
 const INTROS = new Set<Action>([IntroAzure, IntroFeather]);
 const Outro = yangyangAction("Outro - As the Wind Wills", {
   animFrames: 0,

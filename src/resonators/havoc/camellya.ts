@@ -258,7 +258,7 @@ const Perennial = camellyaAction("Forte Skill - Perennial (S6)", {
 
 const Liberation = camellyaAction("Liberation - Fervor Efflorescent", { animFrames: 264, animPriority: { 239: 0 }, castPriority: 10, timestop: [0, 240], motionStop: [0, 240], cooldown: 60 * 25, node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 176, mv: 120281, offtune: 84000 }], castConcerto: 2000, resetEnergy: true });
 
-const Intro = camellyaAction("Intro - Everblooming", {
+const Intro = camellyaAction("Intro - Everblooming", { qteFrames: 36,
   animPriority: { 77: 1 }, castPriority: 11, motionStop: [6, 34],
   animFrames: 77, noSwapFrames: 85,
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 41, mv: 19881, energy: 1000, offtune: 9600 }], castConcerto: 1000, resetForte1: true, castForte1: 10000 

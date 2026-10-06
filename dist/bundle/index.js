@@ -67,7 +67,7 @@ import {
   teamAt,
   teamKey,
   weaponBase
-} from "./chunk-2SPS5ZQI.js";
+} from "./chunk-UMFBYTIE.js";
 
 // dist/src/page/display.js
 var shown = (s, i) => s.shownAfter?.[i] ?? [s.energy, s.concerto, s.offtune, ...s.forte][i];
@@ -421,13 +421,13 @@ function entriesOf(entries, stats) {
   return out.sort((a, b) => a - b);
 }
 function tracing(snapshot, stats, merge = true) {
-  const by = /* @__PURE__ */ new Map();
+  const by2 = /* @__PURE__ */ new Map();
   const rows = [];
   const entries = snapshot.entries;
   for (const i of entriesOf(entries, stats)) {
     const e = entries[i];
     const key = `${e.source} ${e.stat}`;
-    const seen = merge ? by.get(key) : void 0;
+    const seen = merge ? by2.get(key) : void 0;
     if (seen)
       seen.value += e.value / statDisplayScale(splitStat(e.stat)[0]);
     else {
@@ -440,7 +440,7 @@ function tracing(snapshot, stats, merge = true) {
         section: base ? "Base RES" : SECTION_OF[stat] ?? (tag === null ? null : statLabel(e.stat)),
         owner: e.owner ?? null
       };
-      by.set(key, row);
+      by2.set(key, row);
       rows.push(row);
     }
   }
@@ -1574,6 +1574,21 @@ var rect = (el) => {
   const r = el.getBoundingClientRect(), z = zoom();
   return z === 1 ? r : new DOMRect(r.x / z, r.y / z, r.width / z, r.height / z);
 };
+function copyBlock(rows) {
+  const wide = rows[0]?.map((_, c) => Math.max(...rows.map((r) => r[c].length))) ?? [];
+  const text = rows.map((r) => r.map((t, c) => t.padEnd(wide[c])).join("  ").trimEnd()).join("\n");
+  const plain = "```\n" + text + "\n```";
+  const html = `<table>${rows.map((r) => `<tr>${r.map((t) => `<td>${esc(t)}</td>`).join("")}</tr>`).join("")}</table>`;
+  const clip = navigator.clipboard;
+  if (!clip)
+    return;
+  const write = typeof ClipboardItem === "undefined" ? clip.writeText(plain) : clip.write([new ClipboardItem({
+    "text/plain": new Blob([plain], { type: "text/plain" }),
+    "text/html": new Blob([html], { type: "text/html" })
+  })]);
+  write.catch(() => clip.writeText(plain).catch(() => {
+  }));
+}
 var clearPops = () => {
   document.body.querySelectorAll(":scope > .pop").forEach((el) => el.remove());
 };
@@ -1643,7 +1658,7 @@ function framesPopover(snaps) {
     const cost = hold ? press.holdCost(s.holdCut) : press.cost(s.tag);
     total += cost.total - s.timestopBanked;
     const insta = s.tag === ActionTag.InstaCancel || s.tag === ActionTag.InstaDodge || s.tag === ActionTag.InstaJump || s.tag === ActionTag.InstaSwap;
-    const cut = s.tag === ActionTag.Cancel || s.tag === ActionTag.MashCancel || s.tag === ActionTag.HoldCancel || s.tag === ActionTag.DodgeCancel || s.tag === ActionTag.JumpCancel || s.tag === ActionTag.SwapCancel || s.tag === ActionTag.HitCancel || s.tag === ActionTag.DodgeOnHit || s.tag === ActionTag.JumpOnHit;
+    const cut = s.tag === ActionTag.Cancel || s.tag === ActionTag.MashCancel || s.tag === ActionTag.HoldCancel || s.tag === ActionTag.DodgeCancel || s.tag === ActionTag.JumpCancel || s.tag === ActionTag.SwapCancel || s.tag === ActionTag.MashSwap || s.tag === ActionTag.HitCancel || s.tag === ActionTag.DodgeOnHit || s.tag === ActionTag.JumpOnHit;
     if (hold) {
       const own = Math.min(s.holdPaid, cost.action);
       if (own)
@@ -1654,7 +1669,7 @@ function framesPopover(snaps) {
       rows.push(line(`${s.action.name}${cut ? " (c)" : ""}`, cost.action));
     if (cost.timestop)
       rows.push(line("Timestop", -cost.timestop));
-    const swaps = s.tag === ActionTag.InstaSwap || s.tag === ActionTag.SwapCancel;
+    const swaps = s.tag === ActionTag.InstaSwap || s.tag === ActionTag.SwapCancel || s.tag === ActionTag.MashSwap;
     if (cost.global)
       rows.push(line(swaps ? "Swap Delay" : insta ? "Input Delay" : "Cancel Timing", cost.global));
     if (s.timestopBanked)
@@ -1844,17 +1859,17 @@ function declaredRows(buffs, owner, fold, lit = []) {
   });
   if (!fold)
     return buffs.flatMap(rowsOf);
-  const by = /* @__PURE__ */ new Map();
+  const by2 = /* @__PURE__ */ new Map();
   for (const b of buffs) {
     const rows = rowsOf(b);
     const key = `${b.name} ${rows.map((e) => e.stat).join(",")}`;
-    const seen = by.get(key);
+    const seen = by2.get(key);
     if (seen)
       seen.n++;
     else
-      by.set(key, { rows, n: 1 });
+      by2.set(key, { rows, n: 1 });
   }
-  return [...by.values()].flatMap(({ rows, n }) => rows.map((e) => ({
+  return [...by2.values()].flatMap(({ rows, n }) => rows.map((e) => ({
     ...e,
     value: e.value * n,
     source: `${e.source} x${n}`,
@@ -2001,7 +2016,7 @@ function dprTable(run, lines) {
   const rowLabel = (slot, mem) => `<div class="c name"${mem}${lines ? ` data-dist-row="${esc(slot)}"` : ""}>${esc(slot)}</div>`;
   const dataRow = (slot, color) => {
     const own = ownTotal(slot);
-    return `<div class="rtrow">` + rowLabel(slot, ` style="--mem:${color}"`) + run.sectionBySlot.map((by, i) => valueCell(lines?.[i], by.get(slot) ?? 0, `${slot}|${i}`)).join("") + valueCell(flat, own, `${slot}|${whole}`, " tot") + `</div>`;
+    return `<div class="rtrow">` + rowLabel(slot, ` style="--mem:${color}"`) + run.sectionBySlot.map((by2, i) => valueCell(lines?.[i], by2.get(slot) ?? 0, `${slot}|${i}`)).join("") + valueCell(flat, own, `${slot}|${whole}`, " tot") + `</div>`;
   };
   const memberRows = run.members.map((m) => dataRow(m.name, m.color)).join("");
   const tuneBreakRow = dataRow(TUNE_BREAK_ENEMY.name, TUNE_BREAK_ENEMY.color);
@@ -2215,8 +2230,8 @@ function distCell(lines, slot, section, hue) {
     else
       nodes.set(node, { label: NODE_NAME[node], value: avg, color: "" });
   });
-  const ranked = (by) => {
-    const out = [...by.values()].filter((v) => v.value > 0).sort((a, b) => b.value - a.value);
+  const ranked = (by2) => {
+    const out = [...by2.values()].filter((v) => v.value > 0).sort((a, b) => b.value - a.value);
     for (const [i, slice] of out.entries())
       slice.color = sliceColor(hue, i, out.length);
     return out;
@@ -2289,10 +2304,10 @@ function pieSvg(slices, total) {
   };
   const leader = ({ s, a, side, y, ox, oy }) => {
     const [px2, py2] = point(a, r);
-    const [bx, by] = point(a, r + lead - 14);
+    const [bx2, by2] = point(a, r + lead - 14);
     const out = cx + side * (r + lead);
     const tail = `${f(out - side * 30)},${f(y)} ${f(out)},${f(y)}`;
-    const curve = (dx, dy) => `M${f(px2 + dx)},${f(py2 + dy)} C${f(bx + dx)},${f(by + dy)} ${tail}`;
+    const curve = (dx, dy) => `M${f(px2 + dx)},${f(py2 + dy)} C${f(bx2 + dx)},${f(by2 + dy)} ${tail}`;
     return `<path class="leader" d="${curve(0, 0)}" style="--d-out:path('${curve(ox, oy)}')" fill="none" stroke="${s.color ?? "var(--faint)"}" stroke-width="2" stroke-linecap="round"/>`;
   };
   const groups = arcs.map((arc) => `<g class="slice" style="--ox:${f(arc.ox)}px;--oy:${f(arc.oy)}px">${wedge(arc)}${leader(arc)}</g>`).join("");
@@ -2310,7 +2325,7 @@ var pieFigure = (heading, slices, total) => `<figure class="piefig"><figcaption>
 function teamCell(sections, section, slotHue) {
   const bars = [];
   const acts = [];
-  const by = /* @__PURE__ */ new Map();
+  const by2 = /* @__PURE__ */ new Map();
   let total = 0;
   sections.forEach((lines) => {
     let own = 0;
@@ -2333,14 +2348,14 @@ function teamCell(sections, section, slotHue) {
       while (act.cancelOf ?? act.formOf)
         act = act.cancelOf ?? act.formOf;
       const key = `${snap.slot} ${act.name}`;
-      let at = by.get(key);
+      let at = by2.get(key);
       if (at === void 0) {
         at = acts.push({ name: act.name, color, dmg: 0, casts: 0 }) - 1;
-        by.set(key, at);
+        by2.set(key, at);
       }
       acts[at].dmg += avg;
       acts[at].casts++;
-      const off = !snap.active || snap.tag === ActionTag.Field || snap.tag === ActionTag.InstaSwap || snap.tag === ActionTag.SwapCancel;
+      const off = !snap.active || snap.tag === ActionTag.Field || snap.tag === ActionTag.InstaSwap || snap.tag === ActionTag.SwapCancel || snap.tag === ActionTag.MashSwap;
       const cost = snap.action.cost(snap.tag);
       const frames = off ? act.animFrames : snap.holdCut >= 0 ? snap.holdCut : cost.action + cost.global;
       bars.push({ dmg: avg, frames, color, act: at });
@@ -2575,7 +2590,7 @@ var COST_HELP = [
 ];
 var MATRIX_HELP = "Enables matrix exclusive buffs for older characters, scaled down to a neutral environment. Lucy also activates 1 stack of her boss kill inherent.";
 var README = [
-  "All beta calculations are subject to change!",
+  "Beta calculations are subject to change!",
   `<span class="readme-warn">DPR comparisons do not account for rotation time!</span>`,
   "If you find any bug or issue ping me on discord @rileyy._.",
   "Enemy lv100, 20% res, Resonator lv 90, Nodes lv10"
@@ -2909,7 +2924,7 @@ var teamMode = "dpr";
 var TEAM_HEAD = { dpr: "Team Avg DPR", dps: "Team DPS" };
 var wholeDamage = (run) => run.sectionTotals.reduce((a, b) => a + b, 0);
 var teamFigure = (run) => Math.floor(wholeDamage(run) / (teamMode === "dpr" ? Math.max(1, run.sectionTotals.length) : run.seconds));
-var personalFigure = (run, name) => Math.floor(run.sectionBySlot.reduce((a, by) => a + (by.get(name) ?? 0), 0) / Math.max(1, run.sectionTotals.length));
+var personalFigure = (run, name) => Math.floor(run.sectionBySlot.reduce((a, by2) => a + (by2.get(name) ?? 0), 0) / Math.max(1, run.sectionTotals.length));
 var loopTime = (run) => `${(run.sectionSeconds[run.sectionSeconds.length - 1] ?? 0).toFixed(1)}s`;
 var teamText = (run) => fmt(teamFigure(run)) + (teamMode === "dpr" ? loopTime(run) : "");
 var teamHtml = (run) => fmt(teamFigure(run)) + (teamMode === "dpr" ? `<sub class="looptime">${loopTime(run)}</sub>` : "");
@@ -3235,6 +3250,158 @@ function drawWindow(force = false, scrollTop) {
     }
   }
 }
+var block = null;
+var blockBox = null;
+var blockPress = null;
+var blocking = false;
+var bx = 0;
+var by = 0;
+var rowTopOf = (i) => i * rowHeight + tableView.extra[i] * lineHeight;
+function clearBlock() {
+  block = null;
+  blockBox?.remove();
+  blockBox = null;
+}
+function blockCellAt(grid, x, y) {
+  const heads = [...grid.querySelectorAll(".thead > .c")].map(rect);
+  let col = 0;
+  while (col < heads.length - 1 && x >= heads[col + 1].left)
+    col++;
+  const head = heads[0];
+  if (y < head.bottom)
+    return [-1, col];
+  const at = y - rect(grid).top - head.height;
+  let lo = 0, hi = tableView.sorted.length - 1;
+  while (lo < hi) {
+    const mid = lo + hi + 1 >> 1;
+    if (rowTopOf(mid) <= at)
+      lo = mid;
+    else
+      hi = mid - 1;
+  }
+  return [lo, col];
+}
+function paintBlock() {
+  const wrap = app2.querySelector(".tcwrap");
+  const grid = wrap?.querySelector(".tgrid");
+  if (!block || !wrap || !grid)
+    return;
+  const heads = [...grid.querySelectorAll(".thead > .c")].map(rect);
+  const w = rect(wrap), g = rect(grid);
+  const y = (i) => i < 0 ? 0 : heads[0].height + rowTopOf(i);
+  if (!blockBox?.isConnected) {
+    blockBox = wrap.appendChild(document.createElement("div"));
+    blockBox.className = "cellbox";
+  }
+  const top = g.top - w.top + y(block.r0);
+  blockBox.style.left = `${heads[block.c0].left - w.left}px`;
+  blockBox.style.top = `${top}px`;
+  blockBox.style.width = `${heads[block.c1].right - heads[block.c0].left}px`;
+  blockBox.style.height = `${g.top - w.top + y(block.r1 + 1) - top}px`;
+}
+function trackTableBlock() {
+  const grid = app2.querySelector(".tgrid");
+  if (!blocking || !grid || !tableView?.sorted.length)
+    return;
+  const [row, col] = blockCellAt(grid, bx, by);
+  if (!block)
+    block = { ar: row, ac: col, r0: row, r1: row, c0: col, c1: col };
+  block.r0 = Math.min(block.ar, row);
+  block.r1 = Math.max(block.ar, row);
+  block.c0 = Math.min(block.ac, col);
+  block.c1 = Math.max(block.ac, col);
+  const compare = [...grid.querySelectorAll(".thead > .c")].findIndex((c) => c.classList.contains("huehead"));
+  const bottom = tableView.sorted[block.r1]?.[0];
+  if (bottom && block.c0 <= compare && compare <= block.c1 && baselineTeam !== bottom) {
+    baselineTeam = bottom;
+    tableView.ranks = rankAll(tableView.sorted);
+    drawWindow(true);
+  }
+  paintBlock();
+}
+var blockRaf = 0;
+var queueBlock = () => {
+  if (blockRaf)
+    return;
+  blockRaf = requestAnimationFrame(() => {
+    blockRaf = 0;
+    trackTableBlock();
+  });
+};
+addEventListener("pointerdown", (e) => {
+  clearBlock();
+  if (e.button !== 0 || !e.target.closest?.(".tgrid .c"))
+    return;
+  const scale = zoom();
+  blockPress = { x: e.clientX / scale, y: e.clientY / scale, scale };
+});
+addEventListener("pointermove", (e) => {
+  if (!blockPress)
+    return;
+  bx = e.clientX / blockPress.scale;
+  by = e.clientY / blockPress.scale;
+  if (!blocking) {
+    if (Math.abs(bx - blockPress.x) < 5 && Math.abs(by - blockPress.y) < 5)
+      return;
+    blocking = true;
+    dropPanel();
+    holdPanels(true);
+    const grid = app2.querySelector(".tgrid");
+    if (!grid || !tableView?.sorted.length)
+      return;
+    const [row, col] = blockCellAt(grid, blockPress.x, blockPress.y);
+    block = { ar: row, ac: col, r0: row, r1: row, c0: col, c1: col };
+  }
+  queueBlock();
+});
+var endBlockPress = () => {
+  blockPress = null;
+  if (!blocking)
+    return;
+  blocking = false;
+  if (blockRaf) {
+    cancelAnimationFrame(blockRaf);
+    blockRaf = 0;
+  }
+  holdPanels(false);
+  const swallow = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+  addEventListener("click", swallow, { capture: true, once: true });
+  setTimeout(() => removeEventListener("click", swallow, true), 0);
+};
+addEventListener("pointerup", endBlockPress);
+addEventListener("pointercancel", endBlockPress);
+addEventListener("scroll", () => {
+  if (blocking)
+    queueBlock();
+}, true);
+var cellText = (c) => {
+  c.querySelectorAll("sub, .arrow").forEach((el) => el.remove());
+  c.querySelectorAll("br").forEach((br) => br.replaceWith(" / "));
+  return (c.textContent ?? "").trim();
+};
+addEventListener("keydown", (e) => {
+  if (e.key === "Escape")
+    clearBlock();
+  const view = tableView;
+  if (!block || !view || e.key !== "c" || !(e.ctrlKey || e.metaKey) || e.altKey || !app2.querySelector(".tgrid"))
+    return;
+  const loose = getSelection();
+  if (loose && !loose.isCollapsed)
+    return;
+  e.preventDefault();
+  const tpl = document.createElement("template");
+  const lines = [];
+  for (let i = block.r0; i <= block.r1; i++) {
+    const at = view.sorted[i];
+    tpl.innerHTML = i < 0 ? view.head : view.rowHtml(at[0], at[1], view.ranks[i]);
+    const cells = [...tpl.content.firstElementChild.children].slice(block.c0, block.c1 + 1);
+    lines.push(cells.map(cellText));
+  }
+  copyBlock(lines);
+});
 var sideFit = new ResizeObserver((entries) => {
   for (const e of entries) {
     const el = e.target;
@@ -3299,6 +3466,7 @@ function renderComparison() {
   topbar.hidden = true;
   clearPops();
   const scrollTop = app2.querySelector(".tgrid") ? app2.querySelector("main")?.scrollTop ?? 0 : tableScrollTop;
+  clearBlock();
   app2.innerHTML = comparisonTable(visibleRows);
   app2.className = "";
   measured = false;
@@ -3862,6 +4030,8 @@ function dressAs(menu, cell2) {
   const look = LOOK.map((p) => `${p}:${cs.getPropertyValue(p)}`).join(";");
   const r = cell2.getBoundingClientRect();
   menu.classList.add("pickdrop");
+  menu.style.setProperty("--pickground", ground);
+  cell2.style.setProperty("--pickground", ground);
   menu.style.left = `${r.left}px`;
   menu.style.width = `${r.width}px`;
   for (const box of menu.querySelectorAll(".ctxitem")) {
@@ -3901,6 +4071,7 @@ var openPickMenu = (e) => {
     el.classList.remove("picking");
     openCell = null;
     el.querySelector(".pickpct")?.remove();
+    el.style.removeProperty("--pickground");
   });
   dressAs(menu, el);
   const boxes = new Map(offered.map((c, n) => [c, menu.querySelectorAll(".ctxitem")[n]]));
@@ -3935,6 +4106,7 @@ var TAG_KIND = {
   [ActionTag.InstaJump]: "insta",
   [ActionTag.InstaSwap]: "insta",
   [ActionTag.SwapCancel]: "swap",
+  [ActionTag.MashSwap]: "swap",
   [ActionTag.MashCancel]: "easy",
   [ActionTag.HoldCancel]: "easy",
   [ActionTag.Field]: "field",
@@ -3954,6 +4126,7 @@ var TAG_NOTE = {
   [ActionTag.DodgeCancel]: "After the final hit, dodge to cancel endlag",
   [ActionTag.JumpCancel]: "After the final hit, jump to cancel endlag",
   [ActionTag.SwapCancel]: "After the final hit, swap to cancel endlag",
+  [ActionTag.MashSwap]: "After casting, mash swap to swap out the moment it allows",
   [ActionTag.MashCancel]: "After casting, mash the next input to cancel when available",
   [ActionTag.HoldCancel]: "After casting, hold the next input to cancel when available",
   [ActionTag.HitCancel]: "After the first hit, input the next action",
@@ -4250,7 +4423,21 @@ function renderDetail(key) {
   wireColumnDrag(app3, detailFor(run).report.columns);
   wireCellSelect(app3);
   wireDistribution(app3);
+  const pair = app3.querySelector(".rtables");
+  if (pair)
+    pairFit.observe(pair);
 }
+var pairFit = new ResizeObserver((entries) => {
+  for (const { target } of entries) {
+    const equip = target.firstElementChild;
+    const stack = target.querySelector(".rstack");
+    if (!equip || !stack)
+      continue;
+    stack.style.maxWidth = "";
+    if (stack.offsetTop > equip.offsetTop)
+      stack.style.maxWidth = `${equip.offsetWidth}px`;
+  }
+});
 var COLUMN_ORDER_KEY = "wuwa.logColumns";
 var savedOrder = () => {
   try {
@@ -4315,7 +4502,7 @@ function paintSelection(root) {
   selBox = null;
   if (!selected)
     return;
-  clearBlock();
+  clearBlock2();
   const grid = root.querySelector(".gridwrap .grid");
   const track = grid && trackBox(grid, selected);
   if (grid && track)
@@ -4389,7 +4576,7 @@ var holding = false;
 var px = 0;
 var py = 0;
 var pressScale = 1;
-function clearBlock() {
+function clearBlock2() {
   cellSel = null;
   cellSelBox?.remove();
   cellSelBox = null;
@@ -4398,6 +4585,10 @@ function rowSpan(sel, i, gridTop) {
   const seen = sel.span[i];
   if (seen)
     return seen;
+  if (i === 0 && sel.rows.length > 1) {
+    const below = rowSpan(sel, 1, gridTop)[0];
+    return sel.span[0] = [below - rect(sel.rows[0]).height, below];
+  }
   const r = rect(sel.rows[i]);
   const at = [r.top - gridTop, r.bottom - gridTop];
   sel.span[i] = at;
@@ -4436,6 +4627,9 @@ function trackBlock() {
     row++;
   while (row > 0 && y < rowSpan(sel, row, g.top)[0])
     row--;
+  const head = rect(sel.rows[0]);
+  if (py >= head.top && py < head.bottom)
+    row = 0;
   const x = px - g.left;
   let col = 0;
   while (col < sel.cols.length - 1 && x >= sel.cols[col + 1].left)
@@ -4473,6 +4667,11 @@ addEventListener("click", (e) => {
   if (target?.closest?.(".gridwrap .grid .chain > label.r") && !target.closest(".c.action"))
     e.preventDefault();
 }, true);
+function copyText(c) {
+  const tag = c.querySelector(".ctag");
+  const name = [...c.childNodes].filter((n) => n !== tag).map((n) => n.textContent ?? "").join("").replace("\u25B8", "").trim();
+  return tag ? `${name} ${(tag.textContent ?? "").trim()}` : name;
+}
 addEventListener("keydown", (e) => {
   if (!cellSel || e.key !== "c" || !(e.ctrlKey || e.metaKey) || e.altKey)
     return;
@@ -4480,12 +4679,10 @@ addEventListener("keydown", (e) => {
   if (loose && !loose.isCollapsed)
     return;
   e.preventDefault();
-  const text = blockCells(cellSel).map((row) => row.map((c) => (c.textContent ?? "").replace("\u25B8", "").trim()).join("	")).join("\n");
-  navigator.clipboard?.writeText(text).catch(() => {
-  });
+  copyBlock(blockCells(cellSel).map((row) => row.map(copyText)));
 });
 function wireCellSelect(root) {
-  clearBlock();
+  clearBlock2();
   holding = false;
   const grid = root.querySelector(".gridwrap .grid");
   if (!grid)
@@ -4533,7 +4730,7 @@ function wireCellSelect(root) {
       return { key: h.dataset.col, nth, left: r.left - g.left, right: r.right - g.left };
     }).sort((a, b) => a.left - b.left);
     const row = cell2.closest(".r");
-    const rows = [...grid.querySelectorAll(".r")].filter((r) => !r.classList.contains("head") && r.offsetParent);
+    const rows = [...grid.querySelectorAll(".r")].filter((r) => r.offsetParent);
     const ar = rows.indexOf(row);
     const ac = cols.findIndex((c) => c.nth === [...row.children].indexOf(cell2));
     if (ar < 0 || ac < 0)
@@ -4558,7 +4755,7 @@ function wireCellSelect(root) {
       begin();
       return;
     }
-    clearBlock();
+    clearBlock2();
     arming = { begin, timer: setTimeout(begin, HELD_AT), x: px, y: py };
   });
   grid.addEventListener("pointermove", (e) => {
@@ -4625,7 +4822,7 @@ function openDrag(grid, d) {
     if (rule)
       slideRules.set(key, rule);
   });
-  clearBlock();
+  clearBlock2();
   const track = trackBox(grid, d.key);
   liftBox = columnBox(grid, track?.left ?? d.home, track?.width ?? d.width.get(d.key));
   liftBox.style.transition = "none";
@@ -4943,24 +5140,24 @@ function placeDetail(box, path, mainR) {
     return;
   }
   const boxR = rect(box);
-  const [bx, by] = [boxR.left + boxR.width / 2, boxR.bottom];
+  const [bx2, by2] = [boxR.left + boxR.width / 2, boxR.bottom];
   const side = anchorR.left > mainR.right - 16 ? 1 : anchorR.right < mainR.left + 16 ? -1 : 0;
   if (side) {
     const tx2 = side > 0 ? mainR.right - 4 : mainR.left + 4;
-    const ty2 = Math.min(Math.max(anchorR.top + anchorR.height / 2, by + 40), mainR.bottom - 20);
+    const ty2 = Math.min(Math.max(anchorR.top + anchorR.height / 2, by2 + 40), mainR.bottom - 20);
     const end = tx2 - side * HEAD;
-    path.setAttribute("d", `M ${bx} ${by} C ${bx} ${by + 60}, ${end - side * 60} ${ty2}, ${end} ${ty2}`);
+    path.setAttribute("d", `M ${bx2} ${by2} C ${bx2} ${by2 + 60}, ${end - side * 60} ${ty2}, ${end} ${ty2}`);
     return;
   }
   if (stage === DETAIL_STAGE + 1 || stage === DETAIL_STAGE + 2) {
     const tx2 = anchorR.left - 4, ty2 = anchorR.top + anchorR.height / 2;
-    path.setAttribute("d", `M ${bx} ${by} C ${bx} ${by + 60}, ${tx2 - HEAD - 60} ${ty2}, ${tx2 - HEAD} ${ty2}`);
+    path.setAttribute("d", `M ${bx2} ${by2} C ${bx2} ${by2 + 60}, ${tx2 - HEAD - 60} ${ty2}, ${tx2 - HEAD} ${ty2}`);
     return;
   }
   const tx = anchorR.left + anchorR.width / 2;
   const ty = Math.min(anchorR.top - 4, mainR.bottom - 4);
-  const bend = Math.max(12, Math.min(70, (ty - HEAD - by) * 0.5));
-  path.setAttribute("d", `M ${bx} ${by} C ${bx} ${by + bend}, ${tx} ${ty - HEAD - bend}, ${tx} ${ty - HEAD}`);
+  const bend = Math.max(12, Math.min(70, (ty - HEAD - by2) * 0.5));
+  path.setAttribute("d", `M ${bx2} ${by2} C ${bx2} ${by2 + bend}, ${tx} ${ty - HEAD - bend}, ${tx} ${ty - HEAD}`);
 }
 function place() {
   if (!layer || layer.hidden)
@@ -5030,21 +5227,21 @@ function place() {
     return;
   }
   const boxR = rect(box);
-  const by = boxR.top + boxR.height / 2;
+  const by2 = boxR.top + boxR.height / 2;
   const bow = Math.min(100, boxR.left - mainR.left - 8);
   if (stage === 6 && !stacked) {
     const [tx2, ty2] = [anchorR.left + anchorR.width / 2, anchorR.bottom + 4];
-    path.setAttribute("d", `M ${boxR.left} ${by} C ${boxR.left - bow} ${by}, ${tx2} ${ty2 + HEAD + 90}, ${tx2} ${ty2 + HEAD}`);
+    path.setAttribute("d", `M ${boxR.left} ${by2} C ${boxR.left - bow} ${by2}, ${tx2} ${ty2 + HEAD + 90}, ${tx2} ${ty2 + HEAD}`);
     return;
   }
   if (stage === 6 && stacked && anchorR.right <= mainR.right) {
     const [tx2, ty2] = [anchorR.left + anchorR.width / 2, anchorR.top - 4];
-    path.setAttribute("d", `M ${boxR.right} ${by} C ${boxR.right + 40} ${by}, ${tx2} ${ty2 - HEAD - 40}, ${tx2} ${ty2 - HEAD}`);
+    path.setAttribute("d", `M ${boxR.right} ${by2} C ${boxR.right + 40} ${by2}, ${tx2} ${ty2 - HEAD - 40}, ${tx2} ${ty2 - HEAD}`);
     return;
   }
   if (stage === 6 && anchorR.right > mainR.right) {
     const [tx2, ty2] = [mainR.right - 14, anchorR.top + anchorR.height / 2];
-    path.setAttribute("d", `M ${boxR.right} ${by} C ${boxR.right + 30} ${by}, ${tx2 - HEAD - 30} ${ty2}, ${tx2 - HEAD} ${ty2}`);
+    path.setAttribute("d", `M ${boxR.right} ${by2} C ${boxR.right + 30} ${by2}, ${tx2 - HEAD - 30} ${ty2}, ${tx2 - HEAD} ${ty2}`);
     return;
   }
   if (stage === 1 && !stacked) {
@@ -5056,9 +5253,9 @@ function place() {
   }
   const [tx, ty] = [anchorR.left - 4, anchorR.top + anchorR.height / 2];
   if (stage === 4 || stage === 5) {
-    const bx2 = boxR.left;
+    const bx3 = boxR.left;
     if (!stacked) {
-      path.setAttribute("d", tx - HEAD - bow >= mainR.left ? `M ${bx2} ${by} C ${bx2 - bow} ${by}, ${tx - HEAD - bow} ${ty}, ${tx - HEAD} ${ty}` : `M ${bx2} ${by} C ${bx2 - bow} ${by}, ${anchorR.left + anchorR.width / 2} ${ty + HEAD + 70}, ${anchorR.left + anchorR.width / 2} ${ty + HEAD}`);
+      path.setAttribute("d", tx - HEAD - bow >= mainR.left ? `M ${bx3} ${by2} C ${bx3 - bow} ${by2}, ${tx - HEAD - bow} ${ty}, ${tx - HEAD} ${ty}` : `M ${bx3} ${by2} C ${bx3 - bow} ${by2}, ${anchorR.left + anchorR.width / 2} ${ty + HEAD + 70}, ${anchorR.left + anchorR.width / 2} ${ty + HEAD}`);
       return;
     }
     const cx = boxR.left + boxR.width / 2;
@@ -5068,23 +5265,23 @@ function place() {
     return;
   }
   if (stacked && stage < 4) {
-    const bx2 = boxR.left + boxR.width / 2;
+    const bx3 = boxR.left + boxR.width / 2;
     const [cx, cy] = [anchorR.left + anchorR.width / 2, anchorR.top - 4];
     const bend = Math.max(12, Math.min(70, (cy - HEAD - boxR.bottom) * 0.5));
-    path.setAttribute("d", `M ${bx2} ${boxR.bottom} C ${bx2} ${boxR.bottom + bend}, ${cx} ${cy - HEAD - bend}, ${cx} ${cy - HEAD}`);
+    path.setAttribute("d", `M ${bx3} ${boxR.bottom} C ${bx3} ${boxR.bottom + bend}, ${cx} ${cy - HEAD - bend}, ${cx} ${cy - HEAD}`);
     return;
   }
-  const bx = boxR.right, dx = tx - bx;
+  const bx2 = boxR.right, dx = tx - bx2;
   if (dx >= 80) {
-    path.setAttribute("d", `M ${bx} ${by} C ${bx + dx * 0.5} ${by}, ${tx - HEAD - dx * 0.5} ${ty}, ${tx - HEAD} ${ty}`);
+    path.setAttribute("d", `M ${bx2} ${by2} C ${bx2 + dx * 0.5} ${by2}, ${tx - HEAD - dx * 0.5} ${ty}, ${tx - HEAD} ${ty}`);
     return;
   }
-  if (ty > by) {
-    path.setAttribute("d", `M ${bx} ${by} C ${bx + 70} ${by}, ${tx} ${ty - HEAD - 70}, ${tx} ${ty - HEAD}`);
+  if (ty > by2) {
+    path.setAttribute("d", `M ${bx2} ${by2} C ${bx2 + 70} ${by2}, ${tx} ${ty - HEAD - 70}, ${tx} ${ty - HEAD}`);
     return;
   }
   const [ex, ey] = [tx - HEAD * 0.7, ty + HEAD * 0.7];
-  path.setAttribute("d", `M ${bx} ${by} C ${bx + (ex - bx) * 0.9} ${by}, ${ex - 45} ${ey + 45}, ${ex} ${ey}`);
+  path.setAttribute("d", `M ${bx2} ${by2} C ${bx2 + (ex - bx2) * 0.9} ${by2}, ${ex - 45} ${ey + 45}, ${ex} ${ey}`);
 }
 function maybeShowTutorial(force = false) {
   if (!overlay?.hidden)

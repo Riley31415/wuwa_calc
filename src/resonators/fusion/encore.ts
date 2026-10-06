@@ -142,7 +142,7 @@ const FHA = encoreAction("Forte Heavy - Cosmos Rupture", { ...RAVE, animFrames: 
     { hitFrame: 203, mv: 49521, offtune: 29891 },
   ], castConcerto: 1000, ...SPEND_MAYHEM, castForte1: -100 });
 
-const Intro = encoreAction("Intro - Woolies Helpers", { animFrames: 80, noSwapFrames: 75, animPriority: { 92: 1 }, castPriority: 11, motionStop: [0, 56], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 60, mv: 19881, energy: 1000, offtune: 15132, forte1: 40 }], castConcerto: 1000});
+const Intro = encoreAction("Intro - Woolies Helpers", { qteFrames: 60, animFrames: 80, noSwapFrames: 75, animPriority: { 92: 1 }, castPriority: 11, motionStop: [0, 56], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 60, mv: 19881, energy: 1000, offtune: 15132, forte1: 40 }], castConcerto: 1000});
 /** A burn zone, 4 ticks over 6s, lumped into one action same as every other periodic effect
  *  elsewhere. No handoff buff is described on her own kit page — left as a plain hit. */
 const Outro = encoreAction("Outro - Thermal Field", { animFrames: 0, cast: Cast.Outro, type: Type.Outro, bullets: [{ hitFrame: 0, mv: 17676 }, { hitFrame: 90, mv: 17676 }, { hitFrame: 180, mv: 17676 }, { hitFrame: 270, mv: 17676 }], minConcerto: 10000, castConcerto: -10000});

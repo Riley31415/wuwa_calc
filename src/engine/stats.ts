@@ -220,9 +220,10 @@ export const enum BuffTarget { Self, Team, Enemy, Next }
 
 /** Cast identities with no damage type of their own (a Dodge Counter deals whatever `type` says);
  *  kept out of `Type` so they can't be reached for `type`/`subtype` by mistake. */
-/** Frames an animation runs on past the point it was cut: an insta cut's and a plain (dodge, jump,
- *  on-hit) cancel's — and the handoff a swap costs the resonator coming in. `HOLD_DELAY` and
- *  `MASH_DELAY` are the least a hold and a mash cancel play of their press before letting go. */
+/** Frames an animation runs on past the point it was cut: an insta cut's (an insta swap's too) and
+ *  a plain (dodge, jump, on-hit, swap cancel) cancel's — and the handoff a plain swap or an Outro
+ *  costs the resonator coming in. `HOLD_DELAY` and `MASH_DELAY` are the least a hold and a mash
+ *  cancel play of their press before letting go. */
 export const INSTA_DELAY = 6, MASH_DELAY = 6, HOLD_DELAY = 15, CANCEL_DELAY = 12, SWAP_DELAY = 12;
 
 /** The units every number of these is held in, whole: energy and concerto in hundredths of a point,
@@ -248,17 +249,17 @@ export enum ActionTag {
   HoldCancel = "hold cancel", // the next press held through it, coming out once it can be cast
   DodgeCancel = "dodge cancel",
   JumpCancel = "jump cancel",
-  SwapCancel = "swap cancel",
+  SwapCancel = "swap cancel", // swapped out of at its last commit, never inside its no-swap frames
+  MashSwap = "mash swap", // swapped out of MASH_DELAY after its no-swap frames end
 
   InstaCancel = "instant cancel",
   InstaDodge = "instant dodge",
   InstaJump = "instant jump",
-  InstaSwap = "instant swap",
+  InstaSwap = "insta swap",
 
   HitCancel = "cancel on hit",
   DodgeOnHit = "dodge on hit",
   JumpOnHit = "jump on hit",
-  // no reason to swap on first hit
 }
 
 export const enum Cast {

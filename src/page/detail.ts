@@ -13,7 +13,7 @@ import type { TeamRun } from "../solve/teamrun.js";
 import { hitsOf, erRollsFor } from "../solve/teamrun.js";
 import { ER_TOLERANCE } from "../shared/substats.js";
 import { results, detailFor, FALLBACK_HUE } from "./model.js";
-import { esc, lazyPop, rect, zoom, clearPops, popover, infoPopover, buffsPopover, framesPopover, equippedGear, dprTable, loadoutTable, wireDistribution, drivePanel, dropPanel, holdPanels } from "./panels.js";
+import { esc, lazyPop, rect, zoom, clearPops, popover, infoPopover, buffsPopover, framesPopover, equippedGear, dprTable, loadoutTable, wireDistribution, drivePanel, dropPanel, holdPanels, copyBlock } from "./panels.js";
 import { rememberTableScroll } from "./table.js";
 import { canPick } from "./pickmenu.js";
 
@@ -37,7 +37,7 @@ function cell(col: Column, { cls = [], html = "", pop = "", style = "", attr = "
 /** Which colour a cut's tag box wears (index.css `.ctag-*`). */
 const TAG_KIND: Partial<Record<ActionTag, string>> = {
   [ActionTag.InstaCancel]: "insta", [ActionTag.InstaDodge]: "insta", [ActionTag.InstaJump]: "insta", [ActionTag.InstaSwap]: "insta",
-  [ActionTag.SwapCancel]: "swap", [ActionTag.MashCancel]: "easy", [ActionTag.HoldCancel]: "easy", [ActionTag.Field]: "field",
+  [ActionTag.SwapCancel]: "swap", [ActionTag.MashSwap]: "swap", [ActionTag.MashCancel]: "easy", [ActionTag.HoldCancel]: "easy", [ActionTag.Field]: "field",
   [ActionTag.DodgeCancel]: "dash", [ActionTag.JumpCancel]: "jump", [ActionTag.Cancel]: "cancel", [ActionTag.HitCancel]: "hit", [ActionTag.DodgeOnHit]: "hit", [ActionTag.JumpOnHit]: "hit",
 };
 
@@ -51,6 +51,7 @@ const TAG_NOTE: Partial<Record<ActionTag, string>> = {
   [ActionTag.DodgeCancel]: "After the final hit, dodge to cancel endlag",
   [ActionTag.JumpCancel]: "After the final hit, jump to cancel endlag",
   [ActionTag.SwapCancel]: "After the final hit, swap to cancel endlag",
+  [ActionTag.MashSwap]: "After casting, mash swap to swap out the moment it allows",
   [ActionTag.MashCancel]: "After casting, mash the next input to cancel when available",
   [ActionTag.HoldCancel]: "After casting, hold the next input to cancel when available",
   [ActionTag.HitCancel]: "After the first hit, input the next action",
@@ -105,7 +106,7 @@ function stepRow(
     }
     const tag = col.key === "action" ? String(row.raw["tag:action"] ?? "") : "";
     // the tag's own box, coloured by what cut the press — an insta anything red (insta swap too), a
-    // swap cancel yellow, a mash or hold cancel green, then a dash, a jump, and a plain cancel — or gray
+    // swap form yellow, a mash or hold cancel green, then a dash, a jump, and a plain cancel — or gray
     // for a press beside the fight
     if (tag) {
       const kind = TAG_KIND[tag as ActionTag] ?? "cancel", note = TAG_NOTE[tag as ActionTag];
@@ -393,7 +394,21 @@ export function renderDetail(key: string): void {
   wireColumnDrag(app, detailFor(run).report.columns);
   wireCellSelect(app);
   wireDistribution(app);
+  const pair = app.querySelector<HTMLElement>(".rtables");
+  if (pair) pairFit.observe(pair);
 }
+
+/** Damage Contribution fills the line beside Equipment; wrapped under it, it takes Equipment's width
+ *  rather than the whole line's. Measured with the cap off, so widening the page lets it back up. */
+const pairFit = new ResizeObserver((entries) => {
+  for (const { target } of entries) {
+    const equip = target.firstElementChild as HTMLElement | null;
+    const stack = target.querySelector<HTMLElement>(".rstack");
+    if (!equip || !stack) continue;
+    stack.style.maxWidth = "";
+    if (stack.offsetTop > equip.offsetTop) stack.style.maxWidth = `${equip.offsetWidth}px`;
+  }
+});
 
 /* ------------------------------------------------------------------------- column order */
 
@@ -613,10 +628,15 @@ function clearBlock(): void {
   cellSelBox = null;
 }
 
-/** Where row `i` sits inside the grid, measured on the first ask and kept after (`span`). */
+/** Where row `i` sits inside the grid, measured on the first ask and kept after (`span`). The
+ *  pinned heading is taken where it sits unpinned, just above the first row. */
 function rowSpan(sel: CellSel, i: number, gridTop: number): [number, number] {
   const seen = sel.span[i];
   if (seen) return seen;
+  if (i === 0 && sel.rows.length > 1) {
+    const below = rowSpan(sel, 1, gridTop)[0];
+    return (sel.span[0] = [below - rect(sel.rows[0]!).height, below]);
+  }
   const r = rect(sel.rows[i]!);
   const at: [number, number] = [r.top - gridTop, r.bottom - gridTop];
   sel.span[i] = at;
@@ -666,6 +686,9 @@ function trackBlock(): void {
   let row = Math.min(Math.max(sel.fr, 0), sel.rows.length - 1);
   while (row < sel.rows.length - 1 && y > rowSpan(sel, row, g.top)[1]) row++;
   while (row > 0 && y < rowSpan(sel, row, g.top)[0]) row--;
+  // the heading is reached wherever it is pinned, over whichever rows it hides
+  const head = rect(sel.rows[0]!);
+  if (py >= head.top && py < head.bottom) row = 0;
   const x = px - g.left;
   let col = 0;
   while (col < sel.cols.length - 1 && x >= sel.cols[col + 1]!.left) col++;
@@ -715,6 +738,13 @@ addEventListener("click", (e) => {
   if (target?.closest?.(".gridwrap .grid .chain > label.r") && !target.closest(".c.action")) e.preventDefault();
 }, true);
 
+/** A cell's text as copied: a cut's tag, drawn ahead of the action's name, follows it. */
+function copyText(c: HTMLElement): string {
+  const tag = c.querySelector(".ctag");
+  const name = [...c.childNodes].filter((n) => n !== tag).map((n) => n.textContent ?? "").join("").replace("▸", "").trim();
+  return tag ? `${name} ${(tag.textContent ?? "").trim()}` : name;
+}
+
 /** Ctrl+C takes a copy of the block, a row to a line and a tab between columns — the figures as the
  *  table sets them, so what lands in a spreadsheet reads the way the log does. */
 addEventListener("keydown", (e) => {
@@ -722,9 +752,7 @@ addEventListener("keydown", (e) => {
   const loose = getSelection();
   if (loose && !loose.isCollapsed) return;
   e.preventDefault();
-  const text = blockCells(cellSel)
-    .map((row) => row.map((c) => (c.textContent ?? "").replace("▸", "").trim()).join("\t")).join("\n");
-  navigator.clipboard?.writeText(text).catch(() => { /* nowhere to put it */ });
+  copyBlock(blockCells(cellSel).map((row) => row.map(copyText)));
 });
 
 /**
@@ -804,8 +832,8 @@ function wireCellSelect(root: HTMLElement): void {
       })
       .sort((a, b) => a.left - b.left);
     const row = cell.closest<HTMLElement>(".r")!;
-    const rows = [...grid.querySelectorAll<HTMLElement>(".r")]
-      .filter((r) => !r.classList.contains("head") && r.offsetParent);
+    // the heading leads the rows: a press there lifts its column, but a block can be dragged up into it
+    const rows = [...grid.querySelectorAll<HTMLElement>(".r")].filter((r) => r.offsetParent);
     const ar = rows.indexOf(row);
     const ac = cols.findIndex((c) => c.nth === [...row.children].indexOf(cell));
     if (ar < 0 || ac < 0) return;

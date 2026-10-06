@@ -84,9 +84,10 @@ const BA4 = sigrikaAction("Basic - One, Two, Three 4", {
     { hitFrame: 22, mv: 4136, energy: 65, concerto: 130, offtune: 2080 },
     { hitFrame: 28, mv: 5170, energy: 82, concerto: 163, offtune: 2600 },
     { hitFrame: 46, mv: 5170, energy: 82, concerto: 163, offtune: 2600 },
+    // Decipher (Elucidated's window) opens on frame 60, not on the cast
+    { hitFrame: 60, element: null, type: null, subtype: null, updateDebuffs: () => applyCurrent(DECIPHER, 1) },
     { hitFrame: 72, commitFrame: 60, mv: 6203, energy: 98, concerto: 195, offtune: 3120 },
   ],
-  updateBuffs: () => applyCurrent(DECIPHER, 1),
 });
 const MA = sigrikaAction("Mid-air - One, Two, Three Plunge", { animFrames: 44, animPriority: { 36: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 38, mv: 10478, energy: 155, concerto: 310, offtune: 4960 }]});
 const MDC = sigrikaAction("Dodge Counter - One, Two, Three (Mid-Air)", { animFrames: 44, animPriority: { 0: 6, 36: 2 }, castPriority: 8, bullets: [{ hitFrame: 38, mv: 20617, energy: 305, concerto: 610, offtune: 9920 }], node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, castConcerto: 1000});
@@ -237,11 +238,14 @@ function spendRunes(follow: Action): void {
 }
 
 /** Learn My True Name: at 100 Full Stop, spends it all. */
+
+// NOTE: manaully set to 140/146 frames because last hit is after animation ends, dont want to cancel it early.
 const FSkill = sigrikaAction("Forte Skill - Learn My True Name", { minForte2: 100,
-   animFrames: 138, noSwapFrames: 132, animPriority: { 0: 10, 132: 9, 138: 2 }, castPriority: 5, cooldown: 60 * 25,
+   animFrames: 146, noSwapFrames: 132, 
+   animPriority: { 0: 10, 132: 9, 138: 2 }, castPriority: 5, cooldown: 60 * 25,
    node: Node.Forte, cast: Cast.Skill, type: Type.Echo, bullets: [
-     { hitFrame: 86, mv: 30287, energy: 136, concerto: 500, offtune: 25334 },
-     { hitFrame: 130, commitFrame: 86, mv: 90861, energy: 407, concerto: 1500, offtune: 76002 },
+     { hitFrame: 88, mv: 30287, energy: 136, concerto: 500, offtune: 25334 },
+     { hitFrame: 140, commitFrame: 88, mv: 90861, energy: 407, concerto: 1500, offtune: 76002 },
    ], castConcerto: 1000, castForte2: -100,
   // the Full Stop it spends leaves the store, the Runes after it moving up
   updateBuffs: () => {
@@ -256,9 +260,10 @@ const Liberation = sigrikaAction("Liberation - Where Trust Leads Me!", {
   updateBuffs: () => applyCurrent(DIVERGENT),
 });
 
-const Intro = sigrikaAction("Intro - Solsworn Etymology", { animFrames: 58, noSwapFrames: 48, animPriority: { 58: 2 }, castPriority: 11, motionStop: [5, 42], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 46, mv: 16342, energy: 1000, offtune: 7736 }], castConcerto: 1000});
+const Intro = sigrikaAction("Intro - Solsworn Etymology", { qteFrames: 42, animFrames: 58, noSwapFrames: 48, animPriority: { 58: 2 }, castPriority: 11, motionStop: [5, 42], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 46, mv: 16342, energy: 1000, offtune: 7736 }], castConcerto: 1000});
 /** In This Very Moment carries no team buff on her own page (unlike most other kits' outros). */
-const Outro = sigrikaAction("Outro - In This Very Moment", { animFrames: 48, cast: Cast.Outro, type: Type.Outro, bullets: [{ hitFrame: 18, mv: 79500 }], minConcerto: 10000, castConcerto: -10000});
+// wuwalab's priority is all 0 (missing): an Outro's usual 10, held its whole length
+const Outro = sigrikaAction("Outro - In This Very Moment", { animFrames: 48, castPriority: 10, cast: Cast.Outro, type: Type.Outro, bullets: [{ hitFrame: 18, mv: 79500 }], minConcerto: 10000, castConcerto: -10000});
 
 /* ------------------------------------------------------------------------------------ buffs */
 
@@ -365,18 +370,10 @@ const INNATE_GIFT = new Buff({
         }
     }
   },
-  updateBuffs: () => {
-    if (isHeld(SR_S3)) return;
-    lostOnSwap();
-    // spent once Learn My True Name has hit: a Runic follow-up still in flight lands with it
-    if (isHeld(INNATE_SPENT) && !runningAction(RunicOutburst) && !runningAction(RunicChainWhip) && !runningAction(RunicSoliskin)) {
-      revokeCurrent(INNATE_GIFT);
-      revokeCurrent(INNATE_SPENT);
-    }
-  },
-  afterAction: () => { if (runningAction(FSkill) && !isHeld(SR_S3)) applyCurrent(INNATE_SPENT, 1); },
+  updateBuffs: () => { if (!isHeld(SR_S3)) lostOnSwap(); },
+  // spent once Learn My True Name ends: a hit of it landing behind a cut no longer runs it, and pays nothing
+  afterAction: () => { if (runningAction(FSkill) && !isHeld(SR_S3)) revokeCurrent(INNATE_GIFT); },
 });
-const INNATE_SPENT = new Buff({ name: "Sigrika: Innate Gift? (spent)", hidden: true, lostOnSwap: true });
 
 /** Soliskin Vitality: a genuine 0-60 gauge, +10 whenever any team member casts an Echo Skill
  *  (granted via `SIGRIKA_RESONATOR`'s own updateGlobal(), same reasoning as Blessing of Runes above). Spent
@@ -492,7 +489,7 @@ const SR_ROTATION = new Rotation([
   INTRO, ECHO, 
   BA234, EBASIC.cancel(), FHA.cancel(), Liberation,
   BA234, EBASIC.cancel(), FHA.holdCancel(), FSkill,
-  Skill, BA34, EBASIC.instaSwap(),
+  Skill, BA34, EBASIC.cancel(),
   OUTRO,
 ]);
 
@@ -501,8 +498,9 @@ const SR_ROTATION_DOUBLE = new Rotation([
   Skill, BA34, EBASIC.instaSwap(),
 
   INTRO_LAST, ECHO, FHA.dodgeCancel(),
-  BA234, ESKILL, BA234, EBASIC.hitCancel(), Liberation, FHA.holdCancel(), FSkill, 
-  Skill, BA34, EBASIC.instaSwap(),
+  BA234, ESKILL, BA234, EBASIC.cancel(),
+  FHA.holdCancel(), FSkill, Liberation, 
+  Skill, BA34, EBASIC.cancel(),
   OUTRO,
 ]);
 

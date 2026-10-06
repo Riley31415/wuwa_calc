@@ -268,7 +268,7 @@ const Liberation = qxAction("Liberation - Billows Beneath Heaven", {
 /** Banks nothing on the table — the page's "restores 30 Sword Cadence" isn't there — and arms
  *  Resonant Chime. */
 const Intro = qxAction("Intro - Tonality Shift", {
-  animFrames: 64, noSwapFrames: 57, animPriority: { 64: 0 }, castPriority: 11, motionStop: [3, 31],
+  qteFrames: 28, animFrames: 64, noSwapFrames: 57, animPriority: { 64: 0 }, castPriority: 11, motionStop: [3, 31],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 35, mv: 3979, energy: 300, offtune: 2288 },
     { hitFrame: 43, mv: 4642, energy: 350, offtune: 2669 },

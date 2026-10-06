@@ -268,7 +268,7 @@ const Liberation = luukAction("Liberation - Rewritten in Winter's Margins", {
 });
 
 const Intro = luukAction("Intro - Before Injection of Dawn", {
-  animFrames: 75, noSwapFrames: 57, animPriority: { 73: 0 }, castPriority: 11, motionStop: [5, 25],
+  qteFrames: 23, animFrames: 75, noSwapFrames: 57, animPriority: { 73: 0 }, castPriority: 11, motionStop: [5, 25],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 27, mv: 7267, energy: 334, offtune: 3440 },
     { hitFrame: 33, mv: 7267, energy: 334, offtune: 3440 },

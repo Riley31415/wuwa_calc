@@ -20,7 +20,7 @@ import {
   addStat,
   forte1,
   
-  queueOutro,
+  queueQTE,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Cooldown, Rotation, START_LAST, INTRO, OUTRO } from "../../engine/rotation.js";
 import { BLAZING_BRILLIANCE } from "../../weapons/sword.js";
@@ -139,7 +139,7 @@ const Liberation = changliAction("Liberation - Radiance of Fealty", {
 });
 
 // --- intro / outro. Intro also opens True Sight.
-const Intro = changliAction("Intro - Obedience of Rules", { animFrames: 45, noSwapFrames: 46, animPriority: { 45: 2 }, castPriority: 11, motionStop: [5, 44], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
+const Intro = changliAction("Intro - Obedience of Rules", { qteFrames: 12, animFrames: 45, noSwapFrames: 46, animPriority: { 45: 2 }, castPriority: 11, motionStop: [5, 44], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 6, mv: 4450, energy: 300, offtune: 1791, updateDebuffs: () => applyCurrent(TRUE_SIGHT, 1) },
     { hitFrame: 18, commitFrame: 6, mv: 2596, energy: 175, offtune: 1045 },
     { hitFrame: 24, commitFrame: 6, mv: 2596, energy: 175, offtune: 1045 },
@@ -149,7 +149,7 @@ const Intro = changliAction("Intro - Obedience of Rules", { animFrames: 45, noSw
 const Outro = changliAction("Outro - Strategy of Duality", {
   animFrames: 0,
   cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000,
-  updateBuffs: () => queueOutro(CHANGLI_OUTRO),
+  updateBuffs: () => queueQTE(CHANGLI_OUTRO),
 });
 
 /* ------------------------------------------------------------------------------------ buffs */

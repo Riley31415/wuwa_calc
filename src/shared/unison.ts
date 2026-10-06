@@ -33,8 +33,10 @@ import {
   currentTeam,
   frozenStacks,
   getStat,
+  hitting,
   inflicting,
   isHeld,
+  lastHit,
   queueOutro,
   removeStack,
   revokeCurrent,
@@ -69,10 +71,11 @@ export const unisonOutro = (outro: Action): Action => {
 export const gainedUnison = inflicting(() => applied(UNISON) > 0);
 
 /** What a Unison outro publishes for the next Intro: adopted at that Intro, read by its own hooks,
- *  and gone once the Intro row has paid out. */
+ *  and gone once the Intro row has paid out — its last hit, whatever cut the press (`introPaid`). */
 export const UNISON_INTRO = new Buff({
   //name: "Unison Intro",
-  afterAction: () => { if (casting(Cast.Intro)) revokeCurrent(UNISON_INTRO); },
+  afterHit: () => { if (introPaid()) revokeCurrent(UNISON_INTRO); },
+  afterAction: () => { if (introPaid()) revokeCurrent(UNISON_INTRO); },
 });
 
 /** Is the Intro being resolved or evaluated answering a Unison outro? True from an Intro Resolver —
@@ -86,8 +89,14 @@ export function unisonIntro(): boolean {
  *  Intro in its own updateBuffs, which runs ahead of every held Gear's, so all of them see it. */
 export const UNISON_RESPONSE = new Buff({
   //name: "Unison Response",
-  afterAction: () => { if (casting(Cast.Intro)) revokeCurrent(UNISON_RESPONSE); },
+  afterHit: () => { if (introPaid()) revokeCurrent(UNISON_RESPONSE); },
+  afterAction: () => { if (introPaid()) revokeCurrent(UNISON_RESPONSE); },
 });
+
+/** An Intro row paid out: on its last hit, or at its end where it has none to land. */
+function introPaid(): boolean {
+  return casting(Cast.Intro) && (hitting() ? lastHit() : !currentCast().bullets.length);
+}
 
 /** What a responder's Unison Intro form declares in its updateBuffs — the handoff is adopted ahead
  *  of the cast's hooks, so the marker is already held here. */

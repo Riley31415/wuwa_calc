@@ -59,7 +59,7 @@ import {
   frozenStacks,
   forte1,
   queue,
-  queueOutro,
+  queueQTE,
   removeStackTeam,
   revokeCurrent,
   isActive,
@@ -101,7 +101,7 @@ const Intro = lucillaAction("Intro - Clip It", {
   updateBuffs: () => applyCurrent(CHAFE_WINDOW, 1),
 });
 /** Clip It's Reminiscence form: its own hit and Chafe stack, no Trace (only Clip It restores any). */
-const HardCut = lucillaAction("Intro - Clip It: Hard Cut", {
+const HardCut = lucillaAction("Intro - Clip It: Hard Cut", { qteFrames: 5,
   requireBuff: REMINISCENCE, animFrames: 52, noSwapFrames: 52, castPriority: 11, motionStop: [5, 51], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 27, mv: 14941, energy: 1209, concerto: 493, offtune: 6680, ...CHAFES }], castConcerto: 1000,
   updateBuffs: () => applyCurrent(CHAFE_WINDOW, 1),
 });
@@ -111,7 +111,7 @@ const Outro = lucillaAction("Outro - Montage", {
   cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000,
   updateBuffs: () => {
     if (isHeld(MODE_CHAFE)) applyTeam(MONTAGE_CHAFE, 1);
-    else queueOutro(MONTAGE_HANDOFF);
+    else queueQTE(MONTAGE_HANDOFF);
   }
 });
 

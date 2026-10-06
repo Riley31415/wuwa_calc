@@ -25,7 +25,7 @@ import {
   runningAnyOf,
   casting,
   queue,
-  queueOutro,
+  queueQTE,
   removeStack,
   revokeCurrent,
   addStat,
@@ -146,7 +146,7 @@ const StingDreamweaver = cantaAction("Basic - Dreamweaver", { animFrames: 5, nod
 function dreamweavers(tick: Action): void { for (let i = 0; i < 3; i++) queue(tick); }
 
 const Intro = cantaAction("Intro - Ripple", {
-  animFrames: 76, noSwapFrames: 80, animPriority: { 76: 2 }, castPriority: 11, motionStop: [4, 30],
+  qteFrames: 33, animFrames: 76, noSwapFrames: 80, animPriority: { 76: 2 }, castPriority: 11, motionStop: [4, 30],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 36, mv: 4225, energy: 250, offtune: 2528 },
     { hitFrame: 42, mv: 4225, energy: 250, offtune: 2528 },
@@ -158,7 +158,7 @@ const Intro = cantaAction("Intro - Ripple", {
 /** Tidal Surge: the Intro she casts while Mirage still stands. Same motion value as Ripple, and
  *  three Coordinated Attacks on top. Her Mirage runs 8s and is gone by her own outro, so nothing
  *  in the loop below actually reaches this — it is what a quicker swap back in would cast. */
-const EIntro = cantaAction("Intro - Tidal Surge", {
+const EIntro = cantaAction("Intro - Tidal Surge", { qteFrames: 36,
   requireBuff: MIRAGE, animFrames: 83, noSwapFrames: 80, animPriority: { 83: 2 }, castPriority: 11, motionStop: [4, 49],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 26, mv: 1690, energy: 100, offtune: 1064, subtype: Subtype.Coordinated },
@@ -171,7 +171,7 @@ const EIntro = cantaAction("Intro - Tidal Surge", {
 const Outro = cantaAction("Outro - Gentle Tentacles", {
   animFrames: 0,
   cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000,
-  updateBuffs: () => queueOutro(CANTARELLA_OUTRO),
+  updateBuffs: () => queueQTE(CANTARELLA_OUTRO),
 });
 
 const ESKILL_JOLT = new Action("Jolt", { animFrames: 0, node: Node.Skill, element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 19881 }]});

@@ -23,7 +23,7 @@ import {
   currentCast,
   onAction,
   runningAction,
-  queueOutro,
+  queueQTE,
   applyTeam,
   revokeCurrent,
   addStat,
@@ -135,7 +135,7 @@ const Liberation = qiuyuanAction("Liberation - Sundering Strike", {
 });
 
 const Intro = qiuyuanAction("Intro - Attack the Must-Defend", {
-  animFrames: 74, noSwapFrames: 70, castPriority: 11, motionStop: [6, 54],
+  qteFrames: 48, animFrames: 74, noSwapFrames: 70, castPriority: 11, motionStop: [6, 54],
   node: Node.Intro, cast: Cast.Intro, type: Type.Heavy, bullets: [
     { hitFrame: 68, mv: 14315, energy: 600, offtune: 5760 },
     { hitFrame: 73, commitFrame: 66, mv: 955, energy: 40, offtune: 384 },
@@ -147,9 +147,9 @@ const Intro = qiuyuanAction("Intro - Attack the Must-Defend", {
   ], castConcerto: 1000, castForte1: 400,
 });
 const Outro = qiuyuanAction("Outro - Strike Before Ready", {
-  animFrames: 65,
+  animFrames: 65, animPriority: { 0: 10, 65: 1 }, castPriority: 10,
   cast: Cast.Outro, type: Type.Echo, bullets: [{ hitFrame: 82, commitFrame: 40, mv: 10000 }], minConcerto: 10000, castConcerto: -10000,
-  updateBuffs: () => queueOutro(QIUYUAN_OUTRO),
+  updateBuffs: () => queueQTE(QIUYUAN_OUTRO),
 });
 
 /** S3's Straw Cape in Drizzly Rain: the Skill while Concerto is full outside Inksplash of Mind — 60
@@ -170,9 +170,9 @@ const StrawCape = qiuyuanAction("Skill - Straw Cape in Drizzly Rain (S3)", {
 /** The Outro Straw Cape leaves him: 500% as Echo Skill DMG (its own chain row) in place of Strike
  *  Before Ready's 100%, the handoff unchanged. */
 const OutroS3 = qiuyuanAction("Outro - Sheath Fallen, New Shoots Revealed (S3)", {
-  animFrames: 65, requireBuff: STRAW_CAPE,
+  animFrames: 65, animPriority: { 0: 10, 65: 1 }, castPriority: 10, requireBuff: STRAW_CAPE,
   cast: Cast.Outro, type: Type.Echo, bullets: [{ hitFrame: 82, commitFrame: 40, mv: 50000 }], minConcerto: 10000, castConcerto: -10000,
-  updateBuffs: () => { queueOutro(QIUYUAN_OUTRO); revokeCurrent(STRAW_CAPE); },
+  updateBuffs: () => { queueQTE(QIUYUAN_OUTRO); revokeCurrent(STRAW_CAPE); },
 });
 /** S6: 600% as Echo Skill DMG (its own chain row) as Inksplash of Mind ends under him — To
  *  Sacrifice spends the last of the Soliloquy, so it fires off that. */
@@ -364,12 +364,12 @@ const QY_ROTATION = new Rotation([
   NOINTRO,
   HA, EBA4.instaCancel(), ECHO.instaDodge(), Liberation, HA, EBA4.instaDodge(), 
   EBA12.instaDodge(), EBA12.holdCancel(), 
-  FHA123.swapCancel(), 
+  FHA123.cancel(), 
   OUTRO,
 
   INTRO, SkillHold.instaCancel(), ECHO.instaDodge(), Liberation,
   EBA12.holdCancel(),
-  FHA123.swapCancel(), 
+  FHA123.cancel(), 
   OUTRO,
 ]);
 

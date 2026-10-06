@@ -203,7 +203,7 @@ const Skill = cartethyiaAction("Skill - Sword to Bear Their Names", {
   ], castConcerto: 1000,
 });
 const Intro = cartethyiaAction("Intro - Sword to Mark Tide's Trace", {
-  animFrames: 56, noSwapFrames: 40, animPriority: { 56: 2 }, castPriority: 11, motionStop: [6, 34],
+  qteFrames: 32, animFrames: 56, noSwapFrames: 40, animPriority: { 56: 2 }, castPriority: 11, motionStop: [6, 34],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     // the Discord shadow stands at 6, goes at 60 and is planted again at 67 (wuwalab)
     { hitFrame: 6, element: null, type: null, subtype: null, updateDebuffs: () => applyCurrent(SWORD_OF_DISCORD, 1) },
@@ -293,7 +293,7 @@ const FSkill2 = cartethyiaAction("Skill - May Tempest Break the Tides", { requir
 });
 /** Her Intro in Fleurdelys form — reached only by swapping out mid-Manifest and back in, which
  *  this loop never does. Conviction unknown (see the file header), so it banks none. */
-const FIntro = cartethyiaAction("Intro - Sword to Call for Freedom", { requireBuff: MANIFEST,
+const FIntro = cartethyiaAction("Intro - Sword to Call for Freedom", { qteFrames: 47, requireBuff: MANIFEST,
   animFrames: 71, noSwapFrames: 56, animPriority: { 71: 2 }, castPriority: 11, motionStop: [6, 48],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 48, mv: 428, energy: 53, offtune: 1685 }, { hitFrame: 61, mv: 997, energy: 123, offtune: 3932 }], castConcerto: 1000,
   updateBuffs: () => revokeTeam(WINDS_DIVINE_BLESSING),

@@ -62,7 +62,7 @@ export const TUNE_BREAK_COOLDOWN: Debuff = new Debuff({
 const BREAK_AFTER = new Set<string>([ActionTag.Default, ActionTag.Field]);
 
 /** The cuts a break may go in behind on the frame what follows would start — taking a plain dodge's
- *  or a swap cancel's swap's place, or ahead of the next press after a plain one — and the cut each
+ *  or a swap form's swap's place, or ahead of the next press after a plain one — and the cut each
  *  becomes. */
 const BREAK_CUTS = new Map<string, string>([
   [ActionTag.DodgeCancel, ActionTag.Cancel], [ActionTag.InstaDodge, ActionTag.InstaCancel], [ActionTag.DodgeOnHit, ActionTag.HitCancel],
@@ -163,8 +163,8 @@ export const TUNE_BREAK_ENEMY = new Resonator({
     if (BREAK_CUTS.has(cut) && breakReady(behind)) applyEnemy(READY_AT_CUT, 1);
   },
   // A break castable on that cut frame plays once the cut's delay is out — in a plain dodge's place,
-  // or ahead of the next step after a swap cancel or a plain cancel — mid-group or not: the cut
-  // becomes a plain one, and a swap cancel's Outro still comes after the break
+  // or ahead of the next step after a swap form or a plain cancel — mid-group or not: the cut
+  // becomes a plain one, and a swap form's Outro still comes after the break
   takesCut: (behind, cut) => {
     const plain = BREAK_CUTS.get(cut), ready = stacksOfEnemy(READY_AT_CUT) > 0;
     revokeEnemy(READY_AT_CUT);

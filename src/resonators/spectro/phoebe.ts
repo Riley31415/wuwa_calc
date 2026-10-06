@@ -283,14 +283,14 @@ const Liberation = new Action("Liberation Resolver", {
 });
 
 const Intro = phoebeAction("Intro - Golden Grace", {
-  animFrames: 98, noSwapFrames: 69, animPriority: { 69: 9 }, castPriority: 11, motionStop: [4, 46],
+  qteFrames: 53, animFrames: 98, noSwapFrames: 69, animPriority: { 69: 9 }, castPriority: 11, motionStop: [4, 46],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 45, mv: 19881, energy: 1000, offtune: 8000 }], castConcerto: 1000,
 });
 
 /** Attentive Heart: 528.41% of ATK, x3.55 in Absolution, and in Confession Silent Prayer onto the
  *  whole team, with the slowed tick interval onto the target. */
 const Outro = phoebeAction("Outro - Attentive Heart", {
-  animFrames: 180,
+  animFrames: 180, animPriority: { 0: 10 }, castPriority: 10,
   cast: Cast.Outro, type: Type.Outro, bullets: [
     { hitFrame: 30, commitFrame: 3, mv: 6606 },
     { hitFrame: 45, mv: 6606 },

@@ -237,7 +237,7 @@ const FatalFinaleS2 = FatalFinale.variant("Liberation - Fatal Finale (S2)", { bu
 const FatalFinaleResolver = new Action("Fatal Finale Resolver", { resolve: () => (isHeld(CL_S2) ? FatalFinaleS2 : FatalFinale) });
 
 const Intro = carlottaAction("Intro - Wintertime Aria", {
-  animFrames: 84, noSwapFrames: 70, animPriority: { 70: 2 }, castPriority: 11, motionStop: [0, 84],
+  qteFrames: 58, animFrames: 84, noSwapFrames: 70, animPriority: { 70: 2 }, castPriority: 11, motionStop: [0, 84],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 28, element: null, type: null, subtype: null, forte1: 3 },
     { hitFrame: 56, mv: 17893, energy: 600, offtune: 5601, ...DECONSTRUCT },

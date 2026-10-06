@@ -813,14 +813,14 @@ export class TeamMember {
 export interface HitRecord { at: number; slot: string; member: string; avg: number; variantAvg: number[] | null }
 
 /** `cut`: on a press's end, the tag it was cut short by (`ActionTag`, "" for none) — what `pressWasCut()` reads there. */
-export interface Timed { due: number; action: Action | null; slot: number; into: Result | null; by: HeldBuff | null; away?: boolean; apply?: () => void; frames?: number; closes?: boolean; triggered?: boolean; cut?: string; check?: () => void }
+export interface Timed { due: number; action: Action | null; slot: number; into: Result | null; by: HeldBuff | null; away?: boolean; apply?: () => void; frames?: number; closes?: boolean; triggered?: boolean; cut?: string; check?: () => void; behind?: boolean; at?: number }
 
 /** A clock entry with every field set, in one order — the queue's readers then see one shape. */
 export function timedEntry(
   due: number, action: Action | null, slot: number, by: HeldBuff | null, away: boolean | undefined, apply: (() => void) | undefined,
   frames: number | undefined, closes: boolean | undefined, triggered: boolean | undefined,
 ): Timed {
-  return { due, action, slot, into: null, by, away, apply, frames, closes, triggered, cut: undefined };
+  return { due, action, slot, into: null, by, away, apply, frames, closes, triggered, cut: undefined, check: undefined, behind: undefined, at: undefined };
 }
 
 /** `list` sorted by `due`, ties kept in order — the order a stable `sort()` leaves, without its call. */
@@ -858,10 +858,10 @@ export class State {
   presser = -1;
   /** The last press the on-field member made of their own — what an Outro's swap delay is charged
    *  to, the Outro itself never carrying it — and whether that delay is already on the clock (a
-   *  swap cancel's own, or the one charged ahead of the Outro). */
+   *  swap form's own, or the one charged ahead of the Outro). */
   lastOwn: Result | null = null;
   swapPaid = false;
-  /** The cut `lastOwn` was pressed with — what tells a swap cancel's swap still to come. */
+  /** The cut `lastOwn` was pressed with — what tells a swap form's swap still to come. */
   lastOwnCut = "";
   /** The visit a handoff into slot `to` opens, timed off its presses (rotation.ts's `chainGates`),
    *  for a handoff with no visit learned yet — set by `runRotations()`, null outside one. */
@@ -1027,6 +1027,8 @@ export class State {
    *  ignored the second time, while a second kit raising the same cap still counts. */
   enemyMaxSources = new Map<Gear, Set<string>>(); // TODO change Gear to Debuff
   outroQueue: Buff[] = [];
+  /** An Outro's own buffs for whoever intros next, landing on that Intro's QTE frame (`queueQTE`). */
+  qteQueue: Buff[] = [];
   /** Hits waiting on the clock, each landing on its owner at `due` — earliest first; `run()` plays
    *  them before any cast the clock has passed them for. A press's own queued hit fills in `into`,
    *  the cast's row; one a

@@ -45,6 +45,12 @@ export function currentHit(): Bullet {
   if (ctx.hit === null || ctx.inEnd) throw new Error(`${ctx.buff?.name ?? "?"}: currentHit() outside a hit hook (${ctx.act?.name ?? "?"})`);
   return ctx.hit;
 }
+/** On a hit: is it the last of its press to land, however early the press was cut — where a spend
+ *  the whole press pays goes (`afterHit`), its end (`afterAction`) maybe already behind it. */
+export function lastHit(): boolean {
+  if (ctx.hit === null || ctx.inEnd) throw new Error(`${ctx.buff?.name ?? "?"}: lastHit() outside a hit hook (${ctx.act?.name ?? "?"})`);
+  return ctx.hitsLeft <= 1;
+}
 /** Is a bullet landing — for a trigger that fires on the cast or the hit alike (`inflicting()`)
  *  and must tell the two apart. */
 export const hitting = (): boolean => ctx.hit !== null && !ctx.inEnd;
@@ -655,7 +661,7 @@ export function extendCurrent(buff: Buff, frames: number): void {
 export function currentGear(): Gear { return ctx.buff!; }
 
 /** Shortcut for a buff whose own kit text says "lost on swap" — revokes itself on the action that
- *  takes its holder off the field (`Action.swapOut`: an Outro, or the SWAP after a swap cancel).
+ *  takes its holder off the field (`Action.swapOut`: an Outro, or the SWAP after a swap form).
  *  Call it from `updateBuffs()` if it should stop contributing before that same action's own
  *  stats apply, or from `convertStats()` if it should still pay out on it first — same choice as any
  *  other revoke, just this one condition spelled out once instead of copied at every call site. */
@@ -760,8 +766,9 @@ export function applyOthers(buff: Buff, n = 1): void {
   for (const s of ctx.state!.slots) if (s !== ctx.slot) s.addStack(buff, n);
 }
 
-/** Publish a Buff for whoever intros next — adopted automatically the moment an Intro-cast
- *  action is evaluated, before that action's own updateBuffs()/applyStats()/convertStats() run. */
+/** Publish a Buff for whoever intros next — adopted the moment their Intro is cast, before its own
+ *  updateBuffs()/applyStats()/convertStats() run. For a handoff that isn't the Outro's own buff (a
+ *  sonata's, an echo's, a marker); an Outro's own buffs land on the Intro's QTE frame (`queueQTE`). */
 export function queueOutro(buff: Buff): void {
   // attributed here, at the outro that publishes it — not when the next resonator adopts it,
   // which would credit the buff to whoever received it rather than whoever handed it over
@@ -769,6 +776,15 @@ export function queueOutro(buff: Buff): void {
   if (ctx.dryRun) return;
   attribute(buff);
   ctx.state!.outroQueue.push(buff);
+}
+
+/** An Outro's own buff for whoever intros next — landing on their Intro's QTE frame (`qteFrames`),
+ *  its duration starting there. */
+export function queueQTE(buff: Buff): void {
+  noteMutation(buff.id, 3e6 + 1);
+  if (ctx.dryRun) return;
+  attribute(buff);
+  ctx.state!.qteQueue.push(buff);
 }
 
 /** Captures which slot queued it — `ctx.slot`, not `state.active`: they're the same slot in

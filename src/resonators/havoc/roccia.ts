@@ -25,7 +25,7 @@ import {
   currentTeam,
   addStat,
   frozenStacks,
-  queueOutro,
+  queueQTE,
   queueOn,
   addGain,
   forte1,
@@ -149,10 +149,10 @@ const Liberation = rocciaAction("Liberation - Commedia Improvviso!", {
   updateBuffs: () => applyTeam(COMMEDIA_TEAM_ATK),
 });
 
-const Intro = rocciaAction("Intro - Pero, Help", { animFrames: 68, noSwapFrames: 84, animPriority: { 68: 2 }, castPriority: 11, motionStop: [6, 32], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 52, mv: 16899, energy: 1000, offtune: 10824 }], castConcerto: 1000, castForte1: 100 });
+const Intro = rocciaAction("Intro - Pero, Help", { qteFrames: 48, animFrames: 68, noSwapFrames: 84, animPriority: { 68: 2 }, castPriority: 11, motionStop: [6, 32], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 52, mv: 16899, energy: 1000, offtune: 10824 }], castConcerto: 1000, castForte1: 100 });
 const Outro = rocciaAction("Outro - Applause, Please!", {
   cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000,
-  updateBuffs: () => queueOutro(APPLAUSE_HANDOFF),
+  updateBuffs: () => queueQTE(APPLAUSE_HANDOFF),
 });
 
 /** 100 flat Havoc DMG, Utility damage type, DMG-bonus-immune (Scaling.Fixed reads no stat/buff).
@@ -199,7 +199,9 @@ const RC_INHERENT_2 = new Inherent({
   name: "Inherent: Super Attractive Magic Box",
   updateGlobal: () => {
     const acting = currentTeam().slot;
-    if (casting(Cast.Intro) && acting.isHeld(APPLAUSE_HANDOFF)) queueOn(acting.resonator!, MAGIC_BOX);
+    // the handoff itself lands on the Intro's QTE frame, after this cast: still on its way here
+    const handed = acting.isHeld(APPLAUSE_HANDOFF) || currentTeam().qteQueue.includes(APPLAUSE_HANDOFF);
+    if (casting(Cast.Intro) && handed) queueOn(acting.resonator!, MAGIC_BOX);
   },
 });
 

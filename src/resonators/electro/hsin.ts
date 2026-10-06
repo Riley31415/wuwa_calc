@@ -516,7 +516,7 @@ const ManifoldAnswering = hsinAction("Intro - Answering Form: Manifold Unison", 
   ], castConcerto: 1000,
   ...MANIFOLD, castForte1: 6000
 });
-const UIIntro = hsinAction("Intro - Illumining Form", { requireBuff: ILLUMINING_FORM,
+const UIIntro = hsinAction("Intro - Illumining Form", { qteFrames: 8, requireBuff: ILLUMINING_FORM,
   animFrames: 152, noSwapFrames: 151, timestop: [0, 30], motionStop: [0, 152], animPriority: { 152: 2 }, castPriority: 11,
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 14, mv: 566, energy: 15, concerto: 17, offtune: 326 },
@@ -532,7 +532,7 @@ const UIIntro = hsinAction("Intro - Illumining Form", { requireBuff: ILLUMINING_
   // lands straight in Mechanism Dominion at 300 Illumining Heart
   castForte2: 30000, updateBuffs: () => applyCurrent(MECHANISM_DOMINION, 1),
 });
-const ManifoldIllumining = hsinAction("Intro - Illumining Form: Manifold Unison", { requireBuff: ILLUMINING_FORM,
+const ManifoldIllumining = hsinAction("Intro - Illumining Form: Manifold Unison", { qteFrames: 8, requireBuff: ILLUMINING_FORM,
   animFrames: 152, noSwapFrames: 151, timestop: [0, 30], motionStop: [0, 152], animPriority: { 152: 2 }, castPriority: 11,
   node: Node.Intro, cast: Cast.Intro, type: Type.Skill, bullets: [
     { hitFrame: 14, mv: 1573, energy: 15, concerto: 27, offtune: 326 },

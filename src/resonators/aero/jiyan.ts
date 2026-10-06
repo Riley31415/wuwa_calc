@@ -37,7 +37,7 @@ import {
   queue,
   queueOn,
   triggeredAction,
-  queueOutro,
+  queueQTE,
   isActive,
   applyTeam,
   frozenStacks,
@@ -205,7 +205,7 @@ const Intro = jiyanAction("Intro - Tactical Strike", { animFrames: 129, castPrio
 const Outro = jiyanAction("Outro - Discipline", {
   cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000,
   // queued twice so the adopter picks the buff up at both charges
-  updateBuffs: () => { queueOutro(JIYAN_OUTRO); queueOutro(JIYAN_OUTRO); },
+  updateBuffs: () => { queueQTE(JIYAN_OUTRO); queueQTE(JIYAN_OUTRO); },
 });
 /** One coordinated lance strike — queued onto his own slot by JIYAN_OUTRO below, once per stack
  *  the incoming resonator's Heavy casts consume. */

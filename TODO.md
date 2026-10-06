@@ -1,5 +1,3 @@
-#
-fix galb qy er
 
 #
 make echo actions resolvers that play only if their mainslot echo is equipped (create a template one for all echo actions to use)
@@ -8,19 +6,15 @@ delete the current ECHO placeholder action and related logic, replace them with 
 fully implement echo frames
 
 #
-add cell select on main page
-move the loadout table to be left aligned. damage over time table takes up the entire remaining space, but once it gets squished too far it moves to below the loadout table and copies the width.
-
-#
 preferred TB placement
-implement action chain restriction, to help enforce tb placements. after this, remove the restriction for not casting it during action groups.
-currently not allowed on mash,hold,
-remove midair case
-.no_tb marker
-etc
+implement action chain restriction. after this, remove the restriction of not casting it during action groups.
+currently tb not allowed after mash,hold, cancels
+remove midair special case for tb, instead it will check if the next action needs ground/air and allow tb if tb puts them in that spot
+.no_tb marker removal.
 swapin and air swaping replace nointro
 midair and grounded state + restriction
-optional tb cancel
+.tbCancel(), which will take priority for tb use for that section of the rotation (the first one after offtune is full takes the priority)
+
 
 #
 restrict 44111 when no 2 4 costs

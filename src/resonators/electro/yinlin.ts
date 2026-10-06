@@ -40,7 +40,7 @@ import {
   casting,
   addStat,
   queue,
-  queueOutro,
+  queueQTE,
   applyTeam,
   frozenStacks,
 } from "../../engine/context.js";
@@ -175,7 +175,7 @@ const Intro = yinlinAction("Intro - Raging Storm", { animFrames: 82, castPriorit
   ], castEnergy: 800, castConcerto: 1000});
 const Outro = yinlinAction("Outro - Strategist", {
   cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000,
-  updateBuffs: () => queueOutro(YINLIN_OUTRO),
+  updateBuffs: () => queueQTE(YINLIN_OUTRO),
 });
 
 /* ------------------------------------------------------------------------------------ marks */

@@ -175,7 +175,7 @@ const Liberation = cadenza("Liberation - Singer's Triple Cadenza", () => applyEn
 const LiberationYellow = cadenza("Liberation - Singer's Triple Cadenza (Yellow Tonic)", () => applyEnemy(SPECTRO_FRAZZLE, 1));
 const CADENZAS = new Set<Action>([Liberation, LiberationYellow]);
 const Intro = ciacconaAction("Intro - Roaming with the Wind", {
-  animFrames: 54, noSwapFrames: 61, animPriority: { 54: 2 }, castPriority: 11, motionStop: [6, 44],
+  qteFrames: 40, animFrames: 54, noSwapFrames: 61, animPriority: { 54: 2 }, castPriority: 11, motionStop: [6, 44],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 40, mv: 18911, energy: 1000, offtune: 9280, ...EROSION }], castConcerto: 1000, castForte1: 1,
   // switching back in exits Recital, cutting whatever Tonics are left
   updateBuffs: () => {

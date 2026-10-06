@@ -50,6 +50,7 @@ import {
 import { STARFIELD_CALIBRATOR } from "../../weapons/broadblade.js";
 import { DISCORD } from "../../weapons/standard.js";
 import { REACTOR_HUSK, SPACETREK_EXPLORER, STARRY_RADIANCE_5PC } from "../../echoes/lahairoi.js";
+import { JINGRAN_RESONATOR } from "./jingran.js";
 import { mainstats, Mainstat } from "../../shared/mainstats.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
@@ -222,7 +223,7 @@ const Liberation = mornyeAction("Liberation - Critical Protocol", {
   },
 });
 
-const Intro = mornyeAction("Intro - Convergence", { animFrames: 105, animPriority: { 80: 6 }, castPriority: 11, motionStop: [4, 79], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
+const Intro = mornyeAction("Intro - Convergence", { qteFrames: 35, animFrames: 105, animPriority: { 80: 6 }, castPriority: 11, motionStop: [4, 79], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 38, mv: 20279, energy: 1000, offtune: 13600 },
     { hitFrame: 70, commitFrame: 38, element: null, type: null, subtype: null, updateDebuffs: raiseSyntonyField },
   ], castConcerto: 1000,
@@ -461,7 +462,7 @@ const MO_ROTATION_S3 = new Rotation([
  *  Reactor Husk's own 10% are both doing real work. */
 const MO_ECHOES = [
   new EchoLoadout(REACTOR_HUSK, STARRY_RADIANCE_5PC),
-  new EchoLoadout(SPACETREK_EXPLORER, STARRY_RADIANCE_5PC),
+  new EchoLoadout(SPACETREK_EXPLORER, STARRY_RADIANCE_5PC).requires(JINGRAN_RESONATOR),
 ];
 
 export const MORNYE = new Loadout({

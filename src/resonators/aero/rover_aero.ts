@@ -192,7 +192,7 @@ const Liberation = roverAction("Liberation - Omega Storm", { animFrames: 211, ca
     // the team heal, 4 frames after the hit (wuwalab)
     { hitFrame: 151, element: null, type: null, subtype: null, updateDebuffs: () => applyCurrent(HEALS, 1) },
   ], castConcerto: 2000, resetEnergy: true });
-const Intro = roverAction("Intro - Relentless Squall", { motionStop: [0, 30], animFrames: 85, animPriority: { 85: 2 }, castPriority: 11, noSwapFrames: 67, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
+const Intro = roverAction("Intro - Relentless Squall", { qteFrames: 34, motionStop: [0, 30], animFrames: 85, animPriority: { 85: 2 }, castPriority: 11, noSwapFrames: 67, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 37, mv: 7953, energy: 400, offtune: 4586 },
     { hitFrame: 56, mv: 11929, energy: 600, offtune: 6879 },
   ], castConcerto: 1000, castForte1: 20,
