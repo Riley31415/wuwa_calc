@@ -434,7 +434,8 @@ function rowValues(
   // red flags for the action table: a bar the cast found outside its own condition
   raw["short:energy"] = snap.castUnmet?.[0] ? 1 : 0;
   raw["short:concerto"] = snap.castUnmet?.[1] ? 1 : 0;
-  FORTE_GAUGES.forEach((key, i) => { raw[`short:gauge:${RESOURCE_NAME[key]}`] = snap.castUnmet?.[2 + i] ? 1 : 0; });
+  // ...or a gauge spent below empty
+  FORTE_GAUGES.forEach((key, i) => { raw[`short:gauge:${RESOURCE_NAME[key]}`] = snap.castUnmet?.[2 + i] || shown(snap, 3 + i) < 0 ? 1 : 0; });
   // ...and a buff it needed and didn't find, or found and couldn't have, by name
   const buffs = [...(snap.buffUnmet ?? []).map((b) => b.name), ...(snap.buffForbidden ?? []).map((b) => `not ${b.name}`)];
   raw["short:buff"] = buffs.length ? buffs.join(", ") : 0;

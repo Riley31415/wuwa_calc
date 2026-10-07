@@ -227,7 +227,7 @@ export const GUSTS_OF_WELKIN_5PC = new Sonata({
  *  Cartethyia. Both are checked by name: importing either module here would close the cycle their
  *  own loadouts already open by equipping this echo, and the loser of that race is whichever file
  *  the loader reaches second. */
-export const ACTION_FLEURDELYS = new PseudoTransformEcho("Echo - Reminiscence: Fleurdelys", {
+export const ACTION_FLEURDELYS = new SummonEcho("Echo - Reminiscence: Fleurdelys", {
   cooldown: 60 * 20,
   element: Attribute.Aero, scaling: Scaling.Atk, type: Type.Echo,
   bullets: [{ hitFrame: 0, mv: 2736 * 8 + 13680, energy: 38 * 8 + 190 }], 

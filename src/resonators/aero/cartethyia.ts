@@ -45,6 +45,7 @@ import {
   casting,
   currentCast,
   runningAction,
+  runningAnyOf,
   currentMember,
   currentTeam,
   forte1,
@@ -87,9 +88,8 @@ const SWORD_OF_DIVINITY = new Buff({ name: "Cartethyia: Sword of Divinity's Shad
 const SWORD_OF_DISCORD = new Buff({ name: "Cartethyia: Sword of Discord's Shadow", duration: 60 * 20 });
 const SWORD_OF_VIRTUE = new Buff({ name: "Cartethyia: Sword of Virtue's Shadow", duration: 60 * 20 });
 
-/** Manifest: 12s as Fleurdelys, opened by A Knight's Heartfelt Prayers and closed by the Blade.
- *  It survives a swap on purpose — that is what her Fleurdelys-form Intro is for. No stat of its
- *  own; S6 is what reads it, and every Fleurdelys press requires it. */
+/** Manifest: 12s as Fleurdelys, opened 154f into A Knight's Heartfelt Prayers and closed 200f into
+ *  the Blade. It survives a swap — that is what her Fleurdelys-form Intro is for. Every Fleurdelys press requires it. */
 const MANIFEST = new Buff({ name: "Cartethyia: Manifest", duration: 60 * 12 });
 
 /** "Following Sword to Answer Waves' Call, press Resonance Skill again" for May Tempest Break the
@@ -282,7 +282,9 @@ const FEHA = cartethyiaAction("Heavy - Tempest (Enhanced)", { chains: [FHA], req
     { hitFrame: 44, commitFrame: 37, mv: 778, energy: 96, concerto: 135, offtune: 3066, forte1: 8 },
     { hitFrame: 51, commitFrame: 37, mv: 389, energy: 48, concerto: 68, offtune: 1533, forte1: 8 },
   ]});
-const FSkill1 = cartethyiaAction("Skill - Sword to Answer Waves' Call", { requireBuff: MANIFEST, animFrames: 69, animPriority: { 55: 2 }, castPriority: 4, cooldown: 60 * 14, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, bullets: [
+
+// anim frames set to 55 (old was 69) because ma1/fskill2 have higher prio to cancel here
+const FSkill1 = cartethyiaAction("Skill - Sword to Answer Waves' Call", { requireBuff: MANIFEST, animFrames: 55, animPriority: { 55: 2 }, castPriority: 4, cooldown: 60 * 14, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 5, mv: 186, energy: 18, offtune: 551, forte1: 2 },
     { hitFrame: 11, commitFrame: 5, mv: 186, energy: 18, offtune: 551, forte1: 2 },
     { hitFrame: 17, commitFrame: 5, mv: 186, energy: 18, offtune: 551, forte1: 2 },
@@ -317,8 +319,11 @@ const FBA12345 = new ActionGroup("Basic - Tempest 12345", [FBA1, FBA2, FBA3, FBA
 // --- the two Liberations: the transform, then the Blade once Conviction is full
 const Liberation = cartethyiaAction("Liberation - A Knight's Heartfelt Prayers", {
   animFrames: 198, castPriority: 10, timestop: [0, 198], motionStop: [0, 198], cooldown: 60 * 25,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 198, mv: 0 }], castConcerto: 2000, resetEnergy: true,
-  updateBuffs: () => applyCurrent(MANIFEST, 1),
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [
+    // wuwalab's enter_manifest
+    { hitFrame: 154, element: null, type: null, subtype: null, updateDebuffs: () => applyCurrent(MANIFEST, 1) },
+    { hitFrame: 198, mv: 0 },
+  ], castConcerto: 2000, resetEnergy: true,
 });
 /** Blade of Howling Squall: spends every Conviction, ends Manifest, and strips the target's Aero
  *  Erosion — 20% amplification on this one hit per stack taken, five at most. The strip lands at
@@ -328,6 +333,14 @@ const Lib2 = cartethyiaAction("Liberation - Blade of Howling Squall", { requireB
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [
     // "restores 50% of Max HP": wuwalab's self heal at 0f, ahead of the hits
     { hitFrame: 0, element: null, type: null, subtype: null, updateDebuffs: () => applyCurrent(HEALS, 1) },
+    // wuwalab's exit_manifest: Fleurdelys and everything that stands with it end here
+    { hitFrame: 200, element: null, type: null, subtype: null, updateDebuffs: () => {
+      revokeCurrent(MANIFEST);
+      revokeCurrent(HEART_OF_VIRTUE);
+      revokeCurrent(MANDATE_OF_DIVINITY);
+      revokeCurrent(POWER_OF_DISCORD);
+      revokeEnemy(EROSION_HASTE);
+    } },
     { hitFrame: 253, mv: 1312, offtune: 24000 },
     { hitFrame: 263, commitFrame: 253, mv: 1312, offtune: 24000 },
     { hitFrame: 273, commitFrame: 253, mv: 1312, offtune: 24000 },
@@ -335,18 +348,15 @@ const Lib2 = cartethyiaAction("Liberation - Blade of Howling Squall", { requireB
     { hitFrame: 294, commitFrame: 253, mv: 1312, offtune: 24000 },
     { hitFrame: 304, commitFrame: 253, mv: 1312, offtune: 24000 },
     { hitFrame: 314, commitFrame: 253, mv: 1312, offtune: 24000 },
+    // wuwalab's clear_aero_erosion and clear_s1_crit_dmg
     { hitFrame: 316, commitFrame: 253, element: null, type: null, subtype: null, updateDebuffs: () => {
       if (isHeld(CT_S6)) applyEnemy(AERO_EROSION, currentTeam().enemyMax(AERO_EROSION));
       else consume(AERO_EROSION, stacksOfEnemy(AERO_EROSION));
+      revokeCurrent(CROWN_OF_FATE);
     } },
   ], castConcerto: 2000, castForte1: -120,
   // S6 stops the strip but not the payout: the amplification still reads what the target holds
   applyStats: () => addStat(Stat.Amp, 20 * Math.min(5, stacksOfEnemy(AERO_EROSION))),
-  updateBuffs: () => {
-    revokeCurrent(MANIFEST); revokeCurrent(HEART_OF_VIRTUE);
-    revokeCurrent(MANDATE_OF_DIVINITY); revokeCurrent(POWER_OF_DISCORD);
-    revokeEnemy(EROSION_HASTE);
-  },
 });
 const Outro = cartethyiaAction("Outro - Wind's Divine Blessing", {
   animFrames: 0,
@@ -427,9 +437,10 @@ const CROWN_OF_FATE = new Buff({
 });
 const CT_S1 = new Sequence({
   name: "Cartethyia S1: Crown Destined by Fate",
-  // afterAction is the one phase that sees Conviction as the cast actually left it
+  // afterAction is the one phase that sees Conviction as the cast actually left it; the Blade
+  // clears it on its own 316 bullet
   afterAction: () => {
-    if (runningAction(Lib2)) { revokeCurrent(CROWN_OF_FATE); return; }
+    if (runningAction(Lib2)) return;
     const rungs = Math.min(4, Math.floor(forte1() / 30));
     if (rungs > stacksOf(CROWN_OF_FATE)) setStacksSelf(CROWN_OF_FATE, rungs);
   },
@@ -489,6 +500,8 @@ const CT_S4 = new Sequence({
  *  formula, since her motion values read Max HP rather than current. Held for the name. */
 const CT_S5 = new Sequence({ name: "Cartethyia S5: Hope Reshaped in Storms" });
 
+/** The attacks S6 counts as Fleurdelys's. */
+const FLEURDELYS_ATTACKS = new Set<Action>([FIntro, FBA1, FBA2, FBA3, FBA4, FBA5, FDC, FMA1, FMA2, FMA3, FHA, FEHA, FSkill1, FSkill2, Lib2]);
 /** S6: the Blade tops the target's Aero Erosion up instead of stripping it (see the Blade's own
  *  316 bullet), any teammate inflicting Aero Erosion at the cap fires an instance of it, and the
  *  target takes 40% more DMG from Fleurdelys. The 30s window on the middle half covers the whole
@@ -501,7 +514,7 @@ const CT_S6 = new Sequence({
     const rung = negativeStatusRung(AERO_EROSION_ACTIONS, stacksOfEnemy(AERO_EROSION));
     if (rung) queue(rung);
   },
-  applyStats: () => { if (isHeld(MANIFEST)) addStat(Stat.TotalDmg, 40); },
+  applyStats: () => { if (runningAnyOf(FLEURDELYS_ATTACKS)) addStat(Stat.DamageTaken, 40); },
 });
 
 /* --------------------------------------------------------------------------- kit and loadout */
@@ -548,10 +561,10 @@ export const CARTETHYIA_RESONATOR = new Resonator({
 
 const CT_ROTATION = new Rotation([
   INTRO, BA234.cancel(),
-  Skill, PlungeResolver,
-  Liberation,
-  FSkill1, FSkill2, FBA345, FBA12345,
-  Lib2, ECHO.instaSwap(), OUTRO,
+  Skill, PlungeResolver.cancel(), ECHO,
+  Liberation, FBA12345.cancel(),
+  FSkill1, FSkill2, FBA345.cancel(),
+  Lib2, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

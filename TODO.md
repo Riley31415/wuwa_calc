@@ -1,3 +1,12 @@
+#
+fix brant and luuk midair swaps
+
+
+#
+insta cancels hard when in a chain: phoebe ba3 insta
+suisui buling hsin double intro
+
+
 
 #
 make echo actions resolvers that play only if their mainslot echo is equipped (create a template one for all echo actions to use)

@@ -67,7 +67,7 @@ import {
   teamAt,
   teamKey,
   weaponBase
-} from "./chunk-LDJYL6DP.js";
+} from "./chunk-AQFP7BJK.js";
 
 // dist/src/page/display.js
 var shown = (s, i) => s.shownAfter?.[i] ?? [s.energy, s.concerto, s.offtune, ...s.forte][i];
@@ -560,7 +560,7 @@ function rowValues(snap, { mv, avg }, members = []) {
   raw["short:energy"] = snap.castUnmet?.[0] ? 1 : 0;
   raw["short:concerto"] = snap.castUnmet?.[1] ? 1 : 0;
   FORTE_GAUGES.forEach((key, i) => {
-    raw[`short:gauge:${RESOURCE_NAME[key]}`] = snap.castUnmet?.[2 + i] ? 1 : 0;
+    raw[`short:gauge:${RESOURCE_NAME[key]}`] = snap.castUnmet?.[2 + i] || shown(snap, 3 + i) < 0 ? 1 : 0;
   });
   const buffs = [...(snap.buffUnmet ?? []).map((b) => b.name), ...(snap.buffForbidden ?? []).map((b) => `not ${b.name}`)];
   raw["short:buff"] = buffs.length ? buffs.join(", ") : 0;
@@ -2336,29 +2336,46 @@ function teamCell(sections, section, slotHue) {
       const key = `${snap.slot} ${snap.action.name}`;
       field.set(key, (field.get(key) ?? 0) + avg);
     });
-    eachHit(lines, null, (snap, avg) => {
-      if (avg <= 0)
-        return;
-      total += avg;
-      if ((field.get(`${snap.slot} ${snap.action.name}`) ?? Infinity) < own * 0.02)
-        return;
-      const color = slotHue.get(snap.slot) ?? TUNE_BREAK_ENEMY.color;
+    const actOf = (snap, dmg) => {
       let act = snap.action;
       while (act.cancelOf ?? act.formOf)
         act = act.cancelOf ?? act.formOf;
       const key = `${snap.slot} ${act.name}`;
       let at = by2.get(key);
       if (at === void 0) {
-        at = acts.push({ name: act.name, color, dmg: 0, casts: 0 }) - 1;
+        at = acts.push({ name: act.name, color: slotHue.get(snap.slot) ?? TUNE_BREAK_ENEMY.color, dmg: 0, casts: 0 }) - 1;
         by2.set(key, at);
       }
-      acts[at].dmg += avg;
+      acts[at].dmg += dmg;
       acts[at].casts++;
-      const off = !snap.active || snap.tag === ActionTag.OffField || snap.tag === ActionTag.InstaSwap || snap.tag === ActionTag.SwapCancel || snap.tag === ActionTag.MashSwap;
-      const cost = snap.action.cost(snap.tag);
-      const frames = off ? act.animFrames : snap.holdCut >= 0 ? snap.holdCut : cost.action + cost.global;
-      bars.push({ dmg: avg, frames, color, act: at });
-    });
+      return at;
+    };
+    for (const line of lines) {
+      if (line.aggregate) {
+        if (line.avg <= 0)
+          continue;
+        const at = actOf(line.snap, line.avg);
+        bars.push({ dmg: line.avg, frames: 0, color: acts[at].color, act: at });
+        continue;
+      }
+      eachHit([line], null, (snap, avg) => {
+        if (avg <= 0)
+          return;
+        total += avg;
+        if (line.fieldKey !== void 0)
+          return;
+        if ((field.get(`${snap.slot} ${snap.action.name}`) ?? Infinity) < own * 0.02)
+          return;
+        const at = actOf(snap, avg);
+        const off = !snap.active || snap.tag === ActionTag.OffField;
+        const cost = snap.action.cost(snap.tag);
+        let root = snap.action;
+        while (root.cancelOf ?? root.formOf)
+          root = root.cancelOf ?? root.formOf;
+        const frames = off ? root.animFrames : snap.holdCut >= 0 ? snap.holdCut : cost.action + cost.global;
+        bars.push({ dmg: avg, frames, color: acts[at].color, act: at });
+      });
+    }
   });
   return { kind: "team", section, total, bars, acts };
 }
@@ -4015,8 +4032,25 @@ async function showRatios(run, i, list, boxes, cell2) {
       const tag = box.appendChild(document.createElement("span"));
       tag.className = "pickpct";
       tag.textContent = pctTrunc(ratio);
+      scrollIfCut(box, tag);
     }
   }
+}
+function scrollIfCut(box, tag) {
+  const name = document.createElement("span");
+  name.className = "pickname";
+  for (const node of [...box.childNodes])
+    if (node !== tag)
+      name.appendChild(node);
+  box.insertBefore(name, tag);
+  const cs = getComputedStyle(box);
+  const room = box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - tag.offsetWidth;
+  const over = name.scrollWidth - room;
+  if (over <= 0)
+    return;
+  name.style.setProperty("--shift", `${-over}px`);
+  name.style.setProperty("--dur", `${Math.max(1.5, over / 30) / 0.6}s`);
+  name.classList.add("scrolls");
 }
 function dressAs(menu, cell2) {
   const cs = getComputedStyle(cell2);
@@ -4070,6 +4104,9 @@ var openPickMenu = (e) => {
     el.classList.remove("picking");
     openCell = null;
     el.querySelector(".pickpct")?.remove();
+    const name = el.querySelector(".pickname");
+    if (name)
+      name.replaceWith(...name.childNodes);
     el.style.removeProperty("--pickground");
   });
   dressAs(menu, el);
@@ -4291,25 +4328,26 @@ function rotationTable(report, slotHue, gearByMember, starts) {
 function resetIndices(flat, from, to, member2) {
   const out = [];
   for (let i = from; i < to; i++) {
-    const snap = flat[i].snap;
-    if (snap.member === member2 && snap.action.resetEnergy)
-      out.push(i);
+    hitsOf(flat[i]).forEach((snap, k) => {
+      if (snap.member === member2 && snap.action.resetEnergy)
+        out.push([i, k]);
+    });
   }
   return out;
 }
-function erRequirement(flat, resetIdx, member2, maxEnergy, constant) {
+function erRequirement(flat, [resetIdx, resetAt], member2, maxEnergy, constant) {
   if (!maxEnergy)
     return 0;
-  const before = flat[resetIdx].snap.realEnergyBefore;
+  const before = hitsOf(flat[resetIdx])[resetAt].realEnergyBefore;
   if (before <= 0)
     return null;
   let buffed = 0;
-  walk: for (let i = resetIdx - 1; i >= 0; i--) {
+  walk: for (let i = resetIdx; i >= 0; i--) {
     const line = flat[i];
     if (line.aggregate)
       continue;
     const snaps = hitsOf(line);
-    for (let k = snaps.length - 1; k >= 0; k--) {
+    for (let k = i === resetIdx ? resetAt - 1 : snaps.length - 1; k >= 0; k--) {
       const s = snaps[k];
       if (s.member !== member2)
         continue;

@@ -213,8 +213,26 @@ async function showRatios(run: TeamRun, i: number, list: Choice[], boxes: Map<Ch
       const tag = box.appendChild(document.createElement("span"));
       tag.className = "pickpct";
       tag.textContent = pctTrunc(ratio);
+      scrollIfCut(box, tag);
     }
   }
+}
+
+/** Where `box`'s name runs under its Compare figure `tag`, wrap the name and scroll it to its end and
+ *  back, over and over, so the whole of it is read (index.css `.pickname`). */
+function scrollIfCut(box: HTMLElement, tag: HTMLElement): void {
+  const name = document.createElement("span");
+  name.className = "pickname";
+  for (const node of [...box.childNodes]) if (node !== tag) name.appendChild(node);
+  box.insertBefore(name, tag);
+  const cs = getComputedStyle(box);
+  const room = box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - tag.offsetWidth;
+  const over = name.scrollWidth - room;
+  if (over <= 0) return;
+  name.style.setProperty("--shift", `${-over}px`);
+  // 30px a second while it moves, which is 60% of each pass
+  name.style.setProperty("--dur", `${Math.max(1.5, over / 30) / 0.6}s`);
+  name.classList.add("scrolls");
 }
 
 /** Cut every box of the dropdown to `cell`'s own size and look: its type and padding, its colour, and
@@ -276,6 +294,9 @@ const openPickMenu = (e: MouseEvent): void => {
     el.classList.remove("picking");
     openCell = null;
     el.querySelector(".pickpct")?.remove();
+    // the cell's name back as it was written
+    const name = el.querySelector(".pickname");
+    if (name) name.replaceWith(...name.childNodes);
     el.style.removeProperty("--pickground");
   });
   dressAs(menu, el);

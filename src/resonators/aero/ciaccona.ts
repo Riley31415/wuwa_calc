@@ -333,7 +333,7 @@ const BA234 = new ActionGroup("Basic - Quadruple Time Steps 234", [BA2, BA3, BA4
 
 const CI_ROTATION = new Rotation([
   NOINTRO, BA1.instaCancel(),
-  Skill, BA234.instaJump(), MA12, BA4.instaJump(), MA12, BA4.instaCancel(), 
+  Skill, BA234.instaJump(), MA12, BA4.instaJump(), MA12, BA4.holdCancel(), 
   Downbeat.cancel(), ECHO.instaDodge(), Liberation.swapCancel(), OUTRO,
 
   INTRO, BA34.instaJump(),
@@ -344,7 +344,7 @@ const CI_ROTATION = new Rotation([
 /** The same loop with the yellow Tonic picked, for a Spectro Frazzle team. */
 const CI_ROTATION_YELLOW = new Rotation([
   NOINTRO, BA1.instaCancel(),
-  Skill, BA234.instaJump(), MA12, BA4.instaJump(), MA12, BA4.instaCancel(),
+  Skill, BA234.instaJump(), MA12, BA4.instaJump(), MA12, BA4.holdCancel(),
   Downbeat.cancel(), ECHO.instaDodge(), LiberationYellow.swapCancel(), OUTRO,
 
   INTRO, BA34.instaJump(),

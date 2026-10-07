@@ -851,6 +851,10 @@ body:has(.pickbox) .rtable.loadout .c[data-pick] { text-decoration: none; }
    name under it where the name runs that far (pickmenu.ts's `showRatios`) */
 .pickdrop .ctxitem { position: relative; }
 .pickpct { position: absolute; top: 1px; bottom: 1px; right: 1px; display: flex; align-items: center; padding: 0 9px 0 8px; color: var(--dim); background: var(--pickground, var(--surface)); }
+/* a name running under the figure scrolls to its end and back, always, so the whole of it is read */
+.pickname { display: inline-block; white-space: nowrap; vertical-align: top; }
+.pickname.scrolls { animation: pickscroll var(--dur) ease-in-out infinite alternate; }
+@keyframes pickscroll { 0%, 20% { transform: none; } 80%, 100% { transform: translateX(var(--shift)); } }
 /* the blue box the log's own picks wear, on the cell or the option under the pointer — laid over the
    menu as well, so nothing covers an edge of it */
 .pickbox { position: fixed; z-index: 151; box-sizing: border-box; border: 1px solid var(--accent); pointer-events: none; }

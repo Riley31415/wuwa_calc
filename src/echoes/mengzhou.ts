@@ -9,7 +9,7 @@ import { Action } from "../engine/rotation.js";
 import { SHIELD, HAVOC_BANE, GLACIO_CHAFE, ELECTRO_FLARE, HEALS } from "../shared/status.js";
 import { gainedUnison, unisonResponse } from "../shared/unison.js";
 import { TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
-import { SummonEcho, TransformEcho } from "./echo.js";
+import { PseudoTransformEcho, SummonEcho, TransformEcho } from "./echo.js";
 
 /* ------------------------------------------------------------------------------ Jingran, 3.6 */
 
@@ -87,7 +87,7 @@ export const HEART_OF_EVILS_PURGE_BUFF = new Buff({
  *  Chisa's Thread of Bane hands out off the wearer's swing is hers and spends no blade. The four
  *  blades are one action, its hits its own bullets at the blade's 1s cooldown — the wearer's kit
  *  inflicts Bane often enough to spend each the moment it is ready. */
-export const ACTION_THOUSAND_PUPPET_PAVILION = new SummonEcho("Echo - Thousand-Puppet Pavilion", {
+export const ACTION_THOUSAND_PUPPET_PAVILION = new PseudoTransformEcho("Echo - Thousand-Puppet Pavilion", {
   cooldown: 60 * 20, animFrames: 16,
   element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 5, mv: 10944, energy: 152 }],
   // one set of blades at a time: a fresh summon cuts off whatever the last had left

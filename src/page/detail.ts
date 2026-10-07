@@ -255,12 +255,14 @@ function rotationTable(report: Report, slotHue: Map<string, string>, gearByMembe
 
 /* ---------------------------------------------------------------------------------- energy */
 
-/** Indices in `flat[from, to)` where `member` casts a `resetEnergy` action. */
-function resetIndices(flat: ChainGroup[], from: number, to: number, member: string): number[] {
-  const out: number[] = [];
+/** Where in `flat[from, to)` `member` casts a `resetEnergy` action: the line, and the press inside it
+ *  (a group's own member — Rebecca's Liberation opens hers). */
+function resetIndices(flat: ChainGroup[], from: number, to: number, member: string): [number, number][] {
+  const out: [number, number][] = [];
   for (let i = from; i < to; i++) {
-    const snap = flat[i]!.snap;
-    if (snap.member === member && snap.action.resetEnergy) out.push(i);
+    hitsOf(flat[i]!).forEach((snap, k) => {
+      if (snap.member === member && snap.action.resetEnergy) out.push([i, k]);
+    });
   }
   return out;
 }
@@ -273,16 +275,17 @@ function resetIndices(flat: ChainGroup[], from: number, to: number, member: stri
  * Solve `before * C/100 + sum(own gain * buff)/100 + flat = maxEnergy` for C. 0 for a costless
  * Liberation, null where nothing was banked.
  */
-function erRequirement(flat: ChainGroup[], resetIdx: number, member: string, maxEnergy: number, constant: number): number | null {
+function erRequirement(flat: ChainGroup[], [resetIdx, resetAt]: [number, number], member: string, maxEnergy: number, constant: number): number | null {
   if (!maxEnergy) return 0;
-  const before = flat[resetIdx]!.snap.realEnergyBefore;
+  const before = hitsOf(flat[resetIdx]!)[resetAt]!.realEnergyBefore;
   if (before <= 0) return null;
   let buffed = 0;
-  walk: for (let i = resetIdx - 1; i >= 0; i--) {
+  // from the press before it, its own group's included
+  walk: for (let i = resetIdx; i >= 0; i--) {
     const line = flat[i]!;
     if (line.aggregate) continue;
     const snaps = hitsOf(line);
-    for (let k = snaps.length - 1; k >= 0; k--) {
+    for (let k = i === resetIdx ? resetAt - 1 : snaps.length - 1; k >= 0; k--) {
       const s = snaps[k]!;
       if (s.member !== member) continue;
       if (s.action.resetEnergy) break walk;

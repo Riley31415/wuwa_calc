@@ -1061,7 +1061,7 @@ function teamCell(sections: ChainGroup[][], section: string, slotHue: Map<string
   const by = new Map<string, number>();
   let total = 0;
   sections.forEach((lines) => {
-    // an OFF_FIELD action or an Outro dealing under 2% of its own section (Hsin's coordinated pillars) is noise on
+    // an OFF_FIELD action or an Outro outside a field dealing under 2% of its own section is noise on
     // the axis: its hits still count toward the total, they just take no bar
     let own = 0;
     const field = new Map<string, number>();
@@ -1071,33 +1071,49 @@ function teamCell(sections: ChainGroup[][], section: string, slotHue: Map<string
       const key = `${snap.slot} ${snap.action.name}`;
       field.set(key, (field.get(key) ?? 0) + avg);
     });
-    eachHit(lines, null, (snap, avg) => {
-      // A swap, a start of combat, a field going up, a triggered line that lands nothing: an action
-      // of the log with no damage to show. It takes no slot on the axis either — a run of them is
-      // what used to read as a hole in the chart.
-      if (avg <= 0) return;
-      total += avg;
-      if ((field.get(`${snap.slot} ${snap.action.name}`) ?? Infinity) < own * 0.02) return;
-      const color = slotHue.get(snap.slot) ?? TUNE_BREAK_ENEMY.color;
-      // a dash-cancel, a swap-out and a Unison outro are the same press as the cast they came from,
-      // so they fold with it rather than as a form of their own
+    // the action a bar counts toward: a dash-cancel, a swap-out and a Unison outro are the same press
+    // as the cast they came from, so they fold with it rather than as a form of their own
+    const actOf = (snap: ResolvedSnapshot, dmg: number): number => {
       let act = snap.action;
       while (act.cancelOf ?? act.formOf) act = act.cancelOf ?? act.formOf!;
       const key = `${snap.slot} ${act.name}`;
       let at = by.get(key);
       if (at === undefined) {
-        at = acts.push({ name: act.name, color, dmg: 0, casts: 0 }) - 1;
+        at = acts.push({ name: act.name, color: slotHue.get(snap.slot) ?? TUNE_BREAK_ENEMY.color, dmg: 0, casts: 0 }) - 1;
         by.set(key, at);
       }
-      acts[at]!.dmg += avg;
+      acts[at]!.dmg += dmg;
       acts[at]!.casts++;
-      // real frames, time stop and all: a press played off field (a swap form, an Outro, a summon)
-      // runs its whole animation, the rest their cut — a hold or mash where it let go
-      const off = !snap.active || snap.tag === ActionTag.OffField || snap.tag === ActionTag.InstaSwap || snap.tag === ActionTag.SwapCancel || snap.tag === ActionTag.MashSwap;
-      const cost = snap.action.cost(snap.tag);
-      const frames = off ? act.animFrames : snap.holdCut >= 0 ? snap.holdCut : cost.action + cost.global;
-      bars.push({ dmg: avg, frames, color, act: at });
-    });
+      return at;
+    };
+    for (const line of lines) {
+      // a field's window (a turret, coordinated attacks) is one bar where its summary row sits, under
+      // the cast that opened it; its hits count toward the total as their own lines
+      if (line.aggregate) {
+        if (line.avg <= 0) continue;
+        const at = actOf(line.snap, line.avg);
+        bars.push({ dmg: line.avg, frames: 0, color: acts[at]!.color, act: at });
+        continue;
+      }
+      eachHit([line], null, (snap, avg) => {
+        // A swap, a start of combat, a field going up, a triggered line that lands nothing: an action
+        // of the log with no damage to show. It takes no slot on the axis either — a run of them is
+        // what used to read as a hole in the chart.
+        if (avg <= 0) return;
+        total += avg;
+        if (line.fieldKey !== undefined) return;
+        if ((field.get(`${snap.slot} ${snap.action.name}`) ?? Infinity) < own * 0.02) return;
+        const at = actOf(snap, avg);
+        // real frames, time stop and all: a press played off field (an Outro, a summon) runs its whole
+        // animation, the rest their time on field — a swap form to its swap, a hold or mash where it let go
+        const off = !snap.active || snap.tag === ActionTag.OffField;
+        const cost = snap.action.cost(snap.tag);
+        let root = snap.action;
+        while (root.cancelOf ?? root.formOf) root = root.cancelOf ?? root.formOf!;
+        const frames = off ? root.animFrames : snap.holdCut >= 0 ? snap.holdCut : cost.action + cost.global;
+        bars.push({ dmg: avg, frames, color: acts[at]!.color, act: at });
+      });
+    }
   });
   return { kind: "team", section, total, bars, acts };
 }
