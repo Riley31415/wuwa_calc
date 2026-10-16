@@ -1021,6 +1021,11 @@ function grabBlockDot(e: PointerEvent): void {
     grid,
     corners: () => [[held.r0, held.c0], [held.r1 + 1, held.c1 + 1]],
     edgeAt: (x, y) => blockEdgeAt(grid, x, y),
+    edgePoint: (r, c) => {
+      const heads = [...grid.querySelectorAll(".thead > .c")].map(rect);
+      return [heads[c]!.left, rect(grid).top + (r < 0 ? 0 : heads[0]!.height + rowTopOf(r))];
+    },
+    limits: () => [[-1, 1], [tableView!.sorted.length, grid.querySelectorAll(".thead > .c").length - 1]],
     aim: (from, to) => {
       const [r0, r1] = from[0] <= to[0] ? [from[0], to[0]] : [to[0], from[0]];
       const [c0, c1] = from[1] <= to[1] ? [from[1], to[1]] : [to[1], from[1]];

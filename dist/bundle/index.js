@@ -2902,10 +2902,17 @@ function grabDot(e, host) {
   let cx = e.clientX, cy = e.clientY;
   let to = host.corners()[1];
   const sx = scrollerOf(host.grid, "x"), sy = scrollerOf(host.grid, "y");
+  const [[rFirst, cFirst], [rLast, cLast]] = host.limits();
+  const [ax, ay] = host.edgePoint(from[0], from[1]);
+  const past = (edge, after, first, last) => after ? edge < last ? edge + 1 : edge - 1 : edge > first ? edge - 1 : edge + 1;
   const aim = () => {
-    const z = zoom();
-    const at = host.edgeAt(cx / z, cy / z);
-    if (at[0] === from[0] || at[1] === from[1] || at[0] === to[0] && at[1] === to[1])
+    const z = zoom(), x = cx / z, y = cy / z;
+    const at = host.edgeAt(x, y);
+    if (at[0] === from[0])
+      at[0] = past(from[0], y >= ay, rFirst, rLast);
+    if (at[1] === from[1])
+      at[1] = past(from[1], x >= ax, cFirst, cLast);
+    if (at[0] === to[0] && at[1] === to[1])
       return;
     to = at;
     host.aim(from, to);
@@ -4011,6 +4018,11 @@ function grabBlockDot(e) {
     grid,
     corners: () => [[held.r0, held.c0], [held.r1 + 1, held.c1 + 1]],
     edgeAt: (x, y) => blockEdgeAt(grid, x, y),
+    edgePoint: (r, c) => {
+      const heads = [...grid.querySelectorAll(".thead > .c")].map(rect);
+      return [heads[c].left, rect(grid).top + (r < 0 ? 0 : heads[0].height + rowTopOf(r))];
+    },
+    limits: () => [[-1, 1], [tableView.sorted.length, grid.querySelectorAll(".thead > .c").length - 1]],
     aim: (from, to) => {
       const [r0, r1] = from[0] <= to[0] ? [from[0], to[0]] : [to[0], from[0]];
       const [c0, c1] = from[1] <= to[1] ? [from[1], to[1]] : [to[1], from[1]];
@@ -5399,6 +5411,11 @@ function grabCellDot(e) {
     grid: sel.grid,
     corners: () => [[sel.r0, sel.c0], [sel.r1 + 1, sel.c1 + 1]],
     edgeAt: (x, y) => edgeAt(sel, x, y),
+    edgePoint: (r, c) => {
+      const g = rect(sel.grid);
+      return [g.left + edgeLeft(sel, c), g.top + edgeTop(sel, r, g.top)];
+    },
+    limits: () => [[0, 0], [sel.rows.length, sel.cols.length]],
     aim: (from, to) => {
       sel.dot = to;
       sel.ar = Math.min(from[0], to[0]);

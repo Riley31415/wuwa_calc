@@ -687,6 +687,11 @@ function grabCellDot(e: PointerEvent): void {
     grid: sel.grid,
     corners: () => [[sel.r0, sel.c0], [sel.r1 + 1, sel.c1 + 1]],
     edgeAt: (x, y) => edgeAt(sel, x, y),
+    edgePoint: (r, c) => {
+      const g = rect(sel.grid);
+      return [g.left + edgeLeft(sel, c), g.top + edgeTop(sel, r, g.top)];
+    },
+    limits: () => [[0, 0], [sel.rows.length, sel.cols.length]],
     aim: (from, to) => {
       sel.dot = to;
       sel.ar = Math.min(from[0], to[0]);

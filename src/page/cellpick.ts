@@ -100,6 +100,10 @@ export interface DotGrid {
   /** The block's own corners as edges: top-left, then bottom-right. */
   corners(): [[number, number], [number, number]];
   edgeAt(x: number, y: number): [number, number];
+  /** Where an edge pair sits, in page px. */
+  edgePoint(r: number, c: number): [number, number];
+  /** The first and last row and column edges. */
+  limits(): [[number, number], [number, number]];
   /** Redraw the block between `from` and `to`, the dot on `to`. */
   aim(from: [number, number], to: [number, number]): void;
   /** The drag let go, the block left as it was last aimed. */
@@ -119,11 +123,17 @@ export function grabDot(e: PointerEvent, host: DotGrid): void {
   let cx = e.clientX, cy = e.clientY;
   let to = host.corners()[1];
   const sx = scrollerOf(host.grid, "x"), sy = scrollerOf(host.grid, "y");
+  const [[rFirst, cFirst], [rLast, cLast]] = host.limits();
+  const [ax, ay] = host.edgePoint(from[0], from[1]);
+  // an edge the anchor shares would leave no cells: the next one over on the finger's side instead
+  const past = (edge: number, after: boolean, first: number, last: number): number =>
+    (after ? (edge < last ? edge + 1 : edge - 1) : (edge > first ? edge - 1 : edge + 1));
   const aim = (): void => {
-    const z = zoom();
-    const at = host.edgeAt(cx / z, cy / z);
-    // a block of no cells is never drawn: the dot holds its last place until one with cells comes up
-    if (at[0] === from[0] || at[1] === from[1] || (at[0] === to[0] && at[1] === to[1])) return;
+    const z = zoom(), x = cx / z, y = cy / z;
+    const at = host.edgeAt(x, y);
+    if (at[0] === from[0]) at[0] = past(from[0], y >= ay, rFirst, rLast);
+    if (at[1] === from[1]) at[1] = past(from[1], x >= ax, cFirst, cLast);
+    if (at[0] === to[0] && at[1] === to[1]) return;
     to = at;
     host.aim(from, to);
   };
