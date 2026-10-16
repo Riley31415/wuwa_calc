@@ -581,9 +581,8 @@ interface CellSel {
   c1: number;
   /** Picked by a finger, which gives it the dot (`grabCellDot`). */
   touch: boolean;
-  /** While the dot is dragged: the edges it sits on, and whether it is back on its own corner. */
+  /** While the dot is dragged, the edges it sits on. */
   dot?: [number, number];
-  empty?: boolean;
 }
 /** Where a press landed: the rows and columns it found and its own cell among them. */
 type CellAt = Pick<CellSel, "rows" | "cols" | "ar" | "ac">;
@@ -634,7 +633,6 @@ function aimBlock(sel: CellSel, row: number, col: number, gridTop: number): void
   const top = rowSpan(sel, sel.r0, gridTop)[0];
   const left = sel.cols[sel.c0]!.left;
   const box = cellSelBox ?? (cellSelBox = cellBox(sel.grid));
-  box.hidden = false;
   box.style.left = `${left}px`;
   box.style.top = `${top}px`;
   box.style.width = `${sel.cols[sel.c1]!.right - left}px`;
@@ -672,7 +670,7 @@ function edgeAt(sel: CellSel, x: number, y: number): [number, number] {
   return [r, c];
 }
 
-/** The dot pressed: the corner follows the finger, and a block left empty is taken off on release. */
+/** The dot pressed: the block's far corner follows the finger. */
 function grabCellDot(e: PointerEvent): void {
   const sel = cellSel;
   if (!sel) return;
@@ -690,26 +688,14 @@ function grabCellDot(e: PointerEvent): void {
     corners: () => [[sel.r0, sel.c0], [sel.r1 + 1, sel.c1 + 1]],
     edgeAt: (x, y) => edgeAt(sel, x, y),
     aim: (from, to) => {
-      const gridTop = rect(sel.grid).top;
       sel.dot = to;
-      sel.empty = from[0] === to[0] || from[1] === to[1];
-      if (sel.empty) {
-        if (cellSelBox) cellSelBox.hidden = true;
-        paintCellDot(sel, gridTop);
-        return;
-      }
       sel.ar = Math.min(from[0], to[0]);
       sel.ac = Math.min(from[1], to[1]);
-      aimBlock(sel, Math.max(from[0], to[0]) - 1, Math.max(from[1], to[1]) - 1, gridTop);
+      aimBlock(sel, Math.max(from[0], to[0]) - 1, Math.max(from[1], to[1]) - 1, rect(sel.grid).top);
       sel.fr = to[0];
     },
-    done: (empty) => {
+    done: () => {
       sel.dot = undefined;
-      sel.empty = false;
-      if (empty) {
-        clearBlock();
-        return;
-      }
       const gridTop = rect(sel.grid).top;
       paintCellDot(sel, gridTop);
       // the sum rides the block's bottom-right cell

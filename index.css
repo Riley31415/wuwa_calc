@@ -1194,15 +1194,14 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
   z-index: 41;
 }
 /* the handle a finger's block wears on its far corner (cellpick.ts's `grabDot`): centred on the
-   corner, ringed off the cells under it, and reaching wider than it shows */
+   corner, and reaching wider than it shows */
 .celldot {
   position: absolute; z-index: 43;
-  width: 14px; height: 14px; margin: -7px 0 0 -7px;
+  width: 10px; height: 10px; margin: -5px 0 0 -5px;
   border-radius: 50%; background: var(--accent);
-  box-shadow: 0 0 0 2px var(--bg);
   touch-action: none;
 }
-.celldot::before { content: ""; position: absolute; inset: -14px; }
+.celldot::before { content: ""; position: absolute; inset: -16px; }
 /* the copy buttons under a table block (table.ts's `showCopyMenu`): a `.ctxmenu` card laid in the
    table's wrap so it scrolls with the block */
 .copymenu {

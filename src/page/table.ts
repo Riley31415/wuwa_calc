@@ -835,8 +835,8 @@ export function drawWindow(force = false, scrollTop?: number): void {
 /* ------------------------------------------------------------------------------ cell block */
 
 /** A block of cells picked out: rows index the sorted table (-1 the heading), columns are tracks.
- *  `touch` gives it the dot (cellpick.ts); `empty` while the dot sits on its own corner. */
-interface Block { ar: number; ac: number; r0: number; r1: number; c0: number; c1: number; touch: boolean; empty?: boolean }
+ *  `touch` gives it the dot (cellpick.ts). */
+interface Block { ar: number; ac: number; r0: number; r1: number; c0: number; c1: number; touch: boolean }
 let block: Block | null = null;
 let blockBox: HTMLElement | null = null;
 let blockDot: HTMLElement | null = null;
@@ -917,7 +917,7 @@ function blockEdgeAt(grid: HTMLElement, x: number, y: number): [number, number] 
 }
 
 /** The copy buttons' gap (px) under the outline, as the hover panels', and the further drop past the dot. */
-const MENU_GAP = 4, DOT_CLEAR = 9;
+const MENU_GAP = 4, DOT_CLEAR = 6;
 
 /** Draw the block's outline over its cells, inside the table's wrap — the grid itself is redrawn
  *  under every scroll window. The heading is outlined where it sits unpinned. */
@@ -932,14 +932,11 @@ function paintBlock(): void {
     blockBox = wrap.appendChild(document.createElement("div"));
     blockBox.className = "cellbox";
   }
-  blockBox.hidden = !!block.empty;
-  if (!block.empty) {
-    const top = g.top - w.top + y(block.r0);
-    blockBox.style.left = `${heads[block.c0]!.left - w.left}px`;
-    blockBox.style.top = `${top}px`;
-    blockBox.style.width = `${heads[block.c1]!.right - heads[block.c0]!.left}px`;
-    blockBox.style.height = `${g.top - w.top + y(block.r1 + 1) - top}px`;
-  }
+  const top = g.top - w.top + y(block.r0);
+  blockBox.style.left = `${heads[block.c0]!.left - w.left}px`;
+  blockBox.style.top = `${top}px`;
+  blockBox.style.width = `${heads[block.c1]!.right - heads[block.c0]!.left}px`;
+  blockBox.style.height = `${g.top - w.top + y(block.r1 + 1) - top}px`;
   // the dot rides the corner being dragged, the bottom-right at rest
   if (block.touch) {
     if (!blockDot?.isConnected) blockDot = makeDot(wrap, grabBlockDot);
@@ -960,7 +957,7 @@ function showCopyMenu(): void {
   const wrap = app.querySelector<HTMLElement>(".tcwrap");
   const tracks = app.querySelectorAll(".tgrid .thead > .c").length;
   // Pin is the first track and the rotation link the last, and neither is ever copied
-  if (!block || block.empty || !wrap || block.c1 < 1 || block.c0 > tracks - 2) return;
+  if (!block || !wrap || block.c1 < 1 || block.c0 > tracks - 2) return;
   copyMenu?.remove();
   const item = (mode: CopyMode, label: string): string =>
     `<button type="button" class="ctxitem" data-copy="${mode}">${label}</button>`;
@@ -973,7 +970,7 @@ function showCopyMenu(): void {
 /** A block of rows over the Compare column measures it against its bottom row; one Compare cell's
  *  own click sets the baseline itself. */
 function measureFromBlock(grid: HTMLElement): void {
-  if (!block || block.empty || block.r1 <= block.r0 || !tableView) return;
+  if (!block || block.r1 <= block.r0 || !tableView) return;
   const compare = [...grid.querySelectorAll(".thead > .c")].findIndex((c) => c.classList.contains("huehead"));
   const bottom = tableView.sorted[block.r1]?.[0];
   if (bottom && block.c0 <= compare && compare <= block.c1 && baselineTeam !== bottom) {
@@ -1013,7 +1010,7 @@ function pickTouched(row: number, col: number): void {
   paintBlock();
 }
 
-/** The dot pressed: the corner follows the finger, and a block left empty is taken off on release. */
+/** The dot pressed: the block's far corner follows the finger, the copy buttons back on release. */
 function grabBlockDot(e: PointerEvent): void {
   const grid = app.querySelector<HTMLElement>(".tgrid");
   const held = block;
@@ -1028,15 +1025,11 @@ function grabBlockDot(e: PointerEvent): void {
       const [r0, r1] = from[0] <= to[0] ? [from[0], to[0]] : [to[0], from[0]];
       const [c0, c1] = from[1] <= to[1] ? [from[1], to[1]] : [to[1], from[1]];
       dotAt = to;
-      block = { ar: r0, ac: c0, r0, r1: r1 - 1, c0, c1: c1 - 1, touch: true, empty: r0 === r1 || c0 === c1 };
+      block = { ar: r0, ac: c0, r0, r1: r1 - 1, c0, c1: c1 - 1, touch: true };
       paintBlock();
     },
-    done: (empty) => {
+    done: () => {
       dotAt = null;
-      if (empty) {
-        clearBlock();
-        return;
-      }
       measureFromBlock(grid);
       showCopyMenu();
     },

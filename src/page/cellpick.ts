@@ -1,14 +1,18 @@
 /** The cell-block gestures both grids share: a finger's tap / long press / scroll (`watchTouch`),
  *  and the dot a finger's block wears to reshape it (`grabDot`). */
-import { zoom } from "./panels.js";
+import { zoom, dropPanel } from "./panels.js";
 
 /** How long (ms) a press is held before it is a hold rather than a click or a tap. */
 export const HOLD = 500;
 
 /** A touch long press raises `contextmenu`, which would open a cell's menu: on touch, a tap opens them. */
 let touching = false;
+/** A finger pressed while a menu or panel a tap opened is up: the press only shuts it, the block kept. */
+let shutting: PointerEvent | null = null;
 addEventListener("pointerdown", (e) => {
   touching = e.pointerType === "touch";
+  const open = document.querySelector(".ctxmenu, body > .pop");
+  shutting = touching && open && !open.contains(e.target as Node) ? e : null;
 }, true);
 addEventListener("contextmenu", (e) => {
   if (!touching) return;
@@ -38,7 +42,7 @@ let watch: {
  *  and within a cell's size of where it landed — anything further is a scroll, and picks nothing. */
 export function watchTouch(e: PointerEvent, cell: Element | null, tap: () => void, long: () => void = () => {}): void {
   // the grid nearest the finger reads it first; a page-wide listener after it stands aside
-  if (watch?.event === e) return;
+  if (watch?.event === e || shutting === e) return;
   if (watch) clearTimeout(watch.timer);
   const r = cell?.getBoundingClientRect();
   const w = {
@@ -63,6 +67,13 @@ addEventListener("touchmove", (e) => {
   watch = null;
 }, { passive: true, capture: true });
 addEventListener("touchend", () => {
+  // the menu shuts on its own outside click, which goes no further; a panel is taken down here
+  if (shutting) {
+    shutting = null;
+    dropPanel();
+    swallowClick(600);
+    return;
+  }
   const w = watch;
   if (!w) return;
   watch = null;
@@ -89,10 +100,10 @@ export interface DotGrid {
   /** The block's own corners as edges: top-left, then bottom-right. */
   corners(): [[number, number], [number, number]];
   edgeAt(x: number, y: number): [number, number];
-  /** Redraw the block between `from` and `to` (an empty one where they share an edge), the dot on `to`. */
+  /** Redraw the block between `from` and `to`, the dot on `to`. */
   aim(from: [number, number], to: [number, number]): void;
-  /** The drag let go: `empty` where the block came to nothing, which takes it off. */
-  done(empty: boolean): void;
+  /** The drag let go, the block left as it was last aimed. */
+  done(): void;
 }
 
 /** How near an edge of the screen (px) the dot starts the page scrolling, and its fastest step. */
@@ -110,7 +121,10 @@ export function grabDot(e: PointerEvent, host: DotGrid): void {
   const sx = scrollerOf(host.grid, "x"), sy = scrollerOf(host.grid, "y");
   const aim = (): void => {
     const z = zoom();
-    to = host.edgeAt(cx / z, cy / z);
+    const at = host.edgeAt(cx / z, cy / z);
+    // a block of no cells is never drawn: the dot holds its last place until one with cells comes up
+    if (at[0] === from[0] || at[1] === from[1] || (at[0] === to[0] && at[1] === to[1])) return;
+    to = at;
     host.aim(from, to);
   };
   let raf = 0;
@@ -137,7 +151,7 @@ export function grabDot(e: PointerEvent, host: DotGrid): void {
     removeEventListener("pointercancel", up);
     if (raf) cancelAnimationFrame(raf);
     swallowClick(600);
-    host.done(to[0] === from[0] || to[1] === from[1]);
+    host.done();
   };
   addEventListener("pointermove", move);
   addEventListener("pointerup", up);

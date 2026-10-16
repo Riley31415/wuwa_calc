@@ -2804,8 +2804,11 @@ function wireDistribution(root) {
 // dist/src/page/cellpick.js
 var HOLD = 500;
 var touching = false;
+var shutting = null;
 addEventListener("pointerdown", (e) => {
   touching = e.pointerType === "touch";
+  const open = document.querySelector(".ctxmenu, body > .pop");
+  shutting = touching && open && !open.contains(e.target) ? e : null;
 }, true);
 addEventListener("contextmenu", (e) => {
   if (!touching)
@@ -2824,7 +2827,7 @@ function swallowClick(wait = 0) {
 var watch = null;
 function watchTouch(e, cell2, tap, long = () => {
 }) {
-  if (watch?.event === e)
+  if (watch?.event === e || shutting === e)
     return;
   if (watch)
     clearTimeout(watch.timer);
@@ -2863,6 +2866,12 @@ addEventListener("touchmove", (e) => {
   watch = null;
 }, { passive: true, capture: true });
 addEventListener("touchend", () => {
+  if (shutting) {
+    shutting = null;
+    dropPanel();
+    swallowClick(600);
+    return;
+  }
   const w = watch;
   if (!w)
     return;
@@ -2895,7 +2904,10 @@ function grabDot(e, host) {
   const sx = scrollerOf(host.grid, "x"), sy = scrollerOf(host.grid, "y");
   const aim = () => {
     const z = zoom();
-    to = host.edgeAt(cx / z, cy / z);
+    const at = host.edgeAt(cx / z, cy / z);
+    if (at[0] === from[0] || at[1] === from[1] || at[0] === to[0] && at[1] === to[1])
+      return;
+    to = at;
     host.aim(from, to);
   };
   let raf = 0;
@@ -2927,7 +2939,7 @@ function grabDot(e, host) {
     if (raf)
       cancelAnimationFrame(raf);
     swallowClick(600);
-    host.done(to[0] === from[0] || to[1] === from[1]);
+    host.done();
   };
   addEventListener("pointermove", move);
   addEventListener("pointerup", up);
@@ -3905,7 +3917,7 @@ function blockEdgeAt(grid, x, y) {
   return [row, col];
 }
 var MENU_GAP = 4;
-var DOT_CLEAR = 9;
+var DOT_CLEAR = 6;
 function paintBlock() {
   const wrap = app2.querySelector(".tcwrap");
   const grid = wrap?.querySelector(".tgrid");
@@ -3918,14 +3930,11 @@ function paintBlock() {
     blockBox = wrap.appendChild(document.createElement("div"));
     blockBox.className = "cellbox";
   }
-  blockBox.hidden = !!block.empty;
-  if (!block.empty) {
-    const top = g.top - w.top + y(block.r0);
-    blockBox.style.left = `${heads[block.c0].left - w.left}px`;
-    blockBox.style.top = `${top}px`;
-    blockBox.style.width = `${heads[block.c1].right - heads[block.c0].left}px`;
-    blockBox.style.height = `${g.top - w.top + y(block.r1 + 1) - top}px`;
-  }
+  const top = g.top - w.top + y(block.r0);
+  blockBox.style.left = `${heads[block.c0].left - w.left}px`;
+  blockBox.style.top = `${top}px`;
+  blockBox.style.width = `${heads[block.c1].right - heads[block.c0].left}px`;
+  blockBox.style.height = `${g.top - w.top + y(block.r1 + 1) - top}px`;
   if (block.touch) {
     if (!blockDot?.isConnected)
       blockDot = makeDot(wrap, grabBlockDot);
@@ -3941,7 +3950,7 @@ function paintBlock() {
 function showCopyMenu() {
   const wrap = app2.querySelector(".tcwrap");
   const tracks = app2.querySelectorAll(".tgrid .thead > .c").length;
-  if (!block || block.empty || !wrap || block.c1 < 1 || block.c0 > tracks - 2)
+  if (!block || !wrap || block.c1 < 1 || block.c0 > tracks - 2)
     return;
   copyMenu?.remove();
   const item = (mode, label) => `<button type="button" class="ctxitem" data-copy="${mode}">${label}</button>`;
@@ -3951,7 +3960,7 @@ function showCopyMenu() {
   paintBlock();
 }
 function measureFromBlock(grid) {
-  if (!block || block.empty || block.r1 <= block.r0 || !tableView)
+  if (!block || block.r1 <= block.r0 || !tableView)
     return;
   const compare = [...grid.querySelectorAll(".thead > .c")].findIndex((c) => c.classList.contains("huehead"));
   const bottom = tableView.sorted[block.r1]?.[0];
@@ -4006,15 +4015,11 @@ function grabBlockDot(e) {
       const [r0, r1] = from[0] <= to[0] ? [from[0], to[0]] : [to[0], from[0]];
       const [c0, c1] = from[1] <= to[1] ? [from[1], to[1]] : [to[1], from[1]];
       dotAt = to;
-      block = { ar: r0, ac: c0, r0, r1: r1 - 1, c0, c1: c1 - 1, touch: true, empty: r0 === r1 || c0 === c1 };
+      block = { ar: r0, ac: c0, r0, r1: r1 - 1, c0, c1: c1 - 1, touch: true };
       paintBlock();
     },
-    done: (empty) => {
+    done: () => {
       dotAt = null;
-      if (empty) {
-        clearBlock();
-        return;
-      }
       measureFromBlock(grid);
       showCopyMenu();
     }
@@ -5345,7 +5350,6 @@ function aimBlock(sel, row, col, gridTop) {
   const top = rowSpan(sel, sel.r0, gridTop)[0];
   const left = sel.cols[sel.c0].left;
   const box = cellSelBox ?? (cellSelBox = cellBox(sel.grid));
-  box.hidden = false;
   box.style.left = `${left}px`;
   box.style.top = `${top}px`;
   box.style.width = `${sel.cols[sel.c1].right - left}px`;
@@ -5396,27 +5400,14 @@ function grabCellDot(e) {
     corners: () => [[sel.r0, sel.c0], [sel.r1 + 1, sel.c1 + 1]],
     edgeAt: (x, y) => edgeAt(sel, x, y),
     aim: (from, to) => {
-      const gridTop = rect(sel.grid).top;
       sel.dot = to;
-      sel.empty = from[0] === to[0] || from[1] === to[1];
-      if (sel.empty) {
-        if (cellSelBox)
-          cellSelBox.hidden = true;
-        paintCellDot(sel, gridTop);
-        return;
-      }
       sel.ar = Math.min(from[0], to[0]);
       sel.ac = Math.min(from[1], to[1]);
-      aimBlock(sel, Math.max(from[0], to[0]) - 1, Math.max(from[1], to[1]) - 1, gridTop);
+      aimBlock(sel, Math.max(from[0], to[0]) - 1, Math.max(from[1], to[1]) - 1, rect(sel.grid).top);
       sel.fr = to[0];
     },
-    done: (empty) => {
+    done: () => {
       sel.dot = void 0;
-      sel.empty = false;
-      if (empty) {
-        clearBlock2();
-        return;
-      }
       const gridTop = rect(sel.grid).top;
       paintCellDot(sel, gridTop);
       const html = sel.r0 === sel.r1 ? "" : blockPanel(sel);
