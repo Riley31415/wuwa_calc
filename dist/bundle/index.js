@@ -5,9 +5,9 @@ import {
   BASE_RESISTANCE,
   CAST_NAME,
   CONCERTO_UNIT,
-  ENEMY_MAX_OFFTUNE,
   ENERGY_UNIT,
   ER_TOLERANCE,
+  Echo,
   INTERCHANGEABLE,
   LEVEL_90_DOT,
   LEVEL_90_TUNE,
@@ -40,6 +40,7 @@ import {
   filterSignature,
   gateOf,
   hasBuild,
+  hitDamage,
   hitsOf,
   isPercent,
   isProgress,
@@ -49,7 +50,10 @@ import {
   mainstatSlotBuffs,
   member,
   menuStats,
+  panelStats,
   picksKey,
+  rankShown,
+  rankValue,
   refineLevels,
   runFromScore,
   runTeam,
@@ -57,6 +61,8 @@ import {
   scopedOpen,
   scopedStat,
   sequenceLevels,
+  shownRanks,
+  shownWeapons,
   solveTeam,
   splitStat,
   splitStop,
@@ -67,20 +73,20 @@ import {
   teamAt,
   teamKey,
   weaponBase
-} from "./chunk-AQFP7BJK.js";
+} from "./chunk-LC74GU26.js";
 
 // dist/src/page/display.js
 var shown = (s, i) => s.shownAfter?.[i] ?? [s.energy, s.concerto, s.offtune, ...s.forte][i];
 var shownBefore = (s, i) => s.shownBefore?.[i] ?? [s.energyBefore, s.concertoBefore, s.offtuneBefore, ...s.forteBefore][i];
 var formatters = /* @__PURE__ */ new Map();
-var fmt = (v, digits = 0, pad = false, group = true) => {
+var fmt = (v, digits2 = 0, pad = false, group = true) => {
   if (typeof v !== "number")
     return String(v ?? "");
-  const scale = 10 ** digits;
-  const key = `${digits}${pad ? "p" : ""}${group ? "g" : ""}`;
+  const scale = 10 ** digits2;
+  const key = `${digits2}${pad ? "p" : ""}${group ? "g" : ""}`;
   let f = formatters.get(key);
   if (!f)
-    formatters.set(key, f = new Intl.NumberFormat("en-US", { maximumFractionDigits: digits, minimumFractionDigits: pad ? digits : 0, useGrouping: group }));
+    formatters.set(key, f = new Intl.NumberFormat("en-US", { maximumFractionDigits: digits2, minimumFractionDigits: pad ? digits2 : 0, useGrouping: group }));
   const cut = Math.trunc(Number((v * scale).toFixed(6))) / scale;
   const memo = `${key}|${cut === 0 ? 0 : cut}`;
   let out = formatted.get(memo);
@@ -90,6 +96,13 @@ var fmt = (v, digits = 0, pad = false, group = true) => {
     formatted.set(memo, out = f.format(cut === 0 ? 0 : cut));
   }
   return out;
+};
+var fmtPct = (v, pad = false) => typeof v === "number" ? fmt(Math.round(v * 100) / 100, 2, pad) : fmt(v);
+var fmtPctCell = (v, key, pad = false) => {
+  if (key === "mv")
+    return fmtPct(v, pad);
+  const tenths = Math.floor(Number((Math.abs(v) * 10).toFixed(6)) + 0.1);
+  return fmt(Math.sign(v) * tenths / 10, 1, pad);
 };
 var formatted = /* @__PURE__ */ new Map();
 var exact = new Intl.NumberFormat("en-US", { maximumFractionDigits: 10 });
@@ -140,7 +153,7 @@ var SCALERS = {
   [
     0
     /* Scaling.Atk */
-  ]: { key: "atk", word: "ATK", stats: [
+  ]: { key: "atk", word: "ATK", full: "Attack", stats: [
     0,
     6,
     3
@@ -149,7 +162,7 @@ var SCALERS = {
   [
     1
     /* Scaling.Hp */
-  ]: { key: "hp", word: "HP", stats: [
+  ]: { key: "hp", word: "HP", full: "HP", stats: [
     1,
     7,
     4
@@ -158,7 +171,7 @@ var SCALERS = {
   [
     2
     /* Scaling.Def */
-  ]: { key: "def", word: "DEF", stats: [
+  ]: { key: "def", word: "DEF", full: "Defense", stats: [
     2,
     8,
     5
@@ -220,7 +233,13 @@ var FEEDS = {
     19
     /* Stat.Amp */
   )],
-  dealt: (a) => fixed(a) ? [] : a.scaling !== 3 ? keysFor(
+  dealt: (a) => fixed(a) ? [] : a.scaling === 4 ? keysFor(
+    a,
+    20,
+    21,
+    12
+    /* Stat.TBB */
+  ) : a.scaling !== 3 ? keysFor(
     a,
     20,
     21
@@ -321,7 +340,11 @@ var SECTION_OF = {
   [
     21
     /* Stat.DamageTaken */
-  ]: "Damage Taken"
+  ]: "Damage Taken",
+  [
+    12
+    /* Stat.TBB */
+  ]: "Tune Break Boost"
 };
 var actionInfo = (snap) => {
   const { action, type, source } = snap;
@@ -369,28 +392,6 @@ var actionInfo = (snap) => {
   if (source)
     info.push({ label: "Source", value: source.name, source: source.source });
   return info;
-};
-var STAT_SOURCE = {
-  [
-    0
-    /* Scaling.Atk */
-  ]: "ATK",
-  [
-    1
-    /* Scaling.Hp */
-  ]: "HP",
-  [
-    2
-    /* Scaling.Def */
-  ]: "DEF",
-  [
-    3
-    /* Scaling.Dot */
-  ]: "dot constant",
-  [
-    4
-    /* Scaling.Tune */
-  ]: "tune constant"
 };
 function tagRank(key) {
   const tag = splitStat(key)[1];
@@ -479,7 +480,11 @@ function foldDuplicates(rows) {
   return out;
 }
 var OFFTUNE_RATE = "Buildup Rate";
-var ENERGY_RATE = "Regen Multiplier";
+var OFFTUNE_MULT = "Offtune Multiplier";
+var HIT_ENERGY_MULT = "Hit Energy Multiplier";
+var CAST_ENERGY = "Cast Energy";
+var HIT_ENERGY = "Energy";
+var RATE_SECTIONS = /* @__PURE__ */ new Set([OFFTUNE_RATE, OFFTUNE_MULT, HIT_ENERGY_MULT]);
 var ENERGY_REGEN = "Energy Regen";
 var MV_MULTIPLIER = "MV Multiplier";
 var tagOf = (snap) => snap.tag === ActionTag.OffField ? "" : snap.tag;
@@ -528,22 +533,23 @@ function rowValues(snap, { mv, avg }, members = []) {
       10
       /* Stat.CritDmg */
     ),
-    // the column is the pair's combined lift, since Total Damage and Damage Taken multiply; a dot
-    // reads only its status-scoped halves, the way `amp` above does
+    // the column is the pair's combined lift, since Total Damage and Damage Taken multiply — and a
+    // tune hit's Tune Break Boost with them; a dot reads only its status-scoped halves, as `amp` does
     dealt: fixed(snap.action) ? null : snap.action.scaling === 3 ? ((1 + snap.subtypeTotalDmg / 100) * (1 + snap.subtypeDamageTaken / 100) - 1) * 100 : ((1 + snap.stat(
       20
       /* Stat.TotalDmg */
     ) / 100) * (1 + snap.stat(
       21
       /* Stat.DamageTaken */
-    ) / 100) - 1) * 100,
+    ) / 100) * (snap.action.scaling === 4 ? 1 + snap.stat(
+      12
+      /* Stat.TBB */
+    ) / 100 : 1) - 1) * 100,
     effDef: fixed(snap.action) ? null : effectiveShred(snap) * 100,
     effRes: fixed(snap.action) ? null : effectiveRes(snap),
     energy: shown(snap, 0) / RESOURCE_SCALE.energy,
     concerto: shown(snap, 1) / RESOURCE_SCALE.concerto,
     offtune: shown(snap, 2) / RESOURCE_SCALE.offtune,
-    // off-tune is the enemy's one shared bar, so its ceiling is the same on every row
-    "max:offtune": ENEMY_MAX_OFFTUNE / RESOURCE_SCALE.offtune,
     // what each held coming in — the running-column blanking reads these (page/detail.ts stepRow)
     "before:energy": shownBefore(snap, 0) / RESOURCE_SCALE.energy,
     "before:concerto": shownBefore(snap, 1) / RESOURCE_SCALE.concerto,
@@ -557,10 +563,12 @@ function rowValues(snap, { mv, avg }, members = []) {
     if (snap.maxForte[i])
       raw[`max:gauge:${RESOURCE_NAME[key]}`] = snap.maxForte[i] * unit2;
   });
-  raw["short:energy"] = snap.castUnmet?.[0] ? 1 : 0;
-  raw["short:concerto"] = snap.castUnmet?.[1] ? 1 : 0;
+  const low = (i) => snap.shownShort?.[i] ?? shown(snap, i) < 0;
+  raw["short:energy"] = snap.castUnmet?.[0] || low(0) ? 1 : 0;
+  raw["short:concerto"] = snap.castUnmet?.[1] || low(1) ? 1 : 0;
+  raw["short:offtune"] = low(2) ? 1 : 0;
   FORTE_GAUGES.forEach((key, i) => {
-    raw[`short:gauge:${RESOURCE_NAME[key]}`] = snap.castUnmet?.[2 + i] || shown(snap, 3 + i) < 0 ? 1 : 0;
+    raw[`short:gauge:${RESOURCE_NAME[key]}`] = snap.castUnmet?.[2 + i] || low(3 + i) ? 1 : 0;
   });
   const buffs = [...(snap.buffUnmet ?? []).map((b) => b.name), ...(snap.buffForbidden ?? []).map((b) => `not ${b.name}`)];
   raw["short:buff"] = buffs.length ? buffs.join(", ") : 0;
@@ -572,7 +580,7 @@ function rowValues(snap, { mv, avg }, members = []) {
   sources.effRes = (sources.effRes ?? []).map((r) => ({ ...r, value: -r.value }));
   if (!fixed(snap.action)) {
     const dot = snap.action.scaling === 3;
-    const pct = (v) => `${fmt(v, 2)}%`;
+    const pct = (v) => `${fmtPct(v)}%`;
     const ignoreNew = dot ? 0 : snap.stat(
       23
       /* Stat.DefIgnoreNew */
@@ -601,8 +609,18 @@ function rowValues(snap, { mv, avg }, members = []) {
   const added2 = (i) => (snap.adds ?? []).filter((c) => c.gains[i] !== 0).map((c) => ({ source: c.source, value: c.gains[i], owner: c.owner ?? void 0, ...c.onCast ? { label: "on cast" } : {} }));
   const ADDED = { energy: 0, concerto: 1, offtune: 7 };
   for (const key of ["energy", "concerto", "offtune"]) {
-    const traced = added2(ADDED[key]).map((r) => ({ ...r, value: r.value / RESOURCE_SCALE[key] }));
-    const own = ownShares(snap, CAST_SHARE[key] / RESOURCE_SCALE[key], hitsBank(snap, key) / RESOURCE_SCALE[key]);
+    let traced = added2(ADDED[key]).map((r) => ({ ...r, value: r.value / RESOURCE_SCALE[key] }));
+    const cast = CAST_SHARE[key] / RESOURCE_SCALE[key], hit = hitsBank(snap, key) / RESOURCE_SCALE[key];
+    let own = ownShares(snap, cast, hit);
+    if (key === "energy") {
+      const at = (section) => (r) => ({ ...r, section });
+      const onCast = (r) => r.label === "on cast";
+      own = [
+        ...cast ? [{ source: snap.action.name, value: cast, owner: snap.member, section: CAST_ENERGY }] : [],
+        ...hit ? [{ source: snap.action.name, value: hit, owner: snap.member, section: HIT_ENERGY }] : []
+      ];
+      traced = [...traced.filter(onCast).map(at(CAST_ENERGY)), ...traced.filter((r) => !onCast(r)).map(at(HIT_ENERGY))];
+    }
     const rows = [...own, ...traced];
     const folded = [...own, ...foldDuplicates(traced)];
     if (folded.length)
@@ -612,26 +630,27 @@ function rowValues(snap, { mv, avg }, members = []) {
     raw[`moved:${key}`] = rows.reduce((n, r) => n + r.value, 0);
   }
   const hitEnergy = hitsBank(snap, "energy");
-  const rate = hitEnergy > 0 ? tracing(snap, keysFor(
-    snap.action,
-    14
-    /* Stat.EnergyRegenMult */
-  )) : [];
-  if (rate.length) {
-    sources.energy = [...sources.energy ?? [], ...rate.map((r) => ({ ...r, section: ENERGY_RATE }))];
-    raw["moved:energy"] = (Number(raw["moved:energy"]) || 0) + hitEnergy / RESOURCE_SCALE.energy * snap.stat(
-      14
-      /* Stat.EnergyRegenMult */
-    ) / 100;
-  }
   if (hitEnergy > 0) {
+    const scaled = hitEnergy / RESOURCE_SCALE.energy * (1 + snap.stat(
+      14
+      /* Stat.HitEnergyMult */
+    ) / 100);
+    const rate = tracing(snap, keysFor(
+      snap.action,
+      14
+      /* Stat.HitEnergyMult */
+    ));
+    sources.energy = [...sources.energy ?? [], ...rate.map((r) => ({ ...r, section: HIT_ENERGY_MULT }))];
+    raw["moved:energy"] = (Number(raw["moved:energy"]) || 0) - hitEnergy / RESOURCE_SCALE.energy + scaled;
+    const shared = { source: "", label: "Energy Shared", value: scaled / 2, summary: true, joined: true, place: "afterTotal" };
     const regen = tracing(snap, keysFor(
       snap.action,
       11
       /* Stat.ER */
     ), false).map((r) => ({ ...r, percent: true, section: ENERGY_REGEN, place: "afterTotal" }));
+    sources.energy = [...sources.energy, shared, ...regen];
     if (regen.length) {
-      sources.energy = [...sources.energy ?? [], ...regen, {
+      sources.energy.push({
         source: "",
         label: "Total",
         value: regen.reduce((n, r) => n + r.value, 0),
@@ -639,7 +658,7 @@ function rowValues(snap, { mv, avg }, members = []) {
         summary: true,
         section: ENERGY_REGEN,
         place: "afterTotal"
-      }];
+      });
     }
   }
   const declaredOfftune = hitsBank(snap, "offtune") + added2(7).reduce((n, r) => n + r.value, 0);
@@ -654,14 +673,14 @@ function rowValues(snap, { mv, avg }, members = []) {
       /* Stat.OfftuneMult */
     ));
     if (mult.length)
-      sources.offtune = [...sources.offtune ?? [], ...mult.map((r) => ({ ...r, section: ENERGY_RATE }))];
-    const rate2 = tracing(snap, keysFor(
+      sources.offtune = [...sources.offtune ?? [], ...mult.map((r) => ({ ...r, section: OFFTUNE_MULT }))];
+    const rate = tracing(snap, keysFor(
       snap.action,
       13
       /* Stat.OfftuneBuildup */
     ));
-    if (rate2.length)
-      sources.offtune = [...sources.offtune ?? [], ...rate2.map((r) => ({ ...r, section: OFFTUNE_RATE }))];
+    if (rate.length)
+      sources.offtune = [...sources.offtune ?? [], ...rate.map((r) => ({ ...r, section: OFFTUNE_RATE }))];
   }
   const direct = added2(8);
   raw["moved:offtune"] = ((buildingOfftune < 0 ? buildingOfftune : buildingOfftune * (snap.stat(
@@ -685,7 +704,7 @@ function rowValues(snap, { mv, avg }, members = []) {
       rows.push({ source: snap.action.name, value: 0, text: "Reset", owner: snap.member });
     }
     rows.push(...ownShares(snap, snap.action.castForte[i] * unit2, hitsBank(snap, FORTE_FIELD[i]) * unit2));
-    rows.push(...traced);
+    rows.push(...foldDuplicates(traced).map(({ count: _, ...r }) => r));
     if (rows.length)
       sources[`gauge:${RESOURCE_NAME[key]}`] = rows;
     raw[`moved:gauge:${RESOURCE_NAME[key]}`] = rows.reduce((n, r) => n + r.value, 0);
@@ -708,20 +727,22 @@ function rowValues(snap, { mv, avg }, members = []) {
   }
   if (sources.dealt?.length) {
     const half = (stat) => sources.dealt.filter((r) => r.stat !== void 0 && splitStat(r.stat)[0] === stat).reduce((n, r) => n + r.value, 0);
-    const total = half(
-      20
-      /* Stat.TotalDmg */
-    ), taken = half(
-      21
-      /* Stat.DamageTaken */
-    );
-    if (total && taken) {
-      sources.dealt = [...sources.dealt, ...[[20, total], [21, taken]].map(([stat, value]) => ({
+    const parts = [
+      20,
+      21,
+      12
+      /* Stat.TBB */
+    ].map((stat) => [stat, half(stat)]).filter(([, value]) => value);
+    if (parts.length > 1 || parts.some(
+      ([stat]) => stat === 12
+      /* Stat.TBB */
+    )) {
+      sources.dealt = [...sources.dealt, ...parts.map(([stat, value]) => ({
         source: "",
         label: "Total",
         value,
         section: SECTION_OF[stat],
-        percent: true,
+        percent: stat !== 12,
         summary: true
       }))];
     }
@@ -740,21 +761,43 @@ function rowValues(snap, { mv, avg }, members = []) {
         ...subtotal(bonusStat, true),
         ...subtotal(flatStat, false),
         { source: "", label: "Total", value: snap[scaler.key], section: final, summary: true },
-        { source: "", label: "Relative", value: (snap[scaler.key] / base - 1) * 100, section: final, percent: true, digits: 2, summary: true }
+        // the stat as the damage formula takes it, floored
+        { source: "", label: `${scaler.full} Multiplier`, value: damageFactors(snap).finalStat, mult: true, section: final, summary: true, joined: true },
+        { source: "", label: `Effective ${scaler.word} Bonus`, value: (snap[scaler.key] / base - 1) * 100, section: final, percent: true, digits: 2, summary: true }
       ];
     }
   }
+  if (dealsDamage && !fixed(snap.action)) {
+    const f = damageFactors(snap);
+    const below = (key, label, value, mult = true) => {
+      if (!sources[key])
+        return;
+      sources[key] = [...sources[key], { source: "", label, value, digits: 4, summary: true, joined: true, place: "afterTotal", ...mult ? { mult: true } : {} }];
+    };
+    below("dmgBonus", "Damage Bonus Multiplier", f.bonusFactor);
+    below("amp", "Amplification Multiplier", f.ampFactor);
+    if (f.dealtFactor !== 1)
+      below("dealt", "Total Damage Multiplier", f.dealtFactor);
+    if (f.takenFactor !== 1)
+      below("dealt", "Damage Taken Multiplier", f.takenFactor);
+    if (snap.action.scaling === 4)
+      below("dealt", "Tune Break Boost Multiplier", f.tbbFactor);
+    below("effRes", "Resistance Factor", f.resFactor, false);
+    below("cr", "Average Crit Multiplier", f.critFactor);
+    below("cd", "Average Crit Multiplier", f.critFactor);
+  }
   if (members.length > 1) {
     const per = members.map((m) => rowValues(m, { mv: landedMv(m), avg: 0 }));
-    for (const key of ["short:energy", "short:concerto", ...FORTE_GAUGES.map((k) => `short:gauge:${RESOURCE_NAME[k]}`)]) {
+    for (const key of ["short:energy", "short:concerto", "short:offtune", ...FORTE_GAUGES.map((k) => `short:gauge:${RESOURCE_NAME[k]}`)]) {
       raw[key] = per.some((p) => Number(p.raw[key])) ? 1 : 0;
     }
     raw["short:buff"] = per.map((p) => p.raw["short:buff"]).filter(Boolean).join(", ") || 0;
     for (const key of COMBINED_COLUMNS) {
       if (sources[key] === void 0 && key === "mv")
         continue;
-      const last = per.length - 1;
-      const kept = per.flatMap((p, k) => (p.sources[key] ?? []).filter((r) => r.section !== OFFTUNE_RATE && r.section !== ENERGY_RATE && r.section !== ENERGY_REGEN || k === last));
+      const rated = per.map((p) => (p.sources[key] ?? []).some((r) => r.section === ENERGY_REGEN || RATE_SECTIONS.has(r.section ?? "")));
+      const last = rated.lastIndexOf(true) < 0 ? per.length - 1 : rated.lastIndexOf(true);
+      const kept = per.flatMap((p, k) => (p.sources[key] ?? []).filter((r) => r.section !== ENERGY_REGEN && !RATE_SECTIONS.has(r.section ?? "") || k === last));
       const rows = [...foldDuplicates(kept.filter((r) => r.section !== ENERGY_REGEN)), ...kept.filter((r) => r.section === ENERGY_REGEN)];
       if (rows.length)
         sources[key] = rows;
@@ -763,9 +806,8 @@ function rowValues(snap, { mv, avg }, members = []) {
       if (per.some((p) => p.buffed.has(key)))
         buffed.add(key);
       const moved = `moved:${key}`;
-      if (per.some((p) => p.raw[moved] !== void 0)) {
+      if (per.some((p) => p.raw[moved] !== void 0))
         raw[moved] = per.reduce((n, p) => n + (Number(p.raw[moved]) || 0), 0);
-      }
     }
     FORTE_GAUGES.forEach((key, i) => {
       raw[`before:gauge:${RESOURCE_NAME[key]}`] = shownBefore(members[0], 3 + i) * members[0].forteScale[i];
@@ -774,33 +816,9 @@ function rowValues(snap, { mv, avg }, members = []) {
     raw["before:concerto"] = shownBefore(members[0], 1) / RESOURCE_SCALE.concerto;
     raw["before:offtune"] = shownBefore(members[0], 2) / RESOURCE_SCALE.offtune;
   }
-  const floor4 = (v) => Math.floor(v * 1e4) / 1e4;
-  const dealers = (members.length ? members : [snap]).filter((m) => landedMv(m) !== 0);
-  const fs = (dealers.length ? dealers : [snap]).map(damageFactors);
-  const f = fs[fs.length - 1];
-  const factor = (source, label, pick, mult, round = (v) => v) => {
-    const vs = fs.map((x) => round(pick(x)));
-    const lo = Math.min(...vs), hi = Math.max(...vs);
-    const row = { source, label, value: vs[vs.length - 1], ...mult ? { mult: true } : {} };
-    return lo === hi ? row : { ...row, text: `${mult ? "\xD7" : ""}${fmtExact(lo)}\u2013${fmtExact(hi)}` };
-  };
-  const any = (pick) => fs.some(pick);
+  const hits = dealsDamage ? (members.length ? members : [snap]).flatMap((m) => (m.hitLog ?? (landedMv(m) ? [hitDamage(m)] : [])).map((h, k) => ({ ...h, n: k + 1 }))) : [];
   if (dealsDamage)
-    sources.avg = [
-      factor(f.scaling === null ? "" : STAT_SOURCE[f.scaling] ?? SCALING_NAME[f.scaling], "Final Stat", (x) => x.finalStat, false),
-      { source: snap.action.name, label: "Motion Value", value: floor4(fs.reduce((n, x) => n + x.finalMv, 0)), mult: true },
-      factor("buffs", "Damage Bonus", (x) => x.bonusFactor, true),
-      factor("buffs", "Amplification", (x) => x.ampFactor, true),
-      ...any(
-        (x) => x.scaling === 4
-        /* Scaling.Tune */
-      ) ? [factor("buffs", "Tune Break Boost", (x) => x.tbbFactor, true)] : [],
-      ...any((x) => x.dealtFactor > 1) ? [factor("buffs", "Total Damage", (x) => x.dealtFactor, true)] : [],
-      ...any((x) => x.takenFactor > 1) ? [factor("enemy", "Damage Taken", (x) => x.takenFactor, true)] : [],
-      factor("enemy", "Res Factor", (x) => x.resFactor, true),
-      factor("enemy", "Def Factor", (x) => x.defFactor, true, floor4),
-      factor("crit", "Average Crit", (x) => x.critFactor, true, floor4)
-    ];
+    sources.avg = [];
   if (!(members.length ? members : [snap]).some((m) => m.action.bullets.length)) {
     for (const key of STAT_COLUMNS) {
       raw[key] = null;
@@ -809,7 +827,7 @@ function rowValues(snap, { mv, avg }, members = []) {
     }
     delete raw["empty:scaler"];
   }
-  return { raw, sources, buffed };
+  return { raw, sources, buffed, hits };
 }
 function buildReport(lines) {
   const columns = [
@@ -821,15 +839,15 @@ function buildReport(lines) {
     { key: "mv", label: "mv%", digits: 2, percent: true, full: "Motion Value" },
     // whichever stat the action scales off, blank where it scales off a constant
     { key: "scaler", label: "scaler", noTotal: true },
-    { key: "dmgBonus", label: "dmg%", digits: 1, percent: true, full: "Dmg Bonus" },
-    { key: "amp", label: "amp%", digits: 1, percent: true, full: "Amplification" },
-    { key: "cr", label: "cr%", digits: 1, percent: true, full: "Crit Rate" },
-    { key: "cd", label: "cd%", digits: 1, percent: true, full: "Crit Dmg" },
+    { key: "dmgBonus", label: "dmg%", digits: 2, percent: true, full: "Dmg Bonus" },
+    { key: "amp", label: "amp%", digits: 2, percent: true, full: "Amplification" },
+    { key: "cr", label: "cr%", digits: 2, percent: true, full: "Crit Rate" },
+    { key: "cd", label: "cd%", digits: 2, percent: true, full: "Crit Dmg" },
     // both halves carry their own section heading, so `full` is only the empty-panel one
     // its panel ends on the defense factor's formula and results rather than a Total
-    { key: "effDef", label: "shred%", digits: 1, percent: true, noTotal: true, full: "DEF Ignore", fullEmpty: "DEF Shred" },
-    { key: "effRes", label: "res%", digits: 1, percent: true, full: "Enemy RES" },
-    { key: "dealt", label: "vuln%", digits: 1, percent: true, full: "Vulnerability" },
+    { key: "effDef", label: "shred%", digits: 2, percent: true, noTotal: true, full: "DEF Ignore", fullEmpty: "DEF Shred" },
+    { key: "effRes", label: "res%", digits: 2, percent: true, full: "Enemy RES" },
+    { key: "dealt", label: "vuln%", digits: 2, percent: true, full: "Vulnerability" },
     // digits match nanoka's precision; offtune is /10000 (RESOURCE_SCALE) and reads to two like
     // the rest — its own panel is where the finer figures are, printed in full
     { key: "concerto", label: "concerto", digits: 2, hideIfZero: true, full: "Concerto" },
@@ -867,7 +885,7 @@ function buildReport(lines) {
   };
   const rows = lines.map((line) => {
     const snap = line.snap;
-    const { raw, sources, buffed } = rowValues(snap, { mv: line.mv, avg: line.avg }, line.members ?? []);
+    const { raw, sources, buffed, hits } = rowValues(snap, { mv: line.mv, avg: line.avg }, line.members ?? []);
     raw.action = line.id;
     if (tagOf(snap))
       raw["tag:action"] = tagOf(snap);
@@ -879,6 +897,7 @@ function buildReport(lines) {
       raw,
       sources,
       buffed,
+      hits,
       // `snap.type`, not `action.type`: the type it was actually evaluated as (typeOverride)
       info: actionInfo(snap),
       scaling: snap.action.scaling,
@@ -911,7 +930,7 @@ function buildReport(lines) {
   const used = columns.filter((c) => !c.hideIfZero || rows.some((r) => moved(r, c.key) || r.parts.some((p) => moved(p, c.key))));
   const shown2 = (r, c) => {
     const v = r.raw[c.key];
-    return typeof v === "number" ? fmt(v, digitsOf(r.raw, c), PAD_DIGITS_COLUMNS.has(c.key), GROUPED_COLUMNS.has(c.key)) + (c.percent ? "%" : "") + gaugeSuffix(r.raw, c.key) : String(v ?? "");
+    return typeof v === "number" ? (c.percent ? `${fmtPctCell(v, c.key, PAD_DIGITS_COLUMNS.has(c.key))}%` : fmt(v, digitsOf(r.raw, c), PAD_DIGITS_COLUMNS.has(c.key), GROUPED_COLUMNS.has(c.key))) + gaugeSuffix(r.raw, c.key) : String(v ?? "");
   };
   const tagLen = (r, c) => c.key === "action" && r.raw["tag:action"] ? Math.ceil(String(r.raw["tag:action"]).length * 0.82 + 2.6) : 0;
   const sized = used.map((c) => {
@@ -928,6 +947,186 @@ function buildReport(lines) {
     rows,
     total: rows.reduce((n, r) => n + (r.line.aggregate ? 0 : Number(r.raw.avg) || 0), 0)
   };
+}
+
+// dist/src/page/teamcode.js
+var TAG_DIGITS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+var ELEMENTS = 6n;
+var SERIALS = 21n;
+var LOADOUTS = 4n;
+var SEQUENCES = 7n;
+var WEAPON_TYPES = 5n;
+var WEAPON_SERIALS = 16n;
+var WEAPON_DIGITS = 4n;
+var REFINES = 5n;
+var LOADOUT_SPAN = ELEMENTS * SERIALS * LOADOUTS;
+var WEAPON_SPAN = WEAPON_TYPES * WEAPON_SERIALS * WEAPON_DIGITS;
+var MEMBER_SPAN = LOADOUT_SPAN * SEQUENCES * WEAPON_SPAN * REFINES;
+var TEAM_SPAN = MEMBER_SPAN ** 3n * 16n;
+var TEAM_BITS = 72n;
+var SETS = 64n;
+var MAINSLOT_SERIES = [[6e6, 512], [390077e3, 64], [39008e4, 64]];
+var MAINSLOTS = BigInt(MAINSLOT_SERIES.reduce((n, [, size]) => n + size, 0));
+var SONATA_SPAN = SETS + SETS ** 2n + SETS ** 3n;
+var COSTS = [{ from: 0, n: 5 }, { from: 5, n: 10 }, { from: 15, n: 3 }];
+var LAYOUTS = [[1, 2, 2], [2, 0, 3], [1, 0, 4]];
+var choose = (n, k) => {
+  let r = 1;
+  for (let i = 1; i <= k; i++)
+    r = r * (n - k + i) / i;
+  return k > n ? 0 : Math.round(r);
+};
+var multisets = (c, k) => choose(COSTS[c].n + k - 1, k);
+var LAYOUT_SPANS = LAYOUTS.map((l) => l.reduce((n, k, c) => n * multisets(c, k), 1));
+var MAINSTAT_SPAN = BigInt(LAYOUT_SPANS.reduce((a, b) => a + b, 0));
+var GEAR_SPAN = MAINSLOTS * SONATA_SPAN * MAINSTAT_SPAN;
+var CHUNK_SPAN = GEAR_SPAN * 3n;
+var LENGTHS = [0, 1, 2, 3].map((k) => {
+  let d = 0;
+  while (64n ** BigInt(d) < CHUNK_SPAN ** BigInt(k))
+    d++;
+  return Number(TEAM_BITS / 6n) + d;
+});
+var digits = (n, count) => {
+  let out = "";
+  for (let i = 0; i < count; i++) {
+    out = TAG_DIGITS[Number(n & 63n)] + out;
+    n >>= 6n;
+  }
+  return out;
+};
+var fits = (what, v, lo, hi) => {
+  if (!Number.isInteger(v) || v < lo || v > hi)
+    throw new Error(`team code: ${what} ${v} is outside ${lo}-${hi}`);
+  return BigInt(v - lo);
+};
+var rankOf = (vs) => vs.reduce((r, v, i) => r + choose(v + i, i + 1), 0);
+var unrank = (r, k) => {
+  const out = [];
+  for (let i = k - 1; i >= 0; i--) {
+    let w = i;
+    while (choose(w + 1, i + 1) <= r)
+      w++;
+    r -= choose(w, i + 1);
+    out.unshift(w - i);
+  }
+  return out;
+};
+function gearOf(echo, build2) {
+  const id = echo.mainslot.id;
+  let mainslot = 0n, series = 0;
+  for (; series < MAINSLOT_SERIES.length; series++) {
+    const [base, size] = MAINSLOT_SERIES[series];
+    if (id >= base && id < base + size)
+      break;
+    mainslot += BigInt(size);
+  }
+  if (series === MAINSLOT_SERIES.length)
+    throw new Error(`team code: ${echo.mainslot.name}'s id ${id} is in no echo series`);
+  mainslot += BigInt(id - MAINSLOT_SERIES[series][0]);
+  const [a, b, c] = echo.sets.map((s) => fits(`${s.name}'s set`, s.id, 1, 64));
+  const sonata = c !== void 0 ? SETS + SETS ** 2n + (a * SETS + b) * SETS + c : b !== void 0 ? SETS + a * SETS + b : a;
+  const byCost = COSTS.map((cost) => build2.slots.filter((s) => s >= cost.from && s < cost.from + cost.n).map((s) => s - cost.from).sort((x, y) => x - y));
+  const layout = LAYOUTS.findIndex((l) => l.every((k, i) => k === byCost[i].length));
+  if (layout < 0)
+    throw new Error(`team code: ${build2.name} is no 43311, 44111 or 41111 build`);
+  const inLayout = byCost.reduce((r, vs, i) => r * multisets(i, vs.length) + rankOf(vs), 0);
+  const mainstat = LAYOUT_SPANS.slice(0, layout).reduce((a2, b2) => a2 + b2, 0) + inLayout;
+  return (mainslot * SONATA_SPAN + sonata) * MAINSTAT_SPAN + BigInt(mainstat);
+}
+function readGear(g) {
+  let mainstat = Number(g % MAINSTAT_SPAN);
+  g /= MAINSTAT_SPAN;
+  let sonata = g % SONATA_SPAN;
+  let mainslot = Number(g / SONATA_SPAN), series = 0;
+  while (mainslot >= MAINSLOT_SERIES[series][1])
+    mainslot -= MAINSLOT_SERIES[series++][1];
+  mainslot += MAINSLOT_SERIES[series][0];
+  let sets;
+  if (sonata < SETS)
+    sets = [sonata];
+  else if (sonata < SETS + SETS ** 2n) {
+    sonata -= SETS;
+    sets = [sonata / SETS, sonata % SETS];
+  } else {
+    sonata -= SETS + SETS ** 2n;
+    sets = [sonata / SETS ** 2n, sonata / SETS % SETS, sonata % SETS];
+  }
+  let layout = 0;
+  while (mainstat >= LAYOUT_SPANS[layout])
+    mainstat -= LAYOUT_SPANS[layout++];
+  const mainstats = [];
+  for (let i = COSTS.length - 1; i >= 0; i--) {
+    const k = LAYOUTS[layout][i], span = multisets(i, k);
+    mainstats.unshift(...unrank(mainstat % span, k).map((v) => v + COSTS[i].from));
+    mainstat = Math.floor(mainstat / span);
+  }
+  return { mainslot, sets: sets.map((s) => Number(s) + 1), mainstats };
+}
+function teamCode(members, matrix) {
+  if (members.length !== 3)
+    throw new Error(`team code: ${members.length} members, expected 3`);
+  let team = 0n, flags = matrix ? 1n : 0n;
+  members.forEach(({ loadout, sequence, weapon, highSubs }, i) => {
+    const r = loadout.resonator.id, w = weapon.id;
+    const element = fits(`${loadout.resonator.name}'s element`, Math.floor(r / 100) % 10, 1, 6);
+    const serial = fits(`${loadout.resonator.name}'s serial`, r % 100, 1, 21);
+    const place2 = fits(`loadout ${loadout.id}'s place`, loadout.id - r * 10, 1, 4);
+    const slot = (element * SERIALS + serial) * LOADOUTS + place2;
+    const type = fits(`${weapon.name}'s type`, Math.floor(w / 1e4) % 10, 1, 5);
+    const wSerial = fits(`${weapon.name}'s serial`, Math.floor(w / 10) % 100, 1, 16);
+    const digit = fits(`${weapon.name}'s last digit`, w % 10, 4, 7);
+    const wSlot = (type * WEAPON_SERIALS + wSerial) * WEAPON_DIGITS + digit;
+    const member2 = ((slot * SEQUENCES + fits("sequence", sequence, 0, 6)) * WEAPON_SPAN + wSlot) * REFINES + fits(`${weapon.name}'s rank`, weapon.refinement, 1, 5);
+    team = team * MEMBER_SPAN + member2;
+    if (highSubs)
+      flags |= 2n << BigInt(i);
+  });
+  const chunks = members.flatMap(({ gear: gear2 }, slot) => gear2 ? [gearOf(gear2.echo, gear2.mainstat) * 3n + BigInt(slot)] : []);
+  const gear = chunks.reduceRight((rest, chunk) => rest * CHUNK_SPAN + chunk, 0n);
+  return digits(team * 16n + flags, Number(TEAM_BITS / 6n)) + digits(gear, LENGTHS[chunks.length] - Number(TEAM_BITS / 6n));
+}
+function readTeamCode(text) {
+  const teamDigits = Number(TEAM_BITS / 6n), valid = /^[A-Za-z0-9_-]*$/;
+  if (text.length < teamDigits || !valid.test(text.slice(0, teamDigits)))
+    return null;
+  const found = LENGTHS.indexOf(text.length);
+  const chunks = found < 0 || !valid.test(text.slice(teamDigits)) ? 0 : found;
+  const read = (part) => [...part].reduce((n, c) => n << 6n | BigInt(TAG_DIGITS.indexOf(c)), 0n);
+  let team = read(text.slice(0, teamDigits)), rest = chunks ? read(text.slice(teamDigits)) : 0n;
+  if (team >= TEAM_SPAN)
+    return null;
+  const flags = team % 16n;
+  team /= 16n;
+  const members = [];
+  for (let i = 2; i >= 0; i--) {
+    let m = team % MEMBER_SPAN;
+    team /= MEMBER_SPAN;
+    const refinement = Number(m % REFINES) + 1;
+    m /= REFINES;
+    const wSlot = m % WEAPON_SPAN;
+    m /= WEAPON_SPAN;
+    const sequence = Number(m % SEQUENCES);
+    const slot = m / SEQUENCES;
+    const place2 = Number(slot % LOADOUTS) + 1, rSlot = slot / LOADOUTS;
+    const resonator = 1e3 + Number(rSlot / SERIALS + 1n) * 100 + Number(rSlot % SERIALS + 1n);
+    const weapon = 21e6 + Number(wSlot / (WEAPON_SERIALS * WEAPON_DIGITS) + 1n) * 1e4 + Number(wSlot / WEAPON_DIGITS % WEAPON_SERIALS + 1n) * 10 + Number(wSlot % WEAPON_DIGITS + 4n);
+    members.unshift({ resonator, loadout: place2, sequence, weapon, refinement, highSubs: (flags & 2n << BigInt(i)) !== 0n, gear: null });
+  }
+  const gear = [null, null, null];
+  for (let k = 0; k < chunks; k++) {
+    const chunk = rest % CHUNK_SPAN;
+    rest /= CHUNK_SPAN;
+    const slot = Number(chunk % 3n);
+    if (gear[slot])
+      return { members, matrix: (flags & 1n) !== 0n };
+    gear[slot] = readGear(chunk / 3n);
+  }
+  if (rest !== 0n)
+    return { members, matrix: (flags & 1n) !== 0n };
+  for (let i = 0; i < 3; i++)
+    members[i].gear = gear[i];
+  return { members, matrix: (flags & 1n) !== 0n };
 }
 
 // dist/src/page/model.js
@@ -964,6 +1163,7 @@ var OPTION_FILTER_MAPS = {
   refine: refineFilters
 };
 var filters = defaultFilters();
+var pinnedRows = /* @__PURE__ */ new Set();
 var gearCache = null;
 function offeredGear(kind, f = filters) {
   const sig = filterSignature(f);
@@ -971,12 +1171,8 @@ function offeredGear(kind, f = filters) {
     const offered = { weapon: /* @__PURE__ */ new Set(), echo: /* @__PURE__ */ new Set() };
     for (const members of Object.values(TEAMS)) {
       for (const m of members) {
-        if (axisOpen(m, f, "weapons"))
-          for (const i of eligibleWeapons(m, f)) {
-            offered.weapon.add(weaponBase(m.loadout.weapons[i]));
-            for (const w of m.loadout.refinements[i])
-              offered.weapon.add(w.name);
-          }
+        for (const tag of weaponTagsOf(m, f))
+          offered.weapon.add(tag);
         if (axisOpen(m, f, "echoes"))
           for (const e of echoPicks(m, members))
             offered.echo.add(echoLabel(m.loadout, m.loadout.echoLoadouts[e]));
@@ -1028,7 +1224,17 @@ var setVisibleRows = (rows) => {
 };
 var namesHold = (map, names) => [...map].every(([name, mode]) => names.includes(name) === (mode === "include"));
 var tagOwner = (tag) => tag.replace(/ S\d+(R\d+)?$| R\d+$/, "");
-function tagsHold(map, names, fielded) {
+var weaponTag = (m, sequence, weapon) => `${m.name}${sequence ? ` S${sequence}` : ""} ${weapon}`;
+var weaponTags = (m, c) => [weaponTag(m, c.sequence, c.weapon.name), weaponTag(m, c.sequence, weaponBase(c.weapon))];
+var weaponOwner = (tag) => [...RESONATOR_HUE.keys()].filter((name) => tag.startsWith(`${name} `)).sort((a, b) => b.length - a.length)[0] ?? "";
+function weaponTagsOf(m, f = filters) {
+  if (!axisOpen(m, f, "weapons") && !shownRanks(m, f).length)
+    return [];
+  const levels = /* @__PURE__ */ new Set([...sequenceLevels(m, f, true), ...sequenceLevels(m, f, false)]);
+  const weapons = axisOpen(m, f, "weapons") ? eligibleWeapons(m, f) : m.loadout.weapons.map((_, i) => i);
+  return [...levels].flatMap((level) => weapons.flatMap((i) => [weaponBase(m.loadout.weapons[i]), ...m.loadout.refinements[i].map((w) => w.name)].map((name) => weaponTag(m, level, name))));
+}
+function tagsHold(map, names, fielded, owner = tagOwner) {
   const wanted = /* @__PURE__ */ new Map();
   for (const [name, mode] of map) {
     if (mode === "exclude") {
@@ -1036,7 +1242,7 @@ function tagsHold(map, names, fielded) {
         return false;
       continue;
     }
-    const who = tagOwner(name);
+    const who = owner(name);
     if (!fielded.includes(who))
       continue;
     wanted.set(who, [...wanted.get(who) ?? [], name]);
@@ -1104,22 +1310,22 @@ function sequenceTagsOf(m, f = filters) {
 var refineTag = (m, combo) => `${m.name} R${combo.weapon.refinement}`;
 function rowWanted(row) {
   const fielded = row.members.map((m) => m.name);
-  return namesHold(weaponFilters, row.combo.flatMap((c) => [c.weapon.name, weaponBase(c.weapon)])) && namesHold(echoFilters, row.combo.map((c, i) => echoLabel(row.members[i].loadout, c.echo))) && tagsHold(sequenceFilters, row.combo.flatMap((c, i) => sequenceTag(row.members[i], c) ?? []), fielded) && tagsHold(refineFilters, row.combo.map((c, i) => refineTag(row.members[i], c)), fielded);
+  return tagsHold(weaponFilters, row.combo.flatMap((c, i) => weaponTags(row.members[i], c)), fielded, weaponOwner) && namesHold(echoFilters, row.combo.map((c, i) => echoLabel(row.members[i].loadout, c.echo))) && tagsHold(sequenceFilters, row.combo.flatMap((c, i) => sequenceTag(row.members[i], c) ?? []), fielded) && tagsHold(refineFilters, row.combo.map((c, i) => refineTag(row.members[i], c)), fielded);
 }
 function admitBuild(members, combo) {
   const fielded = members.map((m) => m.name);
-  const fit = (map, names, tagged) => {
+  const fit = (map, names, tagged, owner = tagOwner) => {
     for (const [name, mode] of [...map]) {
       if (names.includes(name) === (mode === "include"))
         continue;
-      const own = tagged && mode === "include" ? names.find((n) => tagOwner(n) === tagOwner(name)) : void 0;
+      const own = tagged && mode === "include" ? names.find((n) => owner(n) === owner(name)) : void 0;
       if (own)
         map.set(own, "include");
-      else if (!tagged || mode === "exclude" || fielded.includes(tagOwner(name)))
+      else if (!tagged || mode === "exclude" || fielded.includes(owner(name)))
         map.delete(name);
     }
   };
-  fit(weaponFilters, combo.flatMap((c) => [c.weapon.name, weaponBase(c.weapon)]), false);
+  fit(weaponFilters, combo.flatMap((c, i) => weaponTags(members[i], c)), true, weaponOwner);
   fit(echoFilters, combo.map((c, i) => echoLabel(members[i].loadout, c.echo)), false);
   fit(sequenceFilters, combo.flatMap((c, i) => sequenceTag(members[i], c) ?? []), true);
   fit(refineFilters, combo.map((c, i) => refineTag(members[i], c)), true);
@@ -1164,7 +1370,16 @@ function expandTeam(teamKey2, members, all = false, f = filters) {
   (solved.hidden ?? []).forEach((picks, r) => file(picks, solved.hiddenScores?.[r], false));
   return all ? [...rows.values()] : [...rows.values()].filter(rowWanted);
 }
-var teamRows = () => Object.entries(TEAMS).flatMap(([key, members]) => expandTeam(key, members));
+function teamRows() {
+  const rows = Object.entries(TEAMS).flatMap(([key, members]) => expandTeam(key, members));
+  const listed = new Set(rows.map((row) => row.key));
+  for (const key of pinnedRows) {
+    const row = listed.has(key) ? null : rowFromKey(key);
+    if (row)
+      rows.push(row);
+  }
+  return rows;
+}
 var solvedRows = (teamKey2, f = filters) => expandTeam(teamKey2, TEAMS[teamKey2], true, f);
 function axisWays(lists, map, cap = Infinity, tagged = false) {
   const excluded = [...map].filter(([, mode]) => mode === "exclude").map(([n]) => n);
@@ -1186,10 +1401,10 @@ function axisWays(lists, map, cap = Infinity, tagged = false) {
   return total;
 }
 function estimatedRowCount(members, f = filters) {
-  return axisWays(members.map((m) => axisOpen(m, f, "weapons") ? eligibleWeapons(m, f).map((i) => m.loadout.weapons[i].name) : null), weaponFilters) * axisWays(members.map((m) => axisOpen(m, f, "echoes") ? echoPicks(m, members).map((e) => echoLabel(m.loadout, m.loadout.echoLoadouts[e])) : null), echoFilters) * members.reduce((n, m) => n * (axisOpen(m, f, "mainstats") ? m.loadout.mainstats.length : 1), 1) * axisWays(members.map((m) => sequenceTagsOf(m, f)), sequenceFilters, Infinity, true) * members.reduce((n, m) => n * (axisOpen(m, f, "substats") ? 2 : 1), 1) * members.reduce((n, m) => n * (axisUsed(m, f, "refines") ? Math.max(...eligibleWeapons(m, f).map((i) => m.loadout.refinements[i].length)) : 1), 1) * members.reduce((n, m) => n * (!axisOpen(m, f, "echoes") && axisUsed(m, f, "echoes") ? echoPicks(m, members).length : 1) * (!axisOpen(m, f, "mainstats") && axisUsed(m, f, "mainstats") ? m.loadout.mainstats.length : 1), 1);
+  return axisWays(members.map((m) => axisOpen(m, f, "weapons") ? eligibleWeapons(m, f).map((i) => m.loadout.weapons[i].name) : null), /* @__PURE__ */ new Map()) * axisWays(members.map((m) => axisOpen(m, f, "echoes") ? echoPicks(m, members).map((e) => echoLabel(m.loadout, m.loadout.echoLoadouts[e])) : null), echoFilters) * members.reduce((n, m) => n * (axisOpen(m, f, "mainstats") ? m.loadout.mainstats.length : 1), 1) * axisWays(members.map((m) => sequenceTagsOf(m, f)), sequenceFilters, Infinity, true) * members.reduce((n, m) => n * (axisOpen(m, f, "substats") ? 2 : 1), 1) * members.reduce((n, m) => n * (axisUsed(m, f, "refines") ? Math.max(...eligibleWeapons(m, f).map((i) => m.loadout.refinements[i].length)) : 1 + shownRanks(m, f).length), 1) * members.reduce((n, m) => n * (!axisOpen(m, f, "echoes") && axisUsed(m, f, "echoes") ? echoPicks(m, members).length : 1) * (!axisOpen(m, f, "mainstats") && axisUsed(m, f, "mainstats") ? m.loadout.mainstats.length : 1), 1);
 }
 function prospectiveRows(f = filters) {
-  return Object.entries(TEAMS).filter(([key, members]) => teamWanted(key, members)).reduce((sum, [, members]) => sum + estimatedRowCount(members, f), 0);
+  return Object.entries(TEAMS).filter(([key, members]) => teamWanted(key, members)).reduce((sum, [, members]) => sum + estimatedRowCount(members, f), pinnedRows.size);
 }
 var COMBO_KEY = /^(\d+)\.(\d+)\.(\d+)\.s(\d+)\.r(\d+)(\.m)?(\.h)?$/;
 function picksOfKey(key) {
@@ -1212,7 +1427,7 @@ function rowFromKey(key) {
   for (let i = 0; i < members.length; i++) {
     const l = members[i].loadout;
     const pick = picks[i];
-    if (!l.refinements[pick.weapon]?.[pick.refine] || !echoPicks(members[i], members).includes(pick.echo) || !l.mainstats[pick.mainstat] || pick.matrix && !l.resonator.matrix || pick.sequence < l.minSequence)
+    if (!l.refinements[pick.weapon]?.[pick.refine] || !echoPicks(members[i], members).includes(pick.echo) || !l.mainstats[pick.mainstat] || !l.fits(pick.echo, pick.mainstat) || pick.matrix && !l.resonator.matrix || pick.sequence < l.minSequence)
       return null;
     combo.push(comboOf(l, pick));
   }
@@ -1221,13 +1436,30 @@ function rowFromKey(key) {
 function detailFor(run) {
   if (run.detail)
     return run.detail;
-  if (!run.rotationLines) {
+  if (!run.rotationLines || !run.state) {
     const traced = runTeam(run.teamKey, run.members, run.combo, true);
     run.rotationLines = traced.rotationLines;
     run.state = traced.state;
   }
-  run.detail = { report: buildReport(run.rotationLines.flat()) };
+  run.detail = { report: buildReport(run.rotationLines.flat()), needs: energyNeeds(run) };
   return run.detail;
+}
+function energyNeeds(run) {
+  const erOf = erRollsFor(run.teamKey, run.members, run.combo);
+  return new Map(run.members.map((m, idx) => {
+    const combo = run.combo[idx];
+    const constant = menuStats(m.loadout.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs, erOf[idx])).reduce((n, e) => n + (e.stat === 11 ? e.value : 0), 0);
+    const slot = run.state.slots[idx];
+    const worst = m.loadout.resonator.maxEnergy ? slot.erWorst : 0;
+    const parts = worst > 0 ? slot.erParts[slot.erWants.indexOf(worst)] : void 0;
+    const gen = parts ? {
+      hit: parts.hit,
+      flat: parts.flat,
+      spend: parts.spend,
+      shared: run.state.slots.filter((s) => s !== slot).map((s) => [s.name, parts.got[s.index] ?? 0])
+    } : null;
+    return [m.name, { bar: worst > 0 ? worst : null, minEr: m.loadout.minEr, constant, gen }];
+  }));
 }
 var SOLVES_KEY = "wuwa.solves.v1";
 var buildStamp = null;
@@ -1284,7 +1516,7 @@ function picksFit(key, picks) {
   const roster = team.loadouts.map((l) => l.resonator);
   return picks.length === team.loadouts.length && picks.every((p, i) => {
     const l = team.loadouts[i];
-    return p.weapon < l.weapons.length && p.refine < (l.refinements[p.weapon]?.length ?? 0) && !!l.echoLoadouts[p.echo]?.fits(roster) && p.mainstat < l.mainstats.length && p.sequence >= l.minSequence;
+    return p.weapon < l.weapons.length && p.refine < (l.refinements[p.weapon]?.length ?? 0) && !!l.echoLoadouts[p.echo]?.fits(roster) && p.mainstat < l.mainstats.length && l.fits(p.echo, p.mainstat) && p.sequence >= l.minSequence;
   });
 }
 function solveFits(key, solved, f) {
@@ -1304,8 +1536,8 @@ function solveFits(key, solved, f) {
     const weapons = axisOpen(m, f, "weapons") ? eligibleWeapons(m, f) : [solved.picks[i].weapon];
     const levels = axisOpen(m, f, "sequences") ? sequenceLevels(m, f) : [solved.picks[i].sequence];
     for (const sequence of levels)
-      for (const weapon of weapons) {
-        for (const refine of refineLevels(m, f, { ...solved.picks[i], weapon, sequence }))
+      for (const weapon of [...weapons, ...shownWeapons(m, f, weapons)]) {
+        for (const refine of refineLevels(m, f, { ...solved.picks[i], weapon, sequence }, weapons.includes(weapon)))
           pairs.add(`${sequence}.${refine}`);
       }
     return n * pairs.size;
@@ -1462,54 +1694,101 @@ function applyHash() {
       changed = true;
     }
   }
+  {
+    const next = (params.get("pin") ?? "").split(",").filter(Boolean).map(keyOfTag).filter((key) => rowFromKey(key));
+    if (next.length !== pinnedRows.size || next.some((key) => !pinnedRows.has(key))) {
+      pinnedRows.clear();
+      for (const key of next)
+        pinnedRows.add(key);
+      changed = true;
+    }
+  }
   return changed;
 }
-var TAG_DIGITS = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-function teamTag(key) {
-  const [teamKey2, ...comboKeys] = key.split("-");
-  const team = /^t(\d+)$/.exec(teamKey2 ?? "");
-  if (!team || +team[1] > 16383)
+var gearShut = (f) => ({
+  ...f,
+  echoes: [],
+  mainstats: [],
+  scoped: f.scoped.filter((s) => s.axis !== "echoes" && s.axis !== "mainstats")
+});
+function optimalGear(teamKey2, picks, f = filters) {
+  const solved = bestPicks.get(bestKey(teamKey2, TEAMS[teamKey2], gearShut(f)));
+  const same = (a, b) => a.weapon === b.weapon && a.refine === b.refine && a.sequence === b.sequence && a.highSubs === b.highSubs && a.matrix === b.matrix;
+  return solved?.rows.find((row) => row.every((p, i) => same(p, picks[i]))) ?? null;
+}
+var TEAM_BY_LOADOUTS = new Map(ALL_TEAMS.map((t, i) => [t.loadouts.map((l) => l.id).join("."), teamKey(i)]));
+function teamTag(key, full = false) {
+  const team = teamAt(key.split("-")[0] ?? "");
+  const picks = picksOfKey(key);
+  if (!team || !picks || picks.length !== team.loadouts.length)
     return key;
-  let bits = BigInt(+team[1]), width = 14n;
-  for (const combo of comboKeys) {
-    const p = COMBO_KEY.exec(combo);
-    if (!p)
-      return key;
-    const [weapon, echo, mainstat, sequence, refine] = p.slice(1, 6).map(Number);
-    if (weapon > 7 || echo > 7 || mainstat > 63 || sequence > 7 || refine > 7)
-      return key;
-    const packed = weapon | echo << 3 | mainstat << 6 | sequence << 12 | refine << 15 | (p[6] ? 1 << 18 : 0) | (p[7] ? 1 << 19 : 0);
-    bits |= BigInt(packed) << width;
-    width += 20n;
+  const optimal = full ? null : optimalGear(key.split("-")[0], picks);
+  try {
+    return teamCode(team.loadouts.map((l, i) => {
+      const p = picks[i], best = optimal?.[i];
+      return {
+        loadout: l,
+        sequence: p.sequence,
+        weapon: l.refinements[p.weapon][p.refine],
+        highSubs: p.highSubs,
+        gear: best && best.echo === p.echo && best.mainstat === p.mainstat ? null : { echo: l.echoLoadouts[p.echo], mainstat: l.mainstats[p.mainstat] }
+      };
+    }), picks.some((p) => p.matrix));
+  } catch {
+    return key;
   }
-  const base = BigInt(TAG_DIGITS.length);
-  let tag = "";
-  do {
-    tag = TAG_DIGITS[Number(bits % base)] + tag;
-    bits /= base;
-  } while (bits > 0n);
-  return tag;
 }
 function hashTeam() {
   const tag = hashParams().get("team");
-  if (!tag || !/^[0-9a-zA-Z]+$/.test(tag))
-    return tag;
-  let bits = 0n;
-  for (const c of tag)
-    bits = bits * BigInt(TAG_DIGITS.length) + BigInt(TAG_DIGITS.indexOf(c));
-  const teamKey2 = `t${Number(bits & 0x3fffn)}`;
-  const members = TEAMS[teamKey2];
-  if (!members)
-    return tag;
-  bits >>= 14n;
-  const combos = members.map(() => {
-    const packed = Number(bits & 0xfffffn);
-    bits >>= 20n;
-    return `${packed & 7}.${packed >> 3 & 7}.${packed >> 6 & 63}.s${packed >> 12 & 7}.r${packed >> 15 & 7}` + (packed & 1 << 18 ? ".m" : "") + (packed & 1 << 19 ? ".h" : "");
-  });
-  return [teamKey2, ...combos].join("-");
+  return tag ? keyOfTag(tag) : tag;
 }
-function syncHash(team = hashTeam(), push = false) {
+var knownTeam = () => {
+  const key = hashTeam();
+  return key && rowFromKey(key) ? key : null;
+};
+function tagTeam(tag) {
+  const read = readTeamCode(tag);
+  return read ? TEAM_BY_LOADOUTS.get(read.members.map((m) => m.resonator * 10 + m.loadout).join(".")) ?? null : null;
+}
+function keyOfTag(tag) {
+  const read = readTeamCode(tag);
+  const teamKey2 = tagTeam(tag);
+  if (!read || !teamKey2)
+    return tag;
+  const members = TEAMS[teamKey2];
+  const picks = [];
+  for (const [i, m] of read.members.entries()) {
+    const l = members[i].loadout;
+    const weapon = l.refinements.findIndex((ranks) => ranks[0].id === m.weapon);
+    const refine = weapon < 0 ? -1 : l.refinements[weapon].findIndex((w) => w.refinement === m.refinement);
+    if (refine < 0)
+      return tag;
+    const g = m.gear;
+    const sorted = (xs) => [...xs].sort((x, y) => x - y).join(",");
+    picks.push({
+      weapon,
+      refine,
+      sequence: m.sequence,
+      highSubs: m.highSubs,
+      matrix: read.matrix && !!l.resonator.matrix,
+      echo: g ? l.echoLoadouts.findIndex((e) => e.mainslot.id === g.mainslot && e.sets.map((x) => x.id).join(",") === g.sets.join(",")) : -1,
+      mainstat: g ? l.mainstats.findIndex((b) => sorted(b.slots) === sorted(g.mainstats)) : -1
+    });
+  }
+  if (picks.some((p) => p.echo < 0 || p.mainstat < 0)) {
+    const optimal = optimalGear(teamKey2, picks);
+    if (!optimal)
+      return tag;
+    picks.forEach((p, i) => {
+      if (p.echo >= 0 && p.mainstat >= 0)
+        return;
+      p.echo = optimal[i].echo;
+      p.mainstat = optimal[i].mainstat;
+    });
+  }
+  return [teamKey2, ...picks.map((p, i) => comboOf(members[i].loadout, p).key)].join("-");
+}
+function syncHash(team = knownTeam(), push = false) {
   const next = hashOf(team);
   if (next === location.hash)
     return;
@@ -1527,7 +1806,15 @@ function reopenDetail(team) {
 function hashOf(team) {
   const named = (map, mode) => [...map].filter(([, m]) => m === mode).map(([name]) => encodeURIComponent(map === resonatorFilters ? name.replace(/ /g, "") : name)).join(",");
   const compact = (n) => encodeURIComponent(n.replace(/ /g, ""));
-  const parts = filters.matrix.length ? [`mx=${filters.matrix.map(compact).join(",")}`] : [];
+  const parts = [];
+  for (const { include, exclude, map } of FILTER_GROUPS) {
+    if (named(map, "include"))
+      parts.push(`${include}=${named(map, "include")}`);
+    if (named(map, "exclude"))
+      parts.push(`${exclude}=${named(map, "exclude")}`);
+  }
+  if (filters.matrix.length)
+    parts.push(`mx=${filters.matrix.map(compact).join(",")}`);
   if (filters.cost !== "s0r1")
     parts.push(`tc=${COST_CODE[filters.cost]}`);
   for (const axis of AXES) {
@@ -1536,14 +1823,10 @@ function hashOf(team) {
   }
   if (filters.scoped.length)
     parts.push(`${SCOPED_PARAM}=${filters.scoped.map((s) => encodeURIComponent(scopedKey(s))).join(",")}`);
-  for (const { include, exclude, map } of FILTER_GROUPS) {
-    if (named(map, "include"))
-      parts.push(`${include}=${named(map, "include")}`);
-    if (named(map, "exclude"))
-      parts.push(`${exclude}=${named(map, "exclude")}`);
-  }
   if (team)
     parts.push(`team=${teamTag(team)}`);
+  if (pinnedRows.size)
+    parts.push(`pin=${[...pinnedRows].map((key) => teamTag(key, true)).join(",")}`);
   return parts.length ? `#${parts.join("&")}` : "";
 }
 var routeTeam = () => {
@@ -1573,10 +1856,10 @@ var rect = (el) => {
   const r = el.getBoundingClientRect(), z = zoom();
   return z === 1 ? r : new DOMRect(r.x / z, r.y / z, r.width / z, r.height / z);
 };
-function copyBlock(rows) {
+function copyBlock(rows, mode = "discord") {
   const wide = rows[0]?.map((_, c) => Math.max(...rows.map((r) => r[c].length))) ?? [];
   const text = rows.map((r) => r.map((t, c) => t.padEnd(wide[c])).join("  ").trimEnd()).join("\n");
-  const plain = "```\n" + text + "\n```";
+  const plain = mode === "sheets" ? rows.map((r) => r.join("	")).join("\n") : "```\n" + text + "\n```";
   const html = `<table>${rows.map((r) => `<tr>${r.map((t) => `<td>${esc(t)}</td>`).join("")}</tr>`).join("")}</table>`;
   const clip = navigator.clipboard;
   if (!clip)
@@ -1592,7 +1875,7 @@ var clearPops = () => {
   document.body.querySelectorAll(":scope > .pop").forEach((el) => el.remove());
 };
 var unit = (r) => r.percent ?? (r.stat !== void 0 ? isPercent(r.stat) : false) ? "%" : "";
-var SECTION_ORDER = ["base", "bonus", "flat", "final"];
+var SECTION_ORDER = ["base", "bonus", "flat", "final", "cast", "energy"];
 var SECTION_RANK = (key) => {
   if (key === null)
     return -1;
@@ -1604,7 +1887,7 @@ var panelRow = (r, slotHue, { noSource = false } = {}) => {
   const own = r.owner !== void 0 ? slotHue.get(r.owner ?? "") ?? TUNE_BREAK_ENEMY.color : null;
   const label = r.label ?? (r.stat !== void 0 ? statLabel(r.stat) : "");
   const source = (r.count ?? 1) > 1 ? `${r.source} x${r.count}` : r.source;
-  const show = (v) => r.digits === void 0 ? fmtExact(v) : fmt(v, r.digits, true);
+  const show = (v) => unit(r) ? fmtPct(v) : r.digits === void 0 ? fmtExact(v) : fmt(v, r.digits, true);
   const value = `<td class="v">${r.text !== void 0 ? esc(r.text) : r.mult ? `&times;${show(r.value)}` : `${show(r.value)}${unit(r)}`}</td>`;
   if (r.summary)
     return `<tr class="sum${r.joined ? " joined" : ""}"><td class="k">${esc(label)}</td>${value}</tr>`;
@@ -1628,9 +1911,16 @@ function popover(col, rows, total, slotHue, suffix = "", empty = "") {
   const sections = [...bySection].map(([key, group]) => ({ key, rows: group })).sort((a, b) => SECTION_RANK(a.key) - SECTION_RANK(b.key));
   const body = sections.map(({ key, rows: group }) => `<tr class="sec"><td colspan="2">${esc(key ?? col.full ?? col.label)}</td></tr>` + group.map(row).join("")).join("");
   const titled = sections.length ? body : `<tr class="sec${empty ? " plain" : ""}"><td colspan="2">${esc(empty || (col.fullEmpty ?? col.full ?? col.label))}</td></tr>`;
-  const sum = col.noTotal ? "" : `<tr class="sum"><td class="k">Total</td><td class="v">${fmtExact(total)}${col.percent ? "%" : ""}${esc(suffix)}</td></tr>`;
+  const sum = col.noTotal ? "" : `<tr class="sum"><td class="k">Total</td><td class="v">${col.percent ? `${fmtPct(total)}%` : fmtExact(total)}${esc(suffix)}</td></tr>`;
   const tail = after.map((r, i) => (r.section && r.section !== after[i - 1]?.section ? `<tr class="sec"><td colspan="2">${esc(r.section)}</td></tr>` : "") + row(r)).join("");
   return lazyPop(`<span class="pop stat${col.key === "avg" ? " damage" : ""}"><table>${titled}${before.map(row).join("")}${sum}${tail}</table></span>`);
+}
+function hitsPopover(hits) {
+  if (!hits.length)
+    return "";
+  const row = (label, v, cls = "") => `<tr${cls}><td class="k">${esc(label)}</td>${v.map((x) => `<td class="v">${fmt(x, 0)}</td>`).join("")}</tr>`;
+  const total = hits.reduce((t, h) => [t[0] + h.avg, t[1] + h.crit, t[2] + h.noCrit], [0, 0, 0]);
+  return lazyPop(`<span class="pop stat hits"><table><tr class="sec"><td>Hits</td><td>Avg</td><td>Crit</td><td>Base</td></tr>` + hits.map((h) => row(`Hit ${h.n}`, [h.avg, h.crit, h.noCrit])).join("") + row("Total", total, ' class="sum"') + `</table></span>`);
 }
 function infoPopover(info, slotHue) {
   if (!info?.length)
@@ -1729,8 +2019,7 @@ function equippedGear(member2, combo, erRolls = 1) {
     ["Weapon", combo.weapon],
     ["Mainslot", combo.echo.mainslot],
     ...combo.echo.sets.map((g, i) => [i === 0 ? "Sonata" : "", g]),
-    ["Mainstats", combo.mainstat],
-    ["Substats", l.spread(combo.highSubs, erRolls)]
+    ...l.echoes.worn(combo.echo, combo.mainstat, l.spread(combo.highSubs, erRolls)).map((g) => ["Echo", g])
   ];
 }
 var ATTRIBUTE_SCOPES = [
@@ -1767,17 +2056,18 @@ var OTHER_SCOPES = [
 ];
 function menuStatRows(member2, combo, erRolls) {
   const l = member2.loadout;
-  const entries = menuStats(l.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs, erRolls));
+  const pieces = l.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs, erRolls);
+  const entries = menuStats(pieces);
   const totals = /* @__PURE__ */ new Map();
   for (const e of entries)
     totals.set(e.stat, (totals.get(e.stat) ?? 0) + e.value);
   const get = (key) => totals.get(key) ?? 0;
-  const fold = (base, bonus, flat) => get(base) * (1 + get(bonus) / 100) + get(flat);
+  const folded = panelStats(pieces);
   const rows = [];
   const push = (label, value, percent) => {
     if (!value)
       return;
-    rows.push({ label, value: `${fmt(value, percent ? 1 : 0, percent)}${percent ? "%" : ""}` });
+    rows.push({ label, value: percent ? `${fmtPct(value)}%` : fmt(value) });
   };
   const pushBest = (scopes) => {
     let bestTag = null, bestValue = 0;
@@ -1799,24 +2089,9 @@ function menuStatRows(member2, combo, erRolls) {
         /* Stat.DmgBonus */
       )), bestValue, true);
   };
-  push("HP", fold(
-    1,
-    7,
-    4
-    /* Stat.FlatHp */
-  ), false);
-  push("ATK", fold(
-    0,
-    6,
-    3
-    /* Stat.FlatAtk */
-  ), false);
-  push("DEF", fold(
-    2,
-    8,
-    5
-    /* Stat.FlatDef */
-  ), false);
+  push("HP", folded.hp, false);
+  push("ATK", folded.atk, false);
+  push("DEF", folded.def, false);
   push(statLabel(
     11
     /* Stat.ER */
@@ -1898,12 +2173,12 @@ function buffStats(run, keep) {
   }
   return [...peak.values()].flatMap((byStat) => [...byStat.values()]);
 }
-var lineKey = (e) => `${e.gear?.id} ${e.stat} ${e.value}`;
+var lineKey = (e) => `${e.gear?.engineId} ${e.stat} ${e.value}`;
 var constantKeys = (stats) => new Set(stats.map(lineKey));
 var statRow = (e, owner, slotHue, noStat = false) => {
   const percent = isPercent(e.stat);
   const stat = splitStat(e.stat)[0];
-  return `<tr class="stat${e.dim ? " one" : ""}"><td class="s" style="--own:${slotHue.get(owner) ?? FALLBACK_HUE}">${esc(e.source)}</td>` + (noStat ? "" : `<td class="k">${esc(statLabel(e.stat))}</td>`) + `<td class="v">${fmt(e.value / statDisplayScale(stat), percent ? 1 : 0)}${percent ? "%" : ""}</td></tr>`;
+  return `<tr class="stat${e.dim ? " one" : ""}"><td class="s" style="--own:${slotHue.get(owner) ?? FALLBACK_HUE}">${esc(e.source)}</td>` + (noStat ? "" : `<td class="k">${esc(statLabel(e.stat))}</td>`) + `<td class="v">${percent ? `${fmtPct(e.value / statDisplayScale(stat))}%` : fmt(e.value / statDisplayScale(stat))}</td></tr>`;
 };
 function piecePopover(run, pieces, owner, slotHue) {
   const own = new Set(pieces);
@@ -1945,7 +2220,7 @@ function loadoutTable(run, needs, pickable) {
     return [r, r.talent, r.inherent1, r.inherent2, combo.matrix, l.mode, ...l.sequences.slice(0, combo.sequence)].filter((g) => g != null);
   };
   const pick = (slot, kind) => pickable?.(slot, kind) ? ` data-pick="${kind}" data-slot="${slot}"` : "";
-  const equipped = new Set(builds.flatMap(({ member: member2, combo, erRolls: n }) => member2.loadout.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs, n)));
+  const equipped = new Set(builds.flatMap(({ member: member2, combo, erRolls: n }) => member2.loadout.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs, n).flatMap((g) => g instanceof Echo ? [g, ...g.sources] : [g])));
   const head = `<div class="rtrow rthead"><div class="c lbl">Resonator</div>` + builds.map((b) => {
     const hover = resonatorPopover(run, kitOf(b), equipped, b.member.name, slotHue);
     return `<div class="c mem${hover ? " has" : ""}"${hover}${pick(b.slot, "sequences")} style="--mem:${b.member.color}">${esc(loadoutName(b.member.loadout, b.combo.sequence || void 0))}</div>`;
@@ -2157,8 +2432,10 @@ function wireSourcePanels(root) {
         return;
       const onHome = !!openHome?.contains(e.target);
       close();
-      if (onHome)
+      if (onHome) {
+        e.preventDefault();
         return;
+      }
     }
     const { cell: cell2, pop } = panelIn(e.target);
     if (!cell2)
@@ -2386,10 +2663,11 @@ function barChart(bars) {
   const peak = Math.max(...bars.map((b) => b.dmg));
   const weights = bars.map((b) => Math.max(b.frames, 60));
   const unit2 = plotW / weights.reduce((a, w) => a + w, 0);
+  const lit = (hex) => `#${[1, 3, 5].map((k) => Math.min(255, Math.round(parseInt(hex.slice(k, k + 2), 16) * 1.35)).toString(16).padStart(2, "0")).join("")}`;
   let x = left;
   const rects = bars.map((b, i) => {
     const h = b.dmg / peak * plotH, slot = weights[i] * unit2;
-    const rect2 = `<rect data-act="${b.act}" x="${f(x)}" y="${f(top + plotH - h)}" width="${f(Math.max(slot * 0.9, 0.6))}" height="${f(h)}" fill="${b.color}"/>`;
+    const rect2 = `<rect data-act="${b.act}" x="${f(x)}" y="${f(top + plotH - h)}" width="${f(Math.max(slot * 0.9, 0.6))}" height="${f(h)}" fill="${b.color}" style="--lit:${lit(b.color)}"/>`;
     x += slot;
     return rect2;
   }).join("");
@@ -2409,50 +2687,100 @@ var shownChart = null;
 var distCells = /* @__PURE__ */ new Map();
 var distributionRow = (selected2) => `<div class="rtrow dist"><div class="c distbody">${distBody(distCells.get(selected2))}</div></div>`;
 var barPop = null;
+var barPopAct = null;
+var barPopSize = { width: 0, height: 0 };
 function showBarPop(act, total, x, y) {
   if (!barPop) {
     barPop = document.createElement("div");
     barPop.className = "barpop";
     document.body.append(barPop);
   }
-  barPop.style.setProperty("--own", act.color);
-  barPop.innerHTML = `<span class="nm">${esc(act.name)}${act.casts > 1 ? ` x${act.casts}` : ""}</span><span class="v">${fmt(act.dmg)}</span><span class="pct">${fmt(act.dmg / total * 100, 1)}%</span>`;
   barPop.hidden = false;
-  const { width, height } = barPop.getBoundingClientRect();
+  if (act !== barPopAct) {
+    barPopAct = act;
+    barPop.style.setProperty("--own", act.color);
+    barPop.innerHTML = `<span class="nm">${esc(act.name)}${act.casts > 1 ? ` x${act.casts}` : ""}</span><span class="v">${fmt(act.dmg)}</span><span class="pct">${fmt(act.dmg / total * 100, 1)}%</span>`;
+    barPopSize = barPop.getBoundingClientRect();
+  }
+  const { width, height } = barPopSize;
   barPop.style.left = `${x - width < 0 ? x : x - width}px`;
   barPop.style.top = `${y - height}px`;
 }
+var hideBarPop = () => {
+  if (!barPop)
+    return;
+  barPop.hidden = true;
+  barPopAct = null;
+};
+var BAR_GEOMETRY = /* @__PURE__ */ new WeakMap();
+function barGeometry(svg) {
+  let g = BAR_GEOMETRY.get(svg);
+  if (g)
+    return g;
+  g = { lefts: [], acts: [], byAct: /* @__PURE__ */ new Map() };
+  for (const r of svg.querySelectorAll("rect[data-act]")) {
+    const act = Number(r.dataset.act);
+    g.lefts.push(r.x.baseVal.value);
+    g.acts.push(act);
+    const own = g.byAct.get(act);
+    if (own)
+      own.push(r);
+    else
+      g.byAct.set(act, [r]);
+  }
+  BAR_GEOMETRY.set(svg, g);
+  return g;
+}
 function wireBarHover(body) {
-  let lit = -1;
-  const light = (act) => {
-    if (act === lit)
+  let lit = [];
+  const light = (rects) => {
+    if (rects === lit)
       return;
-    lit = act;
-    for (const r of body.querySelectorAll("svg.bars rect[data-act]"))
-      r.classList.toggle("lit", Number(r.dataset.act) === act);
+    for (const r of lit)
+      r.classList.remove("lit");
+    for (const r of rects)
+      r.classList.add("lit");
+    lit = rects;
   };
-  body.addEventListener("mousemove", (e) => {
+  const NONE = [];
+  let last = null, queued2 = false;
+  const update = () => {
+    queued2 = false;
+    const e = last;
+    if (!e)
+      return;
     const svg = e.target.closest("svg.bars");
-    const bars = svg ? [...svg.querySelectorAll("rect[data-act]")] : [];
-    if (!svg || !shownChart || !bars.length) {
-      light(-1);
-      if (barPop)
-        barPop.hidden = true;
+    const g = svg ? barGeometry(svg) : null;
+    if (!svg || !g || !shownChart || !g.lefts.length) {
+      light(NONE);
+      hideBarPop();
       return;
     }
     const box = svg.getBoundingClientRect(), view = svg.viewBox.baseVal;
     const at = (e.clientX - box.left) / box.width * view.width;
-    let i = 0;
-    while (i + 1 < bars.length && bars[i + 1].x.baseVal.value <= at)
-      i++;
-    const act = Number(bars[i].dataset.act);
-    light(act);
+    let lo = 0, hi = g.lefts.length - 1;
+    while (lo < hi) {
+      const mid = lo + hi + 1 >> 1;
+      if (g.lefts[mid] <= at)
+        lo = mid;
+      else
+        hi = mid - 1;
+    }
+    const act = g.acts[lo];
+    light(g.byAct.get(act) ?? NONE);
     showBarPop(shownChart.acts[act], shownChart.total, e.clientX, e.clientY);
+  };
+  body.addEventListener("mousemove", (e) => {
+    last = e;
+    if (queued2)
+      return;
+    queued2 = true;
+    requestAnimationFrame(update);
   });
   body.addEventListener("mouseleave", () => {
-    light(-1);
-    if (barPop)
-      barPop.hidden = true;
+    last = null;
+    light(NONE);
+    hideBarPop();
   });
 }
 function wireDistribution(root) {
@@ -2507,12 +2835,14 @@ function searchCandidates() {
     for (const m of members) {
       add("resonator", m.name);
       if (axisOpen(m, filters, "weapons")) {
-        for (const i of eligibleWeapons(m, filters)) {
-          add("weapon", weaponBase(m.loadout.weapons[i]));
-          if (axisUsed(m, filters, "refines"))
-            for (const w of m.loadout.refinements[i])
-              add("weapon", w.name);
-        }
+        const levels = /* @__PURE__ */ new Set([...sequenceLevels(m, filters, true), ...sequenceLevels(m, filters, false)]);
+        for (const level of levels)
+          for (const i of eligibleWeapons(m, filters)) {
+            add("weapon", weaponTag(m, level, weaponBase(m.loadout.weapons[i])));
+            if (axisUsed(m, filters, "refines"))
+              for (const w of m.loadout.refinements[i])
+                add("weapon", weaponTag(m, level, w.name));
+          }
       }
       if (axisUsed(m, filters, "refines"))
         for (const i of eligibleWeapons(m, filters))
@@ -2606,9 +2936,9 @@ var COST_HELP = [
 ];
 var MATRIX_HELP = "Enables matrix exclusive buffs for older characters, scaled down to a neutral environment. Lucy also activates 1 stack of her boss kill inherent.";
 var README = [
-  "Beta calculations are subject to change!",
+  `<span class="readme-beta">Beta calculations are subject to change!</span>`,
   `<span class="readme-warn">DPR comparisons do not account for rotation time!</span>`,
-  "If you find any bug or issue ping me on discord @rileyy._.",
+  "Feedback & Bugs: message me on discord @rileyy._.",
   "Enemy lv100, 20% res, Resonator lv 90, Nodes lv10"
 ];
 var openHelp = /* @__PURE__ */ new Set(["readme"]);
@@ -2655,11 +2985,15 @@ function resonatorChips() {
   }
   for (const [kind, map] of Object.entries(OPTION_FILTER_MAPS)) {
     for (const [name, mode] of map) {
-      const hue = kind === "sequence" || kind === "refine" ? RESONATOR_HUE.get(tagOwner(name)) : void 0;
+      const hue = kind === "sequence" || kind === "refine" ? RESONATOR_HUE.get(tagOwner(name)) : kind === "weapon" ? RESONATOR_HUE.get(weaponOwner(name)) : void 0;
       bucket(mode).push(`<button type="button" class="rchip" data-kind="${kind}" data-value="${esc(name)}"` + (hue ? ` style="--mem:${hue}"` : "") + ` title="${esc(name)} \u2014 rows using ${MODE_TITLE[mode]}. ${CLICK} to remove.">${esc(name)}</button>`);
     }
   }
   for (const s of filters.scoped) {
+    if (s.on === "rank") {
+      inc.push(`<button type="button" class="rchip" data-scoped="${esc(scopedKey(s))}" style="--mem:${RESONATOR_HUE.get(s.resonator) ?? TUNE_BREAK_ENEMY.color}" title="Showing ${esc(s.resonator)} ${esc(s.value)} beside their own rank. ${CLICK} to remove.">${esc(s.resonator)} ${esc(s.value)}</button>`);
+      continue;
+    }
     inc.push(`<button type="button" class="rchip" data-scoped="${esc(scopedKey(s))}" style="--mem:${RESONATOR_HUE.get(s.resonator) ?? TUNE_BREAK_ENEMY.color}" title="Comparing ${esc(scopedLabel(s))}'s ${AXIS_LABEL[s.axis].toLowerCase()}. ${CLICK} to remove.">${esc(scopedLabel(s))} ${AXIS_LABEL[s.axis]}</button>`);
   }
   for (const name of filters.matrix) {
@@ -2670,9 +3004,22 @@ function resonatorChips() {
       inc.push(`<button type="button" class="rchip" data-axis="${axis}" data-resonator="${esc(name)}" style="--mem:${RESONATOR_HUE.get(name) ?? TUNE_BREAK_ENEMY.color}" title="Comparing ${esc(name)}'s ${AXIS_LABEL[axis].toLowerCase()}. ${CLICK} to remove.">${esc(name)} ${AXIS_LABEL[axis]}</button>`);
     }
   }
+  const pins = [];
+  for (const key of pinnedRows) {
+    const row = rowFromKey(key);
+    if (!row)
+      continue;
+    const lead = row.members.find((m) => m.mainDps) ?? row.members[0];
+    const builds = row.members.map((m, i) => {
+      const c = row.combo[i];
+      return `${m.name} S${c.sequence}${c.matrix ? " (Matrix)" : ""}: ${weaponBase(c.weapon)} R${c.weapon.refinement}, ${echoLabel(m.loadout, c.echo)}`;
+    });
+    pins.push(`<button type="button" class="rchip" data-pin="${esc(key)}" style="--mem:${lead.color}" title="${esc(builds.join("\n"))}
+Shown whatever the other filters say. ${CLICK} to unpin.">${esc(row.members.map((m) => m.name).join(" / "))}</button>`);
+  }
   const section = (label, chips2) => chips2.length ? `<div class="chipsec"><span class="chiplabel">${label}</span><div class="chiprow">${chips2.join("")}</div></div>` : "";
   const chips = section("Shown", inc) + section("Hidden", exc);
-  return chips ? `<div class="tcchips">${chips}<button type="button" class="clearall"><span>Clear Filters</span></button></div>` : "";
+  return (chips ? `<div class="tcchips">${chips}<button type="button" class="clearall"><span>Clear Filters</span></button></div>` : "") + (pins.length ? `<div class="tcpins">${section("Pinned", pins)}<button type="button" class="clearpins"><span>Clear Pins</span></button></div>` : "");
 }
 document.addEventListener("click", (e) => {
   const btn = e.target.closest(".tcopt-name");
@@ -2778,7 +3125,7 @@ function rowCapWarning(total) {
     addEventListener("scroll", close, true);
   });
 }
-function withRowCap(change) {
+function withRowCap(change, apply = () => void refresh()) {
   const undo = change();
   const total = prospectiveRows();
   if (total > ROW_CAP) {
@@ -2789,7 +3136,16 @@ function withRowCap(change) {
   }
   rowCapWarning(null);
   syncHash();
-  void refresh();
+  apply();
+}
+function redrawPins() {
+  const rows = teamRows();
+  if (!rows.every((row) => results.has(row.key))) {
+    void refresh();
+    return;
+  }
+  setVisibleRows(rows);
+  renderComparison();
 }
 function setMatrix(name) {
   withRowCap(() => {
@@ -2845,6 +3201,21 @@ function setCompare(name, axis) {
     };
   });
 }
+function togglePin(key) {
+  withRowCap(() => {
+    const was = pinnedRows.has(key);
+    if (was)
+      pinnedRows.delete(key);
+    else
+      pinnedRows.add(key);
+    return () => {
+      if (was)
+        pinnedRows.add(key);
+      else
+        pinnedRows.delete(key);
+    };
+  }, redrawPins);
+}
 function setScoped(s) {
   withRowCap(() => {
     const key = scopedKey(s);
@@ -2872,6 +3243,31 @@ function scopedItems(resonator, on, value) {
     label: `${set(axis) ? "Stop comparing" : "Compare"} ${scopedLabel(s(axis))} ${AXIS_LABEL[axis].toLowerCase()}`,
     run: () => setScoped(s(axis))
   }));
+}
+function rankItems(run, pos) {
+  const [m, combo] = [run.members[pos], run.combo[pos]];
+  const here = filters.scoped.filter((s) => s.resonator === m.name && s.on === "rank" && rankShown(s.value).sequence === combo.sequence);
+  const own = here.find((s) => rankShown(s.value).weapon === combo.weapon.name);
+  const stop = own ? [{ label: `Stop showing ${combo.weapon.name}`, run: () => setScoped(own) }] : [];
+  if (compares(m, filters, "refines", combo))
+    return stop;
+  const ranks = m.loadout.refinements.find((r) => r.some((w) => w.name === combo.weapon.name)) ?? [];
+  const unranked = (c) => c.key.split(".").filter((_, k) => k !== 4).join(".");
+  const twin = (other) => other.teamKey === run.teamKey && other.combo.every((c, k) => k === pos ? unranked(c) === unranked(combo) : c.key === run.combo[k].key);
+  const shown2 = /* @__PURE__ */ new Set([
+    ...(tableView?.sorted ?? []).filter(([, other]) => twin(other)).map(([, other]) => other.combo[pos].weapon.name),
+    ...here.map((s) => rankShown(s.value).weapon),
+    combo.weapon.name
+  ]);
+  return [...ranks.filter((w) => !shown2.has(w.name)).map((w) => ({
+    label: `Show ${w.name}`,
+    run: () => setScoped({ resonator: m.name, on: "rank", value: rankValue(w.name, combo.sequence), axis: "refines" })
+  })), ...stop];
+}
+function cellRun(el, resonator) {
+  const run = results.get(el.closest(".trow")?.dataset.team ?? "");
+  const pos = run?.members.findIndex((m) => m.name === resonator) ?? -1;
+  return run && pos >= 0 ? { run, pos } : void 0;
 }
 function showMenu(x, y, items, onClose) {
   document.querySelector(".ctxmenu")?.dispatchEvent(new Event("closemenu"));
@@ -2922,11 +3318,16 @@ function showMenu(x, y, items, onClose) {
   });
   return menu;
 }
-function memberLabel(m, combo) {
-  return [m.mainDps ? loadoutName(m.loadout) : m.name, combo.matrix ? "(Matrix)" : "", `${seqToken(m, combo)}${rankToken(m, combo)}`].filter(Boolean).join(" ");
+function memberLabel(m, combo, inCell) {
+  return [m.mainDps ? loadoutName(m.loadout) : m.name, combo.matrix ? "(Matrix)" : "", `${seqToken(m, combo)}${rankToken(m, combo, inCell)}`].filter(Boolean).join(" ");
 }
 var seqToken = (m, combo) => combo.sequence > 0 || axisOpen(m, filters, "sequences") ? `S${combo.sequence}` : "";
-var rankToken = (m, combo) => axisUsed(m, filters, "weapons") ? "" : compares(m, filters, "refines", combo) || combo.weapon.refinement > 1 || combo.weapon.tier === 0 ? `R${combo.weapon.refinement}` : "R0";
+var rankToken = (m, combo, inCell) => inCell ? "" : compares(m, filters, "refines", combo) || combo.weapon.refinement > 1 || combo.weapon.tier === 0 || shownRanks(m, filters).some(([w, , s]) => weaponBase(m.loadout.weapons[w]) === weaponBase(combo.weapon) && s === combo.sequence) ? `R${combo.weapon.refinement}` : "R0";
+var PIN_MARK = `<svg class="pinmark" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 9V4h1a1 1 0 0 0 0-2H7a1 1 0 0 0 0 2h1v5a3 3 0 0 1-3 3v2h5.97v7l1 1 1-1v-7H19v-2a3 3 0 0 1-3-3z"/></svg>`;
+var pinCell = (key) => {
+  const on = pinnedRows.has(key);
+  return `<div class="c pin${on ? " on" : ""}" data-pin="${esc(key)}" title="${CLICK} to ${on ? "unpin this row" : "pin this row, shown whatever the other filters say"}">${PIN_MARK}</div>`;
+};
 function optionCell(kind, value, color, lines = [value], resonator = "") {
   const style = `--mem:${color}`;
   if (!value)
@@ -3029,6 +3430,23 @@ function comparisonTable(rows) {
         openAt[axis][pos] = false;
     });
   }
+  const worn = /* @__PURE__ */ new Map();
+  for (const row of rows) {
+    row.members.forEach((m, pos) => {
+      if (axisOpen(m, filters, "weapons") || !shownRanks(m, filters).length)
+        return;
+      const key = `${row.teamKey}|${pos}`;
+      worn.set(key, (worn.get(key) ?? /* @__PURE__ */ new Set()).add(weaponBase(row.combo[pos].weapon)));
+    });
+  }
+  const multiWeapon = new Set([...worn].filter(([, seen]) => seen.size > 1).map(([key]) => key));
+  for (const key of multiWeapon) {
+    const pos = Number(key.slice(key.lastIndexOf("|") + 1));
+    if (!openAt.weapons[pos])
+      soloWeapon[pos] = true;
+    openAt.weapons[pos] = true;
+  }
+  const weaponCell = (run, m, pos) => axisOpen(m, filters, "weapons") || multiWeapon.has(`${run.teamKey}|${pos}`);
   const cmpAt = (axis, i) => !openAt[axis][i] ? false : axis === "weapons" ? !soloWeapon[i] : axis === "refines" ? !cmpAt("weapons", i) : true;
   const onScreen = new Set(rows.map((r) => r.key));
   const teamsOnScreen = new Set(rows.map((r) => r.teamKey));
@@ -3063,20 +3481,27 @@ function comparisonTable(rows) {
       }
     });
   }
+  const ranked = (m) => axisUsed(m, filters, "refines") || shownRanks(m, filters).length > 0;
   const bestOf = (pool2, run, pos, axis) => {
+    const shownWeapons2 = axis === "weapons" ? [...offeredAt.get(`weapons|${pos}|${run.teamKey}`) ?? []].map((n) => n.replace(/ R\d$/, "")) : [];
+    const leftmost = run.members[pos].loadout.weapons.find(
+      (w) => w.tier !== 0
+      /* Tier.Limited */
+    );
+    const baseWeapon = leftmost && shownWeapons2.includes(weaponBase(leftmost)) ? leftmost : void 0;
     let base = -Infinity;
     for (const t of pool2) {
       if (axis === "weapons") {
-        if (t.combo.weapon.tier === 0)
+        if (t.combo.weapon.tier === 0 || baseWeapon && weaponBase(t.combo.weapon) !== weaponBase(baseWeapon))
           continue;
-        if (axisUsed(run.members[pos], filters, "refines") && t.combo.key.split(".")[4] !== "r0")
+        if (ranked(run.members[pos]) && t.combo.key.split(".")[4] !== "r0")
           continue;
       }
       if (axis === "refines" && t.combo.key.split(".")[4] !== "r0")
         continue;
       if (axis === "substats" && t.combo.highSubs)
         continue;
-      if (axis === "sequences" && (t.combo.sequence !== sequenceLevels(run.members[pos], filters)[0] || !axisUsed(run.members[pos], filters, "refines") && t.combo.key.split(".")[4] !== "r0"))
+      if (axis === "sequences" && (t.combo.sequence !== sequenceLevels(run.members[pos], filters)[0] || !ranked(run.members[pos]) && t.combo.key.split(".")[4] !== "r0"))
         continue;
       if (t.dpr > base)
         base = t.dpr;
@@ -3088,11 +3513,9 @@ function comparisonTable(rows) {
     const all = twins.get(twinKey(run, pos, axis)) ?? [];
     const shown2 = all.filter((t) => t.shown);
     const offered = all.filter((t) => t.offered);
-    for (const pool2 of [shown2, offered]) {
-      const base = bestOf(pool2, run, pos, axis);
-      if (base > 0)
-        return dpr / base;
-    }
+    const base = bestOf([...shown2, ...offered], run, pos, axis);
+    if (base > 0)
+      return dpr / base;
     const left = shown2.length ? shown2 : offered;
     if (!left.length)
       return null;
@@ -3119,27 +3542,28 @@ function comparisonTable(rows) {
     const memberNames = run.members.map((m) => m.name).join("|");
     const memberCell = (m, combo, i) => {
       const seqTag = sequenceTag(m, combo);
-      const refTag = axisUsed(m, filters, "refines") && !openAt.weapons[i] ? refineTag(m, combo) : null;
-      const name = `<div class="c name res" data-resonator="${esc(m.name)}"` + (seqTag ? ` data-sequence="${esc(seqTag)}" data-seq-gate="${combo.sequence}"` : "") + (refTag ? ` data-refine="${esc(refTag)}" data-ref-gate="${combo.weapon.refinement}"` : "") + ` style="--mem:${m.color};color:${m.color}"><span class="res-label">${esc(memberLabel(m, combo))}</span></div>`;
+      const inCell = weaponCell(run, m, i);
+      const refTag = axisUsed(m, filters, "refines") && !inCell ? refineTag(m, combo) : null;
+      const name = `<div class="c name res" data-resonator="${esc(m.name)}"` + (seqTag ? ` data-sequence="${esc(seqTag)}" data-seq-gate="${combo.sequence}"` : "") + (refTag ? ` data-refine="${esc(refTag)}" data-ref-gate="${combo.weapon.refinement}"` : "") + ` style="--mem:${m.color};color:${m.color}"><span class="res-label">${esc(memberLabel(m, combo, inCell))}</span></div>`;
       const dpr = dprAt(i) ? `<div class="c num slotdpr" style="--mem:${m.color}">${fmt(personalFigure(run, m.name))}</div>` : "";
       const seqCmp = cmpAt("sequences", i) ? `<div class="c num slotcompare" style="--mem:${m.color}">${axisOpen(m, filters, "sequences") ? gearCompare(run, i, "sequences") : ""}</div>` : "";
       const refCmp = cmpAt("refines", i) ? `<div class="c num slotcompare" style="--mem:${m.color}">${compares(m, filters, "refines", combo) ? gearCompare(run, i, "refines") : ""}</div>` : "";
       const gear = GEAR_AXES.map((axis) => {
         if (!openAt[axis][i])
           return "";
-        const open = showsRow(m, axis, combo);
+        const open = axis === "weapons" ? inCell : showsRow(m, axis, combo);
         const cell2 = axis === "weapons" ? optionCell("weapon", open ? combo.weapon.name : "", m.color, [combo.weapon.name], m.name) : axis === "echoes" ? optionCell("echo", open ? echoLabel(m.loadout, combo.echo) : "", m.color, open ? echoLines(m.loadout, combo.echo) : [], m.name) : `<div class="c option"${open ? ` data-stat="${axis}" data-resonator="${esc(m.name)}"` : ""} style="--mem:${m.color}">${open ? esc(axis === "mainstats" ? combo.mainstat.name : subsLabel(combo)) : ""}</div>`;
         return cell2 + (cmpAt(axis, i) ? `<div class="c num slotcompare" style="--mem:${m.color}">${open ? gearCompare(run, i, axis) : ""}</div>` : "");
       }).join("");
       return name + seqCmp + refCmp + gear + dpr;
     };
     const memberCells = run.members.map((m, i) => memberCell(m, run.combo[i], i)).join("");
-    return `<div class="trow${rank2.pinned ? " isbaseline" : ""}" style="--hue:${rank2.hue}" data-team="${esc(key)}" data-team-key="${esc(run.teamKey)}" data-members="${esc(memberNames)}" data-total="${grand}">` + memberCells + `<div class="c num total teamdpr" title="${CLICK} to view the team's damage breakdown"${deferredPop("dpr", key)}>${teamHtml(run)}</div><div class="c num total baseline" data-team="${esc(key)}" title="${CLICK} to measure every team against this one">${rank2.pct}</div><div class="c gotodetail" data-team="${esc(key)}">view rotation<span class="arrow">\u203A</span></div></div>`;
+    return `<div class="trow${rank2.pinned ? " isbaseline" : ""}" style="--hue:${rank2.hue}" data-team="${esc(key)}" data-team-key="${esc(run.teamKey)}" data-members="${esc(memberNames)}" data-total="${grand}">` + pinCell(key) + memberCells + `<div class="c num total teamdpr" title="${CLICK} to view the team's damage breakdown"${deferredPop("dpr", key)}>${teamHtml(run)}</div><div class="c num total baseline" data-team="${esc(key)}" title="${CLICK} to measure every team against this one">${rank2.pct}</div><div class="c gotodetail" data-team="${esc(key)}">view rotation<span class="arrow">\u203A</span></div></div>`;
   };
   const memberHead = (n, i) => `<div class="c slothead${dprAt(i) ? " open" : ""}" data-slot="${i}" title="${CLICK} to ${dprAt(i) ? "hide" : "show"} this slot's Personal DPR">Slot ${n}<span class="arrow">\u203A</span></div>` + (cmpAt("sequences", i) ? `<div class="c num">Compare</div>` : "") + (cmpAt("refines", i) ? `<div class="c num">Compare</div>` : "") + GEAR_AXES.map((axis) => openAt[axis][i] ? `<div class="c">${AXIS_HEAD[axis]}</div>${cmpAt(axis, i) ? `<div class="c num">Compare</div>` : ""}` : "").join("") + (dprAt(i) ? `<div class="c num">Personal</div>` : "");
-  const head = `<div class="trow thead">` + memberHead(3, 0) + memberHead(2, 1) + memberHead(1, 2) + `<div class="c num dprhead" title="${CLICK} to switch between DPR and DPS">${TEAM_HEAD[teamMode]}</div><div class="c num huehead" title="${CLICK} to colour the column by rank">Compare</div><div class="c"></div></div>`;
+  const head = `<div class="trow thead"><div class="c pinhead">Pin</div>` + memberHead(3, 0) + memberHead(2, 1) + memberHead(1, 2) + `<div class="c num dprhead" title="${CLICK} to switch between DPR and DPS">${TEAM_HEAD[teamMode]}</div><div class="c num huehead" title="${CLICK} to colour the column by rank">Compare</div><div class="c"></div></div>`;
   const posCols = (i) => `max-content${cmpAt("sequences", i) ? " max-content" : ""}${cmpAt("refines", i) ? " max-content" : ""}${GEAR_AXES.map((axis) => openAt[axis][i] ? ` max-content${cmpAt(axis, i) ? " max-content" : ""}` : "").join("")}${dprAt(i) ? " max-content" : ""}`;
-  const gridStyle = `grid-template-columns:${posCols(0)} ${posCols(1)} ${posCols(2)} max-content max-content max-content`;
+  const gridStyle = `grid-template-columns:max-content ${posCols(0)} ${posCols(1)} ${posCols(2)} max-content max-content max-content`;
   const rowLines = (run) => Math.max(1, ...run.members.map((m, i) => openAt.echoes[i] && axisOpen(m, filters, "echoes") ? echoLines(m.loadout, run.combo[i].echo).length : 1));
   const lines = sorted.map(([, run]) => rowLines(run));
   const extra = [0];
@@ -3161,26 +3585,27 @@ function comparisonTable(rows) {
   sorted.forEach(([, run], i) => {
     run.members.forEach((m, pos) => {
       const combo = run.combo[pos];
-      wide.name[pos] = widest(wide.name[pos], memberLabel(m, combo));
+      wide.name[pos] = widest(wide.name[pos], memberLabel(m, combo, weaponCell(run, m, pos)));
       wide.dpr[pos] = widest(wide.dpr[pos], fmt(personalFigure(run, m.name)));
       if (axisOpen(m, filters, "sequences"))
         wide.seqcmp[pos] = widest(wide.seqcmp[pos], gearCompare(run, pos, "sequences"));
       if (compares(m, filters, "refines", combo))
         wide.refcmp[pos] = widest(wide.refcmp[pos], gearCompare(run, pos, "refines"));
       for (const axis of GEAR_AXES) {
-        if (!showsRow(m, axis, combo))
+        if (!(axis === "weapons" ? weaponCell(run, m, pos) : showsRow(m, axis, combo)))
           continue;
         const text = axis === "weapons" ? [combo.weapon.name] : axis === "echoes" ? echoLines(m.loadout, combo.echo) : axis === "mainstats" ? [combo.mainstat.name] : [subsLabel(combo)];
         for (const line of text)
           wide.gear[axis][pos] = widest(wide.gear[axis][pos], line);
-        wide.cmp[axis][pos] = widest(wide.cmp[axis][pos], gearCompare(run, pos, axis));
+        if (showsRow(m, axis, combo))
+          wide.cmp[axis][pos] = widest(wide.cmp[axis][pos], gearCompare(run, pos, axis));
       }
     });
     wide.total = widest(wide.total, teamText(run));
     wide.pct = widest(wide.pct, ranks[i].pct);
   });
   const ghostPos = (i) => `<div class="c name res"><span class="res-label">${esc(wide.name[i])}</span></div>` + (cmpAt("sequences", i) ? `<div class="c num slotcompare">${esc(wide.seqcmp[i])}</div>` : "") + (cmpAt("refines", i) ? `<div class="c num slotcompare">${esc(wide.refcmp[i])}</div>` : "") + GEAR_AXES.map((axis) => openAt[axis][i] ? `<div class="c option">${esc(wide.gear[axis][i])}</div>${cmpAt(axis, i) ? `<div class="c num slotcompare">${esc(wide.cmp[axis][i])}</div>` : ""}` : "").join("") + (dprAt(i) ? `<div class="c num slotdpr">${esc(wide.dpr[i])}</div>` : "");
-  const ghost = () => `<div class="trow tghost" aria-hidden="true">` + ghostPos(0) + ghostPos(1) + ghostPos(2) + `<div class="c num total">${esc(widest(wide.total, TEAM_HEAD[teamMode]))}</div><div class="c num total baseline">${esc(wide.pct)}</div><div class="c gotodetail">view rotation<span class="arrow">\u203A</span></div></div>`;
+  const ghost = () => `<div class="trow tghost" aria-hidden="true"><div class="c pin">${PIN_MARK}</div>` + ghostPos(0) + ghostPos(1) + ghostPos(2) + `<div class="c num total">${esc(widest(wide.total, TEAM_HEAD[teamMode]))}</div><div class="c num total baseline">${esc(wide.pct)}</div><div class="c gotodetail">view rotation<span class="arrow">\u203A</span></div></div>`;
   tableView = { sorted, ranks, head, ghost, rowHtml, lines, extra };
   return `<main><div class="tclayout"><aside class="tcside">${comparisonFilters()}</aside><div class="tcbody"><h2 class="summary-label" id="teamCount">${fmt(sorted.length)} teams<span class="hint">${CLICK} on a Resonator to filter and compare sequences, weapons, echoes</span></h2><div class="tcwrap"><div class="tgrid${hueShown ? " hued" : ""}" style="${gridStyle}">${head}${ghost()}</div></div></div></div></main>`;
 }
@@ -3272,15 +3697,25 @@ var blockPress = null;
 var blocking = false;
 var bx = 0;
 var by = 0;
+var copyMenu = null;
+var COPY_MODE_KEY = "wuwa.copyMode";
+var copyMode = "discord";
+try {
+  if (localStorage.getItem(COPY_MODE_KEY) === "sheets")
+    copyMode = "sheets";
+} catch {
+}
 var rowTopOf = (i) => i * rowHeight + tableView.extra[i] * lineHeight;
 function clearBlock() {
   block = null;
   blockBox?.remove();
   blockBox = null;
+  copyMenu?.remove();
+  copyMenu = null;
 }
 function blockCellAt(grid, x, y) {
   const heads = [...grid.querySelectorAll(".thead > .c")].map(rect);
-  let col = 0;
+  let col = 1;
   while (col < heads.length - 1 && x >= heads[col + 1].left)
     col++;
   const head = heads[0];
@@ -3314,6 +3749,21 @@ function paintBlock() {
   blockBox.style.top = `${top}px`;
   blockBox.style.width = `${heads[block.c1].right - heads[block.c0].left}px`;
   blockBox.style.height = `${g.top - w.top + y(block.r1 + 1) - top}px`;
+  if (copyMenu) {
+    copyMenu.style.left = `${heads[block.c1].right - w.left - copyMenu.offsetWidth}px`;
+    copyMenu.style.top = `${g.top - w.top + y(block.r1 + 1)}px`;
+  }
+}
+function showCopyMenu() {
+  const wrap = app2.querySelector(".tcwrap");
+  const tracks = app2.querySelectorAll(".tgrid .thead > .c").length;
+  if (!block || !wrap || block.c1 < 1 || block.c0 > tracks - 2)
+    return;
+  const item = (mode, label) => `<button type="button" class="ctxitem" data-copy="${mode}">${label}</button>`;
+  copyMenu = wrap.appendChild(document.createElement("div"));
+  copyMenu.className = "copymenu";
+  copyMenu.innerHTML = item("sheets", "Copy to Sheets") + item("discord", "Copy to Discord");
+  paintBlock();
 }
 function trackTableBlock() {
   const grid = app2.querySelector(".tgrid");
@@ -3345,8 +3795,12 @@ var queueBlock = () => {
   });
 };
 addEventListener("pointerdown", (e) => {
+  if (e.target.closest?.(".copymenu"))
+    return;
   clearBlock();
-  if (e.button !== 0 || !e.target.closest?.(".tgrid .c"))
+  const cell2 = e.target.closest?.(".tgrid .c");
+  const at = cell2?.parentElement ? [...cell2.parentElement.children].indexOf(cell2) : -1;
+  if (e.button !== 0 || !cell2 || at <= 0)
     return;
   const scale = zoom();
   blockPress = { x: e.clientX / scale, y: e.clientY / scale, scale };
@@ -3380,6 +3834,7 @@ var endBlockPress = () => {
     blockRaf = 0;
   }
   holdPanels(false);
+  showCopyMenu();
   const swallow = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -3398,25 +3853,56 @@ var cellText = (c) => {
   c.querySelectorAll("br").forEach((br) => br.replaceWith(" / "));
   return (c.textContent ?? "").trim();
 };
-addEventListener("keydown", (e) => {
-  if (e.key === "Escape")
-    clearBlock();
+function copyTableBlock(mode) {
   const view = tableView;
-  if (!block || !view || e.key !== "c" || !(e.ctrlKey || e.metaKey) || e.altKey || !app2.querySelector(".tgrid"))
+  const tracks = app2.querySelectorAll(".tgrid .thead > .c").length;
+  if (!block || !view)
     return;
-  const loose = getSelection();
-  if (loose && !loose.isCollapsed)
+  const c0 = Math.max(block.c0, 1), c1 = Math.min(block.c1, tracks - 2);
+  if (c0 > c1)
     return;
-  e.preventDefault();
   const tpl = document.createElement("template");
   const lines = [];
   for (let i = block.r0; i <= block.r1; i++) {
     const at = view.sorted[i];
     tpl.innerHTML = i < 0 ? view.head : view.rowHtml(at[0], at[1], view.ranks[i]);
-    const cells = [...tpl.content.firstElementChild.children].slice(block.c0, block.c1 + 1);
-    lines.push(cells.map(cellText));
+    const cells = [...tpl.content.firstElementChild.children].slice(c0, c1 + 1);
+    lines.push(cells.flatMap((c) => {
+      if (mode !== "sheets" || teamMode !== "dpr")
+        return [cellText(c)];
+      if (c.classList.contains("dprhead"))
+        return [cellText(c), "Loop Time"];
+      if (!c.classList.contains("teamdpr"))
+        return [cellText(c)];
+      const time = (c.querySelector(".looptime")?.textContent ?? "").replace(/s$/, "");
+      return [cellText(c), time];
+    }));
   }
-  copyBlock(lines);
+  copyBlock(lines, mode);
+}
+addEventListener("keydown", (e) => {
+  if (e.key === "Escape")
+    clearBlock();
+  if (!block || !tableView || e.key !== "c" || !(e.ctrlKey || e.metaKey) || e.altKey || !app2.querySelector(".tgrid"))
+    return;
+  const loose = getSelection();
+  if (loose && !loose.isCollapsed)
+    return;
+  e.preventDefault();
+  copyTableBlock(copyMode);
+});
+document.addEventListener("click", (e) => {
+  const mode = e.target.closest(".copymenu .ctxitem")?.dataset.copy;
+  if (!mode)
+    return;
+  copyMode = mode;
+  try {
+    localStorage.setItem(COPY_MODE_KEY, mode);
+  } catch {
+  }
+  copyTableBlock(mode);
+  copyMenu?.remove();
+  copyMenu = null;
 });
 var sideFit = new ResizeObserver((entries) => {
   for (const e of entries) {
@@ -3496,7 +3982,7 @@ function renderComparison() {
   const back = focusAfterDraw;
   focusAfterDraw = void 0;
   if (back !== void 0) {
-    const chip = back === null ? void 0 : [...app2.querySelectorAll(".tcchips .rchip, .tcchips .clearall")].find((el) => chipSig(el) === back);
+    const chip = back === null ? void 0 : [...app2.querySelectorAll(CHIP_RING)].find((el) => chipSig(el) === back);
     if (chip)
       chip.focus({ preventScroll: true });
     else
@@ -3516,6 +4002,11 @@ function renderComparison() {
 addEventListener("resize", () => {
   fitSide();
   drawWindow(true);
+});
+document.addEventListener("click", (e) => {
+  const key = e.target.closest(".c.pin")?.dataset.pin;
+  if (key)
+    togglePin(key);
 });
 document.addEventListener("click", (e) => {
   const el = e.target.closest(".c.baseline");
@@ -3556,6 +4047,7 @@ document.addEventListener("change", (e) => {
 });
 var openNameMenu = (el, x, y) => {
   const resonator = el.dataset.resonator ?? "";
+  const row = cellRun(el, resonator);
   const compareItem = (axis) => ({
     label: `${filters[axis].includes(resonator) ? "Stop comparing" : "Compare"} ${resonator} ${AXIS_LABEL[axis].toLowerCase()}`,
     run: () => setCompare(resonator, axis)
@@ -3577,12 +4069,14 @@ var openNameMenu = (el, x, y) => {
     // it is the one that says how the whole build is invested rather than which pick it wears.
     // A kit with no chain nodes yet says so where its sequence compare would sit, and the line
     // does nothing when pressed.
-    // refines are not among them: they belong to the Weapon column, and are opened from a weapon
-    // cell once that column is up (`openOptionMenu`)
+    // refines are not among them: a weapon's are compared from its own cell (`openOptionMenu`),
+    // and a rank shown one at a time below
     ...MENU_AXES.flatMap((axis) => comparable(resonator, axis) ? [compareItem(axis)] : axis === "sequences" ? [{ label: "Sequences Not Implemented!", run: () => {
     } }] : []),
     ...comparable(resonator, "substats") ? [compareItem("substats")] : [],
     ...scopedBlock(el.dataset.sequence, "sequence", el.dataset.seqGate ?? "", sequenceFilters),
+    // with no weapon compare the row's own weapon takes its other ranks from here
+    ...row && !axisOpen(row.run.members[row.pos], filters, "weapons") ? rankItems(row.run, row.pos) : [],
     ...scopedBlock(el.dataset.refine, "refine", el.dataset.refGate ?? "", refineFilters),
     // last of all, and only for a kit that has a Matrix at all
     ...MATRIX_RESONATORS.has(resonator) ? [{
@@ -3617,28 +4111,28 @@ var openOptionMenu = (e) => {
   const el = e.target.closest(".c.option");
   const kind = el.dataset.kind;
   const resonator = el.dataset.resonator ?? "";
+  const row = cellRun(el, resonator);
   const base = kind === "weapon" ? key.replace(/ R\d$/, "") : key;
+  const tag = (name) => kind === "weapon" && row ? weaponTag(row.run.members[row.pos], row.run.combo[row.pos].sequence, name) : name;
   const ranked = kind === "weapon" && (filters.refines.includes(resonator) || filters.scoped.some((s) => s.resonator === resonator && s.axis === "refines"));
   const axis = kind === "weapon" ? "weapons" : "echoes";
   const word = kind === "weapon" ? "weapons" : "sonatas";
   const items = [
     // the pick's own filters lead, so "Show only" is the top line whatever else the cell offers
-    { label: `Show only ${base}`, run: () => setFilter(map, base, "include"), alt: () => setFilter(map, base, "exclude") },
-    { label: `Hide ${base}`, run: () => setFilter(map, base, "exclude") },
+    { label: `Show only ${base}`, run: () => setFilter(map, tag(base), "include"), alt: () => setFilter(map, tag(base), "exclude") },
+    { label: `Hide ${base}`, run: () => setFilter(map, tag(base), "exclude") },
     ...ranked ? [
-      { label: `Show only ${key}`, run: () => setFilter(map, key, "include"), alt: () => setFilter(map, key, "exclude") },
-      { label: `Hide ${key}`, run: () => setFilter(map, key, "exclude") }
+      { label: `Show only ${key}`, run: () => setFilter(map, tag(key), "include"), alt: () => setFilter(map, tag(key), "exclude") },
+      { label: `Hide ${key}`, run: () => setFilter(map, tag(key), "exclude") }
     ] : [],
-    ...resonator && kind === "weapon" ? scopedItems(resonator, "weapon", base) : [],
+    // the weapon's own refines compare, then the ranks it would open shown one at a time
+    ...resonator && kind === "weapon" ? scopedItems(resonator, "weapon", base).flatMap((it) => it.axis === "refines" && row ? [it, ...rankItems(row.run, row.pos)] : [it]) : [],
     ...resonator && ranked ? scopedItems(resonator, "weaponRank", key) : [],
     ...resonator && kind === "echo" ? scopedItems(resonator, "echo", key) : [],
     // ...and last, the compares that opened this column, offered back as a way to close it
     ...filters[axis].includes(resonator) ? [{ label: `Stop comparing ${word}`, run: () => setCompare(resonator, axis) }] : [],
-    // the rank rides in this same cell, so this is where the whole rank axis is opened and closed
-    ...kind === "weapon" && comparable(resonator, "refines") ? [{
-      label: `${filters.refines.includes(resonator) ? "Stop comparing" : "Compare"} ${AXIS_LABEL.refines.toLowerCase()}`,
-      run: () => setCompare(resonator, "refines")
-    }] : [],
+    // a refines compare left on from an old link can still be closed here
+    ...kind === "weapon" && filters.refines.includes(resonator) ? [{ label: `Stop comparing ${AXIS_LABEL.refines.toLowerCase()}`, run: () => setCompare(resonator, "refines") }] : [],
     ...filters.scoped.filter((s) => s.resonator === resonator && s.axis === axis).map((s) => ({ label: `Stop comparing ${scopedLabel(s)} ${word}`, run: () => setScoped(s) }))
   ];
   showMenu(x, y, items);
@@ -3726,6 +4220,11 @@ var removeChip = (e) => {
     setMatrix(matrix);
     return;
   }
+  const pin = chip.dataset.pin;
+  if (pin) {
+    togglePin(pin);
+    return;
+  }
   const scoped = chip.dataset.scoped;
   if (scoped) {
     const s = filters.scoped.find((x) => scopedKey(x) === scoped);
@@ -3777,11 +4276,26 @@ document.addEventListener("click", (e) => {
     };
   });
 });
-var chipSig = (el) => el.classList.contains("clearall") ? "clearall" : [el.dataset.axis, el.dataset.scoped, el.dataset.matrix, el.dataset.kind, el.dataset.resonator, el.dataset.value].join("\0");
+document.addEventListener("click", (e) => {
+  if (!e.target.closest(".clearpins"))
+    return;
+  if (!matchMedia("(pointer: coarse)").matches)
+    focusAfterDraw = null;
+  withRowCap(() => {
+    const pins = [...pinnedRows];
+    pinnedRows.clear();
+    return () => {
+      for (const key of pins)
+        pinnedRows.add(key);
+    };
+  }, redrawPins);
+});
+var chipSig = (el) => el.classList.contains("clearall") ? "clearall" : el.classList.contains("clearpins") ? "clearpins" : [el.dataset.axis, el.dataset.scoped, el.dataset.matrix, el.dataset.pin, el.dataset.kind, el.dataset.resonator, el.dataset.value].join("\0");
 var focusAfterDraw;
+var CHIP_RING = ".tcchips .rchip, .tcchips .clearall, .tcpins .rchip, .tcpins .clearpins";
 var tabRing = () => {
   const search = document.querySelector("#optionSearch");
-  return search ? [search, ...document.querySelectorAll(".tcchips .rchip, .tcchips .clearall")] : [];
+  return search ? [search, ...document.querySelectorAll(CHIP_RING)] : [];
 };
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Tab")
@@ -4178,11 +4692,13 @@ function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = tr
       if ("line" in row && row.line.aggregate)
         return cell(col);
       const act = ("line" in row ? row.line.snap : row.snap).action, cast = act.cast;
-      const spend = col.key === "offtune" ? cast === 8 && act.castOfftune < 0 : col.key === "concerto" && cast === 6;
+      const spend = col.key === "offtune" ? cast === 8 && act.castOfftune < 0 : col.key === "energy" ? act.castEnergy < 0 : col.key === "concerto" && cast === 6;
       const before = Number(row.raw[`before:${col.key}`]) || 0;
       if (!spend)
         attr = ` data-val="${Number(v) || 0}" data-before="${before}"`;
-      const fed = (sources ?? []).some((r) => r.section !== OFFTUNE_RATE && r.section !== ENERGY_RATE);
+      if (!spend && col.key === "energy")
+        attr += ` data-gen="${Number(row.raw["moved:energy"]) || 0}"`;
+      const fed = (sources ?? []).some((r) => !RATE_SECTIONS.has(r.section ?? ""));
       if (!fed && Math.abs((Number(v) || 0) - before) < 1e-9)
         return cell(col, { attr });
     }
@@ -4197,13 +4713,11 @@ function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = tr
       cls.push("buffed");
     if (col.key.startsWith("gauge:") && Number(row.raw[`clear:${col.key}`]))
       cls.push("buffed");
-    if ((col.key === "concerto" || col.key === "energy") && Number(row.raw[`short:${col.key}`]))
-      cls.push("underspent");
-    if (col.key.startsWith("gauge:") && Number(row.raw[`short:${col.key}`]))
+    if (isRunning(col.key) && Number(row.raw[`short:${col.key}`]))
       cls.push("negative");
     if (col.key === "action" && row.raw["short:buff"])
       cls.push("negative");
-    const text = esc(fmt(v, digitsOf(row.raw, col), PAD_DIGITS_COLUMNS.has(col.key), GROUPED_COLUMNS.has(col.key))) + (col.percent && typeof v === "number" ? "%" : "") + gaugeSuffix(row.raw, col.key);
+    const text = (col.percent && typeof v === "number" ? `${fmtPctCell(v, col.key, PAD_DIGITS_COLUMNS.has(col.key))}%` : esc(fmt(v, digitsOf(row.raw, col), PAD_DIGITS_COLUMNS.has(col.key), GROUPED_COLUMNS.has(col.key)))) + gaugeSuffix(row.raw, col.key);
     let html = sources && text ? `<span class="has">${text}</span>` : text;
     if (col.key === "action" && caret && !part && "parts" in row && row.parts.length) {
       html = `${html}<span class="caret">\u25B8</span>`;
@@ -4226,6 +4740,8 @@ function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = tr
       const snap = "line" in row ? row.line.snap : row.snap;
       const gear = gearByMember.get(snap.member) ?? [];
       pop = buffsPopover(snap.member, gear, snap.heldLocal, snap.heldGlobal, snap.heldEnemy, slotHue);
+    } else if (col.key === "avg") {
+      pop = text ? hitsPopover(row.hits) : "";
     } else if (text) {
       pop = popover(col, sources, row.raw[`moved:${col.key}`] ?? v, slotHue, suffix, String(row.raw[`empty:${col.key}`] ?? ""));
     }
@@ -4325,86 +4841,40 @@ function rotationTable(report, slotHue, gearByMember, starts) {
     <div class="r totalrow">${totalRow}</div>
   </div></div>`;
 }
-function resetIndices(flat, from, to, member2) {
-  const out = [];
-  for (let i = from; i < to; i++) {
-    hitsOf(flat[i]).forEach((snap, k) => {
-      if (snap.member === member2 && snap.action.resetEnergy)
-        out.push([i, k]);
-    });
-  }
-  return out;
-}
-function erRequirement(flat, [resetIdx, resetAt], member2, maxEnergy, constant) {
-  if (!maxEnergy)
-    return 0;
-  const before = hitsOf(flat[resetIdx])[resetAt].realEnergyBefore;
-  if (before <= 0)
-    return null;
-  let buffed = 0;
-  walk: for (let i = resetIdx; i >= 0; i--) {
-    const line = flat[i];
-    if (line.aggregate)
-      continue;
-    const snaps = hitsOf(line);
-    for (let k = i === resetIdx ? resetAt - 1 : snaps.length - 1; k >= 0; k--) {
-      const s = snaps[k];
-      if (s.member !== member2)
-        continue;
-      if (s.action.resetEnergy)
-        break walk;
-      if (s.endsLoop)
-        continue;
-      const own = landedBullets(s).reduce((n, b) => n + b.energy, 0);
-      const gain = own > 0 ? own * (1 + s.stat(
-        14
-        /* Stat.EnergyRegenMult */
-      ) / 100) : own;
-      buffed += gain * (s.stat(
-        11
-        /* Stat.ER */
-      ) - constant) + 100 * (s.action.castEnergy + (s.gain?.[0] ?? 0));
-    }
-  }
-  return (maxEnergy * 100 - buffed) / before;
-}
-function energyRequirements(run, lines) {
-  const flat = lines.flat();
+function energyRequirements(run) {
+  const { needs } = detailFor(run);
   const erOf = erRollsFor(run.teamKey, run.members, run.combo);
   const cells = /* @__PURE__ */ new Map();
   run.members.forEach((m, idx) => {
     const own = /* @__PURE__ */ new Map();
     cells.set(m.name, own);
-    const maxEnergy = m.loadout.resonator.maxEnergy;
     const combo = run.combo[idx];
-    const constantSources = menuStats(m.loadout.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs, erOf[idx])).filter(
-      (e) => e.stat === 11
-      /* Stat.ER */
-    );
-    const constant = constantSources.reduce((n, e) => n + e.value, 0);
-    const casts = resetIndices(flat, 0, flat.length, m.name).slice(1);
-    const asked = casts.map((i) => erRequirement(flat, i, m.name, maxEnergy, constant)).filter((v) => v != null);
-    const bar = asked.length ? Math.max(...asked) : null;
+    const { bar, minEr, constant, gen } = needs.get(m.name);
+    const row = (what, figure, note = "") => `<tr><td class="k">${esc(what)}</td><td class="v">${figure}</td><td class="n">${note}</td></tr>`;
     const line = (what, need, held) => {
       const met = need <= held + ER_TOLERANCE;
-      return { met, html: `<div>${what}: <span class="${met ? "need-met" : "need-miss"}">${fmt(need, 1, true)}%</span> (${met ? "Met" : "Not Met"})</div>` };
+      return { met, html: row(what, `<span class="${met ? "need-met" : "need-miss"}">${fmtPct(need)}%</span>`, met ? "(Met)" : "(Not Met)") };
     };
-    const tag = (need, met, lines2) => {
-      const tip = lazyPop(`<span class="pop tip">${lines2.join("")}</span>`);
-      return `<span class="erneed has"${tip}>> <span class="erreq ${met ? "er-met" : "er-under"}">${fmt(need, 1, true)}%</span></span>`;
+    const tag = (need, met, lines) => {
+      const tip = lazyPop(`<span class="pop tip"><table>${lines.join("")}</table></span>`);
+      return `<span class="erneed has"${tip}>> <span class="erreq ${met ? "er-met" : "er-under"}">${fmtPct(need)}%</span></span>`;
     };
-    const minEr = m.loadout.minEr;
     if (bar != null || minEr) {
-      const lines2 = [];
-      if (bar != null)
-        lines2.push(line("Energy Regen requirement", bar, constant));
+      const lines = [];
       if (minEr)
-        lines2.push(line("Energy Regen requirement for kit", minEr, constant));
+        lines.push(line("Energy Regen requirement for kit", minEr, constant));
+      if (bar != null)
+        lines.push(line("Energy Regen requirement", bar, constant));
+      if (bar != null && gen) {
+        const pt = (v) => fmt(v / ENERGY_UNIT, 2, true);
+        const gained = (text, v) => ({ met: true, html: row(text, pt(v)) });
+        lines.push(gained(`${m.name} energy gen`, gen.hit + gen.flat), ...gen.shared.map(([ally, v]) => gained(`${ally} energy shared`, v)), gained("Total energy gen", gen.hit + gen.flat + gen.shared.reduce((n, [, v]) => n + v, 0)));
+      }
       const need = Math.max(bar ?? 0, minEr);
       own.set(statLabel(
         11
         /* Stat.ER */
-      ), tag(need, need <= constant + ER_TOLERANCE, lines2.map((l) => l.html)));
+      ), tag(need, need <= constant + ER_TOLERANCE, lines.map((l) => l.html)));
     }
     const minCr = m.loadout.minCritRate;
     if (minCr) {
@@ -4435,7 +4905,7 @@ function page(run) {
   <div class="rtables">
     <div class="rtable-block">
       <h2 class="summary-label">Equipment</h2>
-      ${loadoutTable(run, energyRequirements(run, lines), (slot, kind) => canPick(run, slot, kind))}
+      ${loadoutTable(run, energyRequirements(run), (slot, kind) => canPick(run, slot, kind))}
     </div>
     <div class="rstack">
       <div class="rtable-block">
@@ -4584,7 +5054,7 @@ function blockPanel(sel) {
         continue;
       const col = logColumns[[...c.parentElement.children].indexOf(c)];
       if (col.key === "energy") {
-        energy += (Number(c.dataset.val) || 0) - (Number(c.dataset.before) || 0);
+        energy += Number(c.dataset.gen) || 0;
         energyDigits = col.digits ?? 2;
         energyCells++;
         continue;
@@ -5419,6 +5889,13 @@ document.addEventListener("pointerout", (e) => {
   clearTimeout(hoverTimer);
 }, true);
 document.addEventListener("click", (e) => {
+  if (!layer || layer.hidden || stage !== DETAIL_STAGE || !hovered(e))
+    return;
+  clearTimeout(hoverTimer);
+  setStage(DETAIL_STAGE + 1);
+  place();
+}, true);
+document.addEventListener("click", (e) => {
   if (!layer || layer.hidden)
     return;
   const cell2 = e.target.closest?.(".dist-cell, [data-dist-row]");
@@ -5519,7 +5996,7 @@ function overlayPhase(text, now = false) {
       overlay2.hidden = false;
     }, 100);
 }
-var OVERLAY_ROWS = 200;
+var OVERLAY_ROWS = 1e3;
 async function overlayNow(text, rows = Infinity) {
   overlayPhase(text, rows >= OVERLAY_ROWS);
   await paint();
@@ -5845,7 +6322,16 @@ async function solveQuiet2(teamKey2, f) {
   saveSolves();
 }
 async function bootDetail() {
-  const key = hashTeam();
+  let key = hashTeam();
+  const pending = key && !rowFromKey(key) ? tagTeam(key) : null;
+  if (pending) {
+    overlayPhase("Solving Team\u2026", true);
+    await paint();
+    await solveQuiet2(pending, gearShut(filters));
+    key = hashTeam();
+    if (key && !rowFromKey(key))
+      overlayHide();
+  }
   if (!key || results.has(key))
     return false;
   const row = rowFromKey(key);
@@ -5883,10 +6369,15 @@ async function boot() {
       return;
     }
     const key = hashTeam();
-    if (key && !results.has(key) && rowFromKey(key)) {
-      void bootDetail();
+    if (key && !results.has(key) && (rowFromKey(key) || tagTeam(key))) {
+      void bootDetail().then((shown2) => {
+        syncHash();
+        if (!shown2)
+          route();
+      });
       return;
     }
+    syncHash();
     route();
   });
   wireSourcePanels(app4);

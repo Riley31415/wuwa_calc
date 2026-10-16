@@ -28,7 +28,6 @@
 import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, Position } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
-  asSource,
   applyCurrent,
   applyTeam,
   revokeTeam,
@@ -42,12 +41,15 @@ import {
   currentHit,
   previousPress,
   saveChain,
+  addStatAs,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Cooldown, Rotation, INTRO, OUTRO, ECHO, DODGE } from "../../engine/rotation.js";
 import { LUX_UMBRA } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
+import { THUNDERBOLT, SOLAR_FLAME } from "../../weapons/battlepass.js";
 import { CLAWPRINT_2PC, CORROSAURUS, FLAMEWING_SHADOW_3PC } from "../../echoes/septimont.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -240,7 +242,7 @@ const Liberation = galbrenaAction("Liberation - Hellfire Absolution", { castPrio
     { hitFrame: 0, mv: 9074, offtune: 6873 },
     { hitFrame: 0, mv: 9074, offtune: 6873 },
     { hitFrame: 0, mv: 9074, offtune: 6873 },
-  ], castConcerto: 2000, resetEnergy: true,
+  ], castConcerto: 2000, castEnergy: -12500,
   updateBuffs: () => applyCurrent(HELLFIRE_WINDOW, 1),
 });
 
@@ -266,7 +268,7 @@ const BURNING_DRIVE = new Buff({
   // S2: 350% more of the bonus, so 20% becomes 90%
   applyStats: () => {
     // S2 takes it to 90% of ATK — the 70 over the base is the node's own
-    if (isHeld(GB_S2)) asSource(GB_S2, () => addStat(Stat.BonusAtk, 70));
+    if (isHeld(GB_S2)) addStatAs(GB_S2, Stat.BonusAtk, 70);
   },
 });
 
@@ -298,11 +300,11 @@ const AFTERFLAME = new Buff({
       addStat(Stat.TotalDmg, Math.min(60, 1.5 * frozenStacks()));
       // S1 reads the same count as Crit. DMG, S6 as Fusion amplification — both snapshot at Ascent
       // of Malice, which is the same number: Afterflame only ever builds outside Demon Hypostasis
-      // the count is read out here: inside `asSource` the "current" gear is the node, whose own
+      // the count is read out here: inside `addStatAs` the "current" gear is the node, whose own
       // stacks are not what these scale on
       const flame = frozenStacks();
-      if (isHeld(GB_S1)) asSource(GB_S1, () => addStat(Stat.CritDmg, Math.min(80, 2 * flame)));
-      if (isHeld(GB_S6)) asSource(GB_S6, () => addStat(Stat.Amp, Math.min(35, 0.875 * flame), Attribute.Fusion));
+      if (isHeld(GB_S1)) addStatAs(GB_S1, Stat.CritDmg, Math.min(80, 2 * flame));
+      if (isHeld(GB_S6)) addStatAs(GB_S6, Stat.Amp, Math.min(35, 0.875 * flame), Attribute.Fusion);
     }
   },
 });
@@ -377,7 +379,7 @@ const GB_SEQUENCES = [GB_S1, GB_S2, GB_S3, GB_S4, GB_S5, GB_S6];
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const GALBRENA_TALENTS = new Talent({
   name: "Galbrena: Talents",
-  stats: [[Stat.BonusAtk, 12], [Stat.CritDmg, 16]],
+  stats: [[Stat.BonusAtk, 11.9999997], [Stat.CritDmg, 16]],
 });
 
 /** Hellstride: a dodge on the ground during any of her own casts — a fixed 666 Fusion, Basic
@@ -385,6 +387,7 @@ const GALBRENA_TALENTS = new Talent({
 const Hellstride = galbrenaAction("Dodge - Hellstride", { castPosition: Position.Grounded, cast: Cast.Dodge, animFrames: 22, castPriority: 6, type: Type.Basic, scaling: Scaling.Fixed, bullets: [{ hitFrame: 5, mv: 66600 }], ...DRIVE });
 
 const GALBRENA_RESONATOR = new Resonator({
+  id: 1208,
   name: "Galbrena",
   stats: [[Stat.BaseHp, 10300], [Stat.BaseAtk, 462.5], [Stat.BaseDef, 1112.2202]],
   talent: GALBRENA_TALENTS,
@@ -443,15 +446,18 @@ const GB_ROTATION = new Rotation([
 
 // her real 43311 build: resonator + talents + both Inherent Skills, viable weapons, mainslot echo,
 // sonata pieces, mainstat/substat
-const GB_WEAPONS = [LUX_UMBRA, NEW_STD_PISTOL, STATIC_MIST];
+const GB_WEAPONS = [LUX_UMBRA, NEW_STD_PISTOL, STATIC_MIST, THUNDERBOLT, SOLAR_FLAME];
 const GB_ECHOES = [new EchoLoadout(CORROSAURUS, FLAMEWING_SHADOW_3PC, CLAWPRINT_2PC)];
 export const GALBRENA = new Loadout({
+  id: 12081,
   resonator: GALBRENA_RESONATOR,
   weapons: GB_WEAPONS,
-  echoLoadouts: GB_ECHOES,
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
-  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Skill),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Skill, Substat.Basic),
+  echoes: new Echoes({
+    sets: GB_ECHOES,
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
+    substats: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Skill),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Skill, Substat.Basic),
+  }),
   rotation: { 0: GB_ROTATION },
   sequences: GB_SEQUENCES,
 });

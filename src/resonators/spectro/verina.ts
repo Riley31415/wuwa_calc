@@ -37,6 +37,7 @@ import { VARIATION } from "../../weapons/standard.js";
 import { REJUV_5PC } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
 import { mainstats, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { SPACETREK_EXPLORER, STARRY_RADIANCE_5PC } from "../../echoes/lahairoi.js";
 import { FORMLESS_DEMON, TINGED_YEARNING_5PC } from "../../echoes/mengzhou.js";
@@ -116,7 +117,7 @@ const Liberation = verinaAction("Liberation - Arboreal Flourish", {
     { hitFrame: 58, mv: 19881 },
     // the team heal, 27f behind the hit (wuwalab)
     { hitFrame: 85, element: null, type: null, subtype: null, updateDebuffs: () => applyCurrent(HEALS, 1) },
-  ], castConcerto: 2000, resetEnergy: true,
+  ], castConcerto: 2000, castEnergy: -17500,
   updateBuffs: () => applyEnemy(PHOTOSYNTHESIS_MARK, 12),
 });
 /** One Coordinated Attack tick — the mark's own per-action proc, and S6's single-hit reuse. It
@@ -237,12 +238,13 @@ const VERINA_S5 = new Sequence({ name: "Verina S5: Miraculous Blooms" });
 // completeness only
 const VERINA_TALENTS = new Talent({
   name: "Verina: Talents",
-  stats: [[Stat.BonusAtk, 12], [Stat.HealingBonus, 12]],
+  stats: [[Stat.BonusAtk, 11.9999997], [Stat.HealingBonus, 12]],
 });
 
 /** Her, as a Resonator: name/element/weapon, every grant/spend/queue rule her kit needs, and her
  *  own base stat line. `Tier.Standard` — see the file header. */
 const VERINA_RESONATOR = new Resonator({
+  id: 1503,
   name: "Verina",
   stats: [[Stat.BaseHp, 14237.5], [Stat.BaseAtk, 337.5], [Stat.BaseDef, 1099.998]],
   talent: VERINA_TALENTS,
@@ -296,9 +298,11 @@ const VR_S2 = new Rotation([
 // her real support/healer spread rather than the usual 43311 crit build; both Inherent Skills +
 // every sequence node (Tier.Standard — see file header) alongside resonator + talents
 export const VERINA = new Loadout({
+  id: 15031,
   resonator: VERINA_RESONATOR,
   weapons: [VARIATION],
-  echoLoadouts: [
+  echoes: new Echoes({
+    sets: [
     new EchoLoadout(FALLACY, REJUV_5PC),
     // worn for Spacetrek's shield, which Jingran's Trace the Vestige feeds on; Tinged Yearning for a Unison
     new EchoLoadout(SPACETREK_EXPLORER, STARRY_RADIANCE_5PC).requires(JINGRAN_RESONATOR),
@@ -306,9 +310,10 @@ export const VERINA = new Loadout({
     //new EchoLoadout(BELL_BORNE_GEOCHELONE, MOONLIT_CLOUDS_5PC),
     //new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
     ],
-  mainstats: [mainstats(Mainstat.ATK4, Mainstat.ER3, Mainstat.ER3, Mainstat.ATK1, Mainstat.ATK1)],
-  substat: substats(Substat.Er, Substat.CritRate, Substat.CritDmg, Substat.Liberation, Substat.AtkPct, Substat.Basic),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.Liberation, Substat.AtkPct, Substat.Basic, Substat.Heavy),
+    mainstats: [mainstats(Mainstat.ATK4, Mainstat.ER3, Mainstat.ER3, Mainstat.ATK1, Mainstat.ATK1)],
+    substats: substats(Substat.Er, Substat.CritRate, Substat.CritDmg, Substat.Liberation, Substat.AtkPct, Substat.Basic),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.Liberation, Substat.AtkPct, Substat.Basic, Substat.Heavy),
+  }),
     // S2 loop disabled for now: dropping BA345 from the window costs every teammate ~3.1 ER and
     // loses her own damage too. Re-point at VR_S2 once that rotation is settled.
     rotation: VR_LOOP,

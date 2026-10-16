@@ -8,14 +8,12 @@
  * Energy/concerto/off-tune off the migrated sheet's own Qiuyuan rows (off-tune x10000 into this
  * engine's units, same as every other ported kit). The sheet also carries combined rows — BA123,
  * EBA1234, EBA34, FHA123 — which are just their parts summed; this file models the parts, so it
- * reads the individual rows. The Liberation's own -125 Energy spend isn't declared: `resetEnergy`
- * is what expresses it (see rotation.ts's own `ActionDef.resetEnergy`), and the Outro's -100 Concerto
- * isn't either — `evaluate()` empties both bars on an outro itself.
+ * reads the individual rows. The Liberation spends its -125 Energy and the Outro its -100 Concerto
+ * as their own cast gains.
  */
 import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, Position } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
-  asSource,
   applyCurrent,
   casting,
   dropCast,
@@ -34,14 +32,17 @@ import {
   addGain,
   runningBullet,
   saveChain,
+  addStatAs,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Cooldown, Rotation, START_LAST, NOINTRO, ECHO, INTRO, OUTRO } from "../../engine/rotation.js";
 import { EMERALD_SENTENCE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
+import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
 import { REJUV_2PC, HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC, SIERRA_GALE_2PC, BELL_BORNE_GEOCHELONE } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
 import { LAW_OF_HARMONY_3PC, FENRICO } from "../../echoes/septimont.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -134,7 +135,7 @@ const SkillHold = qiuyuanAction("Skill - Undaunted Wayfarer (Hold)", { animFrame
 
 const Liberation = qiuyuanAction("Liberation - Sundering Strike", {
   animFrames: 230, animPriority: { 230: 2 }, castPriority: 10, timestop: [0, 230], motionStop: [0, 230], cooldown: 60 * 25,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Echo, bullets: [{ hitFrame: 210, mv: 79524, offtune: 96000 }], castConcerto: 2000, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Echo, bullets: [{ hitFrame: 210, mv: 79524, offtune: 96000 }], castConcerto: 2000, castEnergy: -12500,
   updateBuffs: () => applyTeam(SUNDERING_STRIKE, 1),
 });
 
@@ -240,7 +241,7 @@ const BAMBOO_SHADE = new Buff({
   stats: [[Stat.DmgBonus, 30, Type.Echo]],
   applyStats: () => {
     if (currentTeam().slots.find((m) => m.resonator === QIUYUAN_RESONATOR)?.isHeld(QY_S2)) {
-      asSource(QY_S2, () => addStat(Stat.Amp, 30, Type.Echo));
+      addStatAs(QY_S2, Stat.Amp, 30, Type.Echo);
     }
   },
 });
@@ -293,10 +294,11 @@ const QY_INHERENT_1 = new Inherent({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
 const QIUYUAN_TALENTS = new Talent({
   name: "Qiuyuan: Talents",
-  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 12]],
+  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 11.9999997]],
 });
 
 const QIUYUAN_RESONATOR = new Resonator({
+  id: 1411,
   name: "Qiuyuan",
   stats: [[Stat.BaseHp, 12237.5], [Stat.BaseAtk, 375], [Stat.BaseDef, 1197.7756]],
   talent: QIUYUAN_TALENTS,
@@ -412,10 +414,12 @@ const QY_ROTATION_MDPS_S3 = new Rotation([
 // Fenrico/Law of Harmony+Sierra Gale, Heron/Law of Harmony+Moonlit, Fallacy/Law of Harmony+Rejuv,
 // or Heron/full Moonlit Clouds — all automatically iterated (see gear.ts's own EchoLoadout)
 export const QIUYUAN = new Loadout({
+  id: 14111,
   minCritRate: 65,
   resonator: QIUYUAN_RESONATOR,
-  weapons: [EMERALD_SENTENCE, EMERALD_OF_GENESIS],
-  echoLoadouts: [
+  weapons: [EMERALD_SENTENCE, EMERALD_OF_GENESIS, LUMINGLOSS, FEATHER_EDGE],
+  echoes: new Echoes({
+    sets: [
     new EchoLoadout(FENRICO, LAW_OF_HARMONY_3PC, SIERRA_GALE_2PC),
     
     new EchoLoadout(HERON, LAW_OF_HARMONY_3PC, MOONLIT_CLOUDS_2PC),
@@ -425,27 +429,31 @@ export const QIUYUAN = new Loadout({
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
     new EchoLoadout(BELL_BORNE_GEOCHELONE, MOONLIT_CLOUDS_5PC),
   ],
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Basic),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Basic, Substat.Liberation),
+  }),
   // an ER 3-cost is on the table: beside Phrolova her bar wants more Energy than her spread can
   // carry, and without it every sonata she owns falls out of reach rather than out of the running
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Basic),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Basic, Substat.Liberation),
   rotation: QY_ROTATION,
   sequences: QY_SEQUENCES,
 });
 
 export const QIUYUAN_MDPS = new Loadout({
+  id: 14112,
   minCritRate: 65,
   resonator: QIUYUAN_RESONATOR,
-  weapons: [EMERALD_SENTENCE, EMERALD_OF_GENESIS],
-  echoLoadouts: [
+  weapons: [EMERALD_SENTENCE, EMERALD_OF_GENESIS, LUMINGLOSS, FEATHER_EDGE],
+  echoes: new Echoes({
+    sets: [
     new EchoLoadout(FENRICO, LAW_OF_HARMONY_3PC, SIERRA_GALE_2PC),
   ],
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Basic),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Basic, Substat.Liberation),
+  }),
   // an ER 3-cost is on the table: beside Phrolova her bar wants more Energy than her spread can
   // carry, and without it every sonata she owns falls out of reach rather than out of the running
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Basic),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Basic, Substat.Liberation),
   rotation: { 0: QY_ROTATION_MDPS, 3: QY_ROTATION_MDPS_S3 },
   sequences: QY_SEQUENCES,
 });

@@ -17,6 +17,7 @@ export const VERITYS_HANDLE = refinements((r, rank) => {
     stats: [[Stat.DmgBonus, [48, 60, 72, 84, 96][r]!, Type.Liberation]],
   });
   return new Weapon({
+    id: 21040016,
     weaponType: WeaponType.Gauntlets, name: `Verity's Handle${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritRate, 24.3], [Stat.DmgBonus, [12, 15, 18, 21, 24][r]!]],
     grants: [{ on: onCast(Cast.Liberation), buff: AD_VERITATEM }],
@@ -32,6 +33,7 @@ export const TRAGICOMEDY = refinements((r, rank) => {
     stats: [[Stat.DmgBonus, [48, 60, 72, 84, 96][r]!, Type.Heavy]],
   });
   return new Weapon({
+    id: 21040026,
     weaponType: WeaponType.Gauntlets, name: `Tragicomedy${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritRate, 24.3], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     grants: [{ on: onCast(Cast.Basic, Cast.Intro), buff: FOOLS_WARBLE }],
@@ -51,6 +53,7 @@ export const BLAZING_JUSTICE = refinements((r, rank) => {
     ],
   });
   return new Weapon({
+    id: 21040036,
     weaponType: WeaponType.Gauntlets, name: `Blazing Justice${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritDmg, 48.6], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     grants: [{ on: onCast(Cast.Basic), buff: DARKNESS_BREAKER }],
@@ -71,6 +74,7 @@ export const SOLSWORN_CIPHERS = refinements((r, rank) => {
     stats: [[Stat.DefIgnoreNew, [10, 12.5, 15, 17.5, 20][r]!, Attribute.Aero]],
   });
   return new Weapon({
+    id: 21040066,
     weaponType: WeaponType.Gauntlets, name: `Solsworn Ciphers${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritDmg, 48.6], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     grants: [
@@ -96,6 +100,7 @@ export const IUNO_SIG = refinements((r, rank) => {
     stats: [[Stat.DefIgnoreNew, [7.2, 8.4, 9.6, 10.8, 12][r]!, Type.Liberation]], perStack: true,
   });
   return new Weapon({
+    id: 21040046,
     weaponType: WeaponType.Gauntlets, name: `Moongazer's Sigil${rank}`,
     stats: [[Stat.BaseAtk, 500], [Stat.CritRate, 36], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     grants: [
@@ -122,6 +127,7 @@ export const DAYBREAKERS_SPINE = refinements((r, rank) => {
     stats: [[Stat.Amp, [20, 25, 30, 35, 40][r]!, Type.Basic], [Stat.DefIgnoreNew, [10, 12.5, 15, 17.5, 20][r]!, Type.Basic]],
   });
   return new Weapon({
+    id: 21040056,
     weaponType: WeaponType.Gauntlets, name: `Daybreaker's Spine${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritRate, 24.3], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     grants: [

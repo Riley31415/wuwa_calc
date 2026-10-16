@@ -59,9 +59,11 @@ import { Action, ActionGroup, Rotation, ECHO, NOINTRO, ActionTag, INTRO, OUTRO, 
 import { FRAZZLE_SLOWED, SPECTRO_FRAZZLE } from "../../shared/status.js";
 import { LUMINOUS_HYMN, STRINGMASTER } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
+import { AUGMENT, RADIANT_DAWN } from "../../weapons/battlepass.js";
 import { ETERNAL_RADIANCE_5PC, CAPITANEUS } from "../../echoes/rinascita.js";
 import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -268,7 +270,7 @@ const LibPlain = phoebeAction("Liberation - Dawn of Enlightenment", {
   animFrames: 220, castPriority: 10, timestop: [0, 220], motionStop: [0, 218],
   cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation,
-  bullets: libHit(40160, 48000), castConcerto: 2000, resetEnergy: true,
+  bullets: libHit(40160, 48000), castConcerto: 2000, castEnergy: -12500,
 });
 const LibAbsolution = LibPlain.variant("Liberation - Dawn of Enlightenment (Absolution)", { bullets: libHit(142567, 84000) });
 const LibAbsolutionS1 = LibPlain.variant("Liberation - Dawn of Enlightenment (Absolution S1)", { bullets: libHit(232926, 48000) });
@@ -411,12 +413,13 @@ const PHOEBE_SEQUENCES = [PHOEBE_S1, PHOEBE_S2, PHOEBE_S3, PHOEBE_S4, PHOEBE_S5,
 
 const PHOEBE_TALENTS = new Talent({
   name: "Phoebe: Talents",
-  stats: [[Stat.BonusAtk, 12], [Stat.CritDmg, 16]],
+  stats: [[Stat.BonusAtk, 11.9999997], [Stat.CritDmg, 16]],
 });
 
 /** Her, as a Resonator. Divine Voice (forte2) is her only gauge here — see the header for why
  *  Prayer is not one. */
 const PHOEBE_RESONATOR = new Resonator({
+  id: 1506,
   name: "Phoebe",
   talent: PHOEBE_TALENTS,
   inherent1: PHOEBE_INHERENT_1,
@@ -470,11 +473,13 @@ const PHOEBE_ABSOLUTION_ROTATION = new Rotation([
 
 const PHOEBE_BUILD = {
   resonator: PHOEBE_RESONATOR,
-  weapons: [LUMINOUS_HYMN, COSMIC_RIPPLES, NEW_STD_RECTIFIER, STRINGMASTER],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Heavy, Substat.Basic, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Basic, Substat.Liberation),
+  weapons: [LUMINOUS_HYMN, COSMIC_RIPPLES, NEW_STD_RECTIFIER, STRINGMASTER, AUGMENT, RADIANT_DAWN],
   sequences: PHOEBE_SEQUENCES,
+};
+const PEEB_ROLLS = {
+  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
+  substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Heavy, Substat.Basic, Substat.FlatAtk),
+  highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Basic, Substat.Liberation),
 };
 const PEEB_ECHOES_CONF = [
   new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
@@ -483,5 +488,5 @@ const PEEB_ECHOES_CONF = [
 const PEEB_ECHOES_ABS = [
   new EchoLoadout(CAPITANEUS, ETERNAL_RADIANCE_5PC),
 ];
-export const PHOEBE_CONFESSION = new Loadout({ ...PHOEBE_BUILD, rotation: PHOEBE_CONFESSION_ROTATION, echoLoadouts: PEEB_ECHOES_CONF });
-export const PHOEBE_ABSOLUTION = new Loadout({ ...PHOEBE_BUILD, rotation: PHOEBE_ABSOLUTION_ROTATION, echoLoadouts: PEEB_ECHOES_ABS });
+export const PHOEBE_CONFESSION = new Loadout({ id: 15061, ...PHOEBE_BUILD, rotation: PHOEBE_CONFESSION_ROTATION, echoes: new Echoes({ ...PEEB_ROLLS, sets: PEEB_ECHOES_CONF }) });
+export const PHOEBE_ABSOLUTION = new Loadout({ id: 15062, ...PHOEBE_BUILD, rotation: PHOEBE_ABSOLUTION_ROTATION, echoes: new Echoes({ ...PEEB_ROLLS, sets: PEEB_ECHOES_ABS }) });

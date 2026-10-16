@@ -81,6 +81,7 @@ import { ENEMY_MAX_OFFTUNE, TUNE_STRAIN_SHIFTING } from "../../shared/tunebreak.
 import { applyStrain, TUNE_STRAIN_INTERFERED, TUNE_SHIFTABLE, strainPayout } from "../../shared/tunebreak.js";
 import { FORGED_DWARF_STAR, STRINGMASTER } from "../../weapons/rectifier.js";
 import { COSMIC_RIPPLES, NEW_STD_RECTIFIER } from "../../weapons/standard.js";
+import { AUGMENT, RADIANT_DAWN } from "../../weapons/battlepass.js";
 import {
   TRICKSTER, CHROMATIC_FOAM_5PC, VOIDWING_MOTH, REEL_5PC,
   HYVATIA,
@@ -89,6 +90,7 @@ import {
   SIGILLUM,
 } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { CLAWPRINT_5PC, LIONESS_OF_GLORY } from "../../echoes/septimont.js";
 import { AEMEATH_RESONATOR } from "./aemeath.js";
@@ -251,7 +253,7 @@ const Banish2 = deniaAction("Skill - Banish 2", { chains: [Banish1], ...BREAK, a
 const Lib1 = deniaAction("Liberation - Final Act (Stagecraft)", { ...STAGE,
   animFrames: 259, animPriority: { 255: 2 }, castPriority: 10, timestop: [0, 251], motionStop: [0, 251], cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 257, commitFrame: 251, mv: 39762, offtune: 48000, updateDebuffs: () => deniaLays(2) }],
-  castConcerto: 2000, resetEnergy: true,
+  castConcerto: 2000, castEnergy: -12500,
   updateBuffs: () => {
     revokeCurrent(ENTROPY_STAGECRAFT);
     applyCurrent(ENTROPY_BREAKDOWN);
@@ -622,10 +624,11 @@ const DN_INHERENT_1 = new Inherent({
 
 const DENIA_TALENTS = new Talent({
   name: "Denia: Talents",
-  stats: [[Stat.BonusAtk, 12], [Stat.CritDmg, 16]],
+  stats: [[Stat.BonusAtk, 11.9999997], [Stat.CritDmg, 16]],
 });
 
 const DENIA_RESONATOR = new Resonator({
+  id: 1211,
   name: "Denia",
   talent: DENIA_TALENTS,
   inherent1: DN_INHERENT_1,
@@ -691,16 +694,19 @@ const DN_ROTATION_BURST_S3 = new Rotation([
  *  rides Fusion Burst (the set triggers off the Burst she inflicts), Voidwing Moth + Reel of
  *  Spliced Memories rides Tune Strain (off her own Shifting). */
 export const DENIA_BURST = new Loadout({
+  id: 12111,
   resonator: DENIA_RESONATOR,
-  weapons: [FORGED_DWARF_STAR, COSMIC_RIPPLES, NEW_STD_RECTIFIER, STRINGMASTER],
-  echoLoadouts: [
+  weapons: [FORGED_DWARF_STAR, COSMIC_RIPPLES, NEW_STD_RECTIFIER, STRINGMASTER, AUGMENT, RADIANT_DAWN],
+  echoes: new Echoes({
+    sets: [
     new EchoLoadout(TRICKSTER, CHROMATIC_FOAM_5PC),
     new EchoLoadout(LIONESS_OF_GLORY, CLAWPRINT_5PC),
     new EchoLoadout(SIGILLUM, TRAILBLAZING_STAR_5PC), 
   ],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Skill, Substat.Basic),
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Skill, Substat.Basic),
+  }),
   rotation: { 0: DN_ROTATION_BURST, 3: DN_ROTATION_BURST_S3 },
   sequences: DN_SEQUENCES,
   mode: MODE_BURST,
@@ -727,16 +733,19 @@ const DN_ROTATION_STRAIN_S3 = new Rotation([
 ]);
 
 export const DENIA_STRAIN = new Loadout({
+  id: 12112,
   resonator: DENIA_RESONATOR,
-  weapons: [FORGED_DWARF_STAR, COSMIC_RIPPLES, NEW_STD_RECTIFIER, STRINGMASTER],
-  echoLoadouts: [
+  weapons: [FORGED_DWARF_STAR, COSMIC_RIPPLES, NEW_STD_RECTIFIER, STRINGMASTER, AUGMENT, RADIANT_DAWN],
+  echoes: new Echoes({
+    sets: [
     // Reel's team Tune Break Boost only pays a Tune DMG dealer
     new EchoLoadout(VOIDWING_MOTH, REEL_5PC).requires(AEMEATH_RESONATOR, LUUK_RESONATOR, QINGXIAO_RESONATOR),
     new EchoLoadout(HYVATIA, NEONLIGHT_LEAP_5PC),
   ],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Skill, Substat.Basic),
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Skill, Substat.Basic),
+  }),
   rotation: { 0: DN_ROTATION_STRAIN, 3: DN_ROTATION_STRAIN_S3 },
   sequences: DN_SEQUENCES,
   mode: MODE_STRAIN,

@@ -18,7 +18,7 @@
 import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, Position } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
-  asSource,
+  addStatAs,
   applyCurrent,
   applyTeam,
   isHeld,
@@ -43,8 +43,10 @@ import {
 import { ActionGroup, Action, Rotation, ECHO, INTRO, OUTRO, ActionTag, START_LAST, INTRO_LAST, DODGE } from "../../engine/rotation.js";
 import { SOLSWORN_CIPHERS } from "../../weapons/gauntlet.js";
 import { NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
+import { STONARD, AETHER_STRIKE } from "../../weapons/battlepass.js";
 import { NAMELESS_EXPLORER, SOUND_OF_TRUE_NAME_5PC } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -264,7 +266,7 @@ const FSkill = sigrikaAction("Forte Skill - Learn My True Name", { minForte2: 10
 
 const Liberation = sigrikaAction("Liberation - Where Trust Leads Me!", {
   animFrames: 228, animPriority: { 206: 2 }, castPriority: 10, timestop: [0, 228], motionStop: [0, 228], cooldown: 60 * 25,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Echo, bullets: [{ hitFrame: 176, mv: 86143, offtune: 50400 }], castConcerto: 2000, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Echo, bullets: [{ hitFrame: 176, mv: 86143, offtune: 50400 }], castConcerto: 2000, castEnergy: -12500,
   updateBuffs: () => applyCurrent(DIVERGENT),
 });
 
@@ -374,7 +376,8 @@ const INNATE_GIFT = new Buff({
         const n = frozenStacks();
         addStat(Stat.Amp, 30 * n, Type.Echo);
         if (isHeld(SR_S6)) {
-          asSource(SR_S6, () => { addStat(Stat.Amp, Math.min(60, 15 * n)); addStat(Stat.DefIgnoreNew, Math.min(30, 7.5 * n)); });
+          addStatAs(SR_S6, Stat.Amp, Math.min(60, 15 * n));
+          addStatAs(SR_S6, Stat.DefIgnoreNew, Math.min(30, 7.5 * n));
         }
     }
   },
@@ -412,12 +415,13 @@ const SOLISKIN_VITALITY = new Buff({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const SIGRIKA_TALENTS = new Talent({
   name: "Sigrika: Talents",
-  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 12]],
+  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 11.9999997]],
 });
 
 /** Her, as a Resonator: name/element/weapon, every grant/spend/queue rule her kit needs, and her
  *  own base stat line. */
 const SIGRIKA_RESONATOR = new Resonator({
+  id: 1412,
   name: "Sigrika",
   stats: [[Stat.BaseHp, 10775], [Stat.BaseAtk, 437.5], [Stat.BaseDef, 1136.6646]],
   talent: SIGRIKA_TALENTS,
@@ -534,34 +538,43 @@ const SR_ROTATION_FAST = new Rotation([
 // her real 43311 build: resonator + talents + both Inherent Skills + Forte Circuit, weapon,
 // mainslot echo, sonata pieces, mainstat/substat
 export const SIGRIKA_EBA = new Loadout({
+  id: 14121,
   resonator: SIGRIKA_RESONATOR,
-  weapons: [SOLSWORN_CIPHERS, NEW_STD_GAUNTLET, ABYSS_SURGES],
-  echoLoadouts: [new EchoLoadout(NAMELESS_EXPLORER, SOUND_OF_TRUE_NAME_5PC)],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ER3, Mainstat.ATK1),
-  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.AtkPct, Substat.FlatAtk, Substat.Basic, Substat.Skill),
+  weapons: [SOLSWORN_CIPHERS, NEW_STD_GAUNTLET, ABYSS_SURGES, STONARD, AETHER_STRIKE],
+  echoes: new Echoes({
+    sets: [new EchoLoadout(NAMELESS_EXPLORER, SOUND_OF_TRUE_NAME_5PC)],
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ER3, Mainstat.ATK1),
+    substats: substats(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.AtkPct, Substat.FlatAtk, Substat.Basic, Substat.Skill),
+  }),
   rotation: SR_ROTATION,
   sequences: SR_SEQUENCES,
 });
 export const SIGRIKA_DOUBLE = new Loadout({
+  id: 14122,
   resonator: SIGRIKA_RESONATOR,
-  weapons: [SOLSWORN_CIPHERS, NEW_STD_GAUNTLET, ABYSS_SURGES],
-  echoLoadouts: [new EchoLoadout(NAMELESS_EXPLORER, SOUND_OF_TRUE_NAME_5PC)],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ER3, Mainstat.ATK1),
-  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.AtkPct, Substat.FlatAtk, Substat.Basic, Substat.Skill),
+  weapons: [SOLSWORN_CIPHERS, NEW_STD_GAUNTLET, ABYSS_SURGES, STONARD, AETHER_STRIKE],
+  echoes: new Echoes({
+    sets: [new EchoLoadout(NAMELESS_EXPLORER, SOUND_OF_TRUE_NAME_5PC)],
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ER3, Mainstat.ATK1),
+    substats: substats(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.AtkPct, Substat.FlatAtk, Substat.Basic, Substat.Skill),
+  }),
   rotation: SR_ROTATION_DOUBLE,
   sequences: SR_SEQUENCES,
 });
 // her real 43311 build: resonator + talents + both Inherent Skills + Forte Circuit, weapon,
 // mainslot echo, sonata pieces, mainstat/substat
 export const SIGRIKA_FAST = new Loadout({
+  id: 14123,
   resonator: SIGRIKA_RESONATOR,
-  weapons: [SOLSWORN_CIPHERS, NEW_STD_GAUNTLET, ABYSS_SURGES],
-  echoLoadouts: [new EchoLoadout(NAMELESS_EXPLORER, SOUND_OF_TRUE_NAME_5PC)],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ER3, Mainstat.ATK1),
-  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.AtkPct, Substat.FlatAtk, Substat.Basic, Substat.Skill),
+  weapons: [SOLSWORN_CIPHERS, NEW_STD_GAUNTLET, ABYSS_SURGES, STONARD, AETHER_STRIKE],
+  echoes: new Echoes({
+    sets: [new EchoLoadout(NAMELESS_EXPLORER, SOUND_OF_TRUE_NAME_5PC)],
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ER3, Mainstat.ATK1),
+    substats: substats(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.AtkPct, Substat.FlatAtk, Substat.Basic, Substat.Skill),
+  }),
   rotation: SR_ROTATION_FAST,
   sequences: SR_SEQUENCES,
 });

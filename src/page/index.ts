@@ -14,7 +14,7 @@ import { runTeam } from "../solve/teamrun.js";
 import {
   TEAMS, filters, results, bestPicks, picksCache, storeSolved, teamWanted, teamRows, estimatedRowCount, rowFromKey,
   setVisibleRows, visibleRows, discardRestoredSolves, loadShipped, loadSolves, saveSolves, solveFits,
-  applyHash, syncHash, routeTeam, hashTeam, solvedRows, admitBuild, reopenDetail,
+  applyHash, syncHash, routeTeam, hashTeam, solvedRows, admitBuild, reopenDetail, tagTeam, gearShut,
 } from "./model.js";
 import type { TeamRow } from "./model.js";
 import { wireSourcePanels } from "./panels.js";
@@ -50,8 +50,8 @@ function overlayPhase(text: string, now = false): void {
  *  phase that blocks the thread on the next line never gives the 100ms timer a frame to fire in —
  *  which is why a long render used to run behind a page that simply froze. `rows` is how much work
  *  is coming: a redraw small enough to be over before the overlay would have shown keeps the
- *  delayed form and doesn't flash. */
-const OVERLAY_ROWS = 200;
+ *  delayed form and doesn't flash — a render ran ~60ms at 700 rows (Oct 2026), so ~1000 is 100ms. */
+const OVERLAY_ROWS = 1_000;
 async function overlayNow(text: string, rows = Infinity): Promise<void> {
   overlayPhase(text, rows >= OVERLAY_ROWS);
   await paint();
@@ -428,9 +428,18 @@ async function solveQuiet(teamKey: string, f: Filters): Promise<void> {
   saveSolves();
 }
 
-/** A `#team=` load served off its key alone: one traced run, no table build. */
+/** A `#team=` load served off its key alone: one traced run, no table build. A team code leaving gear
+ *  to the solver reads back once that one team is solved with its gear compares shut. */
 async function bootDetail(): Promise<boolean> {
-  const key = hashTeam();
+  let key = hashTeam();
+  const pending = key && !rowFromKey(key) ? tagTeam(key) : null;
+  if (pending) {
+    overlayPhase("Solving Team…", true);
+    await paint();
+    await solveQuiet(pending, gearShut(filters));
+    key = hashTeam();
+    if (key && !rowFromKey(key)) overlayHide();
+  }
   if (!key || results.has(key)) return false;
   const row = rowFromKey(key);
   if (!row) return false;
@@ -464,7 +473,17 @@ async function boot(): Promise<void> {
   addEventListener("hashchange", () => {
     if (applyHash()) { void refresh(); return; }
     const key = hashTeam();
-    if (key && !results.has(key) && rowFromKey(key)) { void bootDetail(); return; }
+    if (key && !results.has(key) && (rowFromKey(key) || tagTeam(key))) {
+      // a code that still names no row once its team is solved comes back off the URL
+      // ...and one that opens is written back as it reads, a gear part that didn't read gone
+      void bootDetail().then((shown) => {
+        syncHash();
+        if (!shown) route();
+      });
+      return;
+    }
+    // ...as does one that names nothing at all, and any other is written back as it reads
+    syncHash();
     route();
   });
   wireSourcePanels(app);

@@ -50,7 +50,6 @@
 import { Stat, Attribute, WeaponType, Type, Subtype, Cast, Node, Scaling, Position } from "../../engine/stats.js";
 import { Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
-  asSource,
   addStat,
   applied,
   appliedByMe,
@@ -80,14 +79,17 @@ import {
   runningBullet,
   saveChain,
   previousPress,
+  addStatAs,
 } from "../../engine/context.js";
 import { ActionGroup, Action, ActionField, Cooldown, Rotation, ECHO, NOINTRO, NOINTRO_OPENER, INTRO, OUTRO, INTRO_OPENER, DODGE } from "../../engine/rotation.js";
 import { TUNE_BREAK } from "../../shared/tunebreak.js";
 import { GLACIO_CHAFE, GLACIO_CHAFE_ACTIONS, HAVOC_BANE, HEALS, OWN_CHAFE_RUNGS } from "../../shared/status.js";
 import { FROSTBURN } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
+import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
 import { QUIET_SNOWFALL_5PC, VOIDBORNE_CONSTRUCT } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ------------------------------------------------------------------------------ glacio bite */
@@ -309,7 +311,7 @@ const Lib1 = hiyukiAction("Liberation - Foreclaiming: Inward Vision", {
 const LIB2_CD = new Cooldown({ frames: 60 * 25 });
 const Lib2Tap = hiyukiAction("Liberation - Foreclaiming: Blade Liberation", {
   requireBuff: FORECLAIMED_SELF, animFrames: 360, castPriority: 10, timestop: [0, 360], motionStop: [0, 360], cooldown: LIB2_CD,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 216, mv: 19881 }, { hitFrame: 270, mv: 79524 }], castConcerto: 2000, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 216, mv: 19881 }, { hitFrame: 270, mv: 79524 }], castConcerto: 2000, castEnergy: -12500,
   // everything it ends the form by removing: Dedication, Frostheart, and every Snowforged Blade
   // the multiplier above just cashed
   resetForte1: true, resetForte2: true, resetForte3: true,
@@ -320,7 +322,7 @@ const Lib2Tap = hiyukiAction("Liberation - Foreclaiming: Blade Liberation", {
 });
 const Lib2Hold = hiyukiAction("Liberation - Foreclaiming: Blade Liberation", {
   requireBuff: FORECLAIMED_SELF, animFrames: 360, castPriority: 10, timestop: [0, 360], motionStop: [0, 360], cooldown: LIB2_CD,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 216, mv: 19881 }, { hitFrame: 270, mv: 79524 }], castConcerto: 2000, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 216, mv: 19881 }, { hitFrame: 270, mv: 79524 }], castConcerto: 2000, castEnergy: -12500,
   // everything it ends the form by removing: Dedication, Frostheart, and every Snowforged Blade
   // the multiplier above just cashed
   resetForte1: true, resetForte2: true, resetForte3: true,
@@ -469,11 +471,11 @@ const SNOW_RUST = new Buff({
     addStat(Stat.CritDmg, 40);
     addStat(Stat.Amp, snowRust() >= 3 ? 60 : 30, Subtype.GlacioChafe);
     // S6's own two tiers, paid from here since this is where the count lives
-    if (isHeld(HY_S6) && snowRust() >= 2) asSource(HY_S6, () => addStat(Stat.CritDmg, 40));
-    if (isHeld(HY_S6) && snowRust() >= 3) asSource(HY_S6, () => addStat(Stat.DamageTaken, 25, Subtype.GlacioChafe));
+    if (isHeld(HY_S6) && snowRust() >= 2) addStatAs(HY_S6, Stat.CritDmg, 40);
+    if (isHeld(HY_S6) && snowRust() >= 3) addStatAs(HY_S6, Stat.DamageTaken, 25, Subtype.GlacioChafe);
     // S3: the fixed-multiplier Bite hit at x5.88 (no second row on the page — taken the way every
     // other "DMG Multiplier is increased by" on this kit reads, which all four verify as)
-    if (isHeld(HY_S3) && runningAction(FineSnowBite)) asSource(HY_S3, () => addStat(Stat.MulMv, 488));
+    if (isHeld(HY_S3) && runningAction(FineSnowBite)) addStatAs(HY_S3, Stat.MulMv, 488);
   },
 });
 /** Snowlight Blessing (Outro Skill): +20% Glacio DMG Amplification for every *other* resonator in
@@ -513,7 +515,7 @@ const HY_INHERENT_2 = new Inherent({
 
 const HIYUKI_TALENTS = new Talent({
   name: "Hiyuki: Talents",
-  stats: [[Stat.BonusAtk, 12], [Stat.CritRate, 8]],
+  stats: [[Stat.BonusAtk, 11.9999997], [Stat.CritRate, 8]],
 });
 
 /** What the conversion below had already turned this action, by team slot — what each member had
@@ -559,6 +561,7 @@ const LATE_BITE = new Debuff({
 const IaiFlash = hiyukiAction("Dodge - Iai Stance", { chains: [UBA1, UBA2, UBA3, FBA4, FBA5, UHA, FMA1, FMA2, FMA3, FDC, USkill1, USkill2, Iai, Intro, FIntro], cast: Cast.Dodge, animFrames: 30, castPriority: 6, animPriority: { 0: 9 }, updateBuffs: () => applyCurrent(IAI_STANCE, 1) });
 
 export const HIYUKI_RESONATOR = new Resonator({
+  id: 1108,
   name: "Hiyuki",
   stats: [[Stat.BaseHp, 10300], [Stat.BaseAtk, 462.5], [Stat.BaseDef, 1112.2202]],
   talent: HIYUKI_TALENTS,
@@ -769,12 +772,15 @@ const HY_ECHOES = [
 ];
 
 export const HIYUKI = new Loadout({
+  id: 11081,
   resonator: HIYUKI_RESONATOR,
-  weapons: [FROSTBURN, EMERALD_OF_GENESIS],
-  echoLoadouts: HY_ECHOES,
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.ATK4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Skill),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Skill, Substat.Basic),
+  weapons: [FROSTBURN, EMERALD_OF_GENESIS, LUMINGLOSS, FEATHER_EDGE],
+  echoes: new Echoes({
+    sets: HY_ECHOES,
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.ATK4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Skill),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Skill, Substat.Basic),
+  }),
   rotation: { 0: HY_ROTATION, 2: HY_ROTATION_S2 },
   sequences: HY_SEQUENCES,
 });

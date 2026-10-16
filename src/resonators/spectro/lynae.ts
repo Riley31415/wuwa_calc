@@ -33,15 +33,16 @@ import {
   maxStackIncrease,
   queueQTE,
   revokeCurrent,
-  asSource,
   currentTeam,
   frozenStacks,
   isHeld,
+  addStatAs,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Cooldown, Rotation, ECHO, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
 import { applyRupture, applyStrain, TUNE_STRAIN_INTERFERED, TUNE_SHIFTABLE, strainPayout, tuneRuptureResponse } from "../../shared/tunebreak.js";
 import { SPECTRUM_BLASTER } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
+import { THUNDERBOLT, SOLAR_FLAME } from "../../weapons/battlepass.js";
 import { HYVATIA, NEONLIGHT_LEAP_5PC, REEL_5PC, VOIDWING_MOTH } from "../../echoes/lahairoi.js";
 import { AEMEATH_RESONATOR } from "../fusion/aemeath.js";
 import { LUUK_RESONATOR } from "./luuk.js";
@@ -49,6 +50,7 @@ import { QINGXIAO_RESONATOR } from "../aero/qingxiao.js";
 import { HERON, STONEWALL_BRACER, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 import { JINGRAN_RESONATOR } from "../fusion/jingran.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -200,7 +202,7 @@ const Liberation = lynaeAction("Liberation - Prismatic Overblast", {
     { hitFrame: 237, commitFrame: 189, mv: 8748, offtune: 4800 },
     { hitFrame: 243, commitFrame: 189, mv: 8748, offtune: 4800 },
   ],
-  castConcerto: 2000, resetEnergy: true,
+  castConcerto: 2000, castEnergy: -12500,
   updateBuffs: () => {
     applyTeam(PRISMATIC_OVERBLAST, 1);
     applyCurrent(VIVID_TOMORROW_READY, 1);
@@ -339,7 +341,7 @@ const LYNAE_OUTRO = new Buff({
   // S2 hands the same resonator 25% more, read off her own slot: this buff is the recipient's
   applyStats: () => {
     if (currentTeam().slots.find((m) => m.resonator === LYNAE_RESONATOR)?.isHeld(LY_S2)) {
-      asSource(LY_S2, () => addStat(Stat.Amp, 25));
+      addStatAs(LY_S2, Stat.Amp, 25);
     }
   },
   lostOnSwap: true,
@@ -363,10 +365,11 @@ const LY_INHERENT_2 = new Inherent({
 
 const LYNAE_TALENTS = new Talent({
   name: "Lynae: Talents",
-  stats: [[Stat.BonusAtk, 12], [Stat.CritRate, 8]],
+  stats: [[Stat.BonusAtk, 11.9999997], [Stat.CritRate, 8]],
 });
 
 const LYNAE_RESONATOR = new Resonator({
+  id: 1509,
   name: "Lynae",
   talent: LYNAE_TALENTS,
   inherent1: LY_INHERENT_1,
@@ -477,12 +480,15 @@ const LY_ECHOES = [
 /** One loadout per Resonance Mode, the same way Lucilla ships an Echo and a Chafe build — the mode
  *  is the only thing that differs, and it decides which Tune Break variant the team gets. */
 const build = (mode: ResonanceMode): Loadout => new Loadout({
+  id: 15091,
   resonator: LYNAE_RESONATOR,
-  weapons: [SPECTRUM_BLASTER, NEW_STD_PISTOL, STATIC_MIST],
-  echoLoadouts: LY_ECHOES,
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation, Substat.Skill),
+  weapons: [SPECTRUM_BLASTER, NEW_STD_PISTOL, STATIC_MIST, THUNDERBOLT, SOLAR_FLAME],
+  echoes: new Echoes({
+    sets: LY_ECHOES,
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation, Substat.Skill),
+  }),
   rotation: { 0: LY_ROTATION },
   sequences: LY_SEQUENCES,
   mode,

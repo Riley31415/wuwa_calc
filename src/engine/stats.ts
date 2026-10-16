@@ -19,6 +19,8 @@ export const enum Stat {
   FlatHp,
   FlatDef,
 
+  /** The combat %: everything an `applyStats`/`convertStats` pays, summed and floored once off Base.
+   *  A constant one is a panel entry instead (state.ts's `PANEL_INDEX`). */
   BonusAtk,
   BonusHp,
   BonusDef,
@@ -30,7 +32,7 @@ export const enum Stat {
   OfftuneBuildup,
   /** Scales what an action regens: `base energy x (1 + this/100)`, a hook's flat `addGain()` aside — Camellya's
    *  Vegetative Universe, Yangyang. Percent; 0 means the ordinary x1. */
-  EnergyRegenMult,
+  HitEnergyMult,
   /** The same for what an action builds of off-tune: `(base off-tune + added) x (1 + this/100)`,
    *  ahead of the Buildup Rate — Suoming's Seal Master stages. Percent; 0 means the ordinary x1. */
   OfftuneMult,
@@ -84,7 +86,7 @@ export const STAT_NAME: Record<Stat | EnemyStat, string> = {
   [Stat.BonusAtk]: "ATK%", [Stat.BonusHp]: "HP%", [Stat.BonusDef]: "DEF%",
   [Stat.CritRate]: "Crit Rate", [Stat.CritDmg]: "Crit Dmg", [Stat.ER]: "Energy Regen",
   [Stat.TBB]: "Tune Break Boost", [Stat.OfftuneBuildup]: "Offtune Buildup",
-  [Stat.EnergyRegenMult]: "Energy Regen Multiplier", [Stat.OfftuneMult]: "Offtune Multiplier",
+  [Stat.HitEnergyMult]: "Hit Energy Multiplier", [Stat.OfftuneMult]: "Offtune Multiplier",
   [Stat.AddMv]: "MV increase", [Stat.MulMv]: "MV multiplier",
   [Stat.DmgBonus]: "Dmg Bonus", [Stat.Amp]: "Amplification", [Stat.TotalDmg]: "Total Damage",
   [Stat.DamageTaken]: "Damage Taken",
@@ -329,7 +331,7 @@ export const SCALING_NAME: Record<Scaling, string> = {
  *  number everywhere. What divides it into a multiplier does so itself (damage.ts's `tbbFactor`). */
 export const PERCENT_STATS: Set<Stat | EnemyStat> = new Set<Stat | EnemyStat>([
   Stat.BonusAtk, Stat.BonusHp, Stat.BonusDef, Stat.CritRate, Stat.CritDmg, Stat.ER,
-  Stat.OfftuneBuildup, Stat.EnergyRegenMult, Stat.OfftuneMult,
+  Stat.OfftuneBuildup, Stat.HitEnergyMult, Stat.OfftuneMult,
   Stat.AddMv, Stat.MulMv,
   Stat.DmgBonus, Stat.Amp, Stat.TotalDmg, Stat.DamageTaken,
   Stat.ResIgnore, Stat.DefIgnoreNew, Stat.DefIgnoreOld,

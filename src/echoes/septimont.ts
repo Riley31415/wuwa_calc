@@ -1,6 +1,7 @@
 /** Mainslot echoes and sonatas from Septimont (versions 2.5-2.7). */
 import { Stat, Attribute, Type, Cast, Scaling, BuffTarget } from "../engine/stats.js";
 import { Buff, Sonata, Sonata3pc, Sonata2pc, Mainslot } from "../engine/gear.js";
+import { NM_HECATE } from "./rinascita.js";
 import {
   cancelHits,
   addStat, stacksOf, stacksOfEnemy, stacksOfTeam, applyCurrent, casting, maxEnergy, queue, applied, appliedByMe,
@@ -15,8 +16,9 @@ import { PseudoTransformEcho, SummonEcho, TransformEcho } from "./echo.js";
 /** Dream of the Lost 3pc, Phrolova's own sonata — also reused by Lucilla. "Holding 0 Resonance
  *  Energy" is checked for real off the wearer's own `maxEnergy()`. */
 export const DREAM_OF_THE_LOST_3PC = new Sonata3pc({
+  id: 19,
   name: "Dream of the Lost 3pc",
-  applyStats: () => {
+  echoes: () => [NM_HECATE, FENRICO], applyStats: () => {
     if (maxEnergy() !== 0) return;
     addStat(Stat.CritRate, 20);
     addStat(Stat.DmgBonus, 35, Type.Echo);
@@ -38,7 +40,9 @@ export const ACTION_FALSE_SOVEREIGN_INTRO = new Action("Echo - False Sovereign (
   element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 40500 }],
 });
 export const FALSE_SOVEREIGN = new Mainslot({
+  id: 6000121,
   name: "False Sovereign",
+  cost: 4,
   action: ACTION_FALSE_SOVEREIGN,
   updateBuffs: () => { if (casting(Cast.Intro)) queue(ACTION_FALSE_SOVEREIGN_INTRO); },
   stats: [[Stat.DmgBonus, 12, Attribute.Electro], [Stat.DmgBonus, 12, Type.Heavy]],
@@ -53,8 +57,9 @@ export const CROWN_STACKS = new Buff({
   stats: [[Stat.BonusAtk, 6], [Stat.CritDmg, 4]], perStack: true,
 });
 export const COV_3PC = new Sonata3pc({
+  id: 20,
   name: "Crown of Valor 3pc",
-  grants: [{ on: onApplied(SHIELD), buff: CROWN_STACKS, stacks: () => applied(SHIELD) }],
+  echoes: () => [FALSE_SOVEREIGN, MYA], grants: [{ on: onApplied(SHIELD), buff: CROWN_STACKS, stacks: () => applied(SHIELD) }],
 });
 
 /* ------------------------------------------------------------------------------- Iuno, 2.6 */
@@ -66,7 +71,9 @@ export const ACTION_MYA = new SummonEcho("Echo - Lady of the Sea", {
   element: Attribute.Aero, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 30096, energy: 418 }],
 });
 export const MYA = new Mainslot({
+  id: 6000160,
   name: "Lady of the Sea",
+  cost: 4,
   action: ACTION_MYA,
   stats: [[Stat.DmgBonus, 12, Type.Liberation], [Stat.DmgBonus, 12, Attribute.Aero]],
 });
@@ -79,7 +86,9 @@ export const ACTION_LIONESS = new SummonEcho("Echo - Lioness of Glory", {
   element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 27360, energy: 380 }],
 });
 export const LIONESS_OF_GLORY = new Mainslot({
+  id: 6000114,
   name: "Lioness of Glory",
+  cost: 4,
   action: ACTION_LIONESS,
   stats: [[Stat.DmgBonus, 12, Type.Liberation], [Stat.DmgBonus, 12, Attribute.Fusion]],
 });
@@ -90,8 +99,9 @@ export const LIONESS_OF_GLORY = new Mainslot({
  *  2pc: +10% Fusion DMG Bonus flat. */
 export const CLAWPRINT_TEAM = new Buff({ name: "Flaming Clawprint 5pc (team)", duration: 60 * 35, stats: [[Stat.DmgBonus, 15, Attribute.Fusion]] });
 export const CLAWPRINT_LIBERATION = new Buff({ name: "Flaming Clawprint 5pc", duration: 60 * 35, stats: [[Stat.DmgBonus, 20, Type.Liberation]] });
-export const CLAWPRINT_2PC = new Sonata2pc({ name: "Flaming Clawprint 2pc", stats: [[Stat.DmgBonus, 10, Attribute.Fusion]] });
+export const CLAWPRINT_2PC = new Sonata2pc({ id: 18, name: "Flaming Clawprint 2pc", echoes: () => [LIONESS_OF_GLORY, CORROSAURUS], stats: [[Stat.DmgBonus, 10, Attribute.Fusion]] });
 export const CLAWPRINT_5PC = new Sonata({
+  id: 18,
   name: "Flaming Clawprint 5pc",
   sonata2pc: CLAWPRINT_2PC,
   grants: [
@@ -108,7 +118,9 @@ export const ACTION_CORROSAURUS = new SummonEcho("Echo - Corrosaurus", {
   element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 27360, energy: 380 }],
 });
 export const CORROSAURUS = new Mainslot({
+  id: 6000120,
   name: "Corrosaurus",
+  cost: 3,
   action: ACTION_CORROSAURUS,
   stats: [[Stat.DmgBonus, 12, Attribute.Fusion], [Stat.DmgBonus, 20, Type.Echo]],
 });
@@ -127,8 +139,9 @@ export const FLAMEWING_SHADOW_HEAVY = new Buff({
   stats: [[Stat.CritRate, 20, Type.Echo]],
 });
 export const FLAMEWING_SHADOW_3PC = new Sonata3pc({
+  id: 22,
   name: "Flamewing's Shadow 3pc",
-  grants: [
+  echoes: () => [THRENODIAN_LEVIATHAN, CORROSAURUS], grants: [
     { on: onType(Type.Echo), buff: FLAMEWING_SHADOW_ECHO, onHit: true },
     { on: onType(Type.Heavy), buff: FLAMEWING_SHADOW_HEAVY, onHit: true },
   ],
@@ -145,7 +158,9 @@ export const ACTION_FENRICO = new SummonEcho("Echo - Reminiscence: Fenrico", {
   element: Attribute.Aero, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 27360, energy: 380 }],
 });
 export const FENRICO = new Mainslot({
+  id: 6000116,
   name: "Reminiscence: Fenrico",
+  cost: 4,
   action: ACTION_FENRICO,
   stats: [[Stat.DmgBonus, 12, Attribute.Aero], [Stat.DmgBonus, 12, Type.Heavy]],
 });
@@ -163,8 +178,9 @@ export const LAW_OF_HARMONY_TEAM = new Buff({
   applyStats: () => { addStat(Stat.DmgBonus, 4 * stacksOfTeam(LAW_OF_HARMONY_TEAM), Type.Echo); },
 });
 export const LAW_OF_HARMONY_3PC = new Sonata3pc({
+  id: 21,
   name: "Law of Harmony 3pc",
-  grants: [
+  echoes: [FENRICO], grants: [
     { on: onCast(Cast.Echo), buff: LAW_OF_HARMONY_SELF },
     { on: onCast(Cast.Echo), buff: LAW_OF_HARMONY_TEAM, to: BuffTarget.Team },
   ],
@@ -202,7 +218,9 @@ export const ACTION_CORE_OF_COLLAPSE = new Action("Echo - Core of Collapse", {
 const CORES_OF_COLLAPSE = new Set<Action>([ACTION_CORE_OF_COLLAPSE]);
 
 export const THRENODIAN_LEVIATHAN = new Mainslot({
-  name: "Reminiscence: Threnodian - Leviathan", 
+  id: 6000167,
+  name: "Reminiscence: Threnodian - Leviathan",
+  cost: 4,
   action: ACTION_THRENODIAN_LEVIATHAN,
   stats: [[Stat.DmgBonus, 12, Attribute.Havoc], [Stat.DmgBonus, 12, Type.Liberation]],
 });
@@ -219,8 +237,9 @@ export const THRENODIAN_LEVIATHAN = new Mainslot({
  *  holder, and a teammate wearing this set whose swing merely tripped somebody else's marker still
  *  reads 0. */
 export const THREAD_OF_SEVERED_FATE_3PC = new Sonata3pc({
+  id: 23,
   name: "Thread of Severed Fate 3pc",
-  hitGlobal: () => { if (appliedByMe(HAVOC_BANE)) applyCurrent(THREAD_OF_SEVERED_FATE_BUFF, 1); },
+  echoes: [THRENODIAN_LEVIATHAN], hitGlobal: () => { if (appliedByMe(HAVOC_BANE)) applyCurrent(THREAD_OF_SEVERED_FATE_BUFF, 1); },
 });
 export const THREAD_OF_SEVERED_FATE_BUFF = new Buff({
   name: "Thread of Severed Fate",

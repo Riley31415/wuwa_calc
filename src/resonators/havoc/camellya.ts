@@ -28,8 +28,8 @@
  * recovers 4 Concerto Energy and obtains 1 Crimson Bud" is checked as every full 10 consumed
  * from the 100 top (first at 90 or less) by *that one hit's own consumption*, read
  * off forte1() before vs. after — not a flat 1-per-hit rate — at the cast that banks the spend
- * (CAMELLYA_RESONATOR's updateBuffs()), gated off entirely while Budding Mode is held. Its Energy
- * Regen Multiplier is the real stat (Stat.EnergyRegenMult): +150% outside Budding Mode, -100 (a x0
+ * (CAMELLYA_RESONATOR's updateBuffs()), gated off entirely while Budding Mode is held. Its Hit Energy
+ * Multiplier is the real stat (Stat.HitEnergyMult): +150% outside Budding Mode, -100 (a x0
  * factor) while it's held.
  *
  * Seedbed/Epiphyte (Inherent Skills, always assumed known): +15% Havoc DMG Bonus flat; +15%
@@ -44,7 +44,6 @@
 import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, BuffTarget, Position } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence, matrix } from "../../engine/gear.js";
 import {
-  asSource,
   applyCurrent,
   revokeCurrent,
   currentCast,
@@ -57,12 +56,15 @@ import {
   forte1,
   lostOnSwap,
   addGain,
+  addStatAs,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, ECHO, INTRO, OUTRO, DOUBLE_INTRO, DODGE } from "../../engine/rotation.js";
 import { RED_SPRING } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
+import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
 import { NM_CROWNLESS, HAVOC_ECLIPSE_5PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { tuneBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
 
@@ -258,7 +260,7 @@ const Perennial = camellyaAction("Forte Skill - Perennial (S6)", {
   },
 });
 
-const Liberation = camellyaAction("Liberation - Fervor Efflorescent", { animFrames: 264, animPriority: { 239: 0 }, castPriority: 10, timestop: [0, 240], motionStop: [0, 240], cooldown: 60 * 25, node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 176, mv: 120281, offtune: 84000 }], castConcerto: 2000, resetEnergy: true });
+const Liberation = camellyaAction("Liberation - Fervor Efflorescent", { animFrames: 264, animPriority: { 239: 0 }, castPriority: 10, timestop: [0, 240], motionStop: [0, 240], cooldown: 60 * 25, node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 176, mv: 120281, offtune: 84000 }], castConcerto: 2000, castEnergy: -12500 });
 
 const Intro = camellyaAction("Intro - Everblooming", { endPosition: Position.Grounded, qteFrames: 36,
   animPriority: { 77: 1 }, castPriority: 11, motionStop: [6, 34],
@@ -289,11 +291,11 @@ const BUDDING_MODE = new Buff({
   name: "Camellya: Sweet Dream", maxStacks: 11, duration: 60 * 15,
   // S6 lifts the flat 50 to 200 (Perennial's 11 stacks land on the 250 cap); S3 is +58% ATK while held
   applyStats: () => {
-    if (isHeld(CM_S3)) asSource(CM_S3, () => addStat(Stat.BonusAtk, 58));
+    if (isHeld(CM_S3)) addStatAs(CM_S3, Stat.BonusAtk, 58);
     if (!inSweetDream()) return;
     addStat(Stat.MulMv, 45 + 5 * frozenStacks());
     // S6 lifts the flat half from 45 to 195 — the 150 it adds is the node's own
-    if (isHeld(CM_S6)) asSource(CM_S6, () => addStat(Stat.MulMv, 150));
+    if (isHeld(CM_S6)) addStatAs(CM_S6, Stat.MulMv, 150);
   },
   // two real end conditions: switched off field, and "all Crimson Pistils consumed" — the latter
   // read once the press is over and its drain banked, excluding the two casts that open it
@@ -327,13 +329,13 @@ const EPIPHYTE = new Inherent({
  *  forte1 delta), same one-shot-per-qualifying-action shape as Brant's own Trial by Fire and
  *  Tide. Carries Vegetative Universe's own two effects: Crimson Pistil consumption (banked into
  *  Concerto Energy + Crimson Bud gain, per full 10 Pistils *this hit's own* consumption takes
- *  from the 100 top, not a flat 1-per-hit rate) and the Energy Regen Multiplier. */
+ *  from the 100 top, not a flat 1-per-hit rate) and the Hit Energy Multiplier. */
 const CONSUME_CRIMSON_PISTIL = new Buff({
   name: "Camellya: Consume Crimson Pistil", maxStacks: 11,
   // one stack for the consumption itself, one more per full 10 it took — those pay 4 Concerto
   // apiece on the cast that grants them (CAMELLYA_RESONATOR's updateBuffs)
   applyStats: () => {
-    addStat(Stat.EnergyRegenMult, isHeld(BUDDING_MODE) ? -100 : 150);
+    addStat(Stat.HitEnergyMult, isHeld(BUDDING_MODE) ? -100 : 150);
   },
   afterAction: () => revokeCurrent(CONSUME_CRIMSON_PISTIL),
 });
@@ -341,10 +343,11 @@ const CONSUME_CRIMSON_PISTIL = new Buff({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const CAMELLYA_TALENTS = new Talent({
   name: "Camellya: Talents",
-  stats: [[Stat.BonusAtk, 12], [Stat.CritDmg, 16]],
+  stats: [[Stat.BonusAtk, 11.9999997], [Stat.CritDmg, 16]],
 });
 
 const CAMELLYA_RESONATOR = new Resonator({
+  id: 1603,
   name: "Camellya",
   matrix: matrix("Camellya", 25),
   talent: CAMELLYA_TALENTS,
@@ -487,12 +490,15 @@ const CM_ROTATION_DOUBLE_S6 = new Rotation([
 // her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat
 export const CAMELLYA_DOUBLE_ALWAYS = new Loadout({
+  id: 16031,
   resonator: CAMELLYA_RESONATOR,
-  weapons: [RED_SPRING, EMERALD_OF_GENESIS],
-  echoLoadouts: [new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC)],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation, Substat.Skill),
+  weapons: [RED_SPRING, EMERALD_OF_GENESIS, LUMINGLOSS, FEATHER_EDGE],
+  echoes: new Echoes({
+    sets: [new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC)],
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation, Substat.Skill),
+  }),
   rotation: { 0: CM_ROTATION_DOUBLE_FAST_SUP, 6: CM_ROTATION_DOUBLE_S6 },
   sequences: CM_SEQUENCES,
 });
@@ -500,12 +506,15 @@ export const CAMELLYA_DOUBLE_ALWAYS = new Loadout({
 // her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat
 export const CAMELLYA_DOUBLE_123S6 = new Loadout({
+  id: 16032,
   resonator: CAMELLYA_RESONATOR,
-  weapons: [RED_SPRING, EMERALD_OF_GENESIS],
-  echoLoadouts: [new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC)],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation, Substat.Skill),
+  weapons: [RED_SPRING, EMERALD_OF_GENESIS, LUMINGLOSS, FEATHER_EDGE],
+  echoes: new Echoes({
+    sets: [new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC)],
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation, Substat.Skill),
+  }),
   rotation: { 0: CM_ROTATION_DOUBLE, 6: CM_ROTATION_16s_S6 },
   sequences: CM_SEQUENCES,
 });
@@ -514,12 +523,15 @@ export const CAMELLYA_DOUBLE_123S6 = new Loadout({
 // her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat
 export const CAMELLYA_123_ALWAYS_OUTRO = new Loadout({
+  id: 16033,
   resonator: CAMELLYA_RESONATOR,
-  weapons: [RED_SPRING, EMERALD_OF_GENESIS],
-  echoLoadouts: [new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC)],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation, Substat.Skill),
+  weapons: [RED_SPRING, EMERALD_OF_GENESIS, LUMINGLOSS, FEATHER_EDGE],
+  echoes: new Echoes({
+    sets: [new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC)],
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation, Substat.Skill),
+  }),
   rotation: { 0: CM_ROTATION_16s },
   sequences: CM_SEQUENCES,
 });

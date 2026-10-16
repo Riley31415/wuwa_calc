@@ -43,7 +43,6 @@ import {
   applyCurrent,
   applyEnemy,
   applyTeam,
-  asSource,
   frozenStacks,
   isHeld,
   onAction,
@@ -61,6 +60,7 @@ import {
   casting,
   previousPress,
   saveChain,
+  addStatAs,
 } from "../../engine/context.js";
 import { Action, Rotation, ECHO, ActionGroup, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
 import { tuneBreak } from "../../shared/tunebreak.js";
@@ -69,8 +69,10 @@ import {
 } from "../../shared/status.js";
 import { BLAZING_JUSTICE, TRAGICOMEDY } from "../../weapons/gauntlet.js";
 import { ABYSS_SURGES, NEW_STD_GAUNTLET } from "../../weapons/standard.js";
+import { STONARD, AETHER_STRIKE } from "../../weapons/battlepass.js";
 import { CAPITANEUS, NM_MOURNING_AIX, ETERNAL_RADIANCE_5PC } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -229,7 +231,7 @@ const Lib1 = zaniAction("Liberation - Rekindle", {
   animFrames: 200, animPriority: { 200: 2 }, castPriority: 10, timestop: [0, 200], motionStop: [0, 200],
   cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, 
-  bullets: [{ hitFrame: 120, mv: 31852, offtune: 67200 }], castConcerto: 2000, resetEnergy: true,
+  bullets: [{ hitFrame: 120, mv: 31852, offtune: 67200 }], castConcerto: 2000, castEnergy: -12500,
   updateBuffs: () => {
     applyCurrent(INFERNO_MODE, 1);
     applyTeam(BLAZE, 50);
@@ -269,7 +271,7 @@ const Outro = zaniAction("Outro - Beacon For the Future", {
   animFrames: 0,
   cast: Cast.Outro, type: Type.Outro, subtype: Subtype.SpectroFrazzle, bullets: [{ hitFrame: 0, mv: 15000 }], minConcerto: 10000, castConcerto: -10000,
   // +10% a stack, sourced to the Embers themselves so the row says which of them paid for it
-  applyStats: () => asSource(HELIACAL_EMBER, () => addStat(Stat.TotalDmg, 10 * stacksOfEnemy(HELIACAL_EMBER))),
+  applyStats: () => addStatAs(HELIACAL_EMBER, Stat.TotalDmg, 10 * stacksOfEnemy(HELIACAL_EMBER)),
   updateBuffs: () => applyTeam(BEACON, 1),
   afterAction: () => revokeEnemy(HELIACAL_EMBER),
 });
@@ -421,7 +423,7 @@ const ZANI_S6 = new Sequence({
 
 const ZANI_TALENTS = new Talent({
   name: "Zani: Talents",
-  stats: [[Stat.BonusAtk, 12], [Stat.CritRate, 8]],
+  stats: [[Stat.BonusAtk, 11.9999997], [Stat.CritRate, 8]],
 });
 
 /** Her, as a Resonator — and the Heliacal Ember conversion, which lives here because it is the
@@ -431,6 +433,7 @@ const ZANI_TALENTS = new Talent({
  *  theirs, not hers. The clamp after it is Blaze's real ceiling, 100 until Inferno Mode raises it
  *  (the Resonator can only declare the one number, so the lower tier is enforced here). */
 const ZANI_RESONATOR = new Resonator({
+  id: 1507,
   name: "Zani",
   talent: ZANI_TALENTS,
   inherent1: ZANI_INHERENT_1,
@@ -499,15 +502,18 @@ const ZANI_ROTATION_S6 = new Rotation([
 /* ----------------------------------------------------------------------------------- loadout */
 
 export const ZANI = new Loadout({
+  id: 15071,
   resonator: ZANI_RESONATOR,
-  weapons: [BLAZING_JUSTICE, NEW_STD_GAUNTLET, ABYSS_SURGES, TRAGICOMEDY],
-  echoLoadouts: [
+  weapons: [BLAZING_JUSTICE, NEW_STD_GAUNTLET, ABYSS_SURGES, TRAGICOMEDY, STONARD, AETHER_STRIKE],
+  echoes: new Echoes({
+    sets: [
     new EchoLoadout(CAPITANEUS, ETERNAL_RADIANCE_5PC),
     new EchoLoadout(NM_MOURNING_AIX, ETERNAL_RADIANCE_5PC),
   ],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Heavy, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Heavy, Substat.AtkPct, Substat.FlatAtk, Substat.Liberation, Substat.Skill),
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.Heavy, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Heavy, Substat.AtkPct, Substat.FlatAtk, Substat.Liberation, Substat.Skill),
+  }),
   rotation: {0: ZANI_ROTATION, 6: ZANI_ROTATION_S6},
   sequences: [ZANI_S1, ZANI_S2, ZANI_S3, ZANI_S4, ZANI_S5, ZANI_S6],
 });

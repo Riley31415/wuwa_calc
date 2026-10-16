@@ -68,9 +68,11 @@ import { applied } from "../../engine/context.js";
 import { applyHack, tuneHackResponse, TUNE_HACK_SHIFTING, TUNE_HACK_INTERFERED, TUNE_SHIFTABLE } from "../../shared/tunebreak.js";
 import { SPECTRAL_TRIGGER } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
+import { THUNDERBOLT, SOLAR_FLAME } from "../../weapons/battlepass.js";
 import { CELESTIAL_LIGHT_2PC, LINGERING_TUNES_2PC, MOONLIT_CLOUDS_2PC } from "../../echoes/jinzhou.js";
-import { ADAM_SMASHER_LUCY, SHATTERED_DREAMS_1PC, NEONLIGHT_LEAP_2PC, REEL_2PC } from "../../echoes/lahairoi.js";
+import { ADAM_SMASHER, SHATTERED_DREAMS_1PC, NEONLIGHT_LEAP_2PC, REEL_2PC } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -305,12 +307,12 @@ const OVERRIDE = {
 };
 const Lib = lucyAction("Liberation - Netrunner: Override", {
   animFrames: 262, animPriority: { 246: 2 }, castPriority: 10, timestop: [0, 202], motionStop: [0, 202],
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Heavy, bullets: [{ hitFrame: 251, commitFrame: 239, mv: 89465, offtune: 43200 }], castConcerto: 2000, resetEnergy: true, ...OVERRIDE, resetForte1: true
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Heavy, bullets: [{ hitFrame: 251, commitFrame: 239, mv: 89465, offtune: 43200 }], castConcerto: 2000, castEnergy: -12500, ...OVERRIDE, resetForte1: true
 });
 const ELib = lucyAction("Liberation - Old Net Deep Dive: Override", {
   requireBuff: OLD_NET_READY,
   animFrames: 262, animPriority: { 246: 2 }, castPriority: 10, timestop: [0, 262], motionStop: [0, 262],
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Heavy, bullets: [{ hitFrame: 251, commitFrame: 239, mv: 178929, offtune: 86400 }], castConcerto: 2000, resetEnergy: true, ...OVERRIDE, resetForte1: true
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Heavy, bullets: [{ hitFrame: 251, commitFrame: 239, mv: 178929, offtune: 86400 }], castConcerto: 2000, castEnergy: -12500, ...OVERRIDE, resetForte1: true
 });
 // queued off the Liberation rather than played, but active casts all the same — she fires them from
 // inside her own Protocol Interface, on field, and marking them inactive would have her drop every
@@ -528,7 +530,7 @@ const LC_INHERENT_2 = new Inherent({ name: "Inherent: Function Cracking" });
 
 const LUCY_TALENTS = new Talent({
   name: "Lucy: Talents",
-  stats: [[Stat.BonusAtk, 12], [Stat.CritRate, 8]],
+  stats: [[Stat.BonusAtk, 11.9999997], [Stat.CritRate, 8]],
 });
 
 const LUCY_MATRIX = matrix("Lucy", 0, {
@@ -536,6 +538,7 @@ const LUCY_MATRIX = matrix("Lucy", 0, {
 });
 
 export const LUCY_RESONATOR = new Resonator({
+  id: 1511,
   name: "Lucy",
   combatStart: () => applyEnemy(TUNE_SHIFTABLE, 1),
   matrix: LUCY_MATRIX,
@@ -589,11 +592,11 @@ const LC_ROTATION = new Rotation([
 /** Adam Smasher carries its own 1pc set, so the other four echoes run two ordinary 2-piece sets
  *  instead of a 5pc — ATK and Spectro. */
 const LC_ECHOES = [
-  new EchoLoadout(ADAM_SMASHER_LUCY, SHATTERED_DREAMS_1PC, CELESTIAL_LIGHT_2PC, NEONLIGHT_LEAP_2PC),
-  new EchoLoadout(ADAM_SMASHER_LUCY, SHATTERED_DREAMS_1PC, CELESTIAL_LIGHT_2PC, LINGERING_TUNES_2PC),
-  new EchoLoadout(ADAM_SMASHER_LUCY, SHATTERED_DREAMS_1PC, LINGERING_TUNES_2PC, REEL_2PC),
-  new EchoLoadout(ADAM_SMASHER_LUCY, SHATTERED_DREAMS_1PC, CELESTIAL_LIGHT_2PC, MOONLIT_CLOUDS_2PC),
-  new EchoLoadout(ADAM_SMASHER_LUCY, SHATTERED_DREAMS_1PC, LINGERING_TUNES_2PC, MOONLIT_CLOUDS_2PC),
+  new EchoLoadout(ADAM_SMASHER, SHATTERED_DREAMS_1PC, CELESTIAL_LIGHT_2PC, NEONLIGHT_LEAP_2PC),
+  new EchoLoadout(ADAM_SMASHER, SHATTERED_DREAMS_1PC, CELESTIAL_LIGHT_2PC, LINGERING_TUNES_2PC),
+  new EchoLoadout(ADAM_SMASHER, SHATTERED_DREAMS_1PC, LINGERING_TUNES_2PC, REEL_2PC),
+  new EchoLoadout(ADAM_SMASHER, SHATTERED_DREAMS_1PC, CELESTIAL_LIGHT_2PC, MOONLIT_CLOUDS_2PC),
+  new EchoLoadout(ADAM_SMASHER, SHATTERED_DREAMS_1PC, LINGERING_TUNES_2PC, MOONLIT_CLOUDS_2PC),
 ];
 
 /** Matrix — Function Cracking: her Resonance Skills mark an Overlord/Calamity target with Botnet
@@ -617,12 +620,15 @@ const NETWORK_BACKDOOR = new Buff({
 
 
 export const LUCY = new Loadout({
+  id: 15111,
   resonator: LUCY_RESONATOR,
-  weapons: [SPECTRAL_TRIGGER, NEW_STD_PISTOL, STATIC_MIST],
-  echoLoadouts: LC_ECHOES,
+  weapons: [SPECTRAL_TRIGGER, NEW_STD_PISTOL, STATIC_MIST, THUNDERBOLT, SOLAR_FLAME],
+  echoes: new Echoes({
+    sets: LC_ECHOES,
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
+    substats: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Skill),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Skill, Substat.Basic),
+  }),
   sequences: [LC_S1, LC_S2, LC_S3, LC_S4, LC_S5, LC_S6],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
-  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Skill),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Skill, Substat.Basic),
     rotation: LC_ROTATION,
 });

@@ -40,6 +40,7 @@ import { HEALS, gainShield } from "../../shared/status.js";
 import { MARCATO } from "../../weapons/standard.js";
 import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -99,7 +100,7 @@ const Liberation = jianxinAction("Liberation - Purification Force Field", {
   animFrames: 185, timestop: [0, 157], motionStop: [0, 185], castPriority: 10,
   cooldown: 60 * 20,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 185, mv: 63620 + 2983 * 15, concerto: 2000, offtune: 48000 + 3200 * 15 }], 
-  resetEnergy: true,
+  castEnergy: -15000,
 });
 
 // --- Primordial Chi Spiral: the hold at 120 Chi that starts Zhoutian Progress, spending every
@@ -256,10 +257,11 @@ const JX_INHERENT_2 = new Inherent({ name: "Inherent: Reflection" });
 
 const JIANXIN_TALENTS = new Talent({
   name: "Jianxin: Talents",
-  stats: [[Stat.BonusAtk, 12], [Stat.CritRate, 8]],
+  stats: [[Stat.BonusAtk, 11.9999997], [Stat.CritRate, 8]],
 });
 
 const JIANXIN_RESONATOR = new Resonator({
+  id: 1405,
   name: "Jianxin",
   talent: JIANXIN_TALENTS,
   inherent1: JX_INHERENT_1,
@@ -294,12 +296,15 @@ const JX_ROTATION_S2 = new Rotation([
 ]);
 
 export const JIANXIN = new Loadout({
+  id: 14051,
   resonator: JIANXIN_RESONATOR,
   weapons: [MARCATO[4]!],
-  echoLoadouts: [new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC)],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.Aero3, Mainstat.ATK3, Mainstat.ATK1),
-  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Skill),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Skill, Substat.Heavy),
+  echoes: new Echoes({
+    sets: [new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC)],
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.Aero3, Mainstat.ATK3, Mainstat.ATK1),
+    substats: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Skill),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Skill, Substat.Heavy),
+  }),
   rotation: { 2: JX_ROTATION_S2 
 
 },

@@ -80,8 +80,10 @@ import { ActionGroup, Action, Rotation, ECHO, START_LAST, INTRO_LAST, ActionTag,
 import { HAVOC_BANE, anyNegativeStatusInflicted } from "../../shared/status.js";
 import { AZURE_OATH, EMERALD_SENTENCE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
+import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
 import { THOUSAND_PUPPET_PAVILION, FEATHERED_TRACE_5PC } from "../../echoes/mengzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -311,7 +313,7 @@ const Lib = yangyangAction("Liberation - Hush of a Thousand Voices", {
     // is the fight's rather than the declared 3 (Chisa's +3 to every Negative Status cap)
     { hitFrame: 252, mv: 198810, offtune: 136400, updateDebuffs: () => applyEnemy(HAVOC_BANE, currentTeam().enemyMax(HAVOC_BANE)) },
   ], castConcerto: 2000, resetForte1: true,
-  castForte2: 1, resetEnergy: true,
+  castForte2: 1, castEnergy: -12500,
   updateBuffs: () => applyCurrent(VOICE_UPON_VOICE, 1),
 });
 /** Voice upon Voice cashed on the next Sword Stance Flow. A summon, so it is queued rather than
@@ -562,10 +564,11 @@ const XUANLING_INHERENT_2 = new Inherent({
 
 const XUANLING_TALENTS = new Talent({
   name: "Xuanling: Talents",
-  stats: [[Stat.BonusAtk, 12], [Stat.CritRate, 8]],
+  stats: [[Stat.BonusAtk, 11.9999997], [Stat.CritRate, 8]],
 });
 
 export const XUANLING_RESONATOR = new Resonator({
+  id: 1610,
   name: "Xuanling",
   stats: [[Stat.BaseHp, 11025], [Stat.BaseAtk, 425], [Stat.BaseDef, 1148.8868]],
   talent: XUANLING_TALENTS,
@@ -646,12 +649,15 @@ const XUANLING_ECHOES = [
 ];
 
 export const XUANLING = new Loadout({
+  id: 16101,
   resonator: XUANLING_RESONATOR,
-  weapons: [AZURE_OATH, EMERALD_OF_GENESIS, EMERALD_SENTENCE],
-  echoLoadouts: XUANLING_ECHOES,
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Heavy, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Heavy, Substat.AtkPct, Substat.FlatAtk, Substat.Basic, Substat.Liberation),
+  weapons: [AZURE_OATH, EMERALD_OF_GENESIS, EMERALD_SENTENCE, LUMINGLOSS, FEATHER_EDGE],
+  echoes: new Echoes({
+    sets: XUANLING_ECHOES,
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.Heavy, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Heavy, Substat.AtkPct, Substat.FlatAtk, Substat.Basic, Substat.Liberation),
+  }),
   rotation: { 0: XUANLING_ROTATION, 1: XUANLING_ROTATION_S1 },
   sequences: XL_SEQUENCES,
 });

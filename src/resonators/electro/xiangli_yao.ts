@@ -41,7 +41,9 @@ import {
 import { ActionGroup, Action, Rotation, ECHO, ActionField, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
 import { IUNO_SIG, VERITYS_HANDLE } from "../../weapons/gauntlet.js";
 import { ABYSS_SURGES, NEW_STD_GAUNTLET } from "../../weapons/standard.js";
+import { STONARD, AETHER_STRIKE } from "../../weapons/battlepass.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { NM_MEPHIS, VOID_THUNDER_5PC } from "../../echoes/jinzhou.js";
 
@@ -95,7 +97,7 @@ const Skill = xlyAction("Skill - Deduction", { animFrames: 41, castPriority: 4, 
  *  ("shortly after casting Decipher or Divergence, use Basic Attack to perform Mid-air Attack Revamp"). */
 const FSkill = xlyAction("Forte Skill - Decipher", { endPosition: Position.Midair, minForte1: 100, animFrames: 45, castPriority: 4, node: Node.Forte, cast: Cast.Skill, type: Type.Liberation, bullets: [{ hitFrame: 45, mv: 39782, energy: 167, offtune: 5336 }], castConcerto: 700, castForte1: -100});
 
-const Liberation = xlyAction("Liberation - Cogitation Model", { animFrames: 191, timestop: [0, 270], motionStop: [0, 191], castPriority: 10, cooldown: 60 * 25, node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 191, mv: 146606, offtune: 67200 }], castConcerto: 2000, resetEnergy: true,
+const Liberation = xlyAction("Liberation - Cogitation Model", { animFrames: 191, timestop: [0, 270], motionStop: [0, 191], castPriority: 10, cooldown: 60 * 25, node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 191, mv: 146606, offtune: 67200 }], castConcerto: 2000, castEnergy: -12500,
   updateBuffs: () => setStacksSelf(INTUITION, 3),
 });
 
@@ -203,10 +205,11 @@ const XLY_OUTRO: Buff = new Buff({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
 const XLY_TALENTS = new Talent({
   name: "Xiangli Yao: Talents",
-  stats: [[Stat.CritDmg, 16], [Stat.BonusAtk, 12]],
+  stats: [[Stat.CritDmg, 16], [Stat.BonusAtk, 11.9999997]],
 });
 
 const XIANGLI_YAO_RESONATOR = new Resonator({
+  id: 1305,
   name: "Xiangli Yao",
   matrix: matrix("Xiangli Yao", 25),
   talent: XLY_TALENTS,
@@ -315,12 +318,15 @@ const XLY_ROTATION = new Rotation([
 // his real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat
 export const XIANGLI_YAO = new Loadout({
+  id: 13051,
   resonator: XIANGLI_YAO_RESONATOR,
-  weapons: [IUNO_SIG, NEW_STD_GAUNTLET, VERITYS_HANDLE, ABYSS_SURGES],
-  echoLoadouts: [new EchoLoadout(NM_MEPHIS, VOID_THUNDER_5PC)],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Skill),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Skill, Substat.Basic),
+  weapons: [IUNO_SIG, NEW_STD_GAUNTLET, VERITYS_HANDLE, ABYSS_SURGES, STONARD, AETHER_STRIKE],
+  echoes: new Echoes({
+    sets: [new EchoLoadout(NM_MEPHIS, VOID_THUNDER_5PC)],
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Skill),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Skill, Substat.Basic),
+  }),
   rotation: XLY_ROTATION,
   sequences: XLY_SEQUENCES,
 });

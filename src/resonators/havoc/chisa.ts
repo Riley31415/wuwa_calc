@@ -86,9 +86,11 @@ import {
 } from "../../shared/status.js";
 import { KUMOKIRI, WILDFIRE_MARK } from "../../weapons/broadblade.js";
 import { DISCORD, LUSTROUS_RAZOR, NEW_STD_BRAUDBLADE } from "../../weapons/standard.js";
+import { AUTUMNTRACE, AUREATE_ZENITH } from "../../weapons/battlepass.js";
 import { THRENODIAN_LEVIATHAN, THREAD_OF_SEVERED_FATE_3PC } from "../../echoes/septimont.js";
 import { BELL_BORNE_GEOCHELONE, FALLACY, HAVOC_ECLIPSE_2PC, HERON, MOONLIT_CLOUDS_2PC, MOONLIT_CLOUDS_5PC, REJUV_2PC, REJUV_5PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -280,7 +282,7 @@ const SerratedLoopHold = chisaAction("Forte Skill - Serrated Loop (Hold)", { cas
  *  Woven Myriad - Convergence (+120% MV to Blitz/Eradication until Eradication resolves it). */
 const Liberation = chisaAction("Liberation - Moment of Nihility", {
   animFrames: 220, animPriority: { 220: 1 }, castPriority: 10, timestop: [0, 220], motionStop: [0, 170], cooldown: 60 * 25,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, castEnergy: -12500,
   // the team heal lands at 170f, 10f behind the hit (wuwalab)
   bullets: [
     { hitFrame: 160, mv: 95429, offtune: 96000 },
@@ -651,10 +653,11 @@ const CS_INHERENT_2 = new Inherent({
 
 const CHISA_TALENTS = new Talent({
   name: "Chisa: Talents",
-  stats: [[Stat.BonusAtk, 12], [Stat.CritRate, 8]],
+  stats: [[Stat.BonusAtk, 11.9999997], [Stat.CritRate, 8]],
 });
 
 const CHISA_RESONATOR = new Resonator({
+  id: 1508,
   name: "Chisa",
   talent: CHISA_TALENTS,
   inherent1: CS_INHERENT_1,
@@ -703,12 +706,15 @@ const CS_ECHOES = [
 ];
 
 export const CHISA = new Loadout({
+  id: 15081,
   resonator: CHISA_RESONATOR,
-  weapons: [KUMOKIRI, LUSTROUS_RAZOR, NEW_STD_BRAUDBLADE, DISCORD, WILDFIRE_MARK],
-  echoLoadouts: CS_ECHOES,
-  mainstats: mainstatOptions(Mainstat.CD4, Mainstat.CR4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Basic),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Skill, Substat.Basic),
+  weapons: [KUMOKIRI, LUSTROUS_RAZOR, NEW_STD_BRAUDBLADE, DISCORD, WILDFIRE_MARK, AUTUMNTRACE, AUREATE_ZENITH],
+  echoes: new Echoes({
+    sets: CS_ECHOES,
+    mainstats: mainstatOptions(Mainstat.CD4, Mainstat.CR4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Basic),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Skill, Substat.Basic),
+  }),
   rotation: CS_ROTATION,
   sequences: CS_SEQUENCES,
 });

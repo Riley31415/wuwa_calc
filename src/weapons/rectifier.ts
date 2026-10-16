@@ -50,6 +50,7 @@ export const RIME_DRAPED_SPROUTS = refinements((r, rank) => {
     },
   });
   return new Weapon({
+    id: 21050026,
     weaponType: WeaponType.Rectifier, name: `Rime-Draped Sprouts${rank}`,
     stats: [[Stat.BaseAtk, 500], [Stat.CritDmg, 72], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     grants: [{ on: onCast(Cast.Skill), buff: PANORAMA_STACKS }],
@@ -67,6 +68,7 @@ export const STRINGMASTER = refinements((r, rank) => {
     },
   });
   return new Weapon({
+    id: 21050016,
     weaponType: WeaponType.Rectifier, name: `Stringmaster${rank}`,
     stats: [[Stat.BaseAtk, 500], [Stat.CritRate, 36], [Stat.DmgBonus, [12, 15, 18, 21, 24][r]!]],
     grants: [{ on: onType(Type.Skill), buff: STRINGMASTER_STACKS, onHit: true }],
@@ -86,6 +88,7 @@ export const WHISPERS_OF_SIRENS = refinements((r, rank) => {
     },
   });
   return new Weapon({
+    id: 21050056,
     weaponType: WeaponType.Rectifier, name: `Whispers of Sirens${rank}`,
     stats: [[Stat.BaseAtk, 500], [Stat.CritDmg, 72], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     // Every Echo Skill cast banks a stack, her own kit's included — Cantarella's Skill, her Forte
@@ -110,6 +113,7 @@ export const LETHEAN_ELEGY = refinements((r, rank) => {
     ],
   });
   return new Weapon({
+    id: 21050066,
     weaponType: WeaponType.Rectifier, name: `Lethean Elegy${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritRate, 24.3], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     grants: [{ on: onType(Type.Echo), buff: UNDERWORLD_REQUIEM, onHit: true }],
@@ -131,6 +135,7 @@ export const FREEZE_FRAME = refinements((r, rank) => {
     stats: [[Stat.BonusAtk, [24, 30, 36, 42, 48][r]!]],
   });
   return new Weapon({
+    id: 21050086,
     weaponType: WeaponType.Rectifier, name: `Freeze Frame${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritRate, 24.3], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     grants: [
@@ -160,6 +165,7 @@ export const SK_SIG = refinements((r, rank) => {
     },
   });
   return new Weapon({
+    id: 21050036,
     weaponType: WeaponType.Rectifier, name: `Stellar Symphony${rank}`,
     stats: [[Stat.BaseAtk, 412.5], [Stat.ER, 77.04], [Stat.BonusHp, [12, 15, 18, 21, 24][r]!]],
     combatStart: () => applyCurrent(SK_SIG_CHARGE, 1),
@@ -190,6 +196,7 @@ export const LUMINOUS_HYMN = refinements((r, rank) => {
     stats: [[Stat.Amp, [30, 37.5, 45, 52.5, 60][r]!, Subtype.SpectroFrazzle]],
   });
   return new Weapon({
+    id: 21050046,
     weaponType: WeaponType.Rectifier, name: `Luminous Hymn${rank}`,
     stats: [[Stat.BaseAtk, 500], [Stat.CritRate, 36], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     grants: [
@@ -219,6 +226,7 @@ export const FORGED_DWARF_STAR = refinements((r, rank) => {
     hitGlobal: () => { if (applied(FUSION_BURST) || applied(TUNE_STRAIN_SHIFTING)) applyTeam(DISSOLUTION_TEAM, 1); },
   });
   return new Weapon({
+    id: 21050076,
     weaponType: WeaponType.Rectifier, name: `Forged Dwarf Star${rank}`,
     stats: [[Stat.BaseAtk, 500], [Stat.CritRate, 36], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     grants: [{ on: onInflict(FUSION_BURST, TUNE_STRAIN_SHIFTING), buff: DISSOLUTION_LIB }],
@@ -250,6 +258,7 @@ export const FIRSTLIGHTS_HERALD = refinements((r, rank) => {
   });
   const bothMarks = (): boolean => isHeld(SNOW_TAINT) && isHeld(RIPPLES);
   return new Weapon({
+    id: 21050096,
     weaponType: WeaponType.Rectifier, name: `Firstlight's Herald${rank}`,
     stats: [[Stat.BaseAtk, 412.5], [Stat.ER, 77.04], [Stat.BonusHp, [12, 15, 18, 21, 24][r]!]],
     combatStart: () => applyCurrent(SPRING_WREATH, 1),
@@ -284,6 +293,7 @@ export const BLOOMING_JADEHAVEN = refinements((r, rank) => {
     stats: [[Stat.Amp, [30, 37.5, 45, 52.5, 60][r]!, Subtype.ElectroFlare]], when: isActive,
   });
   return new Weapon({
+    id: 21050116,
     weaponType: WeaponType.Rectifier, name: `Blooming Jadehaven${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritRate, 24.3], [Stat.DmgBonus, [12, 15, 18, 21, 24][r]!]],
     grants: [

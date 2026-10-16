@@ -26,7 +26,6 @@
 import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, BuffTarget, Position } from "../../engine/stats.js";
 import { Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
-  asSource,
   isType,
   isHeld,
   applyCurrent,
@@ -36,7 +35,8 @@ import {
   revokeTeam,
   revokeEnemy,
   casting,
-  currentHit, addGain,
+  currentHit,
+  addGain,
   onAction,
   runningAction,
   currentTeam,
@@ -48,12 +48,15 @@ import {
   onCast,
   previousPress,
   saveChain,
+  addStatAs,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, NOINTRO, ECHO, ActionTag, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
 import { WILDFIRE_MARK } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
+import { AUTUMNTRACE, AUREATE_ZENITH } from "../../weapons/battlepass.js";
 import { LIONESS_OF_GLORY, CLAWPRINT_5PC } from "../../echoes/septimont.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 
@@ -205,7 +208,7 @@ const USkill = lupaAction("Skill - Foebreaker", {
 // tops Wolflame to 100, spends every point of Wolfaith, opens Pack Hunt/Glory
 const Liberation = lupaAction("Liberation - Fire-Kissed Glory", {
   animFrames: 220, animPriority: { 200: 4, 210: 2 }, castPriority: 10, timestop: [0, 220], motionStop: [13, 220], cooldown: 60 * 20,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 168, mv: 82044, offtune: 48000 }], castConcerto: 2000, castForte1: 1500000, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 168, mv: 82044, offtune: 48000 }], castConcerto: 2000, castForte1: 1500000, castEnergy: -12500,
   // "Restores 100 points of Wolflame" is a hard top-off, not additive on top of whatever was
   // already held, and every point of Wolfaith goes: both reset ahead of the declared +100
   resetForte1: true, resetForte2: true,
@@ -293,7 +296,7 @@ const PACK_HUNT = new Buff({
     // since this buff is the team's and `isHeld()` here would only ever answer for whoever is up
     const fusionCount = currentTeam().slots.filter((s) => s.resonator?.element === Attribute.Fusion).length;
     if (fusionCount >= 3) addStat(Stat.DmgBonus, 10, Attribute.Fusion);
-    else if (lupaHolds(LP_S3)) asSource(LP_S3, () => addStat(Stat.DmgBonus, 10, Attribute.Fusion));
+    else if (lupaHolds(LP_S3)) addStatAs(LP_S3, Stat.DmgBonus, 10, Attribute.Fusion);
   },
 });
 
@@ -314,7 +317,7 @@ const GLORY = new Buff({
     // S3 replaces the count outright — a flat 15% for the team however many Fusion resonators
     // stand in it, which is what the count reaches at three anyway. Her node, read off her own
     // slot: this buff pays whoever is acting, not its owner
-    if (lupaHolds(LP_S3)) { asSource(LP_S3, () => addStat(Stat.ResIgnore, 15, Attribute.Fusion)); return; }
+    if (lupaHolds(LP_S3)) { addStatAs(LP_S3, Stat.ResIgnore, 15, Attribute.Fusion); return; }
     addStat(Stat.ResIgnore, 3 * frozenStacks(), Attribute.Fusion);
     if (frozenStacks() >= 3) addStat(Stat.ResIgnore, 6, Attribute.Fusion);
   },
@@ -446,12 +449,13 @@ const LP_SEQUENCES = [LP_S1, LP_S2, LP_S3, LP_S4, LP_S5, LP_S6];
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const LUPA_TALENTS = new Talent({
   name: "Lupa: Talents",
-  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 12]],
+  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 11.9999997]],
 });
 
 /** Her, as a Resonator: name/element/weapon, every grant/spend/queue rule her kit needs, and her
  *  own base stat line. Sequence-0 only — a limited 5-star (`Tier.Limited`). */
 const LUPA_RESONATOR = new Resonator({
+  id: 1207,
   name: "Lupa",
   stats: [[Stat.BaseHp, 11912.5], [Stat.BaseAtk, 387.5], [Stat.BaseDef, 1185.5534]],
   talent: LUPA_TALENTS,
@@ -490,11 +494,11 @@ const LUPA_RESONATOR = new Resonator({
 });
 
 const MA12 = new ActionGroup("Mid-air - Flaming Star 12", [MA1, MA2]);
-const Skill12 = new ActionGroup("Skill - Shewolf's Hunt + Feral Fang", [Skill1, Skill2]);
 
 const LP_LOOP = new Rotation([
-  NOINTRO, BA1.instaCancel(), Skill1, INTRO, ECHO.instaDodge(),
-  Liberation, USkill, MA12, EMA3, EHA4.mashCancel(), UFSkill.swapCancel(), OUTRO,
+  NOINTRO, BA1.instaCancel(), Skill1.cancel(), 
+  INTRO, ECHO.instaDodge(), Liberation, 
+  USkill, MA12, EMA3, EHA4.mashCancel(), UFSkill.swapCancel(), OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
@@ -502,15 +506,18 @@ const LP_LOOP = new Rotation([
 // her real 43311 build: resonator + talents + both Inherent Skills + Forte Circuit, weapon,
 // mainslot echo, sonata pieces, mainstat/substat
 export const LUPA = new Loadout({
+  id: 12071,
   resonator: LUPA_RESONATOR,
-  weapons: [WILDFIRE_MARK, NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR],
-  echoLoadouts: [
+  weapons: [WILDFIRE_MARK, NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR, AUTUMNTRACE, AUREATE_ZENITH],
+  echoes: new Echoes({
+    sets: [
     new EchoLoadout(LIONESS_OF_GLORY, CLAWPRINT_5PC),
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
   ],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
-  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Skill),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Skill, Substat.Heavy),
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
+    substats: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Skill),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Skill, Substat.Heavy),
+  }),
   rotation: { 0: LP_LOOP },
   sequences: LP_SEQUENCES,
 });

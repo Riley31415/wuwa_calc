@@ -57,7 +57,6 @@ import {
   addBuff,
   addStat,
   applied,
-  asSource,
   appliedByMember,
   applyCurrent,
   applyEnemy,
@@ -82,14 +81,17 @@ import {
   isActive,
   addForte1,
   addGain,
+  addStatAs,
 } from "../../engine/context.js";
 import { Action, ActionField, ActionGroup, Rotation, ECHO, ActionTag, INTRO, OUTRO, DOUBLE_INTRO, INTRO_OPENER, DODGE } from "../../engine/rotation.js";
 import { UNISON, UNISON_BOON, UNISON_RESPONSE, BOON_REACTOR, grantBoon, respondToUnison, unisonIntro, unisonOutro, unisonResponse } from "../../shared/unison.js";
 import { ELECTRO_FLARE, ELECTRO_RAGE, FLARE_RETAINED, inflictElectroFlare } from "../../shared/status.js";
 import { BLOOMING_JADEHAVEN, FREEZE_FRAME, LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";
 import { COSMIC_RIPPLES } from "../../weapons/standard.js";
-import { STAY_TUNED_HSIN, SWORN_VIGIL_5PC } from "../../echoes/mengzhou.js";
+import { AUGMENT, RADIANT_DAWN } from "../../weapons/battlepass.js";
+import { STAY_TUNED, SWORN_VIGIL_5PC } from "../../echoes/mengzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -127,7 +129,7 @@ const flareHit = (name: string, mul: () => number, def: object = {}, source: (()
   new Action(name, {
     element: Attribute.Electro, type: Type.Status, subtype: Subtype.ElectroFlare, scaling: Scaling.Dot, bullets: [{ hitFrame: 0 }],
     applyStats: () => {
-      if (source) asSource(source(), () => addStat(Stat.MulMv, mul()));
+      if (source) addStatAs(source(), Stat.MulMv, mul());
       else addStat(Stat.MulMv, mul());
     },
     ...def,
@@ -467,7 +469,7 @@ const Lib2 = hsinAction("Liberation - Pillars Across Heaven", {
     { hitFrame: 190, mv: 10064, offtune: 2448 },
     { hitFrame: 214, mv: 7045, offtune: 1714 },
     { hitFrame: 240, mv: 161012, offtune: 39168, updateDebuffs: () => { if (isHeld(HS_S3) && isHeld(MODE_FLARE) && stacksOfEnemy(ELECTRO_FLARE) > 0) queue(PillarsFlare); } },
-  ], castConcerto: 2000, resetEnergy: true,
+  ], castConcerto: 2000, castEnergy: -12500,
   updateBuffs: () => {
     revokeCurrent(PILLARS_UNLOCKED); revokeCurrent(ILLUMINING_FORM); revokeCurrent(HEART_MANIFEST);
     applyCurrent(ANSWERING_FORM, 1);
@@ -916,7 +918,7 @@ const HS_SEQUENCES = [HS_S1, HS_S2, HS_S3, HS_S4, HS_S5, HS_S6];
 
 const HSIN_TALENTS = new Talent({
   name: "Hsin: Talents",
-  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 12]],
+  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 11.9999997]],
 });
 
 /** Normal Attack, Resonance Skill and Intro Skill - Answering Form (Manifold included): the hits that
@@ -924,6 +926,7 @@ const HSIN_TALENTS = new Talent({
 const ANSWERING_HEART_HITS = new Set<Action>([BA1, BA2, BA3, BA4, HA, MA, ReignHold, ReignPlunge, DC, Skill, UIntro, ManifoldAnswering, FlareIntro]);
 
 export const HSIN_RESONATOR = new Resonator({
+  id: 1311,
   name: "Hsin",
   talent: HSIN_TALENTS,
   inherent1: HS_INHERENT_1,
@@ -1007,7 +1010,8 @@ const HS_ROTATION_FLARE_S2 = new Rotation([
 // again, so the section's own Stage 3-4 continue it: 126 Heart into Realm Protector's 100.
 const HS_ROTATION_UNISON = new Rotation([
   DOUBLE_INTRO, BA34.holdCancel(),
-  RealmProtector, Lib1, OUTRO,
+  RealmProtector, Lib1,
+  IBA1.instaCancel(), ISkill.instaSwap(), OUTRO,
 
   INTRO, 
   ECHO, 
@@ -1016,7 +1020,8 @@ const HS_ROTATION_UNISON = new Rotation([
 ]);
 const HS_ROTATION_UNISON_S2 = new Rotation([
   DOUBLE_INTRO, BA34.holdCancel(), INTRO_OPENER,  
-  RealmProtector, Lib1, OUTRO,
+  RealmProtector, Lib1, 
+  IBA1.instaCancel(), ISkill.instaSwap(), OUTRO,
 
   INTRO, 
   ECHO, 
@@ -1029,24 +1034,30 @@ const HS_ROTATION_UNISON_S2 = new Rotation([
 // her real 43311 build in Electro Flare mode: resonator + talents + both Inherent Skills, her own
 // rectifier and echo, the two Electro Flare sonatas, mainstat/substat
 export const HSIN_FLARE = new Loadout({
+  id: 13111,
   resonator: HSIN_RESONATOR,
-  weapons: [BLOOMING_JADEHAVEN, COSMIC_RIPPLES, STRINGMASTER, LETHEAN_ELEGY, FREEZE_FRAME],
-  echoLoadouts: [new EchoLoadout(STAY_TUNED_HSIN, SWORN_VIGIL_5PC)],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Skill, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Skill, Substat.AtkPct, Substat.FlatAtk, Substat.Basic, Substat.Liberation),
+  weapons: [BLOOMING_JADEHAVEN, COSMIC_RIPPLES, STRINGMASTER, LETHEAN_ELEGY, FREEZE_FRAME, AUGMENT, RADIANT_DAWN],
+  echoes: new Echoes({
+    sets: [new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC)],
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.Skill, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Skill, Substat.AtkPct, Substat.FlatAtk, Substat.Basic, Substat.Liberation),
+  }),
   rotation: {0: HS_ROTATION_FLARE, 2: HS_ROTATION_FLARE_S2},
   mode: MODE_FLARE,
   sequences: HS_SEQUENCES,
 });
 
 export const HSIN_UNISON = new Loadout({
+  id: 13112,
   resonator: HSIN_RESONATOR,
-  weapons: [BLOOMING_JADEHAVEN, COSMIC_RIPPLES, STRINGMASTER, LETHEAN_ELEGY, FREEZE_FRAME],
-  echoLoadouts: [new EchoLoadout(STAY_TUNED_HSIN, SWORN_VIGIL_5PC)],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Skill, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Basic, Substat.Liberation),
+  weapons: [BLOOMING_JADEHAVEN, COSMIC_RIPPLES, STRINGMASTER, LETHEAN_ELEGY, FREEZE_FRAME, AUGMENT, RADIANT_DAWN],
+  echoes: new Echoes({
+    sets: [new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC)],
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.Skill, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Basic, Substat.Liberation),
+  }),
   rotation: {0: HS_ROTATION_UNISON, 2: HS_ROTATION_UNISON_S2},
   mode: MODE_UNISON,
   sequences: HS_SEQUENCES,

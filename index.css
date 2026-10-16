@@ -527,7 +527,7 @@ svg.pie text { text-rendering: geometricPrecision; }
 svg.bars .axis { stroke: var(--line-2); }
 /* every bar of the hovered action lit, a touch taller off the axis it stands on */
 svg.bars rect { transform-box: fill-box; transform-origin: bottom; }
-svg.bars rect.lit { filter: brightness(1.35); transform: scaleY(1.08); }
+svg.bars rect.lit { fill: var(--lit); transform: scaleY(1.08); }
 /* A hovered bar's action at the cursor (panels.ts's `showBarPop`): its caster's bar and wash, the
    name and its summed damage in full ink, its share of the figure dimmed. */
 .barpop {
@@ -777,7 +777,7 @@ main {
    Rounded and shadowed, unlike everything else in this file — they float over the page rather
    than sitting in its grid, and the pill shape is what says "this is a token you can dismiss",
    so they opt out of the square-corner rule at the top on purpose. */
-.tcchips { display: flex; flex-direction: column; gap: 8px; }
+.tcchips, .tcpins { display: flex; flex-direction: column; gap: 8px; }
 /* the two sections the chips stand in — Include and Exclude — each its label and then its chips,
    wrapping; which way a filter runs is said here rather than inside the chip */
 .chipsec { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
@@ -785,15 +785,15 @@ main {
 /* the one-line "Clear Filters" under the chips: plain underlined grey text, no button about it.
    The underline goes on the inner span: a button's own text-decoration doesn't reach its text in
    every browser (Firefox drops it). */
-.clearall {
+.clearall, .clearpins {
   /* the 4px under the text is where the underline sits: the aside is a scroll container and
      clips whatever paints past a child's own box, which a 3px-offset underline on a box that ends
      at the text does */
   align-self: flex-start; padding: 0 0 4px; border: 0; background: none; cursor: pointer;
   font-family: var(--sans); font-size: 12px; color: var(--dim);
 }
-.clearall span { text-decoration: underline; text-underline-offset: 3px; }
-.clearall:hover { color: var(--ink); }
+.clearall span, .clearpins span { text-decoration: underline; text-underline-offset: 3px; }
+.clearall:hover, .clearpins:hover { color: var(--ink); }
 .chiplabel {
   font-size: 10px; font-weight: 650; text-transform: uppercase; letter-spacing: .7px;
   color: var(--dim);
@@ -833,11 +833,8 @@ main {
 }
 .ctxitem:hover { background: color-mix(in srgb, var(--ink) 8%, var(--surface-3)); }
 
-/* an Equipment cell that opens a menu of other picks (page/pickmenu.ts) — no underline anywhere once
-   one is open */
+/* an Equipment cell that opens a menu of other picks (page/pickmenu.ts) */
 .rtable.loadout .c[data-pick] { cursor: pointer; }
-.rtable.loadout .c[data-pick]:hover { text-decoration: underline dotted; text-underline-offset: 3px; }
-body:has(.pickbox) .rtable.loadout .c[data-pick] { text-decoration: none; }
 /* ...its dropdown, every box cut to the cell's own width and look (pickmenu.ts's `dressAs`), with no
    ring round it to cover the box drawn over the cell */
 .ctxmenu.pickdrop { min-width: 0; box-shadow: var(--sh-drop); }
@@ -897,7 +894,7 @@ body:has(.pickbox) .rtable.loadout .c[data-pick] { text-decoration: none; }
      `sectionBreakdownPopover`). Overridden by an inline style whenever a Show ... Options box is
      open (see index.ts's own `comparisonTable()`): the weapon/echo/mainstat columns those add are
      conditional on the current filters, not something a static rule here can know. */
-  grid-template-columns: repeat(3, max-content) repeat(3, max-content);
+  grid-template-columns: max-content repeat(3, max-content) repeat(3, max-content);
   align-items: stretch;
 }
 .trow { display: contents; }
@@ -1008,6 +1005,13 @@ body:has(.pickbox) .rtable.loadout .c[data-pick] { text-decoration: none; }
 .tgrid.hued .trow:not(.thead):hover .c.baseline {
   background: color-mix(in srgb, hsl(var(--hue, 120) 60% 42%) 20%, var(--surface));
 }
+/* the Pin column (table.ts's `pinCell`): a faint pin, tilted like the emoji, that turns accent blue
+   once the row is pinned; only a hover on the cell itself lifts an unpinned one */
+.trow .c.pin { cursor: pointer; text-align: center; }
+.trow .c.pin .pinmark { width: 14px; height: 14px; vertical-align: -2px; fill: var(--faint); transform: rotate(45deg); }
+.trow .c.pin:not(.on):hover .pinmark { fill: var(--dim); }
+.trow .c.pin.on .pinmark { fill: var(--accent); }
+
 /* the pinned row: an outline only, since its colour is already the ramp's green */
 .trow.isbaseline .c.baseline {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, hsl(var(--hue, 120) 65% 50%) 55%, transparent);
@@ -1070,11 +1074,10 @@ body:has(.pickbox) .rtable.loadout .c[data-pick] { text-decoration: none; }
    name sizes only its own label column, leaving Node/Type/Type 2 and the Total row above at their
    natural tag widths. */
 
-/* The final-damage panel is a product, not a column of amounts: every row below the leading stat
-   is a multiplier, so its figures read left-aligned — flush right pushed the `x` signs apart and
-   left the factors in a ragged column no one could compare down. `tabular-nums` (inherited from
-   `.pop td.v`) still lines the digits themselves up. */
-.pop.damage td.v { text-align: left; }
+/* The avg cell's hits table: a label column, then Avg / Crit / Base flush right with a gap
+   between them, the header's first cell over the labels. */
+.pop.hits td.v { padding-left: 14px; }
+.pop.hits .sec td:first-child { text-align: left; }
 
 /* The action hover is a list of what the cast *is* — Skill, Fusion, Basic — not of figures, so its
    values read left-aligned against their labels rather than flush right on lengths that mean
@@ -1189,6 +1192,14 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
   border: 1px solid var(--accent);
   pointer-events: none;
   z-index: 41;
+}
+/* the copy buttons under a table block (table.ts's `showCopyMenu`): a `.ctxmenu` card laid in the
+   table's wrap so it scrolls with the block */
+.copymenu {
+  position: absolute; z-index: 42;
+  border-radius: var(--r); overflow: hidden;
+  background: var(--surface-3); box-shadow: var(--sh-2);
+  display: flex; flex-direction: column;
 }
 
 .r {
@@ -1366,8 +1377,8 @@ body.coldrag { user-select: none; }
    `.buffed` note's, drawn only when a buff moved the cell, and takes the red with it then. */
 .c.underspent { color: #e5484d; }
 
-/* forte gauges only: the gauge itself has gone negative — same red treatment as underspent
-   concerto, since it's the same "ran out" story. */
+/* any bar — energy, concerto, off-tune, forte — the cast found outside its condition, or a step
+   of the press spent below empty: the same "ran out" story as underspent. */
 .c.negative { color: #e5484d; }
 
 .c.buffed.underspent, .c.buffed.negative { text-decoration-color: currentColor; }
@@ -1502,6 +1513,8 @@ body.coldrag { user-select: none; }
 /* A one-line panel: prose, not figures, so it reads in the page's own face rather than the
    tabular one every other panel uses. */
 .pop.tip { font-family: inherit; font-size: 12px; color: var(--ink-2); }
+/* a requirement row's trailing note ("(Met)", "+ 5.00 raw"), after its right-aligned figure */
+.pop.tip td.n { padding-left: 6px; white-space: nowrap; }
 
 /* No `width: 100%` — that stretched every panel out to `.pop`'s own box (which used to carry a
    flat `min-width: 250px`, gone now too) rather than letting the table size itself, so a
@@ -1744,14 +1757,6 @@ main.stack { padding: 0 12px 420px; }
   .tcsearch { max-width: none; }
 }
 
-/* The line the README opens on is the warning, not a note: it is the one thing in that box a
-   reader has to have read, so it carries the table's own red (`.c.underspent`) and an underline. */
-.tcopt[data-note="readme"] .tcopt-desc li:first-child {
-  color: #e5484d;
-  text-decoration: underline;
-}
-/* the warning is the line, not the bullet beside it, which keeps the colour every other one has */
-.tcopt[data-note="readme"] .tcopt-desc li:first-child::marker { color: var(--dim); }
 
 /* ------------------------------------------------------------------ tutorial */
 
@@ -1835,7 +1840,9 @@ main.stack { padding: 0 12px 420px; }
   cursor: pointer;
 }
 .tut-skip { font-size: 11px; }
-/* the README's warning */
+/* The README's styled lines, each its own class on the line and never the bullet beside it: the beta
+   notice in the table's own red (`.c.underspent`), the rotation-time warning in yellow. */
+.readme-beta { color: #e5484d; text-decoration: underline; }
 .readme-warn { color: #f5d042; text-decoration: underline; }
 /* the first card's whole ask: white, blue under the pointer */
 .tut-begin {

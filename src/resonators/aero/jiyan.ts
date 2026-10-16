@@ -47,8 +47,10 @@ import {
 import { Action, Cooldown, Rotation, START_LAST, ECHO, ActionField, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
 import { VERDANT_SUMMIT } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
+import { AUTUMNTRACE, AUREATE_ZENITH } from "../../weapons/battlepass.js";
 import { NM_FEILIAN_BERINGAL, SIERRA_GALE_5PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { NM_KELPIE, WINDWARD_5PC } from "../../echoes/rinascita.js";
 import { CARTETHYIA_RESONATOR } from "./cartethyia.js";
@@ -152,7 +154,7 @@ const Skill = jiyanAction("Skill - Windqueller", {
 const Liberation = jiyanAction("Liberation - Emerald Storm: Prelude", {
   animFrames: 60, timestop: [0, 60], motionStop: [0, 60], castPriority: 10,
   cooldown: 60 * 16,
-  node: Node.Liberation, cast: Cast.Liberation, castConcerto: 2000, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, castConcerto: 2000, castEnergy: -12500,
   updateBuffs: () => {
     applyCurrent(QINGLOONG_MODE, 1);
     if (forte1() >= 30) queue(Finale);
@@ -254,10 +256,11 @@ const JIYAN_OUTRO: Buff = new Buff({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
 const JIYAN_TALENTS = new Talent({
   name: "Jiyan: Talents",
-  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 12]],
+  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 11.9999997]],
 });
 
 const JIYAN_RESONATOR = new Resonator({
+  id: 1404,
   name: "Jiyan",
   matrix: matrix("Jiyan", 25),
   talent: JIYAN_TALENTS,
@@ -393,14 +396,17 @@ const JY_ROTATION_S6 = new Rotation([
 // his real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat
 export const JIYAN = new Loadout({
+  id: 14041,
   resonator: JIYAN_RESONATOR,
-  weapons: [VERDANT_SUMMIT, NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR],
-  echoLoadouts: [new EchoLoadout(NM_FEILIAN_BERINGAL, SIERRA_GALE_5PC),
+  weapons: [VERDANT_SUMMIT, NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR, AUTUMNTRACE, AUREATE_ZENITH],
+  echoes: new Echoes({
+    sets: [new EchoLoadout(NM_FEILIAN_BERINGAL, SIERRA_GALE_5PC),
       // Windward's 5pc needs Aero Erosion on the target, which only these three inflict
       new EchoLoadout(NM_KELPIE, WINDWARD_5PC).requires(CARTETHYIA_RESONATOR, CIACCONA_RESONATOR, ROVER_AERO_RESONATOR),],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
-  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Skill),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Skill, Substat.Basic),
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
+    substats: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Skill),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Skill, Substat.Basic),
+  }),
   rotation: { 0: JY_ROTATION, 6: JY_ROTATION_S6 },
   sequences: JY_SEQUENCES,
 });

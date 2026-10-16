@@ -44,8 +44,10 @@ import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 import { STAY_TUNED_3C, SWORN_VIGIL_5PC, ELECTRIC_REFLECTION_5PC, STAY_TUNED } from "../../echoes/mengzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { BLAZING_BRILLIANCE, RED_SPRING, UNSPOKEN_RUE } from "../../weapons/sword.js";
+import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
 import { HSIN_RESONATOR } from "./hsin.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -219,7 +221,7 @@ const THRUMS = new Set<Action>([
 ]);
 
 // --- liberation / intro / outro
-const Liberation = roverAction("Liberation - Ultimate Tactics", { animFrames: 224, castPriority: 10, bullets: [{ hitFrame: 190, mv: 119286, offtune: 57600 }], timestop: [0, 224], motionStop: [0, 224], cooldown: 60 * 25, node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, castConcerto: 2000, resetEnergy: true });
+const Liberation = roverAction("Liberation - Ultimate Tactics", { animFrames: 224, castPriority: 10, bullets: [{ hitFrame: 190, mv: 119286, offtune: 57600 }], timestop: [0, 224], motionStop: [0, 224], cooldown: 60 * 25, node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, castConcerto: 2000, castEnergy: -12500 });
 const Intro = roverAction("Intro - Thunderous Fury", { endPosition: Position.Grounded, qteFrames: 70, animFrames: 72, noSwapFrames: 72, motionStop: [5, 37], castPriority: 11,
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 44, mv: 3341, energy: 60, concerto: 216, offtune: 1920, forte1: 1060 },
@@ -343,12 +345,13 @@ const ER_S6 = new Sequence({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from their kit
 const ROVER_ELECTRO_TALENTS = new Talent({
   name: "Electro Rover: Talents",
-  stats: [[Stat.BonusAtk, 12], [Stat.CritRate, 8]],
+  stats: [[Stat.BonusAtk, 11.9999997], [Stat.CritRate, 8]],
 });
 
 /** Them, as a Resonator: name/element/weapon, every grant/spend/queue rule their kit needs, and
  *  their own base stat line. `Tier.Free` — see the file header. */
 const ROVER_ELECTRO_RESONATOR = new Resonator({
+  id: 1309,
   name: "Electro Rover",
   stats: [[Stat.BaseHp, 10775], [Stat.BaseAtk, 437.5], [Stat.BaseDef, 1136.6646]],
   talent: ROVER_ELECTRO_TALENTS,
@@ -410,9 +413,11 @@ const ER_ROTATION_MDPS = new Rotation([
 // their real build: resonator + talents + both Inherent Skills + every sequence node
 // (Tier.Free — see file header), weapon, mainslot echo, sonata pieces, mainstat/substat
 export const ROVER_ELECTRO = new Loadout({
+  id: 13091,
   resonator: ROVER_ELECTRO_RESONATOR,
-  weapons: [EMERALD_OF_GENESIS, BLAZING_BRILLIANCE, RED_SPRING, UNSPOKEN_RUE],
-  echoLoadouts: [
+  weapons: [EMERALD_OF_GENESIS, BLAZING_BRILLIANCE, RED_SPRING, UNSPOKEN_RUE, LUMINGLOSS, FEATHER_EDGE],
+  echoes: new Echoes({
+    sets: [
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
     //new EchoLoadout(STAY_TUNED, ELECTRIC_REFLECTION_5PC),
     // both its Outro handoffs are Electro: worn only for Hsin, the one Electro DPS she hands to
@@ -420,9 +425,10 @@ export const ROVER_ELECTRO = new Loadout({
     new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC),
     //new EchoLoadout(SOUL_OF_DESPAIR, SWORN_VIGIL_5PC),
   ],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Skill, Substat.AtkPct, Substat.FlatAtk, Substat.Liberation),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation, Substat.Basic),
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.Skill, Substat.AtkPct, Substat.FlatAtk, Substat.Liberation),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation, Substat.Basic),
+  }),
     rotation: ER_ROTATION,
   sequences: [
     ER_S1, ER_S2,
@@ -433,14 +439,17 @@ export const ROVER_ELECTRO = new Loadout({
 // the same kit as the team's damage dealer (see the file header): Apex and the Thrum chains, the
 // Electro sets only — Moonlit Clouds is a support's set
 export const ROVER_ELECTRO_MDPS = new Loadout({
+  id: 13092,
   resonator: ROVER_ELECTRO_RESONATOR,
-  weapons: [BLAZING_BRILLIANCE, EMERALD_OF_GENESIS, RED_SPRING, UNSPOKEN_RUE],
-  echoLoadouts: [
+  weapons: [BLAZING_BRILLIANCE, EMERALD_OF_GENESIS, RED_SPRING, UNSPOKEN_RUE, LUMINGLOSS, FEATHER_EDGE],
+  echoes: new Echoes({
+    sets: [
     new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC),
   ],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.ER3, Mainstat.Electro3, Mainstat.ATK1),
-  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.Skill, Substat.AtkPct, Substat.FlatAtk, Substat.Liberation),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation, Substat.Basic),
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.ER3, Mainstat.Electro3, Mainstat.ATK1),
+    substats: substats(Substat.CritRate, Substat.CritDmg, Substat.Skill, Substat.AtkPct, Substat.FlatAtk, Substat.Liberation),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation, Substat.Basic),
+  }),
   rotation: ER_ROTATION_MDPS,
   sequences: [ER_S1, ER_S2, ER_S3, ER_S4, ER_S5, ER_S6],
 });

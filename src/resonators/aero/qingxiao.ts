@@ -52,6 +52,7 @@ import {
   queue,
   frozenStacks,
   getStat,
+  isType,
   currentTeam,
   appliedByMember,
   addBuff,
@@ -62,8 +63,10 @@ import { ActionGroup, Action, Rotation, ECHO, START_LAST, INTRO, OUTRO, DODGE } 
 import { applyStrain, TUNE_BREAK, TUNE_STRAIN_SHIFTING, TUNE_STRAIN_INTERFERED, TUNE_SHIFTABLE, strainPayout, tuneBreak } from "../../shared/tunebreak.js";
 import { GLINT_OF_CLOUDS, RED_SPRING } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS, NEW_STD_SWORD } from "../../weapons/standard.js";
+import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
 import { CALAMITY_EFFIGY, HEART_OF_EVILS_PURGE_5PC } from "../../echoes/mengzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { NM_KELPIE, WINDWARD_5PC } from "../../echoes/rinascita.js";
 import { CARTETHYIA_RESONATOR } from "./cartethyia.js";
@@ -270,7 +273,7 @@ const Liberation = qxAction("Liberation - Billows Beneath Heaven", {
     { hitFrame: 194, commitFrame: 140, mv: 3341, offtune: 160 },
     { hitFrame: 238, mv: 133601, offtune: 6400 },
   ],
-  castConcerto: 2000, resetEnergy: true,
+  castConcerto: 2000, castEnergy: -12500,
   updateBuffs: () => applyCurrent(HEAVENS_CLARITY, 1),
 });
 
@@ -401,13 +404,14 @@ const QX_INHERENT_2 = new Inherent({
 
 const QINGXIAO_TALENTS = new Talent({
   name: "Qingxiao: Talents",
-  stats: [[Stat.BonusAtk, 12], [Stat.CritDmg, 16]],
+  stats: [[Stat.BonusAtk, 11.9999997], [Stat.CritDmg, 16]],
 });
 
 /** This kit's own carrier for the Tune Strain payout (tunebreak.ts's `strainPayout`). */
 const QX_STRAIN_PAYOUT = strainPayout();
 
 export const QINGXIAO_RESONATOR = new Resonator({
+  id: 1413,
   name: "Qingxiao",
   stats: [[Stat.BaseHp, 10300], [Stat.BaseAtk, 462.5], [Stat.BaseDef, 1112.2202], [Stat.TBB, 10]],
   talent: QINGXIAO_TALENTS,
@@ -523,7 +527,10 @@ const QX_S6 = new Sequence({
   applyStats: () => {
     if (runningAction(HA) || runningAction(FHA) || runningAction(Liberation) || runningAction(JuquePerdition)) addStat(Stat.DamageTaken, 40);
   },
-  lateConvertStats: () => addStat(Stat.TotalDmg, 0.2 * 0.12 * getStat(Stat.TBB) * stacksOfEnemy(TUNE_STRAIN_INTERFERED)),
+  // like the payout it strengthens, never on the Tune Break's own hit
+  lateConvertStats: () => {
+    if (!isType(Type.Break)) addStat(Stat.TotalDmg, 0.2 * 0.12 * getStat(Stat.TBB) * stacksOfEnemy(TUNE_STRAIN_INTERFERED));
+  },
 });
 
 const QX_SEQUENCES = [QX_S1, QX_S2, QX_S3, QX_S4, QX_S5, QX_S6];
@@ -558,14 +565,17 @@ const QX_ROTATION = new Rotation([
 ]);
 
 export const QINGXIAO = new Loadout({
+  id: 14131,
   resonator: QINGXIAO_RESONATOR,
-  weapons: [GLINT_OF_CLOUDS, EMERALD_OF_GENESIS, NEW_STD_SWORD, RED_SPRING],
-  echoLoadouts: [new EchoLoadout(CALAMITY_EFFIGY, HEART_OF_EVILS_PURGE_5PC),
+  weapons: [GLINT_OF_CLOUDS, EMERALD_OF_GENESIS, NEW_STD_SWORD, RED_SPRING, LUMINGLOSS, FEATHER_EDGE],
+  echoes: new Echoes({
+    sets: [new EchoLoadout(CALAMITY_EFFIGY, HEART_OF_EVILS_PURGE_5PC),
       // Windward's 5pc needs Aero Erosion on the target, which only these three inflict
       new EchoLoadout(NM_KELPIE, WINDWARD_5PC).requires(CARTETHYIA_RESONATOR, CIACCONA_RESONATOR, ROVER_AERO_RESONATOR),],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.FlatAtk, Substat.Heavy, Substat.Liberation),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.FlatAtk, Substat.Heavy, Substat.Liberation, Substat.Basic),
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.FlatAtk, Substat.Heavy, Substat.Liberation),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.FlatAtk, Substat.Heavy, Substat.Liberation, Substat.Basic),
+  }),
   rotation: QX_ROTATION,
   sequences: QX_SEQUENCES,
 });

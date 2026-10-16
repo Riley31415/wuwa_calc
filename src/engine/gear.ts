@@ -4,14 +4,16 @@
  * `Weapon`/`Resonator`), plus `EchoLoadout` and `Loadout`. Definitions only — what a piece
  * *does* is the hooks it declares, which `evaluate.ts` runs.
  */
-import { Stat, EnemyStat, Attribute, WeaponType, Tier, Cast, BuffTarget, ActionTag, INSTA_DELAY } from "./stats.js";
+import { Stat, EnemyStat, Attribute, WeaponType, Tier, Cast, BuffTarget, ActionTag, INSTA_DELAY, FULL_CONCERTO } from "./stats.js";
 import type { Tag } from "./stats.js";
 import type { Rotation, Action, ActionField } from "./rotation.js";
 import { ctx } from "./runtime.js";
-import type { ErSpread } from "../shared/substats.js";
+import type { ErSpread, Spread } from "../shared/substats.js";
+import type { MainstatBuild } from "../shared/mainstats.js";
+import type { Echoes } from "../shared/echoes.js";
 // the one edge back up the stack: a Resonator's own combatStart banks its base stats through
 // the ordinary API. Both names are function declarations, so the import cycle is inert at load.
-import { addStat, frozenStacks, casting, applyCurrent, applyTeam, applyEnemy, queueOutro, revokeCurrent, currentMember, currentTeam, queue, queueOn, applyOn, stacksOf, stacksOfTeam, removeStack, removeStackTeam, removeStackEnemy } from "./context.js";
+import { addStat, compileLines, payLines, frozenStacks, casting, applyCurrent, applyTeam, applyEnemy, queueOutro, revokeCurrent, currentMember, currentTeam, queue, queueOn, applyOn, stacksOf, stacksOfTeam, removeStack, removeStackTeam, removeStackEnemy } from "./context.js";
 
 /** One stat line as a kit writes it: `[stat, value]`, or `[stat, value, tag]` scoped to an
  *  element or damage type. On a piece of gear these are its constant stats; on a `Buff` they are
@@ -31,6 +33,9 @@ export type Trigger = (() => boolean) & { inflicts?: boolean };
 export interface Grant { on: Trigger; buff?: Buff | (() => Buff); stacks?: number | (() => number); to?: BuffTarget; onHit?: boolean }
 
 export interface GearDef {
+  /** Its own id: the game's, where the piece is one (a resonator, mainslot or weapon, which must
+   *  name it), else one of ours, 0 where it has none. */
+  id?: number;
   /** Unset on a hidden buff: a nameless one stays out of the held-buff popovers (engine
    *  machinery, a cooldown marker). A Gear whose display name is computed sets `toString` instead. */
   name?: string;
@@ -173,9 +178,11 @@ export class Gear {
    *  held Gear into its phase lists, rather than `evaluate()` probing six optional properties on
    *  every held Gear every action. */
   hookMask = 0;
-  /** A small integer unique to this Gear — what a variant dry run hashes a mutation by, to tell
-   *  whether it would have changed the fight (see `noteMutation()`). */
+  /** `GearDef.id`, 0 where it has none. */
   id: number;
+  /** A small integer unique to this Gear — what a variant dry run hashes a mutation by, to tell
+   *  whether it would have changed the fight (see `noteMutation()`). Engine-owned, unlike `id`. */
+  engineId: number;
   /** A dense index the pools file this Gear under (`Pool.at`), handed out the first time any pool
    *  holds it; -1 until then. Engine-owned. */
   poolIdx = -1;
@@ -184,7 +191,8 @@ export class Gear {
   hookFns: ((() => void) | undefined)[] = [];
 
   constructor(def: GearDef) {
-    this.id = nextGearId++;
+    this.engineId = nextGearId++;
+    this.id = def.id ?? 0;
     this.name = def.name ?? "";
     this.field = def.field ?? null;
     this.combatStartFn = def.combatStart;
@@ -328,11 +336,10 @@ export class Buff extends Gear {
       this.tickOwner = def.tickOwner;
     }
     if (def.stats?.length) {
-      const lines = def.stats, when = def.when, perStack = def.perStack;
+      const lines = compileLines(def.stats), when = def.when, perStack = !!def.perStack;
       const pay = (): void => {
         if (when && !when()) return;
-        const n = perStack ? frozenStacks() : 1;
-        for (const line of lines) addStat(line[0] as Stat, perStack ? line[1] * n : line[1], line[2]);
+        payLines(lines, perStack, perStack ? frozenStacks() : 1);
       };
       const own = def.applyStats;
       this.applyStatsFn = own ? () => {
@@ -372,25 +379,51 @@ export const baseSequence = (r: Resonator): number =>
 export class ResonanceMode extends Gear {}
 /** A resonance-chain level, S0 to S6 — what a loadout's rotation map is keyed by. */
 export type SequenceLevel = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+export interface SetDef extends GearDef {
+  /** Every echo of the set that can be its mainslot: all its 4-costs, and the 3-costs a kit wears.
+   *  A thunk reaches one declared further down the file. */
+  echoes: Mainslot[] | (() => Mainslot[]);
+}
+/** A set's `echoes`, read where a thunk names them. */
+const echoesOf = (def: SetDef): (() => Mainslot[]) => {
+  const echoes = def.echoes;
+  return typeof echoes === "function" ? echoes : () => echoes;
+};
 /** An echo sonata set's 2-piece bonus — worn on its own beside a 3pc/1pc set, or carried along by
  *  its own set's 5pc (see `Sonata`). The `size` literals below are what tell the set shapes apart
  *  for `EchoLoadout`'s constructor: structurally they would otherwise all be a bare Gear. */
-export class Sonata2pc extends Gear { readonly size = 2 as const; }
+export class Sonata2pc extends Gear {
+  readonly size = 2 as const;
+  private readonly echoesFn: () => Mainslot[];
+  constructor(def: SetDef) { super(def); this.echoesFn = echoesOf(def); }
+  get echoes(): Mainslot[] { return this.echoesFn(); }
+}
 export interface SonataDef extends GearDef {
   /** The set's own 2-piece bonus — five of a set is always two of it too, so the 5pc equips this
    *  alongside itself rather than a loadout having to name it separately. */
   sonata2pc: Sonata2pc;
 }
-/** An echo sonata set's 5-piece bonus, its own 2pc riding along. */
+/** An echo sonata set's 5-piece bonus, its own 2pc riding along. Its echoes are its 2pc's. */
 export class Sonata extends Gear {
   readonly size = 5 as const;
   sonata2pc: Sonata2pc;
   constructor(def: SonataDef) { super(def); this.sonata2pc = def.sonata2pc; }
+  get echoes(): Mainslot[] { return this.sonata2pc.echoes; }
 }
 /** A 3-piece set (Septimont's) — worn beside one ordinary 2pc. */
-export class Sonata3pc extends Gear { readonly size = 3 as const; }
+export class Sonata3pc extends Gear {
+  readonly size = 3 as const;
+  private readonly echoesFn: () => Mainslot[];
+  constructor(def: SetDef) { super(def); this.echoesFn = echoesOf(def); }
+  get echoes(): Mainslot[] { return this.echoesFn(); }
+}
 /** A 1-piece set (Shadow of Shattered Dreams) — worn beside two ordinary 2pcs. */
-export class Sonata1pc extends Gear { readonly size = 1 as const; }
+export class Sonata1pc extends Gear {
+  readonly size = 1 as const;
+  private readonly echoesFn: () => Mainslot[];
+  constructor(def: SetDef) { super(def); this.echoesFn = echoesOf(def); }
+  get echoes(): Mainslot[] { return this.echoesFn(); }
+}
 /** A resonator's own Matrix — equipped only in Matrix Mode (see shared/matrix.ts). */
 export class Matrix extends Gear {}
 
@@ -530,13 +563,13 @@ export function coordinatedBuff(name: string, seconds: number, owner: (() => Res
 /** One echo choice — a mainslot plus one of the three shapes five echoes can make: a 5pc (its
  *  2pc implied), a 3pc + 2pc, or a 1pc + 2pc + 2pc. `sets` is the shape as a build reads it, one
  *  entry per set actually named — what the comparison table and gear hover list, a line each —
- *  while `pieces()` is everything equipped, the 5pc's own 2pc included. A `Loadout` names a list
- *  of these (most kits just the one); the comparison table runs every weapon×echo combination its
- *  loadout allows (see index.ts's own team runner), not just one hardcoded pick. */
+ *  while `pieces()` is the mainslot and every set equipped, the 5pc's own 2pc included. A loadout's
+ *  `Echoes` names a list of these (most kits just the one); the comparison table runs every
+ *  weapon×echo combination its loadout allows, not just one hardcoded pick. */
 export class EchoLoadout {
   mainslot: Mainslot;
   sonata: Sonata | Sonata3pc | Sonata1pc;
-  sets: Gear[];
+  sets: (Sonata | Sonata3pc | Sonata2pc | Sonata1pc)[];
   /** The resonators a team must field one of for this pick to be tried in it; none = any team. */
   prerequisite: Resonator[] = [];
   constructor(mainslot: Mainslot, sonata: Sonata);
@@ -546,7 +579,16 @@ export class EchoLoadout {
     this.mainslot = mainslot;
     this.sonata = sonata;
     this.sets = [sonata, ...pc2];
+    if (!this.sets.some((s) => s.echoes.includes(mainslot))) {
+      throw new Error(`${mainslot.name} is no echo of ${this.sets.map((s) => s.name).join(" or ")}`);
+    }
   }
+  /** The distinct 4-cost echoes its sets offer between them: how many 4-cost slots a build can fill.
+   *  One listed by two of its sets is still one echo. */
+  get fours(): number {
+    return (this.foursMade ??= new Set(this.sets.flatMap((s) => s.echoes).filter((e) => e.cost === 4)).size);
+  }
+  private foursMade?: number;
   pieces(): Gear[] {
     return [this.mainslot, ...this.sets, ...(this.sonata instanceof Sonata ? [this.sonata.sonata2pc] : [])];
   }
@@ -565,19 +607,17 @@ export class EchoLoadout {
  *  anything that isn't a limited 5-star (see `Tier`), left unset for most limited kits. `mode` is
  *  for the rare kit built around a Resonance Mode (Lucilla, Lynae). */
 export interface LoadoutDef {
+  /** This build's own id: its resonator's game id x10 plus its place among that kit's loadouts,
+   *  from 1 (13121 Suoming's first). Never reused — a team code names a loadout by it. */
+  id: number;
   resonator: Resonator;
   /** Each entry is either a weapon's whole five-refinement list (see `refinements()`) — run at R1
    *  unless that resonator's Refines are compared, when every rank gets a row — or one rank
    *  picked out of it (`MARCATO[4]`), which is then the only rank the build ever runs. */
   weapons: (Weapon | Weapon[])[];
-  echoLoadouts: EchoLoadout[];
-  mainstats: Buff[];
-  /** Every ER tier this build's ChemX32 spread comes in (shared/substats.ts) — the run picks one
-   *  off the member's own ER requirement. */
-  substat: ErSpread;
-  /** Worn instead of `substat` when that role's High Invest Substats box is on — its own ER tiers,
-   *  picked off the same requirement (a kit with no Liberation to pay for has only the bare one). */
-  highSubstat: ErSpread;
+  /** The set picks, main-stat builds and substat spreads, and the five echoes each combination makes
+   *  (shared/echoes.ts). The run picks a spread's ER tier off the member's own ER requirement. */
+  echoes: Echoes;
   /** One rotation for every sequence level, or a map from the level a rotation takes over at to
    *  that rotation — `{ 0: base, 3: withStrawCape }` — S0 always named; a level not named runs the
    *  nearest one declared below it. */
@@ -597,8 +637,6 @@ export interface LoadoutDef {
  *  hand over "some Gear" (see `LoadoutDef`). Forte Circuit logic lives directly on each
  *  resonator's own Resonator definition, not a separate loadout slot — and so do the stat-tree
  *  Talents and both Inherent Skills, which are the kit itself rather than anything a build picks.
- *  Mainstat/substat rolls stay plain `Buff` (`mainstats()`/`substats()`'s own return type) — no
- *  dedicated class was asked for those.
  *
  *  `weapons`/`echoLoadouts`/`mainstats` are lists, not a single pick: the comparison table runs every
  *  combination of them (crossed with every other member's own combinations too — see index.ts's
@@ -606,19 +644,15 @@ export interface LoadoutDef {
  *  `rotation` lives here too now, not a separate export — the scheduler reads its chains and
  *  decides whose turn it is (rotation.ts). */
 export class Loadout {
+  /** `LoadoutDef.id`. */
+  id: number;
   resonator: Resonator;
   /** The rank of each listed weapon this build runs by default — the first of its `refinements`
    *  entry: R1 for a whole list, the one rank given for a single weapon. */
   weapons: Weapon[];
   /** Per listed weapon, every rank a Refines compare may run it at (`LoadoutDef.weapons`). */
   refinements: Weapon[][];
-  echoLoadouts: EchoLoadout[];
-  /** Every main-stat build this loadout is willing to run (see mainstats.ts's own
-   *  `mainstatOptions()`) — a list for the same reason `weapons`/`echoLoadouts` are, the table
-   *  runs one row per combination. A pure support names just the one. */
-  mainstats: Buff[];
-  substat: ErSpread;
-  highSubstat: ErSpread;
+  echoes: Echoes;
   /** This build's whole rotation, already compiled into the up-to-three action chains the
    *  scheduler schedules — start of combat, opener, and the Intro chain every visit after
    *  (rotation.ts). One field, not an opener/loop pair: the chains share a body, so splitting
@@ -639,14 +673,15 @@ export class Loadout {
   minCritRate: number;
 
   constructor(def: LoadoutDef) {
+    this.id = def.id;
     this.resonator = def.resonator;
     this.refinements = def.weapons.map((w) => (Array.isArray(w) ? w : [w]));
     this.weapons = this.refinements.map((w) => w[0]!);
-    this.echoLoadouts = def.echoLoadouts;
+    this.echoes = def.echoes;
     if (this.echoLoadouts.every((e) => e.prerequisite.length)) throw new Error(`${def.resonator.name}: every echo pick has a prerequisite, so some team could try none`);
-    this.mainstats = def.mainstats;
-    this.substat = def.substat;
-    this.highSubstat = def.highSubstat;
+    for (const e of this.echoLoadouts) {
+      if (!this.mainstats.some((m) => this.echoes.fits(e, m))) throw new Error(`${def.resonator.name}: no main-stat build fits ${e.sets.map((s) => s.name).join(" + ")} on ${e.mainslot.name}`);
+    }
     // a bare Rotation carries an Intro chain; a level map never does. A level takes the nearest
     // declared rotation below it, and the levels under the lowest declared one have none
     const declared: Partial<Record<SequenceLevel, Rotation>> = "intro" in def.rotation ? { 0: def.rotation as Rotation } : def.rotation as Partial<Record<SequenceLevel, Rotation>>;
@@ -655,10 +690,24 @@ export class Loadout {
     this.minSequence = this.rotationByLevel.findIndex(Boolean);
     if (this.minSequence < 0) throw new Error(`${def.resonator.name}: a loadout's rotation map declares no rotation`);
     this.rotations = [...new Set(this.rotationByLevel.filter((r): r is Rotation => r !== null))];
+    for (const r of this.rotations) if (r.error) throw new Error(`${def.resonator.name}: ${r.error.message}`);
     this.sequences = def.sequences ?? [];
     this.mode = def.mode;
     this.minEr = def.minEr ?? 0;
     this.minCritRate = def.minCritRate ?? 0;
+  }
+
+  /** The set picks, main-stat builds and substat spreads, as `echoes` holds them. */
+  get echoLoadouts(): EchoLoadout[] { return this.echoes.sets; }
+  /** Every main-stat build this loadout is willing to run (see mainstats.ts's own
+   *  `mainstatOptions()`) — a list for the same reason `weapons`/`echoLoadouts` are, the table
+   *  runs one row per combination. A pure support names just the one. */
+  get mainstats(): MainstatBuild[] { return this.echoes.mainstats; }
+  get substat(): ErSpread { return this.echoes.substat; }
+  get highSubstat(): ErSpread { return this.echoes.highSubstat; }
+  /** Whether set pick `echo` can be worn over main-stat build `mainstat`, both indices (`Echoes.fits`). */
+  fits(echo: number, mainstat: number): boolean {
+    return this.echoes.fits(this.echoLoadouts[echo]!, this.mainstats[mainstat]!);
   }
 
   /** The rotation a build at `sequenceLevel` runs: the one declared for that level, else the
@@ -681,16 +730,16 @@ export class Loadout {
   /** The substat piece this build wears: the tier `erRolls` asks for. ChemX32 carries its single
    *  ER roll whatever the bar costs — it is one of the eight the spread does not name. The high
    *  spread spends that slot on the sixth stat instead where the Liberation costs nothing. */
-  spread(highSubs: boolean, erRolls: number): Buff {
+  spread(highSubs: boolean, erRolls: number): Spread {
     if (!highSubs) return this.substat.at(erRolls);
     return this.resonator.maxEnergy ? this.highSubstat.at(erRolls) : (this.highSubstat.noEr ?? this.highSubstat.at(0));
   }
 
-  pieces(weapon: Weapon, echo: EchoLoadout, mainstat: Buff, sequenceLevel: number, matrix = false, highSubs = false, erRolls = 1): Gear[] {
+  pieces(weapon: Weapon, echo: EchoLoadout, mainstat: MainstatBuild, sequenceLevel: number, matrix = false, highSubs = false, erRolls = 1): Gear[] {
     const r = this.resonator;
     return [
       r, r.talent, r.inherent1, r.inherent2,
-      weapon, ...echo.pieces(), mainstat, this.spread(highSubs, erRolls),
+      weapon, ...this.echoes.pieces(echo, mainstat, this.spread(highSubs, erRolls)),
       ...this.sequences.slice(0, sequenceLevel),
       this.mode,
       matrix ? r.matrix : undefined,
@@ -699,6 +748,8 @@ export class Loadout {
 }
 
 export interface ResonatorDef extends GearDef {
+  /** The game's own id (nanoka's links, encore's `Id`): 1205 Changli. 0 only on the Tune Break dummy. */
+  id: number;
   matrix?: Matrix;
   element: Attribute;
   /** This kit's own stat-tree Talents bonus and both Inherent Skills — part of the resonator
@@ -712,10 +763,10 @@ export interface ResonatorDef extends GearDef {
   /** Which of the five weapon categories this resonator wields — decides which weapon files
    *  (src/weapons/) their loadout can actually equip. */
   weapon: WeaponType;
-  /** Liberation always spends everything a resonator has banked, so the cost only needs
-   *  declaring once, here — not repeated as a `-12500` (or whatever) on the Liberation action
-   *  itself (TODO_ENGINE.md). 0, the default, is for a kit whose Liberation genuinely costs no
-   *  Resonance Energy at all (Phrolova, Lucilla), not "not yet filled in". */
+  /** The Energy bar's ceiling, which the Liberation that pays for it spends as its own
+   *  `castEnergy` (-12500 for 125). 0, the default, is for a kit whose Liberation genuinely costs
+   *  no Resonance Energy at all (Phrolova, Lucilla), not "not yet filled in". The bar banks past it
+   *  freely, like every gauge (rotation.ts's `bank`). */
   maxEnergy?: number;
   /** What one unit each forte gauge is held in reads as (`forteN` and every figure around it are
    *  whole numbers in those units): 1 by default, 0.01 for a gauge kept in hundredths. One number
@@ -756,6 +807,9 @@ export interface ResonatorDef extends GearDef {
   /** A wait the resonator handing this one the field must play before `next` (the arrival's first
    *  cast; an Outro asks with the Intro) — Phrolova's Hecate. Asked again after it; null goes ahead. */
   holdBefore?: (next: Action) => Action | null;
+  /** Made to leave the field by a teammate (Augusta's Everbright Protector, `sendOthersOff()`):
+   *  whatever this resonator still has going beside the fight ends, hits already out landing. */
+  sentOff?: () => void;
   /** The enemy's own, on the frame `behind` is cut by `cut` (a dodge, swap, plain, on-hit or insta
    *  cancel), ahead of its bullets still to land: what is ready there for `takesCut` to act on, the
    *  cut's delay after it being only the input. */
@@ -771,7 +825,12 @@ export interface ResonatorDef extends GearDef {
    *  `equipEnemy()`-ped onto `State.enemy`, and carries none of the four starting stats every real
    *  resonator gets — those would land in the enemy pool and pay into every action. */
   enemy?: boolean;
+  /** The enemy's own off-tune ceiling (tunebreak.ts), held the way a member holds `maxEnergy`. */
+  maxOfftune?: number;
 }
+
+/** No gauge capped: energy, concerto, forte 1-5, as `Resonator.caps` reads. */
+export const NO_CAPS: readonly number[] = [0, 0, 0, 0, 0, 0, 0];
 
 /** A resonator: a Gear like any other (TODO_ENGINE.md — "Resonator extends Gear"), plus its own
  *  name/element/weapon type/colour/intro-choice, and the three pieces every build of it runs
@@ -789,8 +848,14 @@ export class Resonator extends Gear {
    *  (`Loadout.pieces()`), and the resonator's own the way their Talents are. */
   matrix?: Matrix;
   maxEnergy: number;
+  /** Every resonator's Concerto ceiling, the full bar. */
+  maxConcerto = FULL_CONCERTO;
   /** `maxForte1`-`maxForte5` as one array, indexed the way `TeamMember.forte` is. */
   maxForte: [number, number, number, number, number];
+  /** Every cap of a member's own bars in one array — energy, concerto, forte 1-5 — the way a
+   *  cast's condition and `bankBar` index them. */
+  caps: readonly number[];
+  maxOfftune: number;
   forteScale: [number, number, number, number, number];
   color: string;
   /** `ResonatorDef.intro`/`outro`, each read as it is reached. */
@@ -803,6 +868,7 @@ export class Resonator extends Gear {
   dodgeFn?: (after: Action) => Action | null;
   jumpFn?: (after: Action) => Action | null;
   holdFn?: (next: Action) => Action | null;
+  sentOff?: () => void;
   atCut?: (behind: Action, cut: ActionTag) => void;
   takesCut?: (behind: Action, cut: ActionTag) => void;
   tier: Tier;
@@ -829,10 +895,9 @@ export class Resonator extends Gear {
         // the enemy member is nameless until its resonator lands: the bucket the break's damage
         // reports under, and the hue it wears, are read off it from then on
         if (def.enemy) ctx.slot!.name = this.name;
-        // RealEnergy (see ActionDef.resetEnergy) starts a fight already filled, unlike the real
-        // Energy bar, which starts empty — it's tracking "energy banked since the last reset",
-        // and nothing has spent it yet.
-        ctx.slot!.realEnergy = this.maxEnergy;
+        // the Energy bar starts a fight already filled: the opening Liberation is free
+        ctx.slot!.energy = this.maxEnergy;
+        ctx.slot!.shownEnergy = this.maxEnergy;
         def.combatStart?.();
       },
     });
@@ -847,6 +912,8 @@ export class Resonator extends Gear {
     this.inherent2 = def.inherent2;
     this.maxEnergy = def.maxEnergy ?? 0;
     this.maxForte = [def.maxForte1 ?? 0, def.maxForte2 ?? 0, def.maxForte3 ?? 0, def.maxForte4 ?? 0, def.maxForte5 ?? 0];
+    this.caps = [this.maxEnergy, this.maxConcerto, ...this.maxForte];
+    this.maxOfftune = def.maxOfftune ?? 0;
     const scale = def.forteScale ?? 1;
     this.forteScale = Array.isArray(scale) ? scale : [scale, scale, scale, scale, scale];
     this.color = def.color;
@@ -858,6 +925,7 @@ export class Resonator extends Gear {
     this.tuneBreak = def.tuneBreak;
     this.dodgeFn = typeof dodge === "function" ? dodge : dodge && (() => dodge);
     this.holdFn = def.holdBefore;
+    this.sentOff = def.sentOff;
     this.atCut = def.atCut;
     this.takesCut = def.takesCut;
     this.jumpFn = typeof jump === "function" ? jump : jump && (() => jump);
@@ -870,14 +938,19 @@ export class Resonator extends Gear {
  *  whole (`Action.cutPays`), so a summon's short press is never dashed out of. */
 
 export interface MainslotDef extends GearDef {
+  /** The game's own echo id (nanoka's links, encore's `Id`), the base 6000xxx one. */
+  id: number;
   /** The cast this echo performs — what rotation.ts's ECHO_* markers place, in the form each
-   *  calls for (see `Mainslot`). */
-  action: Action;
+   *  calls for (see `EchoCast`). Where it depends on the wearer, the function picking it, read as
+   *  a marker reaches it (`() => (wears("Hsin") ? HsinCast : Cast)`). */
+  action: Action | (() => Action);
+  /** The echo's cost: which of the build's echoes it is, and so which main stat it wears. */
+  cost: 4 | 3;
 }
 
-/** A mainslot echo: gear that also carries its own cast. Every build equips exactly one, so a
- *  rotation doesn't name the echo — it holds one of the ECHO_* markers, and `run()` swaps in
- *  whichever Mainslot the acting slot actually has equipped, in the form that marker asks for:
+/** One echo cast in every form the ECHO_* markers place. A rotation doesn't name the echo — it holds
+ *  one of the markers, and `run()` swaps in the cast of whichever Mainslot the acting slot has
+ *  equipped (`Mainslot.cast()`), in the form that marker asks for:
  *
  *  - `onfield`: the cast as declared.
  *  - `outro`: what `ECHO.swap()` lands, right where it stands: the swap cancel at its last hit, or
@@ -888,16 +961,12 @@ export interface MainslotDef extends GearDef {
  *    frames needs no dash: an insta cancel instead.
  *  - `instaOut`: what `ECHO.instaSwap()` lands — `Action.instaSwap()`'s form, its hit landing off
  *    field after the swap. */
-export class Mainslot extends Gear {
-  action: Action;
+export class EchoCast {
   onfield: Action;
   outro: Action;
   cancel: Action;
   instaOut: Action;
-  constructor(def: MainslotDef) {
-    super(def);
-    this.action = def.action;
-    const a = def.action;
+  constructor(a: Action) {
     this.onfield = a;
     // a swap cut inside the insta window is the insta swap, which keeps every hit committed that early
     this.outro = a.cutFrame > INSTA_DELAY ? a.swapCancel() : a.instaSwap();
@@ -905,9 +974,41 @@ export class Mainslot extends Gear {
     this.cancel = a.instaForm(a.animFrames < 18 ? ActionTag.InstaCancel : ActionTag.InstaDodge);
     this.instaOut = a.instaSwap();
   }
+  /** Every form, for whoever files them under the echo. */
+  get forms(): Action[] { return [this.onfield, this.outro, this.cancel, this.instaOut]; }
+}
+
+/** A mainslot echo: gear that also carries its own cast, resolved per wearer where a kit unlocks its
+ *  own (`MainslotDef.action`). Every build equips exactly one. */
+export class Mainslot extends Gear {
+  cost: 4 | 3;
+  private readonly actionFn: () => Action;
+  /** Each cast's forms, made the first time it is reached. */
+  private readonly casts = new Map<Action, EchoCast>();
+  /** Its constant stats, run by the build's echo it is (shared/echoes.ts) so they join that echo's
+   *  panel entry; the mainslot itself carries none. */
+  echoStatsFn?: () => void;
+  constructor(def: MainslotDef) {
+    super(def);
+    this.cost = def.cost;
+    this.echoStatsFn = this.constantStatsFn;
+    this.constantStatsFn = undefined;
+    this.wire();
+    const action = def.action;
+    this.actionFn = typeof action === "function" ? action : () => action;
+  }
+  /** The cast the acting resonator makes, in every form. */
+  cast(): EchoCast {
+    const a = this.actionFn();
+    let cast = this.casts.get(a);
+    if (!cast) this.casts.set(a, (cast = new EchoCast(a)));
+    return cast;
+  }
 }
 
 export interface WeaponDef extends GearDef {
+  /** The game's own weapon id (nanoka's links, encore's `Id`): 21010016 Verdant Summit. */
+  id: number;
   /** Which of the five weapon categories this is — must match the wielder's own `Resonator.weapon`. */
   weaponType: WeaponType;
   /** How the weapon is come by, the same three tiers a resonator has (stats.ts's own `Tier`):

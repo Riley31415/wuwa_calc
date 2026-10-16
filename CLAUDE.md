@@ -94,7 +94,9 @@ every motion value is a bullet's
   animation frames — before one with any it throws: write the plain cut (`.cancel()`, which keeps
   every hit an insta swap did); a plain cut into an Outro with none throws: write a swap form. where no Outro follows, the scheduler plays `SWAP` after it — no frames, no
   cast, a dimmed row; the swap form's own delay is the handoff, which a plain `SWAP` or an Outro
-  otherwise pays as `SWAP_DELAY` (12). the cast of a `SWAP` or of an Outro is the only thing that takes
+  otherwise pays as `SWAP_DELAY` (12). a rotation may write `SWAP` itself after a press it plays out
+  (`MA4, SWAP`): it adds no delay and closes its chain or section like a swap form; never right
+  before an Outro. the cast of a `SWAP` or of an Outro is the only thing that takes
   a resonator off the field (lost on swap, the field handed on); the swap form itself never does, and
   plays on behind the swap to its own end — until its owner presses again, which ends it there (its
   hits a hold kept past their own frame landing first). any cut into an Outro inside `noSwapFrames`

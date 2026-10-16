@@ -65,8 +65,10 @@ import {
 import { ActionGroup, Action, Cooldown, Rotation, START_LAST, ECHO, NOINTRO, INTRO, OUTRO, DOUBLE_INTRO, DODGE } from "../../engine/rotation.js";
 import { AGES_OF_HARVEST } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
+import { AUTUMNTRACE, AUREATE_ZENITH } from "../../weapons/battlepass.js";
 import { JUE, CELESTIAL_LIGHT_5PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { UNISON, unisonOutro } from "../../shared/unison.js";
 import { STAY_TUNED, SWORN_VIGIL_5PC } from "../../echoes/mengzhou.js";
@@ -239,7 +241,7 @@ const stellaGlamor = (): boolean => runningBullet(Skill4, -1) || runningBullet(S
 
 const Liberation = jinhsiAction("Liberation - Purge of Light", {
   animFrames: 231, animPriority: { 203: 0 }, castPriority: 10, timestop: [0, 231], motionStop: [0, 231], cooldown: 60 * 24,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 106, mv: 49981, offtune: 25200 }, { hitFrame: 114, mv: 116622, offtune: 58800 }], castConcerto: 2000, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 106, mv: 49981, offtune: 25200 }, { hitFrame: 114, mv: 116622, offtune: 58800 }], castConcerto: 2000, castEnergy: -15000,
 });
 
 const Intro = jinhsiAction("Intro - Loong's Halo", {
@@ -406,10 +408,11 @@ const JX_S6 = new Sequence({
 
 const JINHSI_TALENTS = new Talent({
   name: "Jinhsi: Talents",
-  stats: [[Stat.BonusAtk, 12], [Stat.CritRate, 8]],
+  stats: [[Stat.BonusAtk, 11.9999997], [Stat.CritRate, 8]],
 });
 
 export const JINHSI_RESONATOR = new Resonator({
+  id: 1304,
   name: "Jinhsi",
   matrix: matrix("Jinhsi", 25),
   talent: JINHSI_TALENTS,
@@ -514,32 +517,41 @@ const JX_ECHOES = [
 /** For teams whose Energy the rotation cannot keep up with — her Liberation every other visit
  *  instead of every one (see `JX_ROTATION_EVERY_OTHER`). */
 export const JINHSI = new Loadout({
+  id: 13041,
   resonator: JINHSI_RESONATOR,
-  weapons: [AGES_OF_HARVEST, NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR],
-  echoLoadouts: JX_ECHOES,
+  weapons: [AGES_OF_HARVEST, NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR, AUTUMNTRACE, AUREATE_ZENITH],
+  echoes: new Echoes({
+    sets: JX_ECHOES,
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
+    substats: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation, Substat.Basic),
+  }),
   sequences: [JX_S1, JX_S2, JX_S3, JX_S4, JX_S5, JX_S6],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
-  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation, Substat.Basic),
   rotation: JX_ROTATION_EVERY_OTHER,
 });
 export const JINHSI_FULL = new Loadout({
+  id: 13042,
   resonator: JINHSI_RESONATOR,
-  weapons: [AGES_OF_HARVEST, NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR],
-  echoLoadouts: JX_ECHOES,
+  weapons: [AGES_OF_HARVEST, NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR, AUTUMNTRACE, AUREATE_ZENITH],
+  echoes: new Echoes({
+    sets: JX_ECHOES,
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
+    substats: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation, Substat.Basic),
+  }),
   sequences: [JX_S1, JX_S2, JX_S3, JX_S4, JX_S5, JX_S6],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
-  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation, Substat.Basic),
   rotation: JX_ROTATION_FULL,
 });
 export const JINHSI_SUPPORT = new Loadout({
+  id: 13043,
   resonator: JINHSI_RESONATOR,
-  weapons: [AGES_OF_HARVEST, NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR],
-  echoLoadouts: JX_ECHOES,
+  weapons: [AGES_OF_HARVEST, NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR, AUTUMNTRACE, AUREATE_ZENITH],
+  echoes: new Echoes({
+    sets: JX_ECHOES,
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
+    substats: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation, Substat.Basic),
+  }),
   sequences: [JX_S1, JX_S2, JX_S3, JX_S4, JX_S5, JX_S6],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
-  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation, Substat.Basic),
   rotation: JX_ROTATION_SUPPORT,
 });

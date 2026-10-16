@@ -38,8 +38,10 @@ import {
 import { ActionGroup, Action, Rotation, ECHO, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
 import { LETHEAN_ELEGY, RIME_DRAPED_SPROUTS, STRINGMASTER, WHISPERS_OF_SIRENS } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
+import { AUGMENT, RADIANT_DAWN } from "../../weapons/battlepass.js";
 import { INFERNO_RIDER, MOLTEN_RIFT_5PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -97,7 +99,7 @@ const COSMOS_RAVE = new Buff({
 const RAVE = { requireBuff: COSMOS_RAVE };
 
 /** No damage of its own, just opens the state. */
-const Liberation = encoreAction("Liberation - Cosmos Rave", { animFrames: 140, castPriority: 10, timestop: [0, 140], motionStop: [0, 137], cooldown: 60 * 16, node: Node.Liberation, cast: Cast.Liberation, castConcerto: 2000, resetEnergy: true,
+const Liberation = encoreAction("Liberation - Cosmos Rave", { animFrames: 140, castPriority: 10, timestop: [0, 140], motionStop: [0, 137], cooldown: 60 * 16, node: Node.Liberation, cast: Cast.Liberation, castConcerto: 2000, castEnergy: -12500,
   updateBuffs: () => applyCurrent(COSMOS_RAVE, 1),
 });
 
@@ -222,10 +224,11 @@ const S6 = new Sequence({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const ENCORE_TALENTS = new Talent({
   name: "Encore: Talents",
-  stats: [[Stat.BonusAtk, 12], [Stat.DmgBonus, 12, Attribute.Fusion]],
+  stats: [[Stat.BonusAtk, 11.9999997], [Stat.DmgBonus, 12, Attribute.Fusion]],
 });
 
 const ENCORE_RESONATOR = new Resonator({
+  id: 1203,
   name: "Encore",
   talent: ENCORE_TALENTS,
   inherent1: EN_INHERENT_1,
@@ -269,12 +272,15 @@ const EN_ROTATION = new Rotation([
 // her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat, all six sequences (by explicit instruction — see file header)
 export const ENCORE = new Loadout({
+  id: 12031,
   resonator: ENCORE_RESONATOR,
-  weapons: [STRINGMASTER, COSMIC_RIPPLES, NEW_STD_RECTIFIER, LETHEAN_ELEGY, WHISPERS_OF_SIRENS, RIME_DRAPED_SPROUTS],
-  echoLoadouts: [new EchoLoadout(INFERNO_RIDER, MOLTEN_RIFT_5PC)],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Skill),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Skill, Substat.Liberation),
+  weapons: [STRINGMASTER, COSMIC_RIPPLES, NEW_STD_RECTIFIER, LETHEAN_ELEGY, WHISPERS_OF_SIRENS, RIME_DRAPED_SPROUTS, AUGMENT, RADIANT_DAWN],
+  echoes: new Echoes({
+    sets: [new EchoLoadout(INFERNO_RIDER, MOLTEN_RIFT_5PC)],
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Skill),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Skill, Substat.Liberation),
+  }),
     rotation: EN_ROTATION,
   sequences: [S1, S2, S3, S4, S5, S6],
 });

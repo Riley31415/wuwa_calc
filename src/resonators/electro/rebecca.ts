@@ -66,9 +66,11 @@ import { applied, inflicting } from "../../engine/context.js";
 import { applyHack, tuneHackResponse, TUNE_HACK_SHIFTING, TUNE_SHIFTABLE } from "../../shared/tunebreak.js";
 import { SKULL_THRASHER } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
+import { THUNDERBOLT, SOLAR_FLAME } from "../../weapons/battlepass.js";
 import { HERON, STONEWALL_BRACER, MOONLIT_CLOUDS_5PC, LINGERING_TUNES_2PC, VOID_THUNDER_2PC, MOONLIT_CLOUDS_2PC } from "../../echoes/jinzhou.js";
-import { ADAM_SMASHER_REBECCA, SHATTERED_DREAMS_1PC, HYVATIA, NEONLIGHT_LEAP_5PC, REEL_2PC } from "../../echoes/lahairoi.js";
+import { ADAM_SMASHER, SHATTERED_DREAMS_1PC, HYVATIA, NEONLIGHT_LEAP_5PC, REEL_2PC } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { LUCY_RESONATOR } from "../spectro/lucy.js";
 import { JINGRAN_RESONATOR } from "../fusion/jingran.js";
@@ -215,7 +217,7 @@ const FHAGuts = rebeccaAction("Forte Heavy - Bang-bang-bang!: Guts", { requireBu
 // on the next resonator's time, so it is deferred behind their Intro (still on Rebecca's slot)
 const Lib1 = rebeccaAction("Liberation - Party 'til Dawn!", {
   animFrames: 180, castPriority: 10, timestop: [0, 180], motionStop: [0, 180], cooldown: 60 * 25,
-  node: Node.Liberation, cast: Cast.Liberation, resetEnergy: true, castConcerto: 2000,
+  node: Node.Liberation, cast: Cast.Liberation, castEnergy: -12500, castConcerto: 2000,
   updateBuffs: () => applyCurrent(MK31_HMG, 1),
 });
 // the tiers in order: firing starts on the mode, each enhancement "after Rebecca starts firing"
@@ -504,10 +506,11 @@ const RB_INHERENT_2 = new Inherent({
 
 const REBECCA_TALENTS = new Talent({
   name: "Rebecca: Talents",
-  stats: [[Stat.BonusAtk, 12], [Stat.CritRate, 8]],
+  stats: [[Stat.BonusAtk, 11.9999997], [Stat.CritRate, 8]],
 });
 
 const REBECCA_RESONATOR = new Resonator({
+  id: 1308,
   name: "Rebecca",
   talent: REBECCA_TALENTS,
   inherent1: RB_INHERENT_1,
@@ -579,12 +582,12 @@ const RB_ROTATION = new Rotation([
  *  instead of a 5pc — ATK and Electro. The other two builds are the classic handoff sets, which
  *  she can run instead since everything she gives Lucy is a handoff anyway. */
 const RB_ECHOES = [
-  new EchoLoadout(ADAM_SMASHER_REBECCA, SHATTERED_DREAMS_1PC, LINGERING_TUNES_2PC, VOID_THUNDER_2PC),
-  new EchoLoadout(ADAM_SMASHER_REBECCA, SHATTERED_DREAMS_1PC, LINGERING_TUNES_2PC, REEL_2PC),
-  new EchoLoadout(ADAM_SMASHER_REBECCA, SHATTERED_DREAMS_1PC, SWORN_VIGIL_2PC, VOID_THUNDER_2PC),
+  new EchoLoadout(ADAM_SMASHER, SHATTERED_DREAMS_1PC, LINGERING_TUNES_2PC, VOID_THUNDER_2PC),
+  new EchoLoadout(ADAM_SMASHER, SHATTERED_DREAMS_1PC, LINGERING_TUNES_2PC, REEL_2PC),
+  new EchoLoadout(ADAM_SMASHER, SHATTERED_DREAMS_1PC, SWORN_VIGIL_2PC, VOID_THUNDER_2PC),
 
-  new EchoLoadout(ADAM_SMASHER_REBECCA, SHATTERED_DREAMS_1PC, LINGERING_TUNES_2PC, MOONLIT_CLOUDS_2PC),
-  new EchoLoadout(ADAM_SMASHER_REBECCA, SHATTERED_DREAMS_1PC, MOONLIT_CLOUDS_2PC, VOID_THUNDER_2PC),
+  new EchoLoadout(ADAM_SMASHER, SHATTERED_DREAMS_1PC, LINGERING_TUNES_2PC, MOONLIT_CLOUDS_2PC),
+  new EchoLoadout(ADAM_SMASHER, SHATTERED_DREAMS_1PC, MOONLIT_CLOUDS_2PC, VOID_THUNDER_2PC),
 
   new EchoLoadout(HYVATIA, NEONLIGHT_LEAP_5PC),
   new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
@@ -593,12 +596,15 @@ const RB_ECHOES = [
 ];
 
 export const REBECCA = new Loadout({
+  id: 13081,
   resonator: REBECCA_RESONATOR,
   sequences: [RB_S1, RB_S2, RB_S3, RB_S4, RB_S5, RB_S6],
-  weapons: [SKULL_THRASHER, NEW_STD_PISTOL, STATIC_MIST],
-  echoLoadouts: RB_ECHOES,
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
-  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.Basic, Substat.AtkPct, Substat.FlatAtk, Substat.Heavy),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Basic, Substat.AtkPct, Substat.FlatAtk, Substat.Heavy, Substat.Skill),
+  weapons: [SKULL_THRASHER, NEW_STD_PISTOL, STATIC_MIST, THUNDERBOLT, SOLAR_FLAME],
+  echoes: new Echoes({
+    sets: RB_ECHOES,
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
+    substats: substats(Substat.CritRate, Substat.CritDmg, Substat.Basic, Substat.AtkPct, Substat.FlatAtk, Substat.Heavy),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Basic, Substat.AtkPct, Substat.FlatAtk, Substat.Heavy, Substat.Skill),
+  }),
     rotation: RB_ROTATION,
 });

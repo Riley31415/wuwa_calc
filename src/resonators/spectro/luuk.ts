@@ -47,17 +47,19 @@ import {
   runningAnyOf,
   saveChain,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, START_LAST, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, START_LAST, INTRO, OUTRO, DODGE, SWAP } from "../../engine/rotation.js";
 import { applied } from "../../engine/context.js";
 import { TUNE_STRAIN_SHIFTING, tuneBreak, midairBreak } from "../../shared/tunebreak.js";
 import { applyStrain, TUNE_BREAK, TUNE_STRAIN_INTERFERED, TUNE_SHIFTABLE, strainPayout } from "../../shared/tunebreak.js";
 import { DAYBREAKERS_SPINE } from "../../weapons/gauntlet.js";
 import { NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
+import { STONARD, AETHER_STRIKE } from "../../weapons/battlepass.js";
 import {
   NEBULOUS_CANNON,
   GILDED_REVELATION_5PC,
 } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -273,7 +275,7 @@ const Liberation = luukAction("Liberation - Rewritten in Winter's Margins", {
     { hitFrame: 237, commitFrame: 232, mv: 4971, offtune: 3360 },
     { hitFrame: 239, commitFrame: 232, mv: 4971, offtune: 3360 },
     { hitFrame: 242, commitFrame: 232, mv: 4971, offtune: 3360 },
-  ], castConcerto: 2000, resetEnergy: true,
+  ], castConcerto: 2000, castEnergy: -12500,
   updateBuffs: () => revokeCurrent(GAVEL_READY),
 });
 
@@ -390,13 +392,14 @@ const LK_INHERENT_2 = new Inherent({
 
 const LUUK_TALENTS = new Talent({
   name: "Luuk: Talents",
-  stats: [[Stat.BonusAtk, 12], [Stat.CritRate, 8]],
+  stats: [[Stat.BonusAtk, 11.9999997], [Stat.CritRate, 8]],
 });
 
 /** This kit's own carrier for the Tune Strain payout (tunebreak.ts's `strainPayout`). */
 const LK_STRAIN_PAYOUT = strainPayout();
 
 export const LUUK_RESONATOR = new Resonator({
+  id: 1510,
   name: "Luuk Herssen",
   talent: LUUK_TALENTS,
   inherent1: LK_INHERENT_1,
@@ -538,8 +541,7 @@ const MA23 = new ActionGroup("Mid-air - Scythe: Dissection 23", [MA2, MA3]);
 const Jump23 = new ActionGroup("Mid-air - Scythe: Resection 23", [MA2R, MA3R]);
 
 const LK_ROTATION = new Rotation([
-  START_LAST, BA1.instaCancel(), Skill.cancel(), Liberation, MA4.swapCancel(),
-
+  // start lib costs too much ER
   INTRO, Jump23.cancel(), Ring, GoldenImpale,
   Jump123.cancel(), Breach, GoldenImpale,
   Jump123.cancel(), Glare.mashCancel(), Gavel.cancel(),
@@ -547,8 +549,6 @@ const LK_ROTATION = new Rotation([
 ]);
 
 const LK_ROTATION_16s = new Rotation([
-  START_LAST, BA1.instaCancel(), Liberation, MA4.swapCancel(),
-  
   INTRO, Jump23.cancel(), Ring, GoldenImpale,
   Jump123.cancel(), Breach, GoldenImpale,
   Jump123.cancel(), Glare.mashCancel(), Gavel.cancel(),
@@ -556,26 +556,32 @@ const LK_ROTATION_16s = new Rotation([
 ]);
 
 export const LUUK = new Loadout({
+  id: 15101,
   resonator: LUUK_RESONATOR,
-  weapons: [DAYBREAKERS_SPINE, NEW_STD_GAUNTLET, ABYSS_SURGES],
-  echoLoadouts: [
+  weapons: [DAYBREAKERS_SPINE, NEW_STD_GAUNTLET, ABYSS_SURGES, STONARD, AETHER_STRIKE],
+  echoes: new Echoes({
+    sets: [
   new EchoLoadout(NEBULOUS_CANNON, GILDED_REVELATION_5PC),
 ],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Basic, Substat.AtkPct, Substat.FlatAtk, Substat.Skill),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Basic, Substat.AtkPct, Substat.FlatAtk, Substat.Skill, Substat.Heavy),
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.Basic, Substat.AtkPct, Substat.FlatAtk, Substat.Skill),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Basic, Substat.AtkPct, Substat.FlatAtk, Substat.Skill, Substat.Heavy),
+  }),
   rotation: LK_ROTATION,
   sequences: LK_SEQUENCES,
 });
 export const LUUK_16s = new Loadout({
+  id: 15102,
   resonator: LUUK_RESONATOR,
-  weapons: [DAYBREAKERS_SPINE, NEW_STD_GAUNTLET, ABYSS_SURGES],
-  echoLoadouts: [
+  weapons: [DAYBREAKERS_SPINE, NEW_STD_GAUNTLET, ABYSS_SURGES, STONARD, AETHER_STRIKE],
+  echoes: new Echoes({
+    sets: [
   new EchoLoadout(NEBULOUS_CANNON, GILDED_REVELATION_5PC),
 ],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Basic, Substat.AtkPct, Substat.FlatAtk, Substat.Skill),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Basic, Substat.AtkPct, Substat.FlatAtk, Substat.Skill, Substat.Heavy),
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.Basic, Substat.AtkPct, Substat.FlatAtk, Substat.Skill),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Basic, Substat.AtkPct, Substat.FlatAtk, Substat.Skill, Substat.Heavy),
+  }),
   rotation: LK_ROTATION_16s,
   sequences: LK_SEQUENCES,
 });

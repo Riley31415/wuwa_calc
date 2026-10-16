@@ -31,9 +31,11 @@ import {
 import { Action, Rotation, NOINTRO, ECHO, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
 import { AERO_EROSION, SPECTRO_FRAZZLE, HAVOC_BANE, FUSION_BURST, GLACIO_CHAFE, ELECTRO_FLARE, HEALS, heal } from "../../shared/status.js";
 import { BLOODPACTS_PLEDGE, BLOODPACT_AERO_AMP } from "../../weapons/standard.js";
+import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
 import { REJUV_5PC, HERON, MOONLIT_CLOUDS_5PC, BELL_BORNE_GEOCHELONE } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { FLEURDELYS, WINDWARD_5PC } from "../../echoes/rinascita.js";
 import { tuneBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
@@ -197,7 +199,7 @@ const Liberation = roverAction("Liberation - Omega Storm", { animFrames: 211, ca
     { hitFrame: 147, mv: 53679, offtune: 48000 },
     // the team heal, 4 frames after the hit (wuwalab)
     { hitFrame: 151, element: null, type: null, subtype: null, updateDebuffs: () => applyCurrent(HEALS, 1) },
-  ], castConcerto: 2000, resetEnergy: true });
+  ], castConcerto: 2000, castEnergy: -15000 });
 // Cloudburst Dance (a Mid-air Attack) follows it "right after", so it leaves him airborne
 const Intro = roverAction("Intro - Relentless Squall", { endPosition: Position.Midair, qteFrames: 34, motionStop: [0, 30], animFrames: 85, animPriority: { 85: 2 }, castPriority: 11, noSwapFrames: 67, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 37, mv: 7953, energy: 400, offtune: 4586 },
@@ -285,12 +287,13 @@ const AR_S6 = new Sequence({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
 const ROVER_AERO_TALENTS = new Talent({
   name: "Aero Rover: Talents",
-  stats: [[Stat.BonusAtk, 12], [Stat.HealingBonus, 12]],
+  stats: [[Stat.BonusAtk, 11.9999997], [Stat.HealingBonus, 12]],
 });
 
 /** Him, as a Resonator: name/element/weapon, every grant/spend/queue rule his kit needs, and his
  *  own base stat line. `Tier.Free` — see the file header. */
 export const ROVER_AERO_RESONATOR = new Resonator({
+  id: 1406,
   name: "Aero Rover",
   stats: [[Stat.BaseHp, 10775], [Stat.BaseAtk, 437.5], [Stat.BaseDef, 1136.6646]],
   talent: ROVER_AERO_TALENTS,
@@ -340,18 +343,21 @@ const AR_ROTATION = new Rotation([
 // (Tier.Free — see file header), weapon, mainslot echo, sonata pieces, mainstat/substat.
 // Bloodpact's Pledge is the only weapon listed: its own Unbound Flow clause is written for him.
 export const ROVER_AERO = new Loadout({
+  id: 14061,
   resonator: ROVER_AERO_RESONATOR,
-  weapons: [BLOODPACTS_PLEDGE[4]!], // the craftable at its real R5, the one rank they are ever run at
-  echoLoadouts: [
+  weapons: [BLOODPACTS_PLEDGE[4]!, LUMINGLOSS, FEATHER_EDGE], // the craftable at its real R5, the one rank they are ever run at
+  echoes: new Echoes({
+    sets: [
     new EchoLoadout(FALLACY, REJUV_5PC),
     new EchoLoadout(BELL_BORNE_GEOCHELONE, REJUV_5PC),
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
     new EchoLoadout(BELL_BORNE_GEOCHELONE, MOONLIT_CLOUDS_5PC),
     new EchoLoadout(FLEURDELYS, WINDWARD_5PC),
   ],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
-  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.Skill, Substat.AtkPct, Substat.FlatAtk, Substat.Liberation),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Skill, Substat.AtkPct, Substat.FlatAtk, Substat.Liberation, Substat.Basic),
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
+    substats: substats(Substat.CritRate, Substat.CritDmg, Substat.Skill, Substat.AtkPct, Substat.FlatAtk, Substat.Liberation),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Skill, Substat.AtkPct, Substat.FlatAtk, Substat.Liberation, Substat.Basic),
+  }),
     rotation: AR_ROTATION,
   sequences: [AR_S1, AR_S2, AR_S3, AR_S4, AR_S5, AR_S6],
 });

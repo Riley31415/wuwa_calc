@@ -16,9 +16,9 @@
  *
  * Sublime is the Sun is one press of 21 hits, as wuwalab has it: nine Sunborne, then Everbright
  * Protector's twelve. The migrated sheet gave Everbright energy -125, but the page is explicit it
- * costs no Resonance Energy at all — trusted here. Everbright's own cross-kit special (ending
- * Phrolova's own Maestro instantly) calls phrolova.ts's `endMaestro()` on its first hit — a no-op on
- * any team that isn't running her.
+ * costs no Resonance Energy at all — trusted here. Everbright makes every other Resonator leave the
+ * field: its first hit calls `sendOthersOff()`, and each teammate's own `sentOff` ends what they
+ * still have going (Phrolova's Maestro, Ciaccona's Recital and Sylphs).
  *
  * Glory's Favor (Inherent Skill): a shield on every damaging hit, 0.5s ICD — `gainShield()` per
  * action, which spaces them 30 frames apart. Ruler's Realm's own shield (any team member's
@@ -27,7 +27,6 @@
 import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, BuffTarget, Position } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
-  asSource,
   applyCurrent,
   applyTeam,
   revokeCurrent,
@@ -47,15 +46,18 @@ import {
   runningAnyOf,
   saveChain,
   previousPress,
+  sendOthersOff,
+  addStatAs,
 } from "../../engine/context.js";
 import { Action, Rotation, ECHO, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
 import { gainShield } from "../../shared/status.js";
 import { THUNDERFLARE_DOMINION, VERDANT_SUMMIT } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
+import { AUTUMNTRACE, AUREATE_ZENITH } from "../../weapons/battlepass.js";
 import { FALSE_SOVEREIGN, COV_3PC } from "../../echoes/septimont.js";
 import { VOID_THUNDER_2PC } from "../../echoes/jinzhou.js";
-import { endMaestro } from "../havoc/phrolova.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -158,7 +160,7 @@ const Lib1 = augustaAction("Liberation - Sword of Eternal Oath", { animFrames: 1
     { hitFrame: 62, mv: 3299, energy: 15, offtune: 881 },
     { hitFrame: 68, commitFrame: 62, mv: 3299, energy: 15, offtune: 881 },
     { hitFrame: 85, mv: 57170, energy: 243, offtune: 15255 },
-  ], castConcerto: 2000, castForte2: 2000, resetEnergy: true });
+  ], castConcerto: 2000, castForte2: 2000, castEnergy: -12500 });
 /** Held instead of released once Majesty reaches 2 stacks — costs both rather than Energy. Nine
  *  Sunborne hits, then Everbright Protector from 389: the finisher ends Sworn Allegiance and spends
  *  every stack of Crown of Wills. */
@@ -174,8 +176,8 @@ const Lib2 = augustaAction("Liberation - Sublime is the Sun", {
     { hitFrame: 225, mv: 11929, concerto: 200, offtune: 7200 },
     { hitFrame: 241, mv: 11929, concerto: 200, offtune: 7200 },
     { hitFrame: 268, mv: 11929, concerto: 200, offtune: 7200 },
-    // ends Phrolova's Maestro, Hecate and all — a no-op on a team without her
-    { hitFrame: 389, mv: 23858, concerto: 200, offtune: 10080, updateDebuffs: () => endMaestro() },
+    // "All other Resonators in the team will be made to leave the field"
+    { hitFrame: 389, mv: 23858, concerto: 200, offtune: 10080, updateDebuffs: () => sendOthersOff() },
     { hitFrame: 425, mv: 89465, concerto: 750, offtune: 37800 },
     { hitFrame: 435, mv: 597, concerto: 5, offtune: 252 },
     { hitFrame: 440, commitFrame: 435, mv: 597, concerto: 5, offtune: 252 },
@@ -214,8 +216,8 @@ const CROWN_OF_WILLS = new Buff({
   stats: [[Stat.DmgBonus, 15, Attribute.Electro]], perStack: true,
   applyStats: () => {
     const n = frozenStacks();
-    if (isHeld(AG_S1)) asSource(AG_S1, () => addStat(Stat.CritDmg, 15 * n));
-    if (isHeld(AG_S2)) asSource(AG_S2, () => addStat(Stat.CritRate, 20 * n));
+    if (isHeld(AG_S1)) addStatAs(AG_S1, Stat.CritDmg, 15 * n);
+    if (isHeld(AG_S2)) addStatAs(AG_S2, Stat.CritRate, 20 * n);
   },
   afterAction: () => { if (runningAction(Lib2)) revokeCurrent(CROWN_OF_WILLS); },
 });
@@ -264,10 +266,11 @@ const AG_INHERENT_2 = new Inherent({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const AUGUSTA_TALENTS = new Talent({
   name: "Augusta: Talents",
-  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 12]],
+  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 11.9999997]],
 });
 
 const AUGUSTA_RESONATOR = new Resonator({
+  id: 1306,
   name: "Augusta",
   stats: [[Stat.BaseHp, 10300], [Stat.BaseAtk, 462.5], [Stat.BaseDef, 1112.2202]],
   talent: AUGUSTA_TALENTS,
@@ -298,7 +301,7 @@ const AUGUSTA_RESONATOR = new Resonator({
   // Augusta remains on the ground ... after this skill is interrupted", Leap and Plunge likewise
   updateBuffs: () => {
     const prev = previousPress();
-    if (casting(Cast.Dodge) && prev && [FHA2, FSkill2, FSkill3].some((a) => a.follows(prev))) saveChain(prev);
+    if (casting(Cast.Dodge) && prev && (FHA2.follows(prev) || FSkill2.follows(prev) || FSkill3.follows(prev))) saveChain(prev);
   },
 
 });
@@ -368,12 +371,15 @@ const AG_ROTATION = new Rotation([
 // her real 43311 build: resonator + talents + both Inherent Skills, viable weapons, mainslot echo,
 // sonata pieces, mainstat/substat
 export const AUGUSTA = new Loadout({
+  id: 13061,
   resonator: AUGUSTA_RESONATOR,
-  weapons: [THUNDERFLARE_DOMINION, NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR, VERDANT_SUMMIT],
-  echoLoadouts: [new EchoLoadout(FALSE_SOVEREIGN, COV_3PC, VOID_THUNDER_2PC)],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Heavy, Substat.AtkPct, Substat.FlatAtk, Substat.Skill),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Heavy, Substat.AtkPct, Substat.FlatAtk, Substat.Skill, Substat.Basic),
+  weapons: [THUNDERFLARE_DOMINION, NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR, VERDANT_SUMMIT, AUTUMNTRACE, AUREATE_ZENITH],
+  echoes: new Echoes({
+    sets: [new EchoLoadout(FALSE_SOVEREIGN, COV_3PC, VOID_THUNDER_2PC)],
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.Heavy, Substat.AtkPct, Substat.FlatAtk, Substat.Skill),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Heavy, Substat.AtkPct, Substat.FlatAtk, Substat.Skill, Substat.Basic),
+  }),
   rotation: AG_ROTATION,
   sequences: AG_SEQUENCES,
 });

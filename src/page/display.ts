@@ -12,9 +12,10 @@ import {
 import type { Type, Subtype, StatKey, Tag } from "../engine/stats.js";
 import { effectiveShred, defFactorOf, OWN_DEF, effectiveRes, damageFactors, RESONATOR_LEVEL, LEVEL_90_DOT, LEVEL_90_TUNE } from "../engine/damage.js";
 import type { DamageFactors } from "../engine/damage.js";
-import { BASE_RESISTANCE, ENEMY_MAX_OFFTUNE } from "../shared/tunebreak.js";
+import { BASE_RESISTANCE } from "../shared/tunebreak.js";
 import type { Action, Bullet } from "../engine/rotation.js";
-import type { ChainGroup, ResolvedSnapshot } from "../engine/evaluate.js";
+import { hitDamage } from "../engine/evaluate.js";
+import type { ChainGroup, ResolvedSnapshot, HitDamage } from "../engine/evaluate.js";
 import type { HeldBuff, StatEntry } from "../engine/state.js";
 
 /** The gauges a row shows — energy, concerto, off-tune, forte 1-5 — once every hit of it is in and
@@ -78,6 +79,16 @@ export const fmt = (v: number | string | null | undefined, digits = 0, pad = fal
   }
   return out;
 };
+/** A percent stat, rounded to two decimals rather than cut — a talent's stored 11.9999997% reads 12%. */
+export const fmtPct = (v: number | string | null | undefined, pad = false): string =>
+  (typeof v === "number" ? fmt(Math.round(v * 100) / 100, 2, pad) : fmt(v));
+/** A percent stat's table cell: one decimal, up from .x9 and down from .x8 (12.39 reads 12.4, 12.38
+ *  reads 12.3) — the motion value keeps its two (`fmtPct`). */
+export const fmtPctCell = (v: number, key: string, pad = false): string => {
+  if (key === "mv") return fmtPct(v, pad);
+  const tenths = Math.floor(Number((Math.abs(v) * 10).toFixed(6)) + 0.1);
+  return fmt(Math.sign(v) * tenths / 10, 1, pad);
+};
 /** What `fmt` has printed, by format and value — Intl's own formatting is the slow part. */
 const formatted = new Map<string, string>();
 
@@ -135,10 +146,10 @@ const fixed = (action: Action): boolean => action.scaling === Scaling.Fixed;
 
 /** The stat the SCALER column reads for an action — its scaling's own. Dot/Tune scale off a
  *  constant instead (`CONSTANT_SCALERS`), and Fixed off nothing at all. */
-const SCALERS: Partial<Record<Scaling, { key: "atk" | "hp" | "def"; word: string; stats: [Stat, Stat, Stat] }>> = {
-  [Scaling.Atk]: { key: "atk", word: "ATK", stats: [Stat.BaseAtk, Stat.BonusAtk, Stat.FlatAtk] },
-  [Scaling.Hp]: { key: "hp", word: "HP", stats: [Stat.BaseHp, Stat.BonusHp, Stat.FlatHp] },
-  [Scaling.Def]: { key: "def", word: "DEF", stats: [Stat.BaseDef, Stat.BonusDef, Stat.FlatDef] },
+const SCALERS: Partial<Record<Scaling, { key: "atk" | "hp" | "def"; word: string; full: string; stats: [Stat, Stat, Stat] }>> = {
+  [Scaling.Atk]: { key: "atk", word: "ATK", full: "Attack", stats: [Stat.BaseAtk, Stat.BonusAtk, Stat.FlatAtk] },
+  [Scaling.Hp]: { key: "hp", word: "HP", full: "HP", stats: [Stat.BaseHp, Stat.BonusHp, Stat.FlatHp] },
+  [Scaling.Def]: { key: "def", word: "DEF", full: "Defense", stats: [Stat.BaseDef, Stat.BonusDef, Stat.FlatDef] },
 };
 
 const scalerOf = (action: Action) => (action.scaling === null ? undefined : SCALERS[action.scaling]);
@@ -165,6 +176,7 @@ const FEEDS: Record<string, (action: Action) => StatKey[]> = {
     : a.scaling !== Scaling.Dot ? keysFor(a, Stat.Amp)
     : !sub(a) ? [] : [scopedStat(sub(a)!, Stat.Amp)]),
   dealt: (a) => (fixed(a) ? []
+    : a.scaling === Scaling.Tune ? keysFor(a, Stat.TotalDmg, Stat.DamageTaken, Stat.TBB)
     : a.scaling !== Scaling.Dot ? keysFor(a, Stat.TotalDmg, Stat.DamageTaken)
     : !sub(a) ? [] : [scopedStat(sub(a)!, Stat.TotalDmg), scopedStat(sub(a)!, Stat.DamageTaken)]),
   effDef: (a) => (fixed(a) ? []
@@ -176,8 +188,9 @@ const FEEDS: Record<string, (action: Action) => StatKey[]> = {
   // energy/concerto/offtune are running totals — `rowValues()` builds their panels by hand
 };
 
-/** Panel section per stat: atk/hp/def fold `base x (1 + bonus%) + flat`, and the two DEF ignores
- *  stack differently from the enemy's own reduce, so each gets its own heading. */
+/** Panel section per stat: atk/hp/def fold `base x (1 + bonus%) + flat` (damage.ts's `foldStat`
+ *  floors each panel entry on its own), and the two DEF ignores stack differently from the enemy's
+ *  own reduce, so each gets its own heading. */
 const SECTION_OF: Partial<Record<Stat | EnemyStat, string>> = {
   [Stat.BaseAtk]: "Base ATK", [Stat.BonusAtk]: "Bonus ATK", [Stat.FlatAtk]: "Flat ATK",
   [Stat.BaseHp]: "Base HP", [Stat.BonusHp]: "Bonus HP", [Stat.FlatHp]: "Flat HP",
@@ -185,7 +198,7 @@ const SECTION_OF: Partial<Record<Stat | EnemyStat, string>> = {
   [Stat.DefIgnoreNew]: "DEF Ignore (new)", [Stat.DefIgnoreOld]: "DEF Ignore (old)",
   [EnemyStat.DefReduce]: "DEF Reduce",
   [Stat.ResIgnore]: "RES Ignore", [EnemyStat.ResReduce]: "RES Reduce",
-  [Stat.TotalDmg]: "Total Damage", [Stat.DamageTaken]: "Damage Taken",
+  [Stat.TotalDmg]: "Total Damage", [Stat.DamageTaken]: "Damage Taken", [Stat.TBB]: "Tune Break Boost",
 };
 
 /** One line of the hover on an action's name. `source` marks a row whose value is a *name* (what
@@ -298,9 +311,9 @@ function tracing(snapshot: ResolvedSnapshot, stats: StatKey[], merge = true): Tr
   return rows.sort((a, b) => tagRank(a.stat ?? 0) - tagRank(b.stat ?? 0));
 }
 
-/** A gauge cell's "/cap" — `maxForteN` where the Resonator declares one, and the enemy's own
- *  off-tune ceiling. The cap prints at its own decimals rather than the column's, so a bar capped
- *  at 100 stays `/100` beside a value printed to two places and off-tune keeps its tenth. */
+/** A gauge cell's "/cap" — `maxForteN` where the Resonator declares one. The cap prints at its own
+ *  decimals rather than the column's, so a bar capped at 100 stays `/100` beside a value printed to
+ *  two places. */
 export const gaugeSuffix = (raw: RawRow, key: string): string => {
   const cap = raw[`max:${key}`];
   return typeof cap === "number" ? `/${fmt(cap, decimalsOf(cap), false, false)}` : "";
@@ -314,7 +327,11 @@ export interface RowValues {
   sources: Sources;
   /** Columns a stat buff actually moved this action (not just carried its own declared trace). */
   buffed: Set<string>;
+  /** What each damaging hit dealt, the avg column's panel, `n` its place in its own press. */
+  hits: RowHit[];
 }
+
+export type RowHit = HitDamage & { n: number };
 
 /** Columns a group row recombines across its members; everything else is the last member's. */
 const COMBINED_COLUMNS = ["mv", "energy", "concerto", "offtune",
@@ -344,10 +361,16 @@ function foldDuplicates(rows: TraceEntry[]): TraceEntry[] {
   return out;
 }
 
-/** Off-tune's buildup-rate section and energy's regen-multiplier section: stats, not banked
+/** Off-tune's buildup-rate and multiplier sections and energy's hit multiplier: stats, not banked
  *  amounts, so a group row takes them from its last member only. */
 export const OFFTUNE_RATE = "Buildup Rate";
-export const ENERGY_RATE = "Regen Multiplier";
+export const OFFTUNE_MULT = "Offtune Multiplier";
+export const HIT_ENERGY_MULT = "Hit Energy Multiplier";
+/** Energy's two banked sections: what the cast banks, then what its hits do. */
+export const CAST_ENERGY = "Cast Energy";
+export const HIT_ENERGY = "Energy";
+/** The sections a group row reads off one member rather than summing. */
+export const RATE_SECTIONS = new Set([OFFTUNE_RATE, OFFTUNE_MULT, HIT_ENERGY_MULT]);
 /** Energy's Energy Regen section, below its Total: what the press's own energy was scaled by. */
 export const ENERGY_REGEN = "Energy Regen";
 /** The MV panel's multiplying half (Stat.MulMv), kept out of the summing section. */
@@ -406,18 +429,17 @@ function rowValues(
       : snap.action.scaling === Scaling.Dot ? snap.subtypeAmp : snap.amp,
     cr: fixed(snap.action) ? null : special(snap.action) ? snap.subtypeCritRate : snap.stat(Stat.CritRate),
     cd: fixed(snap.action) ? null : special(snap.action) ? snap.subtypeCritDmg : snap.stat(Stat.CritDmg),
-    // the column is the pair's combined lift, since Total Damage and Damage Taken multiply; a dot
-    // reads only its status-scoped halves, the way `amp` above does
+    // the column is the pair's combined lift, since Total Damage and Damage Taken multiply — and a
+    // tune hit's Tune Break Boost with them; a dot reads only its status-scoped halves, as `amp` does
     dealt: fixed(snap.action) ? null
       : snap.action.scaling === Scaling.Dot ? ((1 + snap.subtypeTotalDmg / 100) * (1 + snap.subtypeDamageTaken / 100) - 1) * 100
-      : ((1 + snap.stat(Stat.TotalDmg) / 100) * (1 + snap.stat(Stat.DamageTaken) / 100) - 1) * 100,
+      : ((1 + snap.stat(Stat.TotalDmg) / 100) * (1 + snap.stat(Stat.DamageTaken) / 100)
+        * (snap.action.scaling === Scaling.Tune ? 1 + snap.stat(Stat.TBB) / 100 : 1) - 1) * 100,
     effDef: fixed(snap.action) ? null : effectiveShred(snap) * 100,
     effRes: fixed(snap.action) ? null : effectiveRes(snap),
     energy: shown(snap, 0) / RESOURCE_SCALE.energy,
     concerto: shown(snap, 1) / RESOURCE_SCALE.concerto,
     offtune: shown(snap, 2) / RESOURCE_SCALE.offtune,
-    // off-tune is the enemy's one shared bar, so its ceiling is the same on every row
-    "max:offtune": ENEMY_MAX_OFFTUNE / RESOURCE_SCALE.offtune,
     // what each held coming in — the running-column blanking reads these (page/detail.ts stepRow)
     "before:energy": shownBefore(snap, 0) / RESOURCE_SCALE.energy,
     "before:concerto": shownBefore(snap, 1) / RESOURCE_SCALE.concerto,
@@ -431,11 +453,13 @@ function rowValues(
     raw[`before:gauge:${RESOURCE_NAME[key]}`] = shownBefore(snap, 3 + i) * unit;
     if (snap.maxForte[i]) raw[`max:gauge:${RESOURCE_NAME[key]}`] = snap.maxForte[i]! * unit;
   });
-  // red flags for the action table: a bar the cast found outside its own condition
-  raw["short:energy"] = snap.castUnmet?.[0] ? 1 : 0;
-  raw["short:concerto"] = snap.castUnmet?.[1] ? 1 : 0;
-  // ...or a gauge spent below empty
-  FORTE_GAUGES.forEach((key, i) => { raw[`short:gauge:${RESOURCE_NAME[key]}`] = snap.castUnmet?.[2 + i] || shown(snap, 3 + i) < 0 ? 1 : 0; });
+  // red flags for the action table, every bar alike: one the cast found outside its own condition,
+  // or one a step of the press left below empty (a spend it couldn't cover)
+  const low = (i: number): boolean => snap.shownShort?.[i] ?? shown(snap, i) < 0;
+  raw["short:energy"] = snap.castUnmet?.[0] || low(0) ? 1 : 0;
+  raw["short:concerto"] = snap.castUnmet?.[1] || low(1) ? 1 : 0;
+  raw["short:offtune"] = low(2) ? 1 : 0;
+  FORTE_GAUGES.forEach((key, i) => { raw[`short:gauge:${RESOURCE_NAME[key]}`] = snap.castUnmet?.[2 + i] || low(3 + i) ? 1 : 0; });
   // ...and a buff it needed and didn't find, or found and couldn't have, by name
   const buffs = [...(snap.buffUnmet ?? []).map((b) => b.name), ...(snap.buffForbidden ?? []).map((b) => `not ${b.name}`)];
   raw["short:buff"] = buffs.length ? buffs.join(", ") : 0;
@@ -451,7 +475,7 @@ function rowValues(
   // the defense factor's own formula with this row's figures in (a zero term left out), then what it comes to
   if (!fixed(snap.action)) {
     const dot = snap.action.scaling === Scaling.Dot;
-    const pct = (v: number): string => `${fmt(v, 2)}%`;
+    const pct = (v: number): string => `${fmtPct(v)}%`;
     const ignoreNew = dot ? 0 : snap.stat(Stat.DefIgnoreNew), ignoreOld = dot ? 0 : snap.stat(Stat.DefIgnoreOld);
     const reduce = snap.stat(EnemyStat.DefReduce);
     const base = fmt(snap.enemyDef, 0, false, false);
@@ -477,8 +501,19 @@ function rowValues(
     .map((c) => ({ source: c.source, value: c.gains[i]!, owner: c.owner ?? undefined, ...(c.onCast ? { label: "on cast" } : {}) }));
   const ADDED = { energy: 0, concerto: 1, offtune: 7 } as const;
   for (const key of ["energy", "concerto", "offtune"] as const) {
-    const traced = added(ADDED[key]).map((r) => ({ ...r, value: r.value / RESOURCE_SCALE[key] }));
-    const own = ownShares(snap, CAST_SHARE[key] / RESOURCE_SCALE[key], hitsBank(snap, key) / RESOURCE_SCALE[key]);
+    let traced = added(ADDED[key]).map((r) => ({ ...r, value: r.value / RESOURCE_SCALE[key] }));
+    const cast = CAST_SHARE[key] / RESOURCE_SCALE[key], hit = hitsBank(snap, key) / RESOURCE_SCALE[key];
+    let own = ownShares(snap, cast, hit);
+    // energy's sections say where each gain banked: the cast's (and a hook's on it) first, then the hits'
+    if (key === "energy") {
+      const at = (section: string) => (r: TraceEntry): TraceEntry => ({ ...r, section });
+      const onCast = (r: TraceEntry): boolean => r.label === "on cast";
+      own = [
+        ...(cast ? [{ source: snap.action.name, value: cast, owner: snap.member, section: CAST_ENERGY }] : []),
+        ...(hit ? [{ source: snap.action.name, value: hit, owner: snap.member, section: HIT_ENERGY }] : []),
+      ];
+      traced = [...traced.filter(onCast).map(at(CAST_ENERGY)), ...traced.filter((r) => !onCast(r)).map(at(HIT_ENERGY))];
+    }
     const rows: TraceEntry[] = [...own, ...traced];
     // the action's own shares stay two rows, however alike they read; the buffs fold
     const folded = [...own, ...foldDuplicates(traced)];
@@ -486,24 +521,27 @@ function rowValues(
     if (traced.length) buffed.add(key);
     raw[`moved:${key}`] = rows.reduce((n, r) => n + r.value, 0);
   }
-  // energy banks `hits x (1 + Energy Regen Multiplier) + cast + added` (evaluate.ts)
+  // energy banks `hits x (1 + Hit Energy Multiplier) x ER + cast + added` (evaluate.ts): the hits'
+  // multiplier its own section, the Total before ER, and ER below it
   const hitEnergy = hitsBank(snap, "energy");
-  const rate = hitEnergy > 0 ? tracing(snap, keysFor(snap.action, Stat.EnergyRegenMult)) : [];
-  if (rate.length) {
-    sources.energy = [...(sources.energy ?? []), ...rate.map((r) => ({ ...r, section: ENERGY_RATE }))];
-    raw["moved:energy"] = (Number(raw["moved:energy"]) || 0)
-      + hitEnergy / RESOURCE_SCALE.energy * snap.stat(Stat.EnergyRegenMult) / 100;
-  }
-  // ...and below the Total, the Energy Regen the hits' own energy was scaled by: each source on its
-  // own row, unmerged, so a kit's conditional bonus reads apart from its base 100%, then their sum
   if (hitEnergy > 0) {
+    const scaled = hitEnergy / RESOURCE_SCALE.energy * (1 + snap.stat(Stat.HitEnergyMult) / 100);
+    const rate = tracing(snap, keysFor(snap.action, Stat.HitEnergyMult));
+    sources.energy = [...(sources.energy ?? []), ...rate.map((r) => ({ ...r, section: HIT_ENERGY_MULT }))];
+    raw["moved:energy"] = (Number(raw["moved:energy"]) || 0) - hitEnergy / RESOURCE_SCALE.energy + scaled;
+    // ...then the half every teammate is handed, the multiplier in but not this ER (each takes it
+    // through their own), and the Energy Regen
+    // the hits were scaled by: each source on its own row, unmerged, so a kit's conditional bonus
+    // reads apart from its base 100%, then their sum
+    const shared: TraceEntry = { source: "", label: "Energy Shared", value: scaled / 2, summary: true, joined: true, place: "afterTotal" };
     const regen = tracing(snap, keysFor(snap.action, Stat.ER), false)
       .map((r) => ({ ...r, percent: true, section: ENERGY_REGEN, place: "afterTotal" as const }));
+    sources.energy = [...sources.energy, shared, ...regen];
     if (regen.length) {
-      sources.energy = [...(sources.energy ?? []), ...regen, {
+      sources.energy.push({
         source: "", label: "Total", value: regen.reduce((n, r) => n + r.value, 0), percent: true, summary: true,
         section: ENERGY_REGEN, place: "afterTotal",
-      }];
+      });
     }
   }
   // off-tune: built amount x its multiplier x Buildup Rate, then the cast's own and direct off-tune
@@ -512,7 +550,7 @@ function rowValues(
   const buildingOfftune = declaredOfftune < 0 ? declaredOfftune : declaredOfftune * (1 + snap.stat(Stat.OfftuneMult) / 100);
   if (buildingOfftune > 0) {
     const mult = tracing(snap, keysFor(snap.action, Stat.OfftuneMult));
-    if (mult.length) sources.offtune = [...(sources.offtune ?? []), ...mult.map((r) => ({ ...r, section: ENERGY_RATE }))];
+    if (mult.length) sources.offtune = [...(sources.offtune ?? []), ...mult.map((r) => ({ ...r, section: OFFTUNE_MULT }))];
     const rate = tracing(snap, keysFor(snap.action, Stat.OfftuneBuildup));
     if (rate.length) sources.offtune = [...(sources.offtune ?? []), ...rate.map((r) => ({ ...r, section: OFFTUNE_RATE }))];
   }
@@ -540,7 +578,8 @@ function rowValues(
     }
     // the same two decimals the gauge's own column prints, so a fractional gain reads as one
     rows.push(...ownShares(snap, snap.action.castForte[i]! * unit, hitsBank(snap, FORTE_FIELD[i]!) * unit));
-    rows.push(...traced);
+    // one line per source, summed over the hits as the action's own is
+    rows.push(...foldDuplicates(traced).map(({ count: _, ...r }) => r));
     if (rows.length) sources[`gauge:${RESOURCE_NAME[key]}`] = rows;
     raw[`moved:gauge:${RESOURCE_NAME[key]}`] = rows.reduce((n, r) => n + r.value, 0);
     if (snap.action.resetForte[i]) raw[`clear:gauge:${RESOURCE_NAME[key]}`] = 1;
@@ -559,18 +598,21 @@ function rowValues(
     ];
   }
 
-  // vuln: the two halves multiply rather than summing, so each gets its own Total and the
-  // column's own (`raw.dealt`) is their product
+  // vuln: its parts — Total Damage, Damage Taken, a tune hit's Tune Break Boost — multiply rather
+  // than summing, so where more than one feeds it each gets its own Total and the column's own
+  // (`raw.dealt`) is their product
   if (sources.dealt?.length) {
     const half = (stat: Stat) => sources.dealt!
       .filter((r) => r.stat !== undefined && splitStat(r.stat)[0] === stat)
       .reduce((n, r) => n + r.value, 0);
-    const total = half(Stat.TotalDmg), taken = half(Stat.DamageTaken);
-    if (total && taken) {
-      sources.dealt = [...sources.dealt, ...([[Stat.TotalDmg, total], [Stat.DamageTaken, taken]] as const)
-        .map(([stat, value]) => ({
-          source: "", label: "Total", value, section: SECTION_OF[stat], percent: true, summary: true,
-        }))];
+    const parts = ([Stat.TotalDmg, Stat.DamageTaken, Stat.TBB] as const).map((stat): [Stat, number] => [stat, half(stat)])
+      .filter(([, value]) => value);
+    // Tune Break Boost always foots its own section: it is points, so the column's % Total under it
+    // is the lift they come to, never the figure itself
+    if (parts.length > 1 || parts.some(([stat]) => stat === Stat.TBB)) {
+      sources.dealt = [...sources.dealt, ...parts.map(([stat, value]) => ({
+        source: "", label: "Total", value, section: SECTION_OF[stat], percent: stat !== Stat.TBB, summary: true,
+      }))];
     }
   }
 
@@ -595,33 +637,53 @@ function rowValues(
         ...tracedScaler,
         ...subtotal(baseStat, false), ...subtotal(bonusStat, true), ...subtotal(flatStat, false),
         { source: "", label: "Total", value: snap[scaler.key], section: final, summary: true },
-        { source: "", label: "Relative", value: (snap[scaler.key] / base - 1) * 100, section: final, percent: true, digits: 2, summary: true },
+        // the stat as the damage formula takes it, floored
+        { source: "", label: `${scaler.full} Multiplier`, value: damageFactors(snap).finalStat, mult: true, section: final, summary: true, joined: true },
+        { source: "", label: `Effective ${scaler.word} Bonus`, value: (snap[scaler.key] / base - 1) * 100, section: final, percent: true, digits: 2, summary: true },
       ];
     }
+  }
+
+  // below each column's Total, the factor it puts into the damage formula (damage.ts `damageFactors`);
+  // a tune hit's Tune Break Boost reads under vuln
+  if (dealsDamage && !fixed(snap.action)) {
+    const f = damageFactors(snap);
+    const below = (key: string, label: string, value: number, mult = true): void => {
+      if (!sources[key]) return;
+      sources[key] = [...sources[key]!, { source: "", label, value, digits: 4, summary: true, joined: true, place: "afterTotal", ...(mult ? { mult: true } : {}) }];
+    };
+    below("dmgBonus", "Damage Bonus Multiplier", f.bonusFactor);
+    below("amp", "Amplification Multiplier", f.ampFactor);
+    if (f.dealtFactor !== 1) below("dealt", "Total Damage Multiplier", f.dealtFactor);
+    if (f.takenFactor !== 1) below("dealt", "Damage Taken Multiplier", f.takenFactor);
+    if (snap.action.scaling === Scaling.Tune) below("dealt", "Tune Break Boost Multiplier", f.tbbFactor);
+    below("effRes", "Resistance Factor", f.resFactor, false);
+    below("cr", "Average Crit Multiplier", f.critFactor);
+    below("cd", "Average Crit Multiplier", f.critFactor);
   }
 
   // a group row: stat columns are the last member's; the accumulating columns are rebuilt across
   // every member, panels laid end to end and folded
   if (members.length > 1) {
     const per = members.map((m) => rowValues(m, { mv: landedMv(m), avg: 0 }));
-    for (const key of ["short:energy", "short:concerto", ...FORTE_GAUGES.map((k) => `short:gauge:${RESOURCE_NAME[k]}`)]) {
+    for (const key of ["short:energy", "short:concerto", "short:offtune", ...FORTE_GAUGES.map((k) => `short:gauge:${RESOURCE_NAME[k]}`)]) {
       raw[key] = per.some((p) => Number(p.raw[key])) ? 1 : 0;
     }
     raw["short:buff"] = per.map((p) => p.raw["short:buff"]).filter(Boolean).join(", ") || 0;
     for (const key of COMBINED_COLUMNS) {
       if (sources[key] === undefined && key === "mv") continue;
-      const last = per.length - 1;
+      // the rate sections are the last member's to carry one, a member banking no energy aside
+      const rated = per.map((p) => (p.sources[key] ?? []).some((r) => r.section === ENERGY_REGEN || RATE_SECTIONS.has(r.section ?? "")));
+      const last = rated.lastIndexOf(true) < 0 ? per.length - 1 : rated.lastIndexOf(true);
       const kept = per.flatMap((p, k) => (p.sources[key] ?? [])
-        .filter((r) => (r.section !== OFFTUNE_RATE && r.section !== ENERGY_RATE && r.section !== ENERGY_REGEN) || k === last));
+        .filter((r) => (r.section !== ENERGY_REGEN && !RATE_SECTIONS.has(r.section ?? "")) || k === last));
       // the Energy Regen section stands as the last member's, never folded: a kit's base and its own
       // bonus share a source
       const rows = [...foldDuplicates(kept.filter((r) => r.section !== ENERGY_REGEN)), ...kept.filter((r) => r.section === ENERGY_REGEN)];
       if (rows.length) sources[key] = rows; else delete sources[key];
       if (per.some((p) => p.buffed.has(key))) buffed.add(key);
       const moved = `moved:${key}`;
-      if (per.some((p) => p.raw[moved] !== undefined)) {
-        raw[moved] = per.reduce((n, p) => n + (Number(p.raw[moved]) || 0), 0);
-      }
+      if (per.some((p) => p.raw[moved] !== undefined)) raw[moved] = per.reduce((n, p) => n + (Number(p.raw[moved]) || 0), 0);
     }
     FORTE_GAUGES.forEach((key, i) => {
       raw[`before:gauge:${RESOURCE_NAME[key]}`] = shownBefore(members[0]!, 3 + i) * members[0]!.forteScale[i]!;
@@ -631,31 +693,12 @@ function rowValues(
     raw["before:offtune"] = shownBefore(members[0]!, 2) / RESOURCE_SCALE.offtune;
   }
 
-  // a group's damage is its members': the motion value their sum, every other factor the one they
-  // shared, or the range across them where they differed
-  const floor4 = (v: number): number => Math.floor(v * 10000) / 10000;
-  const dealers = (members.length ? members : [snap]).filter((m) => landedMv(m) !== 0);
-  const fs = (dealers.length ? dealers : [snap]).map(damageFactors);
-  const f = fs[fs.length - 1]!;
-  const factor = (source: string, label: string, pick: (x: DamageFactors) => number, mult: boolean, round = (v: number): number => v): TraceEntry => {
-    const vs = fs.map((x) => round(pick(x)));
-    const lo = Math.min(...vs), hi = Math.max(...vs);
-    const row: TraceEntry = { source, label, value: vs[vs.length - 1]!, ...(mult ? { mult: true } : {}) };
-    return lo === hi ? row : { ...row, text: `${mult ? "×" : ""}${fmtExact(lo)}–${fmtExact(hi)}` };
-  };
-  const any = (pick: (x: DamageFactors) => boolean): boolean => fs.some(pick);
-  if (dealsDamage) sources.avg = [
-    factor(f.scaling === null ? "" : STAT_SOURCE[f.scaling] ?? SCALING_NAME[f.scaling], "Final Stat", (x) => x.finalStat, false),
-    { source: snap.action.name, label: "Motion Value", value: floor4(fs.reduce((n, x) => n + x.finalMv, 0)), mult: true },
-    factor("buffs", "Damage Bonus", (x) => x.bonusFactor, true),
-    factor("buffs", "Amplification", (x) => x.ampFactor, true),
-    ...(any((x) => x.scaling === Scaling.Tune) ? [factor("buffs", "Tune Break Boost", (x) => x.tbbFactor, true)] : []),
-    ...(any((x) => x.dealtFactor > 1) ? [factor("buffs", "Total Damage", (x) => x.dealtFactor, true)] : []),
-    ...(any((x) => x.takenFactor > 1) ? [factor("enemy", "Damage Taken", (x) => x.takenFactor, true)] : []),
-    factor("enemy", "Res Factor", (x) => x.resFactor, true),
-    factor("enemy", "Def Factor", (x) => x.defFactor, true, floor4),
-    factor("crit", "Average Crit", (x) => x.critFactor, true, floor4),
-  ];
+  // avg: every damaging hit the row landed, its members' in turn, each press counted from 1 — the
+  // panel is a table of them (panels.ts `hitsPopover`), so the column's own rows are left empty
+  const hits: RowHit[] = dealsDamage
+    ? (members.length ? members : [snap]).flatMap((m) => (m.hitLog ?? (landedMv(m) ? [hitDamage(m)] : [])).map((h, k) => ({ ...h, n: k + 1 })))
+    : [];
+  if (dealsDamage) sources.avg = [];
 
   // a press with no bullets deals as nothing, so it shows no stats — only the gauges its cast moved
   if (!(members.length ? members : [snap]).some((m) => m.action.bullets.length)) {
@@ -666,7 +709,7 @@ function rowValues(
     }
     delete raw["empty:scaler"];
   }
-  return { raw, sources, buffed };
+  return { raw, sources, buffed, hits };
 }
 
 export interface Column {
@@ -691,6 +734,7 @@ export interface ReportRow {
   raw: RawRow;
   sources: Sources;
   buffed: Set<string>;
+  hits: RowHit[];
   info: InfoEntry[];
   scaling: Scaling | null;
   short: boolean;
@@ -725,15 +769,15 @@ export function buildReport(lines: ChainGroup[]): Report {
     { key: "mv", label: "mv%", digits: 2, percent: true, full: "Motion Value" },
     // whichever stat the action scales off, blank where it scales off a constant
     { key: "scaler", label: "scaler", noTotal: true },
-    { key: "dmgBonus", label: "dmg%", digits: 1, percent: true, full: "Dmg Bonus" },
-    { key: "amp", label: "amp%", digits: 1, percent: true, full: "Amplification" },
-    { key: "cr", label: "cr%", digits: 1, percent: true, full: "Crit Rate" },
-    { key: "cd", label: "cd%", digits: 1, percent: true, full: "Crit Dmg" },
+    { key: "dmgBonus", label: "dmg%", digits: 2, percent: true, full: "Dmg Bonus" },
+    { key: "amp", label: "amp%", digits: 2, percent: true, full: "Amplification" },
+    { key: "cr", label: "cr%", digits: 2, percent: true, full: "Crit Rate" },
+    { key: "cd", label: "cd%", digits: 2, percent: true, full: "Crit Dmg" },
     // both halves carry their own section heading, so `full` is only the empty-panel one
     // its panel ends on the defense factor's formula and results rather than a Total
-    { key: "effDef", label: "shred%", digits: 1, percent: true, noTotal: true, full: "DEF Ignore", fullEmpty: "DEF Shred" },
-    { key: "effRes", label: "res%", digits: 1, percent: true, full: "Enemy RES" },
-    { key: "dealt", label: "vuln%", digits: 1, percent: true, full: "Vulnerability" },
+    { key: "effDef", label: "shred%", digits: 2, percent: true, noTotal: true, full: "DEF Ignore", fullEmpty: "DEF Shred" },
+    { key: "effRes", label: "res%", digits: 2, percent: true, full: "Enemy RES" },
+    { key: "dealt", label: "vuln%", digits: 2, percent: true, full: "Vulnerability" },
     // digits match nanoka's precision; offtune is /10000 (RESOURCE_SCALE) and reads to two like
     // the rest — its own panel is where the finer figures are, printed in full
     { key: "concerto", label: "concerto", digits: 2, hideIfZero: true, full: "Concerto" },
@@ -771,7 +815,7 @@ export function buildReport(lines: ChainGroup[]): Report {
 
   const rows: ReportRow[] = lines.map((line) => {
     const snap = line.snap;
-    const { raw, sources, buffed } = rowValues(snap, { mv: line.mv, avg: line.avg }, line.members ?? []);
+    const { raw, sources, buffed, hits } = rowValues(snap, { mv: line.mv, avg: line.avg }, line.members ?? []);
     raw.action = line.id;
     // a group is cut where its last press is
     if (tagOf(snap)) raw["tag:action"] = tagOf(snap);
@@ -780,7 +824,7 @@ export function buildReport(lines: ChainGroup[]): Report {
     raw.time = clockAt(end);
     raw["end:time"] = end;
     return {
-      line, raw, sources, buffed,
+      line, raw, sources, buffed, hits,
       // `snap.type`, not `action.type`: the type it was actually evaluated as (typeOverride)
       info: actionInfo(snap),
       scaling: snap.action.scaling,
@@ -815,7 +859,7 @@ export function buildReport(lines: ChainGroup[]): Report {
   const shown = (r: { raw: RawRow }, c: Column): string => {
     const v = r.raw[c.key];
     return typeof v === "number"
-      ? fmt(v, digitsOf(r.raw, c), PAD_DIGITS_COLUMNS.has(c.key), GROUPED_COLUMNS.has(c.key)) + (c.percent ? "%" : "") + gaugeSuffix(r.raw, c.key)
+      ? (c.percent ? `${fmtPctCell(v, c.key, PAD_DIGITS_COLUMNS.has(c.key))}%` : fmt(v, digitsOf(r.raw, c), PAD_DIGITS_COLUMNS.has(c.key), GROUPED_COLUMNS.has(c.key))) + gaugeSuffix(r.raw, c.key)
       : String(v ?? "");
   };
   // a cancel tag rides in the name cell, boxed, beside the name: 10px letters (about 0.82 of a

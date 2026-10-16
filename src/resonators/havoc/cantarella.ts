@@ -10,7 +10,6 @@
 import { Stat, Attribute, WeaponType, Type, Subtype, Cast, Node, Scaling, BuffTarget, Position } from "../../engine/stats.js";
 import { Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence, coordinatedBuff, matrix } from "../../engine/gear.js";
 import {
-  asSource,
   isType,
   stacksOfEnemy,
   applyEnemy,
@@ -37,16 +36,19 @@ import {
   setConcerto,
   onCast,
   addGain,
+  addStatAs,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, ECHO, ActionField, ActionTag, INTRO, OUTRO } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";
 import { HECATE_ACTIONS } from "./phrolova.js";
 import { LETHEAN_ELEGY, RIME_DRAPED_SPROUTS, STRINGMASTER, WHISPERS_OF_SIRENS } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
+import { AUGMENT, RADIANT_DAWN } from "../../weapons/battlepass.js";
 import { HERON, MOONLIT_CLOUDS_5PC, REJUV_5PC, NM_CROWNLESS, HAVOC_ECLIPSE_5PC } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
 import { MIDNIGHT_VEIL_5PC, EMPYREAN_ANTHEM_5PC, NM_HERON, HECATE } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -60,7 +62,7 @@ function cantaAction(id: string, def: object): Action {
 const MIRAGE: Buff = new Buff({
   name: "Cantarella: Mirage",
   duration: 60 * 8,
-  applyStats: () => { if (isHeld(CA_S4)) asSource(CA_S4, () => addStat(Stat.HealingBonus, 25)); },
+  applyStats: () => { if (isHeld(CA_S4)) addStatAs(CA_S4, Stat.HealingBonus, 25); },
   afterAction: () => { if (forte1() <= 0) revokeCurrent(MIRAGE); },
 });
 
@@ -129,7 +131,7 @@ const FSkill = cantaAction("Forte Skill - Perception Drain", { minForte2: 3, req
 
 const Liberation = cantaAction("Liberation - Beneath the Sea", {
   animFrames: 214, castPriority: 10, timestop: [0, 214], motionStop: [0, 170], cooldown: 60 * 25, // Flowing Suffocation Cooldown
-  node: Node.Liberation, cast: Cast.Liberation, subcast: Cast.Echo, type: Type.Basic, bullets: [{ hitFrame: 170, mv: 37600, offtune: 48000 }], castConcerto: 2000, castForte1: 3, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, subcast: Cast.Echo, type: Type.Basic, bullets: [{ hitFrame: 170, mv: 37600, offtune: 48000 }], castConcerto: 2000, castForte1: 3, castEnergy: -12500,
   updateBuffs: () => applyTeam(DIFFUSION_WINDOW, isHeld(CA_S5) ? 26 : 21), // S5: five more Dreamweavers
 });
 /** One Diffusion tick — a real Coordinated Attack, summoned one per qualifying action by
@@ -245,10 +247,11 @@ const CA_INHERENT_2 = new Inherent({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const CANTARELLA_TALENTS = new Talent({
   name: "Cantarella: Talents",
-  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 12]],
+  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 11.9999997]],
 });
 
 const CANTARELLA_RESONATOR = new Resonator({
+  id: 1607,
   name: "Cantarella",
   stats: [[Stat.BaseHp, 11600], [Stat.BaseAtk, 400], [Stat.BaseDef, 1099.998]],
   matrix: matrix("Cantarella", 25),
@@ -349,20 +352,23 @@ const CA_ROTATION_MDPS = new Rotation([
 // echo choices sharing Impermanence Heron as mainslot — Midnight Veil, Rejuvenating Glow, Moonlit
 // Clouds — all automatically iterated (see gear.ts's own EchoLoadout)
 export const CANTARELLA = new Loadout({
+  id: 16071,
   resonator: CANTARELLA_RESONATOR,
-  weapons: [WHISPERS_OF_SIRENS, COSMIC_RIPPLES, NEW_STD_RECTIFIER, STRINGMASTER, LETHEAN_ELEGY, RIME_DRAPED_SPROUTS],
-  echoLoadouts: [
+  weapons: [WHISPERS_OF_SIRENS, COSMIC_RIPPLES, NEW_STD_RECTIFIER, STRINGMASTER, LETHEAN_ELEGY, RIME_DRAPED_SPROUTS, AUGMENT, RADIANT_DAWN],
+  echoes: new Echoes({
+    sets: [
     new EchoLoadout(NM_HERON, MIDNIGHT_VEIL_5PC),
     new EchoLoadout(FALLACY, REJUV_5PC),
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
     new EchoLoadout(HECATE, EMPYREAN_ANTHEM_5PC),
         new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC),
   ],
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
+    substats: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Skill),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Skill, Substat.Heavy),
+  }),
   // an ER 3-cost is on the table as a support: her Liberation is what the team is waiting on, and
   // the rolls it frees off the spread often outweigh the elemental bonus it gives up
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
-  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Skill),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Skill, Substat.Heavy),
   rotation: CA_ROTATION,
   sequences: CA_SEQUENCES,
 });
@@ -372,15 +378,18 @@ export const CANTARELLA = new Loadout({
 // echo choices sharing Impermanence Heron as mainslot — Midnight Veil, Rejuvenating Glow, Moonlit
 // Clouds — all automatically iterated (see gear.ts's own EchoLoadout)
 export const CANTARELLA_MDPS = new Loadout({
+  id: 16072,
   resonator: CANTARELLA_RESONATOR,
-  weapons: [WHISPERS_OF_SIRENS, COSMIC_RIPPLES, NEW_STD_RECTIFIER, STRINGMASTER, LETHEAN_ELEGY, RIME_DRAPED_SPROUTS],
-  echoLoadouts: [
+  weapons: [WHISPERS_OF_SIRENS, COSMIC_RIPPLES, NEW_STD_RECTIFIER, STRINGMASTER, LETHEAN_ELEGY, RIME_DRAPED_SPROUTS, AUGMENT, RADIANT_DAWN],
+  echoes: new Echoes({
+    sets: [
     new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC),
   ],
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
+    substats: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Skill),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Skill, Substat.Heavy),
+  }),
   // same ER 3-cost her support build carries: her own bar wants more than a spread holds
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
-  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Skill),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Skill, Substat.Heavy),
   rotation: CA_ROTATION_MDPS,
   sequences: CA_SEQUENCES,
 });

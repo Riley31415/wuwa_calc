@@ -34,6 +34,7 @@ import { VARIATION } from "../../weapons/standard.js";
 import { REJUV_5PC } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
 import { mainstats, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { SPACETREK_EXPLORER, STARRY_RADIANCE_5PC } from "../../echoes/lahairoi.js";
 import { FORMLESS_DEMON, TINGED_YEARNING_5PC } from "../../echoes/mengzhou.js";
@@ -124,7 +125,7 @@ const FHA = skAction("Forte Heavy - Illation", { minForte1: 5, animFrames: 48, c
 
 const Liberation = skAction("Liberation - End Loop", {
   animFrames: 207, castPriority: 10, timestop: [0, 207], motionStop: [0, 207], cooldown: 60 * 25,
-  node: Node.Liberation, cast: Cast.Liberation, castConcerto: 2000, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, castConcerto: 2000, castEnergy: -17500,
   // "Generate the Outer Stellarealm": a cast puts up a *new* realm rather than stepping the one
   // already standing, so whatever stage is up is replaced by Outer — which is what puts the realm
   // S1 carried through Discernment back at the bottom.
@@ -263,12 +264,13 @@ const SK_S6 = new Sequence({
 const SHOREKEEPER_TALENTS = new Talent({
   name: "Shorekeeper: Talents",
   stats: [
-    [Stat.BonusHp, 12],
+    [Stat.BonusHp, 11.9999997],
     [Stat.HealingBonus, 12], // stat-tree Healing Bonus+ nodes — unused by the formula
   ],
 });
 
 const SHOREKEEPER_RESONATOR = new Resonator({
+  id: 1505,
   name: "Shorekeeper",
   stats: [[Stat.BaseHp, 16712.5], [Stat.BaseAtk, 287.5], [Stat.BaseDef, 1099.998]],
   talent: SHOREKEEPER_TALENTS,
@@ -337,11 +339,13 @@ const SK_LOOP_S3 = new Rotation([
 // her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat
 export const SHOREKEEPER = new Loadout({
+  id: 15051,
   // her kit scales off Energy Regen: 240% on the character screen at least
   minEr: 240,
   resonator: SHOREKEEPER_RESONATOR,
   weapons: [SK_SIG, VARIATION],
-  echoLoadouts: [
+  echoes: new Echoes({
+    sets: [
     new EchoLoadout(FALLACY, REJUV_5PC),
     // worn for Spacetrek's shield, which Jingran's Trace the Vestige feeds on; Tinged Yearning for a Unison
     new EchoLoadout(SPACETREK_EXPLORER, STARRY_RADIANCE_5PC).requires(JINGRAN_RESONATOR),
@@ -349,10 +353,11 @@ export const SHOREKEEPER = new Loadout({
     //new EchoLoadout(BELL_BORNE_GEOCHELONE, MOONLIT_CLOUDS_5PC),
     //new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
   ],
+    mainstats: [mainstats(Mainstat.HP4, Mainstat.ER3, Mainstat.ER3, Mainstat.HP1, Mainstat.HP1)],
+    substats: substats(Substat.Er, Substat.CritDmg, Substat.CritRate, Substat.Liberation, Substat.HpPct, Substat.Heavy),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.Liberation, Substat.HpPct, Substat.Heavy, Substat.Basic),
+  }),
   sequences: [SK_S1, SK_S2, SK_S3, SK_S4, SK_S5, SK_S6],
-  mainstats: [mainstats(Mainstat.HP4, Mainstat.ER3, Mainstat.ER3, Mainstat.HP1, Mainstat.HP1)],
-  substat: substats(Substat.Er, Substat.CritDmg, Substat.CritRate, Substat.Liberation, Substat.HpPct, Substat.Heavy),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.Liberation, Substat.HpPct, Substat.Heavy, Substat.Basic),
     // S3 loop disabled for now: it drops a whole Basic line and cuts her Intro chain to one press,
     // which costs her ~7.2 Energy a window and half of that to whoever she is standing in front of
     // — enough to put twelve teams' Liberations out of reach. Re-point this at SK_LOOP_S3 once that

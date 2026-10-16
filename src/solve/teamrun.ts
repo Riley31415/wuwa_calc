@@ -12,9 +12,11 @@ import { runRotations } from "../engine/rotation.js";
 import type { ActionField } from "../engine/rotation.js";
 import { TUNE_BREAK_ENEMY } from "../shared/tunebreak.js";
 import { erRollValue, ER_TOLERANCE } from "../shared/substats.js";
+import type { Spread } from "../shared/substats.js";
 import { Stat } from "../engine/stats.js";
 import { ctx } from "../engine/runtime.js";
 import type { Report } from "../page/display.js";
+import type { EnergyNeed } from "../page/model.js";
 import type { Member, Combo } from "./solver.js";
 import type { Loadout } from "../engine/gear.js";
 
@@ -44,7 +46,7 @@ export interface TeamRun {
   /** Per member, per main-stat variant scored alongside this run (state.ts's `TeamMember.variants`). */
   variantRuns: VariantRun[][];
   /** The detail page's report, built on first open (page/model.ts's `detailFor`). */
-  detail?: { report: Report };
+  detail?: { report: Report; needs: Map<string, EnergyNeed> };
   /** What a run carrying main-stat variants leaves for `deriveRun` to read other main stats off. */
   base?: VariantBase;
 }
@@ -233,9 +235,10 @@ const adjusted = (damage: number, frames: number): number => Math.floor((damage 
  *  adjusted DPR over the frames they took, and the whole fight's damage beside them. */
 type RunSums = Pick<TeamRun, "total" | "bySlot" | "sectionTotals" | "sectionBySlot" | "fightTotal" | "fightBySlot" | "seconds">;
 
-/** One walk over a fight's hits (all whole numbers): the run's figures at `avgAt` (handed the hit's member's
- *  index), member i's variants with their own hits at `src[i][v]` (-1 `avgAt`'s). `quiet` drops what a run wouldn't record. */
-function sumHits(sections: HitRecord[][], complete: number, frames: number, members: Member[], avgAt: (h: HitRecord, i: number | undefined) => number,
+/** One walk over a fight's hits (all whole numbers): the run's figures off each member's own hits, or where
+ *  `pick` names one, member i's variant `pick[i]`'s; member i's variants with their own hits at `src[i][v]`
+ *  (-1 the run's own). `quiet` drops what a run wouldn't record. */
+function sumHits(sections: HitRecord[][], complete: number, frames: number, members: Member[], pick: readonly number[] | null,
   src: number[][], unsafe: (i: number, v: number) => boolean, quiet: boolean): RunSums & { variantRuns: VariantRun[][] } {
   const nameIndex = new Map(members.map((m, i) => [m.name, i]));
   const slotIndex = new Map<string, number>(), slotNames: string[] = [];
@@ -254,7 +257,7 @@ function sumHits(sections: HitRecord[][], complete: number, frames: number, memb
         i = nameIndex.get(member);
       }
       const own = i === undefined ? null : src[i]!;
-      const p = avgAt(h, i);
+      const p = pick !== null && i !== undefined && pick[i]! >= 0 ? h.variantAvg![pick[i]!]! : h.avg;
       if (quiet && p === 0 && !own?.length) continue;
       if (h.slot !== slot) {
         slot = h.slot;
@@ -491,10 +494,11 @@ function measureNeed(members: Member[], _combo: Combo[], state: State): number[]
   return members.map((m, i) => (m.loadout.resonator.maxEnergy ? state.slots[i]!.erWorst : 0));
 }
 
-/** What `alt` wears in place of `c`'s pieces: the same build but for constant-stat pieces (a main
- *  stat, an echo set's 2pc), which is what lets one run score it as a variant of the other. */
-function swapsOf(c: Combo, alt: Combo): PieceSwap[] {
-  const from = [...c.echo.pieces(), c.mainstat], to = [...alt.echo.pieces(), alt.mainstat];
+/** What `alt` on `altSpread` wears in place of `c`'s pieces on `spread`: the same build but for
+ *  constant-stat pieces (the five echoes, an echo set's 2pc), which is what lets one run score it as a
+ *  variant of the other. */
+function swapsOf(l: Loadout, c: Combo, alt: Combo, spread: Spread, altSpread: Spread): PieceSwap[] {
+  const from = l.echoes.pieces(c.echo, c.mainstat, spread), to = l.echoes.pieces(alt.echo, alt.mainstat, altSpread);
   const same = from.length === to.length && c.weapon === alt.weapon && c.sequence === alt.sequence && c.matrix === alt.matrix && c.highSubs === alt.highSubs;
   const swaps: PieceSwap[] = [];
   for (let k = 0; same && k < from.length; k++) {
@@ -508,6 +512,15 @@ function swapsOf(c: Combo, alt: Combo): PieceSwap[] {
 
 /** `combo` with member `i`'s replaced by `alt` — the combo one of their variants stands for. */
 const variantCombo = (combo: Combo[], i: number, alt: Combo): Combo[] => combo.map((c, j) => (j === i ? alt : c));
+
+/** The ER rolls member `i` would be asked on `alt` in place of their pick — `erRollsFor()`'s own figure
+ *  for them, the alt combo's requirement first set to `measured` where none is on record. */
+function askedOf(teamKey: string, members: Member[], combo: Combo[], i: number, alt: Combo, measured: number[]): number {
+  const altKey = needKey(teamKey, variantCombo(combo, i, alt));
+  let need = ER_NEED_AT.get(altKey);
+  if (!need) ER_NEED_AT.set(altKey, (need = measured));
+  return erRollsWanted(members[i]!, alt, need[i] ?? 0);
+}
 
 /** @param trace  keep per-entry traces and the resolved lines (the detail page); off for the bulk pass.
  *  @param variants  per member, combos differing from `combo` in that member's main stat alone, to
@@ -527,6 +540,7 @@ export function runTeam(teamKey: string, members: Member[], combo: Combo[], trac
     // is nothing left to climb to, so the run finishes short, which is what `shortOf` reports.
     // `floor` keeps a climb from being undone by the descent — they disagree only by rounding.
     const floor = members.map(() => 0);
+    let reshown = false;
     const top = (m: Member): number => m.loadout.substat.tiers[m.loadout.substat.tiers.length - 1]!.rolls;
     for (;;) {
       const key = needKey(teamKey, combo);
@@ -558,6 +572,13 @@ export function runTeam(teamKey: string, members: Member[], combo: Combo[], trac
         const asked = erRollsFor(teamKey, members, combo);
         const over = members.some((m, i) => !combo[i]!.highSubs && m.loadout.substat.at(Math.max(asked[i]!, floor[i]!)) !== m.loadout.substat.at(worn[i]!));
         if (over) continue;
+        // an Energy column read off a guess at the requirement runs once more on the measured one
+        const stale = run.state!.slots.some((s, i) => s.shownEr !== shownErOf(members[i]!, measured[i]!, s.constEr));
+        if (trace && stale && !reshown) {
+          reshown = true;
+          ER_NEED_AT.set(key, measured);
+          continue;
+        }
       }
       // A variant wore the tier the requirement known before the run asked of it, so one that ends
       // up on another tier than a run of its own would — the one the measurement names, since it
@@ -569,10 +590,7 @@ export function runTeam(teamKey: string, members: Member[], combo: Combo[], trac
           if (!alts?.length) return;
           const slot = run.state!.slots[i]!;
           alts.forEach((alt, v) => {
-            const at = variantCombo(combo, i, alt);
-            const altKey = needKey(teamKey, at);
-            if (!ER_NEED_AT.has(altKey)) ER_NEED_AT.set(altKey, measured);
-            const asked = erRollsFor(teamKey, members, at)[i]!;
+            const asked = askedOf(teamKey, members, combo, i, alt, measured);
             if (!alt.highSubs && m.loadout.substat.at(asked) !== m.loadout.substat.at(slot.variantRolls[v]!)) run.variantRuns[i]![v]!.unsafe = true;
           });
         });
@@ -611,8 +629,8 @@ export function deriveRun(teamKey: string, members: Member[], combo: Combo[], fr
     if (v < 0 || b.engineUnsafe[j]![v]) return null;
     pick.push(v);
   }
-  // the substat piece a row of `from` wore: its own build's, or a variant's own
-  const rowPiece = (j: number, v: number): Gear => {
+  // the substat spread a row of `from` wore: its own build's, or a variant's own
+  const rowPiece = (j: number, v: number): Spread => {
     const l = members[j]!.loadout, c = from.combo[j]!;
     return v < 0 || c.highSubs ? l.spread(c.highSubs, b.worn[j]!) : l.substat.at(b.rolls[j]![v]!);
   };
@@ -662,48 +680,57 @@ export function deriveRun(teamKey: string, members: Member[], combo: Combo[], fr
   const asked = erRollsFor(teamKey, members, combo);
   if (members.some((m, i) => !combo[i]!.highSubs && m.loadout.substat.at(asked[i]!) !== m.loadout.substat.at(worn[i]!))) return null;
 
-  const avgAt = (h: HitRecord, j: number | undefined): number => (j !== undefined && pick[j]! >= 0 ? h.variantAvg![pick[j]!]! : h.avg);
   // judged as `runTeam` judges a variant after the run: the engine's verdict on the rows it reads,
   // and the tier its own combo asks for against the one it wore
   const unsafe = members.map((m, i) => (variants?.[i] ?? []).map((alt, v) => {
-    const at = variantCombo(combo, i, alt);
-    const altKey = needKey(teamKey, at);
-    if (!ER_NEED_AT.has(altKey)) ER_NEED_AT.set(altKey, measured);
-    const askedAlt = erRollsFor(teamKey, members, at)[i]!;
+    const askedAlt = askedOf(teamKey, members, combo, i, alt, measured);
     const src = source[i]![v]!;
     return (src >= 0 && b.engineUnsafe[i]![src]!) || (!alt.highSubs && m.loadout.substat.at(askedAlt) !== m.loadout.substat.at(variantRolls[i]![v]!));
   }));
-  const { variantRuns, ...sums } = sumHits(b.hits, b.complete, b.frames, members, avgAt, members.map((_, i) => (variants?.[i]?.length ? source[i]! : [])),
+  const { variantRuns, ...sums } = sumHits(b.hits, b.complete, b.frames, members, pick, members.map((_, i) => (variants?.[i]?.length ? source[i]! : [])),
     (i, v) => unsafe[i]![v]!, true);
   return {
     state: from.state, teamKey, members, combo, rotationLines: null, ...sums, sectionSeconds: from.sectionSeconds, variantRuns,
   };
 }
 
+/** The constant ER a traced run's Energy column reads at: exactly what its spends ask (or the kit's
+ *  own minimum, if higher), where the build wears more — -1, the bar as worn, where nothing asks or
+ *  the build falls short, so a shortfall still reads red. */
+const shownErOf = (m: Member, need: number, worn: number): number => {
+  // a hair over, so the hit-by-hit sum can't land a float's width under empty and read "-0.00"
+  const at = Math.max(need, m.loadout.minEr) + 1e-6;
+  return need > 0 && at < worn ? at : -1;
+};
+
 function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace: boolean, variants: (Combo[] | null)[] | null, erRolls = erRollsFor(teamKey, members, combo), guard: boolean[] = [], replay = false): TeamRun {
   const state = new State(members.map((m) => m.name));
+  // this combo's requirement as known now, read once for every member's variants
+  let own: number[] | undefined;
   members.forEach((m, i) => {
     state.active = i;
     const c = combo[i]!;
     withTeam(state, () => { for (const g of m.loadout.pieces(c.weapon, c.echo, c.mainstat, c.sequence, c.matrix !== null, c.highSubs, erRolls[i])) equip(g, 1); });
     state.slots[i]!.constEr = erHeld(m, c, erRolls[i]!);
+    if (trace) {
+      const need = (ER_NEED_AT.get(needKey(teamKey, combo)) ?? erNeedFor(teamKey, members, combo))[i] ?? 0;
+      state.slots[i]!.shownEr = shownErOf(m, need, state.slots[i]!.constEr);
+    }
     state.slots[i]!.erGuard = guard[i] ?? false;
     const alts = variants?.[i];
     if (alts?.length) {
       const slot = state.slots[i]!;
       slot.variantAt = new Map();
       slot.variantUnsafe = alts.map(() => false);
-      // a piece carrying ER moves the tier the spread wears, so each variant's base swaps the
-      // substat piece along with its own — at the rolls the requirement known so far asks.
+      // a piece carrying ER moves the tier the spread wears, so each variant's echoes wear its own
+      // tier — at the rolls the requirement known so far asks.
       // A variant has this build's buffs and so its need: where its own combo is not yet known,
       // this one's measurement is the guess, ahead of the team's
-      const worn = c.highSubs ? null : m.loadout.substat.at(erRolls[i]!);
-      const own = ER_NEED_AT.get(needKey(teamKey, combo)) ?? erNeedFor(teamKey, members, combo);
-      slot.variantRolls = alts.map((alt) => erRollsWanted(m, alt, (ER_NEED_AT.get(needKey(teamKey, variantCombo(combo, i, alt))) ?? own)[i] ?? 0));
-      slot.variants = alts.map((alt, v) => {
-        const swaps = swapsOf(c, alt), piece = c.highSubs ? null : m.loadout.substat.at(slot.variantRolls[v]!);
-        return piece === worn ? swaps : [...swaps, [worn!, piece!] as const];
-      });
+      const worn = m.loadout.spread(c.highSubs, erRolls[i]!);
+      own ??= ER_NEED_AT.get(needKey(teamKey, combo)) ?? erNeedFor(teamKey, members, combo);
+      const known = own;
+      slot.variantRolls = alts.map((alt) => erRollsWanted(m, alt, (ER_NEED_AT.get(needKey(teamKey, variantCombo(combo, i, alt))) ?? known)[i] ?? 0));
+      slot.variants = alts.map((alt, v) => swapsOf(m.loadout, c, alt, worn, c.highSubs ? worn : m.loadout.substat.at(slot.variantRolls[v]!)));
     }
   });
   state.active = 0;
@@ -729,7 +756,7 @@ function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace:
     hits[k]!.push(h);
   }
   const { total, bySlot, sectionTotals, sectionBySlot, fightTotal, fightBySlot, seconds, variantRuns } = sumHits(hits, complete, frames, members,
-    (h) => h.avg, members.map((_, i) => (variants?.[i] ?? []).map((_, v) => v)), (i, v) => state.slots[i]!.variantUnsafe[v]!, false);
+    null, members.map((_, i) => (variants?.[i] ?? []).map((_, v) => v)), (i, v) => state.slots[i]!.variantUnsafe[v]!, false);
   const base: VariantBase | undefined = variants ? {
     hits, complete, frames, worn: erRolls.slice(), alts: variants, measured: null, wants: state.slots.map((s) => s.erWants),
     rolls: state.slots.map((s, i) => (variants[i]?.length ? s.variantRolls.slice() : [])),

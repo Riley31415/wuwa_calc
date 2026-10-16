@@ -3,13 +3,15 @@
  * the row set a solve opens, and `solveTeam`. DOM-free so a pool of Workers can run it — this file
  * is also the worker's own entry point (see the foot). The engine run it scores with is teamrun.ts.
  */
-import { Buff, Loadout, EchoLoadout, Weapon, baseSequence } from "../engine/gear.js";
+import { Loadout, EchoLoadout, Weapon, baseSequence } from "../engine/gear.js";
 import { Tier } from "../engine/stats.js";
 import type { Matrix } from "../engine/gear.js";
 import { runTeam, scoreOf, erRollsFor, shortOf, deriveRun } from "./teamrun.js";
-import type { TeamRun, RowScore } from "./teamrun.js";
+import type { TeamRun, RowScore, VariantRun } from "./teamrun.js";
+import type { State } from "../engine/state.js";
 import { teamAt } from "../resonators/teams.js";
 import { critLineOf, Mainstat } from "../shared/mainstats.js";
+import type { MainstatBuild } from "../shared/mainstats.js";
 
 export interface Member {
   name: string;
@@ -31,7 +33,7 @@ export const member = (loadout: Loadout, mainDps = false): Member =>
  *  on (`matrixOn`), else null. */
 /** `build` is `key` without the main stat: what an ER requirement is guessed by (teamrun.ts).
  *  `group` is `build` with the echo pick's group (`echoGroup()`): the builds one run scores together. */
-export interface Combo { weapon: Weapon; echo: EchoLoadout; mainstat: Buff; sequence: number; matrix: Matrix | null; highSubs: boolean; key: string; build: string; group: string; }
+export interface Combo { weapon: Weapon; echo: EchoLoadout; mainstat: MainstatBuild; sequence: number; matrix: Matrix | null; highSubs: boolean; key: string; build: string; group: string; }
 
 /** The axes a resonator's rows can be opened up on. */
 export type Axis = "weapons" | "echoes" | "mainstats" | "substats" | "sequences" | "refines";
@@ -62,8 +64,10 @@ export interface Filters {
 }
 
 /** An axis compared on one pick of a resonator's alone: `on` gates it, `value` is the pick as its
- *  cell reads (a level or rank number, a weapon name with or without rank, an `echoLabel()`). */
-export interface ScopedCompare { resonator: string; on: "sequence" | "refine" | "weapon" | "weaponRank" | "echo"; value: string; axis: "refines" | "echoes" | "mainstats" }
+ *  cell reads (a level or rank number, a weapon name with or without rank, an `echoLabel()`).
+ *  `on: "rank"` compares nothing: it puts the one weapon rank `value` names beside the member's
+ *  rows at one chain level — "S6 Emerald of Genesis R3", and unprefixed at S0 (`shownRanks`). */
+export interface ScopedCompare { resonator: string; on: "sequence" | "refine" | "weapon" | "weaponRank" | "echo" | "rank"; value: string; axis: "refines" | "echoes" | "mainstats" }
 export const scopedKey = (s: ScopedCompare): string => `${s.resonator}~${s.on}~${s.value}~${s.axis}`;
 
 export const weaponBase = (w: Weapon): string => w.name.replace(/ R\d$/, "");
@@ -75,7 +79,7 @@ export const gateOf = (l: Loadout, p: Pick): Gate => ({ weapon: l.refinements[p.
 
 export function scopedOpen(m: Member, f: Filters, axis: Axis, gate: Gate): boolean {
   const l = m.loadout;
-  return f.scoped.some((s) => s.resonator === l.resonator.name && s.axis === axis && (
+  return f.scoped.some((s) => s.resonator === l.resonator.name && s.axis === axis && s.on !== "rank" && (
     s.on === "sequence" ? +s.value === gate.sequence
     : s.on === "refine" ? gate.weapon.refinement === +s.value
     : s.on === "weapon" ? weaponBase(gate.weapon) === s.value
@@ -84,7 +88,29 @@ export function scopedOpen(m: Member, f: Filters, axis: Axis, gate: Gate): boole
 }
 /** Whether `axis` is compared on any of this member's rows (a column exists). */
 export const axisUsed = (m: Member, f: Filters, axis: Axis): boolean =>
-  axisOpen(m, f, axis) || f.scoped.some((s) => s.resonator === m.loadout.resonator.name && s.axis === axis);
+  axisOpen(m, f, axis) || f.scoped.some((s) => s.resonator === m.loadout.resonator.name && s.axis === axis && s.on !== "rank");
+
+/** A shown rank's value read back: the weapon at its rank, and the chain level it stands at. */
+export function rankShown(value: string): { weapon: string; sequence: number } {
+  const at = /^S(\d) (.*)$/.exec(value);
+  return at ? { weapon: at[2]!, sequence: +at[1]! } : { weapon: value, sequence: 0 };
+}
+/** The value showing `weapon` (a ranked name) at chain level `sequence`. */
+export const rankValue = (weapon: string, sequence: number): string => (sequence ? `S${sequence} ${weapon}` : weapon);
+
+/** Every [weapon, rank, level] a "Show X Rk" puts beside this member's rows, as indices. */
+export function shownRanks(m: Member, f: Filters): [number, number, number][] {
+  const l = m.loadout;
+  return f.scoped.flatMap((s): [number, number, number][] => {
+    if (s.resonator !== l.resonator.name || s.on !== "rank") return [];
+    const { weapon: name, sequence } = rankShown(s.value);
+    const weapon = l.refinements.findIndex((ranks) => ranks.some((w) => w.name === name));
+    return weapon < 0 ? [] : [[weapon, l.refinements[weapon]!.findIndex((w) => w.name === name), sequence]];
+  });
+}
+/** The weapons only a shown rank brings onto this member's rows: none of `listed`, the ones they run anyway. */
+export const shownWeapons = (m: Member, f: Filters, listed: number[]): number[] =>
+  [...new Set(shownRanks(m, f).map(([w]) => w))].filter((w) => !listed.includes(w));
 /** Whether `axis` is compared on this member's row wearing `gate`. */
 export const compares = (m: Member, f: Filters, axis: Axis, gate: Gate): boolean =>
   axisOpen(m, f, axis) || scopedOpen(m, f, axis, gate);
@@ -141,7 +167,21 @@ export const picksKey = (teamKey: string, members: Member[], filters: Filters): 
  *  matrix and substat spread. Only weapon/echo/mainstat are ever searched. */
 export interface Pick { weapon: number; echo: number; mainstat: number; sequence: number; refine: number; matrix: boolean; highSubs: boolean; }
 
+/** `p` on a main stat its echo pick can wear: its own, else the first with a slot for the mainslot. */
+export const fitPick = (l: Loadout, p: Pick): Pick =>
+  (l.fits(p.echo, p.mainstat) ? p : { ...p, mainstat: l.mainstats.findIndex((_, k) => l.fits(p.echo, k)) });
+
+/** Per loadout, each pick's Combo, made once: the search asks for the same few over and over. */
+const COMBOS = new WeakMap<Loadout, Map<number, Combo>>();
 export const comboOf = (l: Loadout, p: Pick): Combo => {
+  let made = COMBOS.get(l);
+  if (!made) COMBOS.set(l, (made = new Map()));
+  const id = ((((p.weapon * 64 + p.echo) * 1024 + p.mainstat) * 8 + p.sequence) * 8 + p.refine) * 4 + (p.matrix ? 2 : 0) + (p.highSubs ? 1 : 0);
+  let combo = made.get(id);
+  if (!combo) made.set(id, (combo = makeCombo(l, p)));
+  return combo;
+};
+function makeCombo(l: Loadout, p: Pick): Combo {
   const matrix = p.matrix && l.resonator.matrix ? l.resonator.matrix : null;
   return {
     weapon: l.refinements[p.weapon]![p.refine]!, echo: l.echoLoadouts[p.echo]!, mainstat: l.mainstats[p.mainstat]!,
@@ -150,7 +190,7 @@ export const comboOf = (l: Loadout, p: Pick): Combo => {
     build: `${p.weapon}.${p.echo}.s${p.sequence}.r${p.refine}${matrix ? ".m" : ""}${p.highSubs ? ".h" : ""}`,
     group: `${p.weapon}.e${echoGroup(l, p.echo)}.s${p.sequence}.r${p.refine}${matrix ? ".m" : ""}${p.highSubs ? ".h" : ""}`,
   };
-};
+}
 
 /** Per loadout, each echo pick's group: the first pick wearing the same gear but for constant-stat
  *  pieces in the same places (a set's 2pc), which one run scores as variants, as it does main stats. */
@@ -158,7 +198,7 @@ const ECHO_GROUPS = new WeakMap<Loadout, number[]>();
 function echoGroup(l: Loadout, echo: number): number {
   let groups = ECHO_GROUPS.get(l);
   if (!groups) {
-    const shapes = l.echoLoadouts.map((e) => e.pieces().map((g) => (g.constantOnly ? "*" : g.id)).join(","));
+    const shapes = l.echoLoadouts.map((e) => e.pieces().map((g) => (g.constantOnly ? "*" : g.engineId)).join(","));
     ECHO_GROUPS.set(l, (groups = shapes.map((s) => shapes.indexOf(s))));
   }
   return groups[echo]!;
@@ -194,12 +234,15 @@ const costRefine = (m: Member, weapon: number, cost: TeamCost, holds: boolean): 
   Math.min(costGrant(cost, holds).refine, m.loadout.refinements[weapon]!.length - 1);
 
 /** Ranks a row at `p` runs its weapon at: every listed rank while refines are compared there, else
- *  the build's own. An open Sequences box runs its whole ladder at R1 whatever the cost hands out,
- *  so the levels read against each other. */
-export function refineLevels(m: Member, filters: Filters, p: Pick): number[] {
+ *  the build's own and any shown beside it. An open Sequences box runs its whole ladder at R1
+ *  whatever the cost hands out, so the levels read against each other. `listed` false is a weapon
+ *  only a shown rank brought in (`shownWeapons`): those ranks alone. */
+export function refineLevels(m: Member, filters: Filters, p: Pick, listed = true): number[] {
   const ranks = m.loadout.refinements[p.weapon]!;
   if (compares(m, filters, "refines", gateOf(m.loadout, p))) return ranks.map((_, i) => i);
-  return [axisOpen(m, filters, "sequences") ? 0 : Math.min(p.refine, ranks.length - 1)];
+  const shown = shownRanks(m, filters).filter(([w, , s]) => w === p.weapon && s === p.sequence).map(([, r]) => r);
+  const own = listed ? [axisOpen(m, filters, "sequences") ? 0 : Math.min(p.refine, ranks.length - 1)] : [];
+  return [...new Set([...own, ...shown])].sort((a, b) => a - b);
 }
 
 /** Chain levels a member's rows cover, baseline first. Never searched — a node is strictly more kit —
@@ -279,7 +322,7 @@ function groupAlts(m: Member, p: Pick, members: Member[]): Combo[] {
   const l = m.loadout, group = echoGroup(l, p.echo), out: Combo[] = [];
   for (const echo of echoPicks(m, members)) {
     if (echoGroup(l, echo) !== group) continue;
-    for (let k = 0; k < l.mainstats.length; k++) if (echo !== p.echo || k !== p.mainstat) out.push(comboOf(l, { ...p, echo, mainstat: k }));
+    for (let k = 0; k < l.mainstats.length; k++) if ((echo !== p.echo || k !== p.mainstat) && l.fits(echo, k)) out.push(comboOf(l, { ...p, echo, mainstat: k }));
   }
   return out;
 }
@@ -291,6 +334,25 @@ function baseRun(teamKey: string, members: Member[], picks: Pick[], combo: Combo
   bases.set(at, [...(bases.get(at) ?? []), run]);
   return run;
 }
+/** A main-stat variant's run, read off the run that carried it: the breakdown is built only where a row
+ *  that ships reads it (the variant's own `VariantRun`). */
+class VariantScore implements TeamRun {
+  state: State | null = null;
+  rotationLines = null;
+  variantRuns: VariantRun[][] = [];
+  total: number;
+  seconds: number;
+  constructor(public teamKey: string, public members: Member[], public combo: Combo[], private readonly variant: VariantRun, public sectionSeconds: number[]) {
+    this.total = variant.total;
+    this.seconds = variant.seconds;
+  }
+  get bySlot(): Map<string, number> { return this.variant.bySlot; }
+  get sectionTotals(): number[] { return this.variant.sectionTotals; }
+  get sectionBySlot(): Map<string, number>[] { return this.variant.sectionBySlot; }
+  get fightTotal(): number { return this.variant.fightTotal; }
+  get fightBySlot(): Map<string, number> { return this.variant.fightBySlot; }
+}
+
 /** `scoreMainstats()` answers, keyed the same plus which members were scored. */
 let scoreCache = new Map<string, Map<number, TeamRun[]>>();
 
@@ -327,7 +389,7 @@ function scoreMainstats(teamKey: string, members: Member[], picks: Pick[], who: 
  *  off where every row is shown. */
 function scoreMainstatsRun(teamKey: string, members: Member[], picks: Pick[], who: number[], combo: Combo[], prune: boolean): Map<number, TeamRun[]> {
   const alts = members.map((m, i) => (who.includes(i)
-    ? m.loadout.mainstats.map((_, k) => k).filter((k) => k !== picks[i]!.mainstat) : null));
+    ? m.loadout.mainstats.map((_, k) => k).filter((k) => k !== picks[i]!.mainstat && m.loadout.fits(picks[i]!.echo, k)) : null));
   const variants = alts.map((a, i) => a && a.map((k) => comboOf(members[i]!.loadout, { ...picks[i]!, mainstat: k })));
   let run = derived(teamKey, members, combo, variants);
   // where a variant stands among what the run carried: the main stats asked for, or the whole group
@@ -363,15 +425,7 @@ function scoreMainstatsRun(teamKey: string, members: Member[], picks: Pick[], wh
       }
       const c = combo.map((x, j) => (j === i ? alt : x));
       // the breakdown read through, so only a row that ships builds it
-      const scored: TeamRun = {
-        state: run.state, teamKey, members, combo: c, rotationLines: null, variantRuns: [],
-        total: variant.total, seconds: variant.seconds, sectionSeconds: run.sectionSeconds,
-        get bySlot() { return variant.bySlot; },
-        get sectionTotals() { return variant.sectionTotals; },
-        get sectionBySlot() { return variant.sectionBySlot; },
-        get fightTotal() { return variant.fightTotal; },
-        get fightBySlot() { return variant.fightBySlot; },
-      };
+      const scored = new VariantScore(teamKey, members, c, variant, run.sectionSeconds);
       trialCache.set(trialKey(teamKey, c), scored);
       scores[k] = scored;
     });
@@ -379,7 +433,7 @@ function scoreMainstatsRun(teamKey: string, members: Member[], picks: Pick[], wh
       if (!scores[k]) scores[k] = trialRun(teamKey, members, picks.map((p, j) => (j === i ? { ...p, mainstat: k } : p)));
       return scores[k]!.total;
     };
-    const skip = prune ? pruneMainstats(members[i]!.loadout, scores, total) : new Set<number>();
+    const skip = prune ? pruneMainstats(members[i]!.loadout, picks[i]!.echo, scores, total) : new Set<number>();
     for (const k of unsafe) if (!skip.has(k)) total(k);
     out.set(i, scores);
   }
@@ -392,9 +446,9 @@ function scoreMainstatsRun(teamKey: string, members: Member[], picks: Pick[], wh
  * ele/ele once atk/ele loses to atk/atk). `scores` holds what is already known; `total` scores a
  * build, running it if it has to. A build already scored is never skipped, and a tie skips nothing.
  */
-function pruneMainstats(l: Loadout, scores: TeamRun[], total: (k: number) => number): Set<number> {
+function pruneMainstats(l: Loadout, echo: number, scores: TeamRun[], total: (k: number) => number): Set<number> {
   const skip = new Set<number>();
-  const lines = l.mainstats.map((piece, k) => ({ k, line: critLineOf(piece) })).filter((x) => x.line);
+  const lines = l.mainstats.map((build, k) => ({ k, line: critLineOf(build) })).filter((x) => x.line && l.fits(echo, x.k));
   const at = (four: Mainstat, atk: number, element: Mainstat | null, ones: string): number | undefined =>
     lines.find(({ line }) => line!.four === four && line!.atk === atk && line!.element === element && line!.ones === ones)?.k;
   // CR against CD, on the pair that costs the fewest real runs to compare
@@ -494,7 +548,7 @@ export function optimizeTeam(teamKey: string, members: Member[], filters: Filter
       const list: Pick[] = [];
       for (const weapon of weaponOptions(m, filters, sigAllowed(i, holder, filters.cost))) {
         for (const echo of echoPicks(m, members)) {
-          list.push({ weapon, echo, mainstat: 0, sequence, refine: costRefine(m, weapon, filters.cost, holds), matrix: matrixOn(m, filters), highSubs: false });
+          list.push(fitPick(m.loadout, { weapon, echo, mainstat: 0, sequence, refine: costRefine(m, weapon, filters.cost, holds), matrix: matrixOn(m, filters), highSubs: false }));
         }
       }
       return list;
@@ -560,11 +614,11 @@ function buildsOf(m: Member, members: Member[], home: Pick, f: Filters, sig: boo
   const sequences = axisOpen(m, f, "sequences") ? sequenceLevels(m, f) : [home.sequence];
   const picks: Pick[] = [];
   // the rank rides with the weapon: a pinned one-rank entry has no index for a higher rank
-  for (const weapon of weapons) for (const sequence of sequences) {
+  for (const weapon of [...weapons, ...shownWeapons(m, f, weapons)]) for (const sequence of sequences) {
     const at = { ...home, weapon, sequence, refine: Math.min(home.refine, l.refinements[weapon]!.length - 1) };
     const echoes = compares(m, f, "echoes", gateOf(l, at)) ? echoPicks(m, members) : [home.echo];
-    for (const refine of refineLevels(m, f, at)) for (const echo of echoes) for (const highSubs of subs) {
-      picks.push({ ...at, refine, echo, highSubs });
+    for (const refine of refineLevels(m, f, at, weapons.includes(weapon))) for (const echo of echoes) for (const highSubs of subs) {
+      picks.push(fitPick(l, { ...at, refine, echo, highSubs }));
     }
   }
   // a pick whose gear cannot fill this member's Energy bar is no build at all — drop it and let the
@@ -601,7 +655,7 @@ function rowPicks(
     return out;
   };
 
-  const compared = members.some((m) => AXES.some((a) => axisUsed(m, filters, a)));
+  const compared = members.some((m) => AXES.some((a) => axisUsed(m, filters, a)) || shownRanks(m, filters).length > 0);
   const pinEchoes = (picks: Pick[]): Pick[] => {
     let out = picks;
     const closedEchoes = members.map((_, i) => i).filter((i) => !compares(members[i]!, filters, "echoes", gateOf(members[i]!.loadout, picks[i]!)));
@@ -619,7 +673,7 @@ function rowPicks(
       let bestTotal = incumbent.total;
       for (const echo of echoes) {
         if (echo === home.echo) continue;
-        const trial = reroll(out.map((p, j) => (j === i ? { ...home, echo } : p)), i);
+        const trial = reroll(out.map((p, j) => (j === i ? fitPick(members[i]!.loadout, { ...home, echo }) : p)), i);
         hidden.push(trial.picks);
         if (trial.total > bestTotal) {
           bestTotal = trial.total;
@@ -650,8 +704,9 @@ function rowPicks(
     const settled = settle(compared ? pinEchoes(build) : build);
     // a compared row measures against its axis's baseline in *its own* settled sets — the
     // re-search settles each build apart, so that twin is not otherwise guaranteed to be run:
-    // the baseline level at R1 for a level or rank row, every non-limited weapon (at the rank
-    // the row runs) for a signature row, the default subs for a high-subs row
+    // the baseline level at R1 for a level or rank row, every other non-limited weapon (at the rank
+    // the row runs) for any weapon row — a standard one's own sets can be another's — and the
+    // default subs for a high-subs row
     const twinOf = (i: number, change: Partial<Pick>): void => {
       const twin = settled.map((q, j) => (j === i ? { ...q, ...change } : q));
       const key = twin.map((q) => `${q.weapon}.${q.echo}.s${q.sequence}.r${q.refine}${q.highSubs ? ".h" : ""}`).join("-");
@@ -666,9 +721,9 @@ function rowPicks(
       const ranked = axisUsed(m, filters, "refines");
       if (axisOpen(m, filters, "sequences") && p.sequence !== sequenceLevels(m, filters)[0]!) twinOf(i, { sequence: sequenceLevels(m, filters)[0]! });
       if (ranked && p.refine !== 0) twinOf(i, { refine: 0 });
-      if (axisOpen(m, filters, "weapons") && m.loadout.weapons[p.weapon]!.tier === Tier.Limited) {
+      if (axisOpen(m, filters, "weapons")) {
         for (const w of eligibleWeapons(m, filters)) {
-          if (m.loadout.weapons[w]!.tier === Tier.Limited) continue;
+          if (w === p.weapon || m.loadout.weapons[w]!.tier === Tier.Limited) continue;
           twinOf(i, { weapon: w, refine: ranked ? 0 : Math.min(p.refine, m.loadout.refinements[w]!.length - 1) });
         }
       }

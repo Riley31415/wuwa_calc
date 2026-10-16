@@ -23,7 +23,6 @@ import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, Position } from
 import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Debuff, Sequence, coordinatedBuff } from "../../engine/gear.js";
 import {
   cancelHits,
-  asSource,
   addStat,
   getStat,
   applyCurrent,
@@ -32,7 +31,6 @@ import {
   queue,
   revokeCurrent,
   stacksOfTeam,
-  
   maxStackIncrease,
   applyEnemy,
   revokeEnemy,
@@ -41,6 +39,7 @@ import {
   revokeTeam,
   reduceCooldown,
   addGain,
+  addStatAs,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, NOINTRO, ECHO, INTRO, OUTRO, START_LAST, DODGE } from "../../engine/rotation.js";
 import { HEALS, heal } from "../../shared/status.js";
@@ -52,6 +51,7 @@ import { DISCORD } from "../../weapons/standard.js";
 import { REACTOR_HUSK, SPACETREK_EXPLORER, STARRY_RADIANCE_5PC } from "../../echoes/lahairoi.js";
 import { JINGRAN_RESONATOR } from "./jingran.js";
 import { mainstats, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -216,7 +216,7 @@ const DistributedArray = mornyeAction("Skill - Distributed Array", { castPositio
 const Liberation = mornyeAction("Liberation - Critical Protocol", {
   animFrames: 300, castPriority: 10, timestop: [0, 300], motionStop: [0, 300], cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, scaling: Scaling.Def,
-  bullets: [{ hitFrame: 272, mv: 52233, offtune: 72000 }], castConcerto: 2000, resetEnergy: true,
+  bullets: [{ hitFrame: 272, mv: 52233, offtune: 72000 }], castConcerto: 2000, castEnergy: -17500,
   // trades the field up to its High stage, if one is standing
   updateBuffs: () => {
     applyCurrent(CRITICAL_PROTOCOL, 1);
@@ -267,7 +267,7 @@ const syntonyField = (name: string, high: boolean): Buff => new Buff({
     if (high) addStat(Stat.BonusDef, 20);
     // S2's own +20% on top, read off her slot: the node is her local gear, this pays the team
     if (currentTeam().slots.find((m) => m.resonator === MORNYE_RESONATOR)?.isHeld(MO_S2)) {
-      asSource(MO_S2, () => addStat(Stat.OfftuneBuildup, 20));
+      addStatAs(MO_S2, Stat.OfftuneBuildup, 20);
     }
   },
 });
@@ -331,8 +331,8 @@ const INTERFERED_MARKER: Debuff = new Debuff({
     // S1 makes the bonus unconditional, so the half it adds over the base reading is its own
     const interfered = stacksOfEnemy(TUNE_RUPTURE_INTERFERED) > 0 || stacksOfEnemy(TUNE_STRAIN_INTERFERED) > 0;
     if (interfered) addStat(Stat.DmgBonus, 40);
-    else if (her?.isHeld(MO_S1)) asSource(MO_S1, () => addStat(Stat.DmgBonus, 40));
-    if (her?.isHeld(MO_S2)) asSource(MO_S2, () => addStat(Stat.CritDmg, 32));
+    else if (her?.isHeld(MO_S1)) addStatAs(MO_S1, Stat.DmgBonus, 40);
+    if (her?.isHeld(MO_S2)) addStatAs(MO_S2, Stat.CritDmg, 32);
   },
 });
 
@@ -406,13 +406,14 @@ const MO_INHERENT_2 = new Inherent({ name: "Inherent: Boundedness" });
 
 const MORNYE_TALENTS = new Talent({
   name: "Mornye: Talents",
-  stats: [[Stat.BonusDef, 15.2], [Stat.HealingBonus, 12]],
+  stats: [[Stat.BonusDef, 15.1999999], [Stat.HealingBonus, 12]],
 });
 
 /** This kit's own carrier for the Tune Strain payout (tunebreak.ts's `strainPayout`). */
 const MO_STRAIN_PAYOUT = strainPayout();
 
 const MORNYE_RESONATOR = new Resonator({
+  id: 1209,
   name: "Mornye",
   talent: MORNYE_TALENTS,
   inherent1: MO_INHERENT_1,
@@ -475,16 +476,19 @@ const MO_ECHOES = [
 ];
 
 export const MORNYE = new Loadout({
+  id: 12091,
   // 260% Energy Regen on the character screen at least, Blueprint's own +10% counted in it
   minEr: 260,
   resonator: MORNYE_RESONATOR,
   weapons: [STARFIELD_CALIBRATOR, DISCORD],
-  echoLoadouts: MO_ECHOES,
+  echoes: new Echoes({
+    sets: MO_ECHOES,
+    mainstats: [mainstats(Mainstat.DEF4, Mainstat.ER3, Mainstat.ER3, Mainstat.DEF1, Mainstat.DEF1)],
+    substats: substats(Substat.Er, Substat.CritDmg, Substat.CritRate, Substat.Liberation, Substat.DefPct, Substat.Basic),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.Liberation, Substat.DefPct, Substat.Basic, Substat.Heavy),
+  }),
   // the two ER 3-costs are the build, not a pick: Critical Protocol pays out of ER, and so does
   // the Liberation she needs back every loop — the same fixed spread every ER support here runs
-  mainstats: [mainstats(Mainstat.DEF4, Mainstat.ER3, Mainstat.ER3, Mainstat.DEF1, Mainstat.DEF1)],
-  substat: substats(Substat.Er, Substat.CritDmg, Substat.CritRate, Substat.Liberation, Substat.DefPct, Substat.Basic),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.Liberation, Substat.DefPct, Substat.Basic, Substat.Heavy),
   // S3 loop disabled for now: dropping Wide Field out of the looping window costs her 8.4 ER and
   // ~2 more on each teammate for less damage than S2. Re-point at MO_ROTATION_S3 once it settles.
   rotation: MO_ROTATION,

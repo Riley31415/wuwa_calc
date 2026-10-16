@@ -35,9 +35,11 @@ import {
 import { ActionGroup, Action, Rotation, NOINTRO, ECHO, INTRO, OUTRO, DODGE, JUMP } from "../../engine/rotation.js";
 import { TRAGICOMEDY } from "../../weapons/gauntlet.js";
 import { NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
+import { STONARD, AETHER_STRIKE } from "../../weapons/battlepass.js";
 import { NM_HERON, MIDNIGHT_VEIL_5PC } from "../../echoes/rinascita.js";
 import { MOONLIT_CLOUDS_5PC, HERON, BELL_BORNE_GEOCHELONE, HAVOC_ECLIPSE_5PC, NM_CROWNLESS } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { tuneBreak } from "../../shared/tunebreak.js";
 
@@ -147,7 +149,7 @@ const Liberation = rocciaAction("Liberation - Commedia Improvviso!", {
     { hitFrame: 116, mv: 27834, offtune: 32000 },
     { hitFrame: 125, commitFrame: 116, mv: 27834, offtune: 32000 },
     { hitFrame: 134, commitFrame: 116, mv: 27834, offtune: 32000 },
-  ], castConcerto: 2000, resetEnergy: true,
+  ], castConcerto: 2000, castEnergy: -12500,
   updateBuffs: () => applyTeam(COMMEDIA_TEAM_ATK),
 });
 
@@ -210,7 +212,7 @@ const RC_INHERENT_2 = new Inherent({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const ROCCIA_TALENTS = new Talent({
   name: "Roccia: Talents",
-  stats: [[Stat.BonusAtk, 12], [Stat.CritDmg, 16]],
+  stats: [[Stat.BonusAtk, 11.9999997], [Stat.CritDmg, 16]],
 });
 
 const ROCCIA_MATRIX = matrix("Roccia", 20, {
@@ -218,6 +220,7 @@ const ROCCIA_MATRIX = matrix("Roccia", 20, {
 });
 
 const ROCCIA_RESONATOR = new Resonator({
+  id: 1606,
   name: "Roccia",
   matrix: ROCCIA_MATRIX,
   talent: ROCCIA_TALENTS,
@@ -370,31 +373,37 @@ const ROCCIA_MATRIX_TEAM = new Buff({
 });
 
 export const ROCCIA = new Loadout({
+  id: 16061,
   minCritRate: 70,
   resonator: ROCCIA_RESONATOR,
-  weapons: [TRAGICOMEDY, NEW_STD_GAUNTLET, ABYSS_SURGES],
-  echoLoadouts: [
+  weapons: [TRAGICOMEDY, NEW_STD_GAUNTLET, ABYSS_SURGES, STONARD, AETHER_STRIKE],
+  echoes: new Echoes({
+    sets: [
     new EchoLoadout(NM_HERON, MIDNIGHT_VEIL_5PC),
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
     new EchoLoadout(BELL_BORNE_GEOCHELONE, MOONLIT_CLOUDS_5PC),
   ],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Skill),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Skill, Substat.Basic),
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Skill),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Skill, Substat.Basic),
+  }),
   rotation: { 0: RC_ROTATION, 1: RC_ROTATION_S1 },
   sequences: RC_SEQUENCES,
 });
 
 export const ROCCIA_MDPS = new Loadout({
+  id: 16062,
   minCritRate: 70,
   resonator: ROCCIA_RESONATOR,
-  weapons: [TRAGICOMEDY, NEW_STD_GAUNTLET, ABYSS_SURGES],
-  echoLoadouts: [
+  weapons: [TRAGICOMEDY, NEW_STD_GAUNTLET, ABYSS_SURGES, STONARD, AETHER_STRIKE],
+  echoes: new Echoes({
+    sets: [
     new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC),
   ],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Skill),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Skill, Substat.Basic),
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Skill),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Skill, Substat.Basic),
+  }),
   rotation: { 6: RC_ROTATION_S6_MDPS },
   sequences: RC_SEQUENCES,
 });

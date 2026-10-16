@@ -3,14 +3,16 @@
  * the solve/run caches, the solves kept across reloads, and the URL hash the state round-trips
  * through. Everything that draws (table.ts, detail.ts) reads from here; index.ts drives it.
  */
-import { Tier } from "../engine/stats.js";
+import { Tier, Stat } from "../engine/stats.js";
+import { menuStats } from "../engine/context.js";
 import { baseSequence } from "../engine/gear.js";
+import { teamCode, readTeamCode } from "./teamcode.js";
 import { TUNE_BREAK_ENEMY } from "../shared/tunebreak.js";
 import { buildReport } from "./display.js";
 import type { Report } from "./display.js";
-import { member, comboOf, eligibleWeapons, refineLevels, sequenceLevels, scopedKey, axisUsed, weaponBase, echoLabel, echoPicks, defaultFilters, bestKey, picksKey, axisOpen, filterSignature, AXES } from "../solve/solver.js";
+import { member, comboOf, eligibleWeapons, refineLevels, shownRanks, shownWeapons, sequenceLevels, scopedKey, axisUsed, weaponBase, echoLabel, echoPicks, defaultFilters, bestKey, picksKey, axisOpen, filterSignature, AXES } from "../solve/solver.js";
 import type { Member, Combo, Pick, Filters, Solved, SolveSave, Axis, TeamCost, ScopedCompare } from "../solve/solver.js";
-import { runTeam, runFromScore } from "../solve/teamrun.js";
+import { runTeam, runFromScore, erRollsFor } from "../solve/teamrun.js";
 import type { TeamRun } from "../solve/teamrun.js";
 import { teamKey, teamAt, ALL_TEAMS, PRIMARY_TEAM, INTERCHANGEABLE } from "../resonators/teams.js";
 
@@ -75,6 +77,9 @@ export type OptionKind = keyof typeof OPTION_FILTER_MAPS;
 
 export const filters: Filters = defaultFilters();
 
+/** Row keys pinned from the table's Pin column: listed whatever every other filter says. */
+export const pinnedRows = new Set<string>();
+
 /** Every gear pick some member comparing that axis can run — cached per filter signature. */
 let gearCache: { sig: string; offered: Record<GearKind, Set<string>> } | null = null;
 export function offeredGear(kind: GearKind, f: Filters = filters): Set<string> {
@@ -83,7 +88,7 @@ export function offeredGear(kind: GearKind, f: Filters = filters): Set<string> {
     const offered: Record<GearKind, Set<string>> = { weapon: new Set(), echo: new Set() };
     for (const members of Object.values(TEAMS)) {
       for (const m of members) {
-        if (axisOpen(m, f, "weapons")) for (const i of eligibleWeapons(m, f)) { offered.weapon.add(weaponBase(m.loadout.weapons[i]!)); for (const w of m.loadout.refinements[i]!) offered.weapon.add(w.name); }
+        for (const tag of weaponTagsOf(m, f)) offered.weapon.add(tag);
         if (axisOpen(m, f, "echoes")) for (const e of echoPicks(m, members)) offered.echo.add(echoLabel(m.loadout, m.loadout.echoLoadouts[e]!));
       }
     }
@@ -153,6 +158,25 @@ const namesHold = (map: Map<string, ResonatorFilter>, names: string[]): boolean 
 /** Whose tag this is: "Lupa S3" and "Hsin R3" all belong to their resonator. */
 export const tagOwner = (tag: string): string => tag.replace(/ S\d+(R\d+)?$| R\d+$/, "");
 
+/** "Hsin S6 Blooming Jadehaven R5": a worn weapon as its filter names it — whose, at which chain
+ *  level (none at S0), and the weapon with or without its rank. */
+export const weaponTag = (m: Member, sequence: number, weapon: string): string =>
+  `${m.name}${sequence ? ` S${sequence}` : ""} ${weapon}`;
+const weaponTags = (m: Member, c: Combo): string[] =>
+  [weaponTag(m, c.sequence, c.weapon.name), weaponTag(m, c.sequence, weaponBase(c.weapon))];
+/** Whose weapon tag this is: the longest resonator name it opens with, "" for none. */
+export const weaponOwner = (tag: string): string =>
+  [...RESONATOR_HUE.keys()].filter((name) => tag.startsWith(`${name} `)).sort((a, b) => b.length - a.length)[0] ?? "";
+/** Every weapon tag a member's rows can carry while a Weapon column can show them: every weapon,
+ *  rank and level they might run, a few more than any one solve reaches. */
+export function weaponTagsOf(m: Member, f: Filters = filters): string[] {
+  if (!axisOpen(m, f, "weapons") && !shownRanks(m, f).length) return [];
+  const levels = new Set([...sequenceLevels(m, f, true), ...sequenceLevels(m, f, false)]);
+  const weapons = axisOpen(m, f, "weapons") ? eligibleWeapons(m, f) : m.loadout.weapons.map((_, i) => i);
+  return [...levels].flatMap((level) => weapons.flatMap((i) =>
+    [weaponBase(m.loadout.weapons[i]!), ...m.loadout.refinements[i]!.map((w) => w.name)].map((name) => weaponTag(m, level, name))));
+}
+
 /** `namesHold` for the level and rank tags, where two includes naming the same resonator mean
  *  *either*: a member runs one chain level and one refinement at a time, so "Lupa S0" and "Lupa S3"
  *  set together can never both be true and would leave the table empty. Includes are grouped by
@@ -163,14 +187,14 @@ export const tagOwner = (tag: string): string => tag.replace(/ S\d+(R\d+)?$| R\d
  *  all: `fielded` is who this row plays, and a group naming somebody it hasn't got stands aside.
  *  Adding Luuk and Qingxiao and then Qingxiao S1 leaves every Luuk team where it was, and narrows
  *  the Qingxiao ones. Excludes are absolute either way — a level not on the row cannot be on it. */
-function tagsHold(map: Map<string, ResonatorFilter>, names: string[], fielded: string[]): boolean {
+function tagsHold(map: Map<string, ResonatorFilter>, names: string[], fielded: string[], owner = tagOwner): boolean {
   const wanted = new Map<string, string[]>();
   for (const [name, mode] of map) {
     if (mode === "exclude") {
       if (names.includes(name)) return false;
       continue;
     }
-    const who = tagOwner(name);
+    const who = owner(name);
     if (!fielded.includes(who)) continue;
     wanted.set(who, [...(wanted.get(who) ?? []), name]);
   }
@@ -284,7 +308,7 @@ export const refineTag = (m: Member, combo: Combo): string => `${m.name} R${comb
 
 function rowWanted(row: TeamRow): boolean {
   const fielded = row.members.map((m) => m.name);
-  return namesHold(weaponFilters, row.combo.flatMap((c) => [c.weapon.name, weaponBase(c.weapon)]))
+  return tagsHold(weaponFilters, row.combo.flatMap((c, i) => weaponTags(row.members[i]!, c)), fielded, weaponOwner)
     && namesHold(echoFilters, row.combo.map((c, i) => echoLabel(row.members[i]!.loadout, c.echo)))
     && tagsHold(sequenceFilters, row.combo.flatMap((c, i) => sequenceTag(row.members[i]!, c) ?? []), fielded)
     && tagsHold(refineFilters, row.combo.map((c, i) => refineTag(row.members[i]!, c)), fielded);
@@ -294,16 +318,16 @@ function rowWanted(row: TeamRow): boolean {
  *  include it can't meet on gear go, and a level or rank include gains the build's own beside it. */
 export function admitBuild(members: Member[], combo: Combo[]): void {
   const fielded = members.map((m) => m.name);
-  const fit = (map: Map<string, ResonatorFilter>, names: string[], tagged: boolean): void => {
+  const fit = (map: Map<string, ResonatorFilter>, names: string[], tagged: boolean, owner = tagOwner): void => {
     for (const [name, mode] of [...map]) {
       if (names.includes(name) === (mode === "include")) continue;
-      // a level or rank include reads as "either" beside its own resonator's others (`tagsHold`)
-      const own = tagged && mode === "include" ? names.find((n) => tagOwner(n) === tagOwner(name)) : undefined;
+      // a level, rank or weapon include reads as "either" beside its own resonator's others (`tagsHold`)
+      const own = tagged && mode === "include" ? names.find((n) => owner(n) === owner(name)) : undefined;
       if (own) map.set(own, "include");
-      else if (!tagged || mode === "exclude" || fielded.includes(tagOwner(name))) map.delete(name);
+      else if (!tagged || mode === "exclude" || fielded.includes(owner(name))) map.delete(name);
     }
   };
-  fit(weaponFilters, combo.flatMap((c) => [c.weapon.name, weaponBase(c.weapon)]), false);
+  fit(weaponFilters, combo.flatMap((c, i) => weaponTags(members[i]!, c)), true, weaponOwner);
   fit(echoFilters, combo.map((c, i) => echoLabel(members[i]!.loadout, c.echo)), false);
   fit(sequenceFilters, combo.flatMap((c, i) => sequenceTag(members[i]!, c) ?? []), true);
   fit(refineFilters, combo.map((c, i) => refineTag(members[i]!, c)), true);
@@ -352,7 +376,16 @@ function expandTeam(teamKey: string, members: Member[], all = false, f: Filters 
   return all ? [...rows.values()] : [...rows.values()].filter(rowWanted);
 }
 
-export const teamRows = (): TeamRow[] => Object.entries(TEAMS).flatMap(([key, members]) => expandTeam(key, members));
+/** Every row the filters open, then each pinned row they left out, built straight off its key. */
+export function teamRows(): TeamRow[] {
+  const rows = Object.entries(TEAMS).flatMap(([key, members]) => expandTeam(key, members));
+  const listed = new Set(rows.map((row) => row.key));
+  for (const key of pinnedRows) {
+    const row = listed.has(key) ? null : rowFromKey(key);
+    if (row) rows.push(row);
+  }
+  return rows;
+}
 /** Every row one team's solve listed under `f`, whether the table would show it or not. */
 export const solvedRows = (teamKey: string, f: Filters = filters): TeamRow[] => expandTeam(teamKey, TEAMS[teamKey]!, true, f);
 
@@ -389,8 +422,9 @@ function axisWays(lists: (string[] | null)[], map: Map<string, ResonatorFilter>,
 
 /** How many rows a team will open, known before it is solved — candidate counts only. Reads high, never low. */
 export function estimatedRowCount(members: Member[], f: Filters = filters): number {
+  // a weapon filter names a level and rank the count can't see, so it narrows nothing here (reads high)
   return axisWays(members.map((m) => (axisOpen(m, f, "weapons")
-      ? eligibleWeapons(m, f).map((i) => m.loadout.weapons[i]!.name) : null)), weaponFilters)
+      ? eligibleWeapons(m, f).map((i) => m.loadout.weapons[i]!.name) : null)), new Map())
     * axisWays(members.map((m) => (axisOpen(m, f, "echoes")
       ? echoPicks(m, members).map((e) => echoLabel(m.loadout, m.loadout.echoLoadouts[e]!)) : null)), echoFilters)
     // an open box shows every roll (solver.ts's own `rowPicks()`), and no filter narrows them
@@ -400,7 +434,7 @@ export function estimatedRowCount(members: Member[], f: Filters = filters): numb
     * members.reduce((n, m) => n * (axisOpen(m, f, "substats") ? 2 : 1), 1)
     * members.reduce((n, m) => n * (axisUsed(m, f, "refines")
       ? Math.max(...eligibleWeapons(m, f).map((i) => m.loadout.refinements[i]!.length))
-      : 1), 1)
+      : 1 + shownRanks(m, f).length), 1)
     // a scoped sonata/main-stat compare is costed as if it opened every row
     * members.reduce((n, m) => n
       * (!axisOpen(m, f, "echoes") && axisUsed(m, f, "echoes") ? echoPicks(m, members).length : 1)
@@ -410,7 +444,7 @@ export function estimatedRowCount(members: Member[], f: Filters = filters): numb
 export function prospectiveRows(f: Filters = filters): number {
   return Object.entries(TEAMS)
     .filter(([key, members]) => teamWanted(key, members))
-    .reduce((sum, [, members]) => sum + estimatedRowCount(members, f), 0);
+    .reduce((sum, [, members]) => sum + estimatedRowCount(members, f), pinnedRows.size);
 }
 
 /** One member's combo key (`comboOf()`): weapon.echo.mainstat.sN.rN, then .m and .h. */
@@ -438,7 +472,7 @@ export function rowFromKey(key: string): TeamRow | null {
   for (let i = 0; i < members.length; i++) {
     const l = members[i]!.loadout;
     const pick = picks[i]!;
-    if (!l.refinements[pick.weapon]?.[pick.refine] || !echoPicks(members[i]!, members).includes(pick.echo) || !l.mainstats[pick.mainstat] || (pick.matrix && !l.resonator.matrix) || pick.sequence < l.minSequence) return null;
+    if (!l.refinements[pick.weapon]?.[pick.refine] || !echoPicks(members[i]!, members).includes(pick.echo) || !l.mainstats[pick.mainstat] || !l.fits(pick.echo, pick.mainstat) || (pick.matrix && !l.resonator.matrix) || pick.sequence < l.minSequence) return null;
     combo.push(comboOf(l, pick));
   }
   return { key, teamKey, members, combo };
@@ -448,15 +482,46 @@ export function rowFromKey(key: string): TeamRow | null {
  *  so the one team opened is re-run traced (deterministic, a few ms). The whole re-run is kept,
  *  its `state` included — the trace-only maps the hovers read (`State.grantedBy`) belong to the
  *  run that produced these lines, and the untraced pass's own state has none of them. */
-export function detailFor(run: TeamRun): { report: Report } {
+export function detailFor(run: TeamRun): { report: Report; needs: Map<string, EnergyNeed> } {
   if (run.detail) return run.detail;
-  if (!run.rotationLines) {
+  if (!run.rotationLines || !run.state) {
     const traced = runTeam(run.teamKey, run.members, run.combo, true);
     run.rotationLines = traced.rotationLines;
     run.state = traced.state;
   }
-  run.detail = { report: buildReport(run.rotationLines!.flat()) };
+  run.detail = { report: buildReport(run.rotationLines!.flat()), needs: energyNeeds(run) };
   return run.detail;
+}
+
+/** One member's energy as the Energy Regen label reads it: the constant ER their energy spends ask
+ *  for (evaluate.ts's `erWindow`, null where none asks any), the kit's own minimum, the constant
+ *  ER the build wears, and what they banked going into the spend that asked the most — their own
+ *  hits and each ally's half before any ER, their flat gains, and the spend itself. At the
+ *  requirement `(hit + shared) x bar / 100 + flat` is the spend, less what ER buffs on their own
+ *  hits added. */
+export interface EnergyNeed {
+  bar: number | null;
+  minEr: number;
+  constant: number;
+  gen: { hit: number; flat: number; spend: number; shared: [string, number][] } | null;
+}
+
+function energyNeeds(run: TeamRun): Map<string, EnergyNeed> {
+  const erOf = erRollsFor(run.teamKey, run.members, run.combo);
+  return new Map(run.members.map((m, idx) => {
+    const combo = run.combo[idx]!;
+    const constant = menuStats(m.loadout.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs, erOf[idx]!))
+      .reduce((n, e) => n + (e.stat === Stat.ER ? e.value : 0), 0);
+    const slot = run.state!.slots[idx]!;
+    const worst = m.loadout.resonator.maxEnergy ? slot.erWorst : 0;
+    // the requirement only rises spend to spend, so the first to reach its last value set it
+    const parts = worst > 0 ? slot.erParts[slot.erWants.indexOf(worst)] : undefined;
+    const gen = parts ? {
+      hit: parts.hit, flat: parts.flat, spend: parts.spend,
+      shared: run.state!.slots.filter((s) => s !== slot).map((s): [string, number] => [s.name, parts.got[s.index] ?? 0]),
+    } : null;
+    return [m.name, { bar: worst > 0 ? worst : null, minEr: m.loadout.minEr, constant, gen }];
+  }));
 }
 
 /* --------------------------------------------------------------- solves kept across reloads */
@@ -516,7 +581,7 @@ function picksFit(key: string, picks: Pick[]): boolean {
   const roster = team.loadouts.map((l) => l.resonator);
   return picks.length === team.loadouts.length && picks.every((p, i) => {
     const l = team.loadouts[i]!;
-    return p.weapon < l.weapons.length && p.refine < (l.refinements[p.weapon]?.length ?? 0) && !!l.echoLoadouts[p.echo]?.fits(roster) && p.mainstat < l.mainstats.length
+    return p.weapon < l.weapons.length && p.refine < (l.refinements[p.weapon]?.length ?? 0) && !!l.echoLoadouts[p.echo]?.fits(roster) && p.mainstat < l.mainstats.length && l.fits(p.echo, p.mainstat)
       && p.sequence >= l.minSequence;
   });
 }
@@ -537,8 +602,8 @@ export function solveFits(key: string, solved: Solved, f?: Filters): boolean {
     const pairs = new Set<string>();
     const weapons = axisOpen(m, f, "weapons") ? eligibleWeapons(m, f) : [solved.picks[i]!.weapon];
     const levels = axisOpen(m, f, "sequences") ? sequenceLevels(m, f) : [solved.picks[i]!.sequence];
-    for (const sequence of levels) for (const weapon of weapons) {
-      for (const refine of refineLevels(m, f, { ...solved.picks[i]!, weapon, sequence })) pairs.add(`${sequence}.${refine}`);
+    for (const sequence of levels) for (const weapon of [...weapons, ...shownWeapons(m, f, weapons)]) {
+      for (const refine of refineLevels(m, f, { ...solved.picks[i]!, weapon, sequence }, weapons.includes(weapon))) pairs.add(`${sequence}.${refine}`);
     }
     return n * pairs.size;
   }, 1);
@@ -607,7 +672,8 @@ export function saveSolves(): void {
 /* --------------------------------------------------------------------------- state in the URL */
 
 /** The whole page state lives in the hash as a query string: `mx=` the Matrix list, `tc=` cost, `cw=`...
- *  compares, `cs=` scoped compares, `r`/`x` + `wr`/`wx`... include/exclude lists, `team=` the row's
+ *  compares, `cs=` scoped compares, `r`/`x` + `wr`/`wx`... include/exclude lists, `pin=` the pinned
+ *  rows' tags, `team=` the row's
  *  own hex tag (`teamTag()`). Absent params read as defaults, so an old bare `#team=` link still
  *  works and one carrying the Teams box's `ts=` is simply read without it. */
 export const hashParams = (): URLSearchParams => new URLSearchParams(location.hash.replace(/^#/, ""));
@@ -670,68 +736,118 @@ export function applyHash(): boolean {
       changed = true;
     }
   }
+  {
+    // a pin whose key no longer resolves (a roster change) is dropped
+    const next = (params.get("pin") ?? "").split(",").filter(Boolean).map(keyOfTag).filter((key) => rowFromKey(key));
+    if (next.length !== pinnedRows.size || next.some((key) => !pinnedRows.has(key))) {
+      pinnedRows.clear();
+      for (const key of next) pinnedRows.add(key);
+      changed = true;
+    }
+  }
   return changed;
 }
 
-/** The digits a tag is written in — base62, which fits the widths below in 13 characters where
- *  hex takes 19. Case matters, so a tag is copied, never typed. */
-const TAG_DIGITS = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-/** The `team=` tag: a row key packed into one base62 number, low bits first — the team's index in
- *  14 bits, then each member's own picks in 20 (weapon 3, echo 3, mainstat 6, sequence 3, refine 3,
- *  matrix, high subs). The last member's zeroes trim off the front, so an ordinary build reads as
- *  a dozen digits rather than forty. A key that doesn't fit the widths is written out plain —
- *  `hashTeam()` reads both, so an old link still resolves. */
-export function teamTag(key: string): string {
-  const [teamKey, ...comboKeys] = key.split("-");
-  const team = /^t(\d+)$/.exec(teamKey ?? "");
-  if (!team || +team[1]! > 0x3fff) return key;
-  let bits = BigInt(+team[1]!), width = 14n;
-  for (const combo of comboKeys) {
-    const p = COMBO_KEY.exec(combo);
-    if (!p) return key;
-    const [weapon, echo, mainstat, sequence, refine] = p.slice(1, 6).map(Number) as [number, number, number, number, number];
-    if (weapon > 7 || echo > 7 || mainstat > 63 || sequence > 7 || refine > 7) return key;
-    const packed = weapon | (echo << 3) | (mainstat << 6) | (sequence << 12) | (refine << 15)
-      | (p[6] ? 1 << 18 : 0) | (p[7] ? 1 << 19 : 0);
-    bits |= BigInt(packed) << width;
-    width += 20n;
-  }
-  const base = BigInt(TAG_DIGITS.length);
-  let tag = "";
-  do {
-    tag = TAG_DIGITS[Number(bits % base)] + tag;
-    bits /= base;
-  } while (bits > 0n);
-  return tag;
+/** `f` with every gear compare shut — each member's echoes and main stats the solver's own pick. */
+export const gearShut = (f: Filters): Filters => ({
+  ...f, echoes: [], mainstats: [], scoped: f.scoped.filter((s) => s.axis !== "echoes" && s.axis !== "mainstats"),
+});
+
+/** Each member's echo set and main-stat build as the solver picks them for `picks`: its row with every
+ *  gear compare shut and every other pick as `picks` has them. Null where that solve isn't to hand. */
+function optimalGear(teamKey: string, picks: Pick[], f: Filters = filters): Pick[] | null {
+  const solved = bestPicks.get(bestKey(teamKey, TEAMS[teamKey]!, gearShut(f)));
+  const same = (a: Pick, b: Pick): boolean => a.weapon === b.weapon && a.refine === b.refine && a.sequence === b.sequence
+    && a.highSubs === b.highSubs && a.matrix === b.matrix;
+  return solved?.rows.find((row) => row.every((p, i) => same(p, picks[i]!))) ?? null;
 }
 
-/** The hash's team as a row key — the tag unpacked, or the value as written for a plain-key link
- *  from before the tag (and for one `teamTag()` refused to pack). The member count comes from the
- *  team the low bits name, so a tag for a team the roster no longer has reads as a stale key. */
+/** Every team by its loadouts' ids in slot order. */
+const TEAM_BY_LOADOUTS = new Map(ALL_TEAMS.map((t, i): [string, string] => [t.loadouts.map((l) => l.id).join("."), teamKey(i)]));
+
+/** The `team=` tag: a row key as its team code (teamcode.ts), each member's gear named only where it
+ *  isn't the solver's own pick for the rest of the build — or always, `full`, for a pin that has to
+ *  read back with nothing solved. A key the code can't hold is written out plain; `hashTeam()`
+ *  reads both. */
+export function teamTag(key: string, full = false): string {
+  const team = teamAt(key.split("-")[0] ?? "");
+  const picks = picksOfKey(key);
+  if (!team || !picks || picks.length !== team.loadouts.length) return key;
+  const optimal = full ? null : optimalGear(key.split("-")[0]!, picks);
+  try {
+    return teamCode(team.loadouts.map((l, i) => {
+      const p = picks[i]!, best = optimal?.[i];
+      return {
+        loadout: l, sequence: p.sequence, weapon: l.refinements[p.weapon]![p.refine]!, highSubs: p.highSubs,
+        gear: best && best.echo === p.echo && best.mainstat === p.mainstat ? null : { echo: l.echoLoadouts[p.echo]!, mainstat: l.mainstats[p.mainstat]! },
+      };
+    }), picks.some((p) => p.matrix));
+  } catch {
+    return key;
+  }
+}
+
+/** The hash's team as a row key (`keyOfTag()`). */
 export function hashTeam(): string | null {
   const tag = hashParams().get("team");
-  if (!tag || !/^[0-9a-zA-Z]+$/.test(tag)) return tag;
-  let bits = 0n;
-  for (const c of tag) bits = bits * BigInt(TAG_DIGITS.length) + BigInt(TAG_DIGITS.indexOf(c));
-  const teamKey = `t${Number(bits & 0x3fffn)}`;
-  const members = TEAMS[teamKey];
-  if (!members) return tag;
-  bits >>= 14n;
-  const combos = members.map(() => {
-    const packed = Number(bits & 0xfffffn);
-    bits >>= 20n;
-    return `${packed & 7}.${(packed >> 3) & 7}.${(packed >> 6) & 63}.s${(packed >> 12) & 7}.r${(packed >> 15) & 7}`
-      + (packed & (1 << 18) ? ".m" : "") + (packed & (1 << 19) ? ".h" : "");
-  });
-  return [teamKey, ...combos].join("-");
+  return tag ? keyOfTag(tag) : tag;
+}
+
+/** The hash's team where it reads as a row the roster has — an unknown or broken tag as none, so
+ *  the next `syncHash()` leaves it out of the URL. */
+export const knownTeam = (): string | null => {
+  const key = hashTeam();
+  return key && rowFromKey(key) ? key : null;
+};
+
+/** The team a team code names, where it names one this roster has — what a load waits on solving when
+ *  the code leaves gear to the solver and no solve is to hand yet (index.ts's `bootDetail()`). */
+export function tagTeam(tag: string): string | null {
+  const read = readTeamCode(tag);
+  return read ? TEAM_BY_LOADOUTS.get(read.members.map((m) => m.resonator * 10 + m.loadout).join(".")) ?? null : null;
+}
+
+/** A team code back to its row key: the gear it names where the loadout offers it, the solver's own
+ *  pick for the rest. The value as written for a plain-key link, and for a code naming what the
+ *  roster doesn't have, or leaving gear to a solve that isn't to hand. */
+function keyOfTag(tag: string): string {
+  const read = readTeamCode(tag);
+  const teamKey = tagTeam(tag);
+  if (!read || !teamKey) return tag;
+  const members = TEAMS[teamKey]!;
+  const picks: Pick[] = [];
+  for (const [i, m] of read.members.entries()) {
+    const l = members[i]!.loadout;
+    const weapon = l.refinements.findIndex((ranks) => ranks[0]!.id === m.weapon);
+    const refine = weapon < 0 ? -1 : l.refinements[weapon]!.findIndex((w) => w.refinement === m.refinement);
+    if (refine < 0) return tag;
+    const g = m.gear;
+    const sorted = (xs: readonly number[]): string => [...xs].sort((x, y) => x - y).join(",");
+    picks.push({
+      weapon, refine, sequence: m.sequence, highSubs: m.highSubs, matrix: read.matrix && !!l.resonator.matrix,
+      echo: g ? l.echoLoadouts.findIndex((e) => e.mainslot.id === g.mainslot && e.sets.map((x) => x.id).join(",") === g.sets.join(",")) : -1,
+      mainstat: g ? l.mainstats.findIndex((b) => sorted(b.slots) === sorted(g.mainstats)) : -1,
+    });
+  }
+  // gear the code leaves out, or names and the loadout doesn't offer, is the solver's own pick
+  if (picks.some((p) => p.echo < 0 || p.mainstat < 0)) {
+    const optimal = optimalGear(teamKey, picks);
+    if (!optimal) return tag;
+    picks.forEach((p, i) => {
+      if (p.echo >= 0 && p.mainstat >= 0) return;
+      p.echo = optimal[i]!.echo;
+      p.mainstat = optimal[i]!.mainstat;
+    });
+  }
+  return [teamKey, ...picks.map((p, i) => comboOf(members[i]!.loadout, p).key)].join("-");
 }
 
 /** Write the state back into the URL. `replaceState` by default, so a filter flip never fires
  *  `hashchange` and never buries the page under Back entries — every caller routes for itself.
  *  `push` is for opening a detail view, which is a navigation of its own: it goes on the history
  *  stack so the browser's own Back button comes back out of it (index.ts's `hashchange`). */
-export function syncHash(team: string | null = hashTeam(), push = false): void {
+export function syncHash(team: string | null = knownTeam(), push = false): void {
   const next = hashOf(team);
   if (next === location.hash) return;
   const url = `${location.pathname}${location.search}${next}`;
@@ -754,17 +870,21 @@ function hashOf(team: string | null): string {
     // a resonator's spaces are dropped (`ElectroRover`); gear names keep theirs
     .filter(([, m]) => m === mode).map(([name]) => encodeURIComponent(map === resonatorFilters ? name.replace(/ /g, "") : name)).join(",");
   const compact = (n: string): string => encodeURIComponent(n.replace(/ /g, ""));
-  const parts = filters.matrix.length ? [`mx=${filters.matrix.map(compact).join(",")}`] : [];
+  // the resonator and gear filters first, then the matrix and cost, then the compares
+  const parts: string[] = [];
+  for (const { include, exclude, map } of FILTER_GROUPS) {
+    if (named(map, "include")) parts.push(`${include}=${named(map, "include")}`);
+    if (named(map, "exclude")) parts.push(`${exclude}=${named(map, "exclude")}`);
+  }
+  if (filters.matrix.length) parts.push(`mx=${filters.matrix.map(compact).join(",")}`);
   if (filters.cost !== "s0r1") parts.push(`tc=${COST_CODE[filters.cost]}`);
   for (const axis of AXES) {
     if (filters[axis].length) parts.push(`${COMPARE_PARAM[axis]}=${filters[axis].map((n) => encodeURIComponent(n.replace(/ /g, ""))).join(",")}`);
   }
   if (filters.scoped.length) parts.push(`${SCOPED_PARAM}=${filters.scoped.map((s) => encodeURIComponent(scopedKey(s))).join(",")}`);
-  for (const { include, exclude, map } of FILTER_GROUPS) {
-    if (named(map, "include")) parts.push(`${include}=${named(map, "include")}`);
-    if (named(map, "exclude")) parts.push(`${exclude}=${named(map, "exclude")}`);
-  }
   if (team) parts.push(`team=${teamTag(team)}`);
+  // last of all, being the longest: a pin names its whole build, so it reads back with nothing solved
+  if (pinnedRows.size) parts.push(`pin=${[...pinnedRows].map((key) => teamTag(key, true)).join(",")}`);
   return parts.length ? `#${parts.join("&")}` : "";
 }
 

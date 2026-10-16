@@ -68,8 +68,10 @@ import { tuneBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
 import { NINE_SHADOWS, UNISON, UNISON_BOON, BOON_REACTOR, grantBoon, takeBoon, respondToUnison, unisonIntro, unisonOutro, unisonResponse } from "../../shared/unison.js";
 import { RED_SPRING, UNSPOKEN_RUE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
+import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
 import { STAY_TUNED, STAY_TUNED_3C, SWORN_VIGIL_5PC } from "../../echoes/mengzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 
@@ -199,7 +201,7 @@ const Liberation = suomingAction("Liberation - Umbral Canopy: Miasma Lock", { re
     { hitFrame: 229, commitFrame: 193, mv: 6089, offtune: 7350 },
     { hitFrame: 235, commitFrame: 193, mv: 6089, offtune: 7350 },
     { hitFrame: 254, mv: 20876, offtune: 25200 },
-  ], castConcerto: 2000, castForte1: 200, resetEnergy: true,
+  ], castConcerto: 2000, castForte1: 200, castEnergy: -12500,
   updateBuffs: () => { applyCurrent(UNISON, 1); },
 });
 /** Blight Rain, Miasmic Thunder: the Thunder Crest, one a second off the active resonator's own
@@ -501,10 +503,11 @@ const SM_SEQUENCES = [SM_S1, SM_S2, SM_S3, SM_S4, SM_S5, SM_S6];
 
 const SUOMING_TALENTS = new Talent({
   name: "Suoming: Talents",
-  stats: [[Stat.BonusAtk, 12], [Stat.CritRate, 8]],
+  stats: [[Stat.BonusAtk, 11.9999997], [Stat.CritRate, 8]],
 });
 
 export const SUOMING_RESONATOR = new Resonator({
+  id: 1312,
   name: "Suoming",
   stats: [[Stat.BaseHp, 10300], [Stat.BaseAtk, 462.5], [Stat.BaseDef, 1112.2202]],
   talent: SUOMING_TALENTS,
@@ -610,43 +613,55 @@ const SM_ECHOES = [
 ];
 
 export const SUOMING = new Loadout({
+  id: 13121,
   resonator: SUOMING_RESONATOR,
-  weapons: [UNSPOKEN_RUE, EMERALD_OF_GENESIS, RED_SPRING],
-  echoLoadouts: SM_ECHOES,
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation, Substat.Skill),
+  weapons: [UNSPOKEN_RUE, EMERALD_OF_GENESIS, RED_SPRING, LUMINGLOSS, FEATHER_EDGE],
+  echoes: new Echoes({
+    sets: SM_ECHOES,
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation, Substat.Skill),
+  }),
   sequences: SM_SEQUENCES,
   rotation: SM_ROTATION,
 });
 
 export const SUOMING_MDPS = new Loadout({
+  id: 13122,
   resonator: SUOMING_RESONATOR,
-  weapons: [UNSPOKEN_RUE, EMERALD_OF_GENESIS, RED_SPRING],
-  echoLoadouts: [new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC)],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation, Substat.Skill),
+  weapons: [UNSPOKEN_RUE, EMERALD_OF_GENESIS, RED_SPRING, LUMINGLOSS, FEATHER_EDGE],
+  echoes: new Echoes({
+    sets: [new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC)],
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation, Substat.Skill),
+  }),
   sequences: SM_SEQUENCES,
   rotation: SM_ROTATION_MDPS,
 });
 export const SUOMING_MDPS_SIMPLE = new Loadout({
+  id: 13123,
   resonator: SUOMING_RESONATOR,
-  weapons: [UNSPOKEN_RUE, EMERALD_OF_GENESIS, RED_SPRING],
-  echoLoadouts: [new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC)],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation, Substat.Skill),
+  weapons: [UNSPOKEN_RUE, EMERALD_OF_GENESIS, RED_SPRING, LUMINGLOSS, FEATHER_EDGE],
+  echoes: new Echoes({
+    sets: [new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC)],
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation, Substat.Skill),
+  }),
   sequences: SM_SEQUENCES,
   rotation: SM_ROTATION_MDPS_SIMPLE,
 });
 export const SUOMING_MDPS_DOUBLE = new Loadout({
+  id: 13124,
   resonator: SUOMING_RESONATOR,
-  weapons: [UNSPOKEN_RUE, EMERALD_OF_GENESIS, RED_SPRING],
-  echoLoadouts: [new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC)],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation, Substat.Skill),
+  weapons: [UNSPOKEN_RUE, EMERALD_OF_GENESIS, RED_SPRING, LUMINGLOSS, FEATHER_EDGE],
+  echoes: new Echoes({
+    sets: [new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC)],
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation, Substat.Skill),
+  }),
   sequences: SM_SEQUENCES,
   rotation: SM_ROTATION_MDPS_DOUBLE,
 });

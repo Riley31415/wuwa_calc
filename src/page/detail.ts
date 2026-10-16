@@ -2,18 +2,18 @@
  * The detail page: the DPR and energy tables, the action log grid, and the log's draggable
  * column order (kept in localStorage) with its pointer handlers.
  */
-import { Stat, Cast, SCALING_NAME, ActionTag, statLabel } from "../engine/stats.js";
+import { Stat, Cast, SCALING_NAME, ActionTag, statLabel, ENERGY_UNIT } from "../engine/stats.js";
 import type { Gear } from "../engine/gear.js";
 import { menuStats } from "../engine/context.js";
 import { TUNE_BREAK_ENEMY } from "../shared/tunebreak.js";
 import type { ChainGroup, ResolvedSnapshot } from "../engine/evaluate.js";
-import { gaugeSuffix, fmt, digitsOf, PAD_DIGITS_COLUMNS, GROUPED_COLUMNS, OFFTUNE_RATE, ENERGY_RATE, landedBullets } from "./display.js";
+import { gaugeSuffix, fmt, fmtPct, fmtPctCell, digitsOf, PAD_DIGITS_COLUMNS, GROUPED_COLUMNS, RATE_SECTIONS } from "./display.js";
 import type { Report, Column, ReportRow, ReportPart } from "./display.js";
 import type { TeamRun } from "../solve/teamrun.js";
 import { hitsOf, erRollsFor } from "../solve/teamrun.js";
 import { ER_TOLERANCE } from "../shared/substats.js";
 import { results, detailFor, FALLBACK_HUE } from "./model.js";
-import { esc, lazyPop, rect, zoom, clearPops, popover, infoPopover, buffsPopover, framesPopover, equippedGear, dprTable, loadoutTable, wireDistribution, drivePanel, dropPanel, holdPanels, copyBlock } from "./panels.js";
+import { esc, lazyPop, rect, zoom, clearPops, popover, hitsPopover, infoPopover, buffsPopover, framesPopover, equippedGear, dprTable, loadoutTable, wireDistribution, drivePanel, dropPanel, holdPanels, copyBlock } from "./panels.js";
 import { rememberTableScroll } from "./table.js";
 import { canPick } from "./pickmenu.js";
 
@@ -79,10 +79,14 @@ function stepRow(
       const act = ("line" in row ? row.line.snap : row.snap).action, cast = act.cast;
       // a Tune Break's response casts as one too, but only the break drains the bar
       const spend = col.key === "offtune" ? cast === Cast.TuneBreak && act.castOfftune < 0
+        : col.key === "energy" ? act.castEnergy < 0
         : col.key === "concerto" && cast === Cast.Outro;
       const before = Number(row.raw[`before:${col.key}`]) || 0;
       if (!spend) attr = ` data-val="${Number(v) || 0}" data-before="${before}"`;
-      const fed = (sources ?? []).some((r) => r.section !== OFFTUNE_RATE && r.section !== ENERGY_RATE);
+      // energy's block total reads what each row generated before ER (its panel's Total), not how
+      // far it moved the bar
+      if (!spend && col.key === "energy") attr += ` data-gen="${Number(row.raw["moved:energy"]) || 0}"`;
+      const fed = (sources ?? []).some((r) => !RATE_SECTIONS.has(r.section ?? ""));
       if (!fed && Math.abs((Number(v) || 0) - before) < 1e-9) return cell(col, { attr });
     }
     const cls: string[] = [];
@@ -93,13 +97,13 @@ function stepRow(
     // a gauge this cast wipes before its own delta lands — the panel carries the CLEAR row that
     // says so (display.ts), and the underline is what points at it
     if (col.key.startsWith("gauge:") && Number(row.raw[`clear:${col.key}`])) cls.push("buffed");
-    if ((col.key === "concerto" || col.key === "energy") && Number(row.raw[`short:${col.key}`])) cls.push("underspent");
-    if (col.key.startsWith("gauge:") && Number(row.raw[`short:${col.key}`])) cls.push("negative");
+    // every bar alike: outside the cast's condition, or left below empty
+    if (isRunning(col.key) && Number(row.raw[`short:${col.key}`])) cls.push("negative");
     // a press cast without a buff its condition names
     if (col.key === "action" && row.raw["short:buff"]) cls.push("negative");
 
-    const text = esc(fmt(v, digitsOf(row.raw, col), PAD_DIGITS_COLUMNS.has(col.key), GROUPED_COLUMNS.has(col.key)))
-      + (col.percent && typeof v === "number" ? "%" : "") + gaugeSuffix(row.raw, col.key);
+    const text = (col.percent && typeof v === "number" ? `${fmtPctCell(v, col.key, PAD_DIGITS_COLUMNS.has(col.key))}%`
+      : esc(fmt(v, digitsOf(row.raw, col), PAD_DIGITS_COLUMNS.has(col.key), GROUPED_COLUMNS.has(col.key)))) + gaugeSuffix(row.raw, col.key);
     let html = sources && text ? `<span class="has">${text}</span>` : text;
     if (col.key === "action" && caret && !part && "parts" in row && row.parts.length) {
       html = `${html}<span class="caret">▸</span>`;
@@ -126,6 +130,8 @@ function stepRow(
       const snap = "line" in row ? row.line.snap : row.snap;
       const gear = gearByMember.get(snap.member) ?? [];
       pop = buffsPopover(snap.member, gear, snap.heldLocal, snap.heldGlobal, snap.heldEnemy, slotHue);
+    } else if (col.key === "avg") {
+      pop = text ? hitsPopover(row.hits) : "";
     } else if (text) {
       // a running counter's panel foots to what this action moved it by, not the balance
       pop = popover(col, sources, row.raw[`moved:${col.key}`] ?? v, slotHue, suffix, String(row.raw[`empty:${col.key}`] ?? ""));
@@ -255,88 +261,49 @@ function rotationTable(report: Report, slotHue: Map<string, string>, gearByMembe
 
 /* ---------------------------------------------------------------------------------- energy */
 
-/** Where in `flat[from, to)` `member` casts a `resetEnergy` action: the line, and the press inside it
- *  (a group's own member — Rebecca's Liberation opens hers). */
-function resetIndices(flat: ChainGroup[], from: number, to: number, member: string): [number, number][] {
-  const out: [number, number][] = [];
-  for (let i = from; i < to; i++) {
-    hitsOf(flat[i]!).forEach((snap, k) => {
-      if (snap.member === member && snap.action.resetEnergy) out.push([i, k]);
-    });
-  }
-  return out;
-}
-
-/**
- * The constant ER a member needs for the bar to be full at `resetIdx`. The engine banks RealEnergy
- * at a flat rate, so `realEnergyBefore` is what the window generated at 100%; each of the member's
- * own gains scales with their ER at the time (constant + buff), a teammate's share with the constant
- * alone, and a flat one (a cast's own, a hook's `addGain()`) not at all.
- * Solve `before * C/100 + sum(own gain * buff)/100 + flat = maxEnergy` for C. 0 for a costless
- * Liberation, null where nothing was banked.
- */
-function erRequirement(flat: ChainGroup[], [resetIdx, resetAt]: [number, number], member: string, maxEnergy: number, constant: number): number | null {
-  if (!maxEnergy) return 0;
-  const before = hitsOf(flat[resetIdx]!)[resetAt]!.realEnergyBefore;
-  if (before <= 0) return null;
-  let buffed = 0;
-  // from the press before it, its own group's included
-  walk: for (let i = resetIdx; i >= 0; i--) {
-    const line = flat[i]!;
-    if (line.aggregate) continue;
-    const snaps = hitsOf(line);
-    for (let k = i === resetIdx ? resetAt - 1 : snaps.length - 1; k >= 0; k--) {
-      const s = snaps[k]!;
-      if (s.member !== member) continue;
-      if (s.action.resetEnergy) break walk;
-      if (s.endsLoop) continue;
-      // the cast's own energy is flat, like a hook's
-      const own = landedBullets(s).reduce((n, b) => n + b.energy, 0);
-      const gain = own > 0 ? own * (1 + s.stat(Stat.EnergyRegenMult) / 100) : own;
-      buffed += gain * (s.stat(Stat.ER) - constant) + 100 * (s.action.castEnergy + (s.gain?.[0] ?? 0));
-    }
-  }
-  return (maxEnergy * 100 - buffed) / before;
-}
-
 /**
  * What each member's Liberations asked of their constant ER — the most any one of them wanted, which
  * the Energy Regen menu stat carries in its own label. Its colour says whether what the build wears
  * covers it.
  */
-function energyRequirements(run: TeamRun, lines: ChainGroup[][]): Map<string, Map<string, string>> {
-  const flat = lines.flat();
+function energyRequirements(run: TeamRun): Map<string, Map<string, string>> {
+  const { needs } = detailFor(run);
   const erOf = erRollsFor(run.teamKey, run.members, run.combo);
 
   const cells = new Map<string, Map<string, string>>();
   run.members.forEach((m, idx) => {
     const own = new Map<string, string>();
     cells.set(m.name, own);
-    const maxEnergy = m.loadout.resonator.maxEnergy;
     const combo = run.combo[idx]!;
-    const constantSources = menuStats(m.loadout.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs, erOf[idx]!))
-      .filter((e) => e.stat === Stat.ER);
-    const constant = constantSources.reduce((n, e) => n + e.value, 0);
-
-    // the fight's very first Liberation runs on the bar `combatStart` hands over, so it asks nothing
-    const casts = resetIndices(flat, 0, flat.length, m.name).slice(1);
-    const asked = casts.map((i) => erRequirement(flat, i, m.name, maxEnergy, constant)).filter((v): v is number => v != null);
-    const bar = asked.length ? Math.max(...asked) : null;
-    // One hover line per requirement, its figure green where the build's character screen covers it
-    // and red where it falls short; the label carries the higher of them.
+    const { bar, minEr, constant, gen } = needs.get(m.name)!;
+    // One hover row per line — its label, its figure in a right-aligned column, then any note — a
+    // requirement's figure green where the build's character screen covers it and red where it
+    // falls short; the label carries the higher of them.
+    const row = (what: string, figure: string, note = ""): string =>
+      `<tr><td class="k">${esc(what)}</td><td class="v">${figure}</td><td class="n">${note}</td></tr>`;
     const line = (what: string, need: number, held: number): { html: string; met: boolean } => {
       const met = need <= held + ER_TOLERANCE;
-      return { met, html: `<div>${what}: <span class="${met ? "need-met" : "need-miss"}">${fmt(need, 1, true)}%</span> (${met ? "Met" : "Not Met"})</div>` };
+      return { met, html: row(what, `<span class="${met ? "need-met" : "need-miss"}">${fmtPct(need)}%</span>`, met ? "(Met)" : "(Not Met)") };
     };
     const tag = (need: number, met: boolean, lines: string[]): string => {
-      const tip = lazyPop(`<span class="pop tip">${lines.join("")}</span>`);
-      return `<span class="erneed has"${tip}>> <span class="erreq ${met ? "er-met" : "er-under"}">${fmt(need, 1, true)}%</span></span>`;
+      const tip = lazyPop(`<span class="pop tip"><table>${lines.join("")}</table></span>`);
+      return `<span class="erneed has"${tip}>> <span class="erreq ${met ? "er-met" : "er-under"}">${fmtPct(need)}%</span></span>`;
     };
-    const minEr = m.loadout.minEr;
     if (bar != null || minEr) {
       const lines: { html: string; met: boolean }[] = [];
-      if (bar != null) lines.push(line("Energy Regen requirement", bar, constant));
       if (minEr) lines.push(line("Energy Regen requirement for kit", minEr, constant));
+      if (bar != null) lines.push(line("Energy Regen requirement", bar, constant));
+      // what went into the spend that asked it, before any ER: their own gen (flat gains in), then
+      // each ally's half
+      if (bar != null && gen) {
+        const pt = (v: number): string => fmt(v / ENERGY_UNIT, 2, true);
+        const gained = (text: string, v: number) => ({ met: true, html: row(text, pt(v)) });
+        lines.push(
+          gained(`${m.name} energy gen`, gen.hit + gen.flat),
+          ...gen.shared.map(([ally, v]) => gained(`${ally} energy shared`, v)),
+          gained("Total energy gen", gen.hit + gen.flat + gen.shared.reduce((n, [, v]) => n + v, 0)),
+        );
+      }
       const need = Math.max(bar ?? 0, minEr);
       own.set(statLabel(Stat.ER), tag(need, need <= constant + ER_TOLERANCE, lines.map((l) => l.html)));
     }
@@ -370,7 +337,7 @@ function page(run: TeamRun): string {
   <div class="rtables">
     <div class="rtable-block">
       <h2 class="summary-label">Equipment</h2>
-      ${loadoutTable(run, energyRequirements(run, lines), (slot, kind) => canPick(run, slot, kind))}
+      ${loadoutTable(run, energyRequirements(run), (slot, kind) => canPick(run, slot, kind))}
     </div>
     <div class="rstack">
       <div class="rtable-block">
@@ -541,7 +508,7 @@ function doubled(row: HTMLElement, held: Set<HTMLElement>): boolean {
  *  block gained of it: each row's balance less the one it was entered on, added up, so the run
  *  reads from the balance standing before the block (0 at the top of the run) and the Tune Break
  *  that takes the whole bar drops out rather than reading as a loss across it. Energy generated
- *  adds up the same way. A member's own concerto and forte are left to their columns; nothing else
+ *  adds up each row's own gain before ER. A member's own concerto and forte are left to their columns; nothing else
  *  in the block earns a line,
  *  and a block with no line at all has no panel. An opened group's own row is left out where the
  *  block holds the rows it opened onto (`doubled`). */
@@ -567,9 +534,9 @@ function blockPanel(sel: CellSel): string {
       }
       if (c.dataset.val === undefined) continue;
       const col = logColumns[[...c.parentElement!.children].indexOf(c)]!;
-      // energy counts up all fight, each row on its own member's bar: the gains add up as they are
+      // energy: each row's own gain before any ER (`moved:energy`), its Liberation's spend left out
       if (col.key === "energy") {
-        energy += (Number(c.dataset.val) || 0) - (Number(c.dataset.before) || 0);
+        energy += Number(c.dataset.gen) || 0;
         energyDigits = col.digits ?? 2;
         energyCells++;
         continue;

@@ -578,6 +578,13 @@ document.addEventListener("pointerout", (e) => {
     && ((e as PointerEvent).relatedTarget as Element).closest(".rtable.loadout .c.has") === from) return;
   clearTimeout(hoverTimer);
 }, true);
+// a press or tap on the piece passes it at once — a touch screen has no hover to wait out
+document.addEventListener("click", (e) => {
+  if (!layer || layer.hidden || stage !== DETAIL_STAGE || !hovered(e)) return;
+  clearTimeout(hoverTimer);
+  setStage(DETAIL_STAGE + 1);
+  place();
+}, true);
 
 // ...then any figure that opens the breakdown — a member's, and after it the team's own row.
 document.addEventListener("click", (e) => {

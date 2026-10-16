@@ -10,7 +10,6 @@
 import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, Position } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
-  asSource,
   stacksOfTeam,
   applyCurrent,
   applyTeam,
@@ -32,11 +31,13 @@ import {
   forte1,
   previousPress,
   saveChain,
+  addStatAs,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Cooldown, Rotation, ECHO, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
 import { SHIELD } from "../../shared/status.js";
 import { IUNO_SIG, VERITYS_HANDLE } from "../../weapons/gauntlet.js";
 import { MARCATO, NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
+import { STONARD, AETHER_STRIKE } from "../../weapons/battlepass.js";
 import { MYA, COV_3PC } from "../../echoes/septimont.js";
 import { WINDWARD_5PC, NM_KELPIE } from "../../echoes/rinascita.js";
 import { CARTETHYIA_RESONATOR } from "./cartethyia.js";
@@ -44,6 +45,7 @@ import { CIACCONA_RESONATOR } from "./ciaccona.js";
 import { ROVER_AERO_RESONATOR } from "./rover_aero.js";
 import { SIERRA_GALE_2PC, HERON, MOONLIT_CLOUDS_5PC, REJUV_5PC, FALLACY } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -141,7 +143,7 @@ const MSkill = iunoAction("Skill - Arc Beyond the Edge", { requireBuff: NEW_MOON
 // --- liberation: shields and grants Blessing
 const Liberation = iunoAction("Liberation - Beneath Lunar Tides", {
   animFrames: 250, animPriority: { 240: 2 }, castPriority: 10, timestop: [0, 240], motionStop: [0, 240], cooldown: 60 * 25,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 196, mv: 109346, offtune: 96000 }], castConcerto: 2000, castForte1: 60, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 196, mv: 109346, offtune: 96000 }], castConcerto: 2000, castForte1: 60, castEnergy: -12500,
   // "Deal Aero DMG and activate the Lunar Cycle state": Half Moon unless already inside it
   afterAction: () => {
     if (!isHeld(LUNAR_CYCLE)) revokeCurrent(NEW_MOON);
@@ -224,7 +226,7 @@ const IUNO_BLESSING = new Buff({
   stats: [[Stat.Amp, 4]], perStack: true,
   applyStats: () => {
     if (frozenStacks() >= 10 && currentTeam().slots.find((m) => m.resonator === IUNO_RESONATOR)?.isHeld(IO_S2)) {
-      asSource(IO_S2, () => addStat(Stat.Amp, 40));
+      addStatAs(IO_S2, Stat.Amp, 40);
     }
   },
   lostOnSwap: true,
@@ -266,10 +268,11 @@ const SHIELDING = new Set<Action>([
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const IUNO_TALENTS = new Talent({
   name: "Iuno: Talents",
-  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 12]],
+  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 11.9999997]],
 });
 
 const IUNO_RESONATOR = new Resonator({
+  id: 1410,
   name: "Iuno",
   stats: [[Stat.BaseHp, 10525], [Stat.BaseAtk, 450], [Stat.BaseDef, 1124.4424]],
   talent: IUNO_TALENTS,
@@ -387,17 +390,20 @@ const IO_ROTATION_MDPS_S6 = new Rotation([
 // her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat
 export const IUNO = new Loadout({
+  id: 14101,
   resonator: IUNO_RESONATOR,
-  weapons: [IUNO_SIG, NEW_STD_GAUNTLET, MARCATO, ABYSS_SURGES, VERITYS_HANDLE],
-  echoLoadouts: [
+  weapons: [IUNO_SIG, NEW_STD_GAUNTLET, MARCATO, ABYSS_SURGES, VERITYS_HANDLE, STONARD, AETHER_STRIKE],
+  echoes: new Echoes({
+    sets: [
     new EchoLoadout(MYA, COV_3PC, SIERRA_GALE_2PC),
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
     new EchoLoadout(FALLACY, REJUV_5PC),
   ],
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Skill),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Skill, Substat.Basic),
+  }),
   // an ER 3-cost is on the table: behind Roccia her bar wants more Energy than her spread can carry
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Skill),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Skill, Substat.Basic),
   rotation: IO_ROTATION,
   sequences: IO_SEQUENCES,
 });
@@ -407,16 +413,19 @@ export const IUNO = new Loadout({
 // her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat
 export const IUNO_MDPS = new Loadout({
+  id: 14102,
   resonator: IUNO_RESONATOR,
-  weapons: [IUNO_SIG, NEW_STD_GAUNTLET, ABYSS_SURGES, VERITYS_HANDLE],
-  echoLoadouts: [
+  weapons: [IUNO_SIG, NEW_STD_GAUNTLET, ABYSS_SURGES, VERITYS_HANDLE, STONARD, AETHER_STRIKE],
+  echoes: new Echoes({
+    sets: [
     new EchoLoadout(MYA, COV_3PC, SIERRA_GALE_2PC),
     // Windward's 5pc needs Aero Erosion on the target, which only these three inflict
     new EchoLoadout(NM_KELPIE, WINDWARD_5PC).requires(CARTETHYIA_RESONATOR, CIACCONA_RESONATOR, ROVER_AERO_RESONATOR),
   ],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Skill),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Skill, Substat.Basic),
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Skill),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Skill, Substat.Basic),
+  }),
   rotation: { 0: IO_ROTATION_MDPS, 6: IO_ROTATION_MDPS_S6 },
   sequences: IO_SEQUENCES,
 });

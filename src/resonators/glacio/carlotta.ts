@@ -52,8 +52,10 @@ import {
 import { ActionGroup, Action, Rotation, ECHO, INTRO, OUTRO, START, DODGE } from "../../engine/rotation.js";
 import { THE_LAST_DANCE } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
+import { THUNDERBOLT, SOLAR_FLAME } from "../../weapons/battlepass.js";
 import { FROSTY_RESOLVE_5PC, SENTRY_CONSTRUCT } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -200,7 +202,7 @@ const FHA = carlottaAction("Forte Heavy - Imminent Oblivion", { minForte2: 120,
 const Lib1 = carlottaAction("Liberation - Era of New Wave", {
   animFrames: 182, animPriority: { 181: 2 }, castPriority: 10, timestop: [0, 182], motionStop: [0, 138],
   cooldown: 60 * 25,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Skill, bullets: [{ hitFrame: 130, mv: 40271, offtune: 33600, ...DECONSTRUCT }], castConcerto: 2000, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Skill, bullets: [{ hitFrame: 130, mv: 40271, offtune: 33600, ...DECONSTRUCT }], castConcerto: 2000, castEnergy: -12500,
   resetForte2: true, // Twilight Tango removes all Substance on opening
   updateBuffs: () => applyCurrent(TWILIGHT_TANGO, 1),
   resetForte3: true,
@@ -350,10 +352,11 @@ const CL_S6 = new Sequence({ name: "Carlotta S6: As the Curtain Falls, I Remain 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const CARLOTTA_TALENTS = new Talent({
   name: "Carlotta: Talents",
-  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 12]],
+  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 11.9999997]],
 });
 
 const CARLOTTA_RESONATOR = new Resonator({
+  id: 1107,
   name: "Carlotta",
   stats: [[Stat.BaseHp, 12450], [Stat.BaseAtk, 462.5], [Stat.BaseDef, 1197.7756]],
   matrix: matrix("Carlotta", 25),
@@ -406,22 +409,28 @@ const CL_ROTATION_FAST = new Rotation([
 // her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat
 export const CARLOTTA = new Loadout({
+  id: 11071,
   resonator: CARLOTTA_RESONATOR,
   sequences: [CL_S1, CL_S2, CL_S3, CL_S4, CL_S5, CL_S6],
-  weapons: [THE_LAST_DANCE, NEW_STD_PISTOL, STATIC_MIST],
-  echoLoadouts: [new EchoLoadout(SENTRY_CONSTRUCT, FROSTY_RESOLVE_5PC)],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
-  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.Skill, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Basic, Substat.Heavy),
+  weapons: [THE_LAST_DANCE, NEW_STD_PISTOL, STATIC_MIST, THUNDERBOLT, SOLAR_FLAME],
+  echoes: new Echoes({
+    sets: [new EchoLoadout(SENTRY_CONSTRUCT, FROSTY_RESOLVE_5PC)],
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
+    substats: substats(Substat.CritRate, Substat.CritDmg, Substat.Skill, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Basic, Substat.Heavy),
+  }),
     rotation: CL_ROTATION,
 });
 export const CARLOTTA_FAST = new Loadout({
+  id: 11072,
   resonator: CARLOTTA_RESONATOR,
   sequences: [CL_S1, CL_S2, CL_S3, CL_S4, CL_S5, CL_S6],
-  weapons: [THE_LAST_DANCE, NEW_STD_PISTOL, STATIC_MIST],
-  echoLoadouts: [new EchoLoadout(SENTRY_CONSTRUCT, FROSTY_RESOLVE_5PC)],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
-  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.Skill, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Basic, Substat.Heavy),
+  weapons: [THE_LAST_DANCE, NEW_STD_PISTOL, STATIC_MIST, THUNDERBOLT, SOLAR_FLAME],
+  echoes: new Echoes({
+    sets: [new EchoLoadout(SENTRY_CONSTRUCT, FROSTY_RESOLVE_5PC)],
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
+    substats: substats(Substat.CritRate, Substat.CritDmg, Substat.Skill, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Basic, Substat.Heavy),
+  }),
     rotation: CL_ROTATION_FAST,
 });

@@ -17,6 +17,7 @@ import {
   equip,
   getStat,
   isCast,
+  isType,
   midActionGroup,
   queue,
   queueEvent,
@@ -89,12 +90,18 @@ const BREAK_HELD: Debuff = new Debuff({});
  *  the cut's delay acts on, that delay being only the input. */
 const READY_AT_CUT: Debuff = new Debuff({});
 
+/** Is any Shifting on the target — a loop, as this is read on every hit's end. */
+function anyShifting(): boolean {
+  for (const s of SHIFTINGS) if (stacksOfEnemy(s) > 0) return true;
+  return false;
+}
+
 /** Whether a full bar breaks behind `behind`, whatever cut it: every gate but the cut's own, which
  *  a press's end and a plain dodge's place each read their own way. Only reads. */
 function breakReady(behind: Readonly<Action>): boolean {
   if (currentTeam().offtune < ENEMY_MAX_OFFTUNE || stacksOfEnemy(TUNE_BREAK_QUEUED) || stacksOfEnemy(BREAK_HELD)) return false;
   // a team that can shift the target waits for one of theirs to be on it
-  if (stacksOfEnemy(TUNE_SHIFTABLE) && !SHIFTINGS.some((s) => stacksOfEnemy(s) > 0)) return false;
+  if (stacksOfEnemy(TUNE_SHIFTABLE) && !anyShifting()) return false;
   // not while the last break's own Rupture/Hack Interfered is still up: a target already
   // interfered with can't be broken again until that window is out. The bar just stays full
   // meanwhile, so the break lands on the first action after the window ends.
@@ -127,20 +134,18 @@ function breakReady(behind: Readonly<Action>): boolean {
  *  builds a team — never onto a team slot, so it casts no Intro or Outro — and its own start of
  *  combat puts its Base Resistance on. */
 export const TUNE_BREAK_ENEMY = new Resonator({
-  name: "Tune Break", enemy: true,
+  id: 0, name: "Tune Break", enemy: true, maxOfftune: ENEMY_MAX_OFFTUNE,
   element: Attribute.Physical, weapon: WeaponType.Sword,
   // deliberately paler than any resonator's hue: it marks a row as *not* somebody's damage
   color: "#c9d2de",
   combatStart: () => equip(BASE_RESISTANCE),
 
-  // A break drops whatever the bar overshot by and starts the cooldown as it is cast, so its own
-  // `castOfftune` drain lands the bar on empty exactly — the same `>=` that queues a break below.
+  // A break starts the cooldown as it is cast; its own `castOfftune` drain spends from the bar's
+  // ceiling (rotation.ts's `bank`), so it lands the bar on empty exactly.
   updateBuffs: () => {
     if (isActive() && (isCast(currentCast(), Cast.Intro) || isCast(currentCast(), Cast.Liberation))) applyEnemy(BREAK_HELD, 1);
     if (!runningAction(TUNE_BREAK)) return;
     revokeEnemy(TUNE_BREAK_QUEUED);
-    const state = currentTeam();
-    if (state.offtune >= ENEMY_MAX_OFFTUNE) state.offtune = ENEMY_MAX_OFFTUNE;
     applyEnemy(TUNE_BREAK_COOLDOWN, 1);
   },
   // the only phase that runs after evaluate() banks the action's own off-tune, so the only one that
@@ -266,8 +271,8 @@ export const TUNE_RUPTURE_INTERFERED = interferedWindow({ name: "Tune Rupture - 
 export const TUNE_STRAIN_INTERFERED = new Debuff({ name: "Tune Strain - Interfered", maxStacks: 1 });
 
 /** The Strain payout, for a responder's own kit to call from its `lateConvertStats`: every point of
- *  its own Tune Break Boost is +0.12% total damage a stack of Interfered. Late, by when every Tbb
- *  source has landed. Called by the piece that makes the kit a responder — Luuk's resonator,
+ *  its own Tune Break Boost is +0.12% total damage a stack of Interfered — every hit but the Tune
+ *  Break's own, which it does not raise. Late, by when every Tbb source has landed. Called by the piece that makes the kit a responder — Luuk's resonator,
  *  Denia's Strain mode — so the loadout hover files it under that piece. */
 export const strainPayout = (): Buff => new Buff({
   lateConvertStats: () => tuneStrainPayout(),
@@ -275,7 +280,7 @@ export const strainPayout = (): Buff => new Buff({
 
 const tuneStrainPayout = (): void => {
   const stacks = stacksOfEnemy(TUNE_STRAIN_INTERFERED);
-  if (!stacks) return;
+  if (!stacks || isType(Type.Break)) return;
   addStat(Stat.TotalDmg, 0.12 * getStat(Stat.TBB) * stacks);
 };
 export const TUNE_HACK_INTERFERED = interferedWindow({ name: "Tune Hack - Interfered" });

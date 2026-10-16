@@ -16,6 +16,7 @@ import { teamFromKey, optimizeTeam, defaultFilters, comboOf } from "../src/solve
 import type { Member, Combo, Pick, TeamCost } from "../src/solve/solver.js";
 import { runTeam } from "../src/solve/teamrun.js";
 import { Substat, ErSpread, rollSpread, rolledPiece } from "../src/shared/substats.js";
+import { Echoes } from "../src/shared/echoes.js";
 
 /** One substat line as it rolled. */
 export type Line = readonly [Substat, number];
@@ -375,7 +376,9 @@ export class Target {
     const m = this.members[this.slot]!;
     const ers = lines.filter(([s]) => s === Substat.Er).length;
     const spread = new ErSpread([], [{ rolls: ers, piece: rolledPiece("Tuned", lines) }]);
-    const loadout: Loadout = Object.assign(Object.create(m.loadout) as Loadout, { substat: spread });
+    const e = m.loadout.echoes;
+    const echoes = new Echoes({ sets: e.sets, mainstats: e.mainstats, substats: spread, highSubstats: e.highSubstat });
+    const loadout: Loadout = Object.assign(Object.create(m.loadout) as Loadout, { echoes });
     return this.members.map((x, i) => (i === this.slot ? { ...x, loadout } : x));
   }
 

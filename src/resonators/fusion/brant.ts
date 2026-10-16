@@ -37,8 +37,10 @@ import { tuneBreak, midairBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
 import { HEALS, gainShield } from "../../shared/status.js";
 import { UNFLICKERING_VALOR } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS, NEW_STD_SWORD, BLOODPACTS_PLEDGE } from "../../weapons/standard.js";
+import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
 import { DRAGON_OF_DIRGE, TIDEBREAKING_5PC } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { NM_INFERNO_RIDER, MOLTEN_RIFT_5PC } from "../../echoes/jinzhou.js";
 
@@ -87,7 +89,7 @@ const Liberation = brantAction("Liberation - To the Horizon", {
     { hitFrame: 247, mv: 8506, offtune: 6000 },
     { hitFrame: 247, mv: 8506, offtune: 6000 },
     { hitFrame: 247, mv: 34021, offtune: 24000 },
-  ], castConcerto: 2000, resetEnergy: true,
+  ], castConcerto: 2000, castEnergy: -17500,
   // Aflame swaps his conversion up to its "My" Moment rate for as long as it lasts
   updateBuffs: () => { applyCurrent(AFLAME, 1); revokeCurrent(THEATRICAL_MOMENT); applyCurrent(MY_MOMENT, 1); },
 });
@@ -98,7 +100,7 @@ const Liberation = brantAction("Liberation - To the Horizon", {
  *  under 100, left alone (matches Galbrena's own Purging Flame). */
 // PLACEHOLDER FRAMES
 const FSkill = brantAction("Forte Skill - Returned from Ashes", { minForte1: 10000,
-  animFrames: 139, castPriority: 4,
+  animFrames: 139, castPriority: 4, endPosition: Position.Grounded, 
   node: Node.Forte, cast: Cast.Skill, type: Type.Basic, bullets: [
     {
       hitFrame: 109, mv: 4722, energy: 75, concerto: 75, offtune: 1580,
@@ -351,10 +353,11 @@ const BR_S6 = new Sequence({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
 const BRANT_TALENTS = new Talent({
   name: "Brant: Talents",
-  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 12]],
+  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 11.9999997]],
 });
 
 const BRANT_RESONATOR = new Resonator({
+  id: 1206,
   name: "Brant",
   matrix: matrix("Brant", 25),
   talent: BRANT_TALENTS,
@@ -384,7 +387,7 @@ const MA1H = new ActionGroup("Mid-air - Captain's Rhapsody 1 (Hold)", [MA1, MA1C
 const MA2H = new ActionGroup("Mid-air - Captain's Rhapsody 2 (Hold)", [MA2, MA2C, MAFlip]);
 
 const BR_ROTATION = new Rotation([
-  INTRO, Liberation, MA2H, MA3.cancel(), ECHO.instaDodge(), MA3.cancel(), FSkill.swapCancel(), OUTRO,
+  INTRO, Liberation, MA2H, MA3, MAFlip, FSkill.swapCancel(), OUTRO,
 ]);
 
 const BR_ROTATION_MDPS = new Rotation([
@@ -396,16 +399,19 @@ const BR_ROTATION_MDPS = new Rotation([
 // his real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat
 export const BRANT = new Loadout({
+  id: 12061,
   resonator: BRANT_RESONATOR,
   sequences: [BR_S1, BR_S2, BR_S3, BR_S4, BR_S5, BR_S6],
-  weapons: [UNFLICKERING_VALOR, EMERALD_OF_GENESIS, NEW_STD_SWORD, BLOODPACTS_PLEDGE[4]!], // the craftable at its real R5
-  echoLoadouts: [
+  weapons: [UNFLICKERING_VALOR, EMERALD_OF_GENESIS, NEW_STD_SWORD, BLOODPACTS_PLEDGE[4]!, LUMINGLOSS, FEATHER_EDGE], // the craftable at its real R5
+  echoes: new Echoes({
+    sets: [
     new EchoLoadout(DRAGON_OF_DIRGE, TIDEBREAKING_5PC),
     new EchoLoadout(NM_INFERNO_RIDER, MOLTEN_RIFT_5PC),
   ],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.Fusion3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Er, Substat.Basic, Substat.AtkPct, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.Basic, Substat.AtkPct, Substat.FlatAtk, Substat.Liberation),
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.Fusion3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.Er, Substat.Basic, Substat.AtkPct, Substat.FlatAtk),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.Basic, Substat.AtkPct, Substat.FlatAtk, Substat.Liberation),
+  }),
     rotation: BR_ROTATION,
 });
 
@@ -415,15 +421,18 @@ export const BRANT = new Loadout({
 // his real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat
 export const BRANT_MDPS = new Loadout({
+  id: 12062,
   resonator: BRANT_RESONATOR,
   sequences: [BR_S1, BR_S2, BR_S3, BR_S4, BR_S5, BR_S6],
-  weapons: [UNFLICKERING_VALOR, EMERALD_OF_GENESIS, NEW_STD_SWORD, BLOODPACTS_PLEDGE[4]!], // the craftable at its real R5
-  echoLoadouts: [
+  weapons: [UNFLICKERING_VALOR, EMERALD_OF_GENESIS, NEW_STD_SWORD, BLOODPACTS_PLEDGE[4]!, LUMINGLOSS, FEATHER_EDGE], // the craftable at its real R5
+  echoes: new Echoes({
+    sets: [
     new EchoLoadout(DRAGON_OF_DIRGE, TIDEBREAKING_5PC),
     new EchoLoadout(NM_INFERNO_RIDER, MOLTEN_RIFT_5PC),
   ],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.Fusion3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Er, Substat.Basic, Substat.AtkPct, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.Basic, Substat.AtkPct, Substat.FlatAtk, Substat.Liberation),
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.Fusion3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.Er, Substat.Basic, Substat.AtkPct, Substat.FlatAtk),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.Basic, Substat.AtkPct, Substat.FlatAtk, Substat.Liberation),
+  }),
     rotation: BR_ROTATION_MDPS,
 });

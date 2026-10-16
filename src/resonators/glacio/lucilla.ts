@@ -69,10 +69,12 @@ import { ActionGroup, Action, ActionField, Cooldown, Rotation, ECHO, START_LAST,
 import { GLACIO_CHAFE, GLACIO_CHAFE_ACTIONS, OWN_CHAFE_RUNGS } from "../../shared/status.js";
 import { FREEZE_FRAME, STRINGMASTER, LETHEAN_ELEGY } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
+import { AUGMENT, RADIANT_DAWN } from "../../weapons/battlepass.js";
 import { BELL_BORNE_GEOCHELONE, HERON, MOONLIT_CLOUDS_2PC, MOONLIT_CLOUDS_5PC, REJUV_2PC } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
 import { DREAM_OF_THE_LOST_3PC, LAW_OF_HARMONY_3PC } from "../../echoes/septimont.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { GLOMMOTH, QUIET_SNOWFALL_2PC, QUIET_SNOWFALL_5PC } from "../../echoes/lahairoi.js";
 
@@ -326,10 +328,11 @@ const MONTAGE_CHAFE = new Buff({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const LUCILLA_TALENTS = new Talent({
   name: "Lucilla: Talents",
-  stats: [[Stat.BonusAtk, 12], [Stat.CritRate, 8]],
+  stats: [[Stat.BonusAtk, 11.9999997], [Stat.CritRate, 8]],
 });
 
 const LUCILLA_RESONATOR = new Resonator({
+  id: 1109,
   name: "Lucilla",
   talent: LUCILLA_TALENTS,
   inherent1: LC_INHERENT_1,
@@ -472,12 +475,15 @@ const LC_ECHOES_CHAFE = [
 ];
 
 export const LUCILLA = new Loadout({
+  id: 11091,
   resonator: LUCILLA_RESONATOR,
-  weapons: [FREEZE_FRAME, COSMIC_RIPPLES, NEW_STD_RECTIFIER, STRINGMASTER, LETHEAN_ELEGY],
-  echoLoadouts: LC_ECHOES,
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Skill),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.FlatAtk, Substat.Basic, Substat.Skill, Substat.Liberation),
+  weapons: [FREEZE_FRAME, COSMIC_RIPPLES, NEW_STD_RECTIFIER, STRINGMASTER, LETHEAN_ELEGY, AUGMENT, RADIANT_DAWN],
+  echoes: new Echoes({
+    sets: LC_ECHOES,
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Skill),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.FlatAtk, Substat.Basic, Substat.Skill, Substat.Liberation),
+  }),
   rotation: LC_ROTATION,
   sequences: LC_SEQUENCES,
   mode: MODE_ECHO,
@@ -485,12 +491,15 @@ export const LUCILLA = new Loadout({
 
 // same weapons/mainstat/substat/echo choices and rotation, the other Resonance Mode
 export const LUCILLA_CHAFE = new Loadout({
+  id: 11092,
   resonator: LUCILLA_RESONATOR,
-  weapons: [FREEZE_FRAME, COSMIC_RIPPLES, NEW_STD_RECTIFIER, STRINGMASTER],
-  echoLoadouts: LC_ECHOES_CHAFE,
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Skill),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Skill, Substat.Liberation),
+  weapons: [FREEZE_FRAME, COSMIC_RIPPLES, NEW_STD_RECTIFIER, STRINGMASTER, AUGMENT, RADIANT_DAWN],
+  echoes: new Echoes({
+    sets: LC_ECHOES_CHAFE,
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Skill),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Skill, Substat.Liberation),
+  }),
   rotation: LC_ROTATION,
   sequences: LC_SEQUENCES,
   mode: MODE_CHAFE,

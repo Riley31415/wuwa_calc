@@ -25,7 +25,7 @@ import { TUNE_STRAIN_INTERFERED } from "../shared/tunebreak.js";
  *  so a loadout runs it at R1 and a build carrying it reads R0 (page/table.ts's `memberLabel()`).
  *  Ceaseless Aria pays on the wielder's Resonance Skill cast (restoring `concerto` — 8 at R1, 16
  *  at R5), once every 20s; the wielder's own Outro makes it ready again. */
-function concertoWeapon(name: string, weaponType: WeaponType, tier: Tier = Tier.Free): Weapon[] {
+function concertoWeapon(id: number, name: string, weaponType: WeaponType, tier: Tier = Tier.Free): Weapon[] {
   return refinements((r, rank) => {
     /** The charge the Skill spends: held from the moment the weapon is equipped, gone the cast it
      *  pays for, and back on the wielder's own Outro. A charge the wielder is holding, so it reads
@@ -39,6 +39,7 @@ function concertoWeapon(name: string, weaponType: WeaponType, tier: Tier = Tier.
       },
     });
     return new Weapon({
+      id,
       weaponType, tier, name: `${name}${rank}`,
       stats: [[Stat.BaseAtk, 337.5], [Stat.ER, 51.84]],
       combatStart: () => applyCurrent(CEASELESS_ARIA, 1),
@@ -47,11 +48,11 @@ function concertoWeapon(name: string, weaponType: WeaponType, tier: Tier = Tier.
   });
 }
 
-export const VARIATION = concertoWeapon("Variation", WeaponType.Rectifier, Tier.Standard);
-export const MARCATO = concertoWeapon("Marcato", WeaponType.Gauntlets);
-export const CADENZA = concertoWeapon("Cadenza", WeaponType.Pistols);
-export const OVERTURE = concertoWeapon("Overture", WeaponType.Sword);
-export const DISCORD = concertoWeapon("Discord", WeaponType.Broadblade);
+export const VARIATION = concertoWeapon(21050024, "Variation", WeaponType.Rectifier, Tier.Standard);
+export const MARCATO = concertoWeapon(21040024, "Marcato", WeaponType.Gauntlets);
+export const CADENZA = concertoWeapon(21030024, "Cadenza", WeaponType.Pistols);
+export const OVERTURE = concertoWeapon(21020024, "Overture", WeaponType.Sword);
+export const DISCORD = concertoWeapon(21010024, "Discord", WeaponType.Broadblade);
 
 /* --------------------------------------------------------------- Stormy Resolution (5-star, 5) */
 
@@ -63,6 +64,7 @@ export const STATIC_MIST = refinements((r, rank) => {
     stats: [[Stat.BonusAtk, [10, 12.5, 15, 17.5, 20][r]!]],
   });
   return new Weapon({
+    id: 21030015,
     weaponType: WeaponType.Pistols, tier: Tier.Standard, name: `Static Mist${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritRate, 24.3], [Stat.ER, [12.8, 16, 19.2, 22.4, 25.6][r]!]],
     grants: [{ on: onCast(Cast.Outro), buff: STATIC_MIST_HANDOFF, to: BuffTarget.Next }],
@@ -76,6 +78,7 @@ export const EMERALD_OF_GENESIS = refinements((r, rank) => {
     stats: [[Stat.BonusAtk, [6, 7.5, 9, 10.5, 12][r]!]], perStack: true,
   });
   return new Weapon({
+    id: 21020015,
     weaponType: WeaponType.Sword, tier: Tier.Standard, name: `Emerald of Genesis${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritRate, 24.3], [Stat.ER, [12.8, 16, 19.2, 22.4, 25.6][r]!]],
     grants: [{ on: onCast(Cast.Skill), buff: EOG_STACKS }],
@@ -89,6 +92,7 @@ export const COSMIC_RIPPLES = refinements((r, rank) => {
     stats: [[Stat.DmgBonus, [3.2, 4, 4.8, 5.6, 6.4][r]!, Type.Basic]], perStack: true,
   });
   return new Weapon({
+    id: 21050015,
     weaponType: WeaponType.Rectifier, tier: Tier.Standard, name: `Cosmic Ripples${rank}`,
     stats: [[Stat.BaseAtk, 500], [Stat.BonusAtk, 54], [Stat.ER, [12.8, 16, 19.2, 22.4, 25.6][r]!]],
     grants: [{ on: onType(Type.Basic), buff: COSMIC_RIPPLES_STACKS, onHit: true }],
@@ -109,6 +113,7 @@ export const ABYSS_SURGES = refinements((r, rank) => {
     stats: [[Stat.DmgBonus, [10, 12.5, 15, 17.5, 20][r]!, Type.Skill]],
   });
   return new Weapon({
+    id: 21040015,
     weaponType: WeaponType.Gauntlets, tier: Tier.Standard, name: `Abyss Surges${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.BonusAtk, 36.45], [Stat.ER, [12.8, 16, 19.2, 22.4, 25.6][r]!]],
     grants: [
@@ -125,6 +130,7 @@ export const LUSTROUS_RAZOR = refinements((r, rank) => {
     stats: [[Stat.DmgBonus, [7, 8.75, 10.5, 12.25, 14][r]!, Type.Liberation]], perStack: true,
   });
   return new Weapon({
+    id: 21010015,
     weaponType: WeaponType.Broadblade, tier: Tier.Standard, name: `Lustrous Razor${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.BonusAtk, 36.45], [Stat.ER, [12.8, 16, 19.2, 22.4, 25.6][r]!]],
     grants: [{ on: onCast(Cast.Skill), buff: LUSTROUS_RAZOR_STACKS }],
@@ -152,6 +158,7 @@ export const NEW_STD_BRAUDBLADE = refinements((r, rank) => {
     stats: [[Stat.DmgBonus, [24, 27, 30, 33, 36][r]!, Type.Liberation]],
   });
   return new Weapon({
+    id: 21010045,
     weaponType: WeaponType.Broadblade, tier: Tier.Standard, name: `Radiance Cleaver${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritDmg, 48.6], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     grants: [{ on: hitInterfered, buff: EDGE_BREAKER_BUFF, onHit: true }],
@@ -167,6 +174,7 @@ export const NEW_STD_GAUNTLET = refinements((r, rank) => {
     stats: [[Stat.DmgBonus, [6, 6.7, 7.5, 8.2, 9][r]!, Type.Basic]], perStack: true,
   });
   return new Weapon({
+    id: 21040045,
     weaponType: WeaponType.Gauntlets, tier: Tier.Standard, name: `Pulsation Bracer${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritRate, 24.3], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     grants: [{ on: hitInterfered, buff: BARRIER_BREACHER_STACKS, onHit: true }],
@@ -182,6 +190,7 @@ export const NEW_STD_SWORD = refinements((r, rank) => {
     stats: [[Stat.DmgBonus, [24, 27, 30, 33, 36][r]!, Type.Skill]],
   });
   return new Weapon({
+    id: 21020045,
     weaponType: WeaponType.Sword, tier: Tier.Standard, name: `Laser Shearer${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.ER, 38.88], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     grants: [{ on: hitInterfered, buff: SIGNAL_CATCHER_BUFF, onHit: true }],
@@ -201,6 +210,7 @@ export const BLOODPACTS_PLEDGE = refinements((r, rank) => {
     stats: [[Stat.DmgBonus, [10, 14, 18, 22, 26][r]!, Type.Skill]],
   });
   return new Weapon({
+    id: 21020046,
     weaponType: WeaponType.Sword, tier: Tier.Free, name: `Bloodpact's Pledge${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.ER, 38.88]],
     grants: [{ on: onApplied(HEALS), buff: HARMONIOUS_VIBRANCY }],
@@ -228,6 +238,7 @@ export const NEW_STD_RECTIFIER = refinements((r, rank) => {
     stats: [[Stat.BonusAtk, [12, 13.5, 15, 16.5, 18][r]!], [Stat.DmgBonus, [12, 13.5, 15, 16.5, 18][r]!, Type.Basic]],
   });
   return new Weapon({
+    id: 21050045,
     weaponType: WeaponType.Rectifier, tier: Tier.Standard, name: `Boson Astrolabe${rank}`,
     stats: [[Stat.BaseAtk, 525], [Stat.ER, 38.88], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     hitGlobal: () => { if (casting(Cast.TuneBreak)) applyCurrent(PATH_OBSERVER_BUFF, 1); },
@@ -243,6 +254,7 @@ export const NEW_STD_PISTOL = refinements((r, rank) => {
     stats: [[Stat.DmgBonus, [20, 22.5, 25, 27.5, 30][r]!]],
   });
   return new Weapon({
+    id: 21030045,
     weaponType: WeaponType.Pistols, tier: Tier.Standard, name: `Phasic Homogenizer${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritDmg, 48.6], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     hitGlobal: () => { if (casting(Cast.TuneBreak)) applyCurrent(INSIGHT_BEARER_BUFF, 1); },

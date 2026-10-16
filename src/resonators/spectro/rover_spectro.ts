@@ -29,9 +29,11 @@ import { tuneBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
 import { SPECTRO_FRAZZLE, SHIMMER, HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { BLAZING_BRILLIANCE, RED_SPRING } from "../../weapons/sword.js";
+import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
 import { REJUV_5PC, HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -132,7 +134,7 @@ const Liberation = roverAction("Liberation - Echoing Orchestra", {
       },
     },
     { hitFrame: 123, commitFrame: 78, mv: 67596, offtune: 47477 },
-  ], castConcerto: 2000, resetEnergy: true,
+  ], castConcerto: 2000, castEnergy: -12500,
 });
 const Intro = roverAction("Intro - Waveshock", { endPosition: Position.Grounded, qteFrames: 56, animFrames: 72, noSwapFrames: 71, animPriority: { 72: 1 }, castPriority: 11, motionStop: [4, 51], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 56, mv: 16899, energy: 1000, offtune: 4880 }], castConcerto: 1000, castForte1: 50});
 const Outro = roverAction("Outro - Instant", { animFrames: 0, cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000});
@@ -213,12 +215,13 @@ const SPR_S6 = new Sequence({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from their kit
 const ROVER_SPECTRO_TALENTS = new Talent({
   name: "Spectro Rover: Talents",
-  stats: [[Stat.BonusAtk, 12], [Stat.DmgBonus, 12, Attribute.Spectro]],
+  stats: [[Stat.BonusAtk, 11.9999997], [Stat.DmgBonus, 12, Attribute.Spectro]],
 });
 
 /** Them, as a Resonator: name/element/weapon, every grant/spend/queue rule their kit needs, and
  *  their own base stat line. `Tier.Free` — see the file header. */
 const ROVER_SPECTRO_RESONATOR = new Resonator({
+  id: 1501,
   name: "Spectro Rover",
   talent: ROVER_SPECTRO_TALENTS,
   inherent1: SPR_INHERENT_1,
@@ -256,15 +259,18 @@ const SPR_ROTATION = new Rotation([
 // their real build: resonator + talents + both Inherent Skills + every sequence node
 // (Tier.Free — see file header), weapon, mainslot echo, sonata pieces, mainstat/substat
 export const ROVER_SPECTRO = new Loadout({
+  id: 15011,
   resonator: ROVER_SPECTRO_RESONATOR,
-  weapons: [BLAZING_BRILLIANCE, EMERALD_OF_GENESIS, RED_SPRING],
-  echoLoadouts: [
+  weapons: [BLAZING_BRILLIANCE, EMERALD_OF_GENESIS, RED_SPRING, LUMINGLOSS, FEATHER_EDGE],
+  echoes: new Echoes({
+    sets: [
     new EchoLoadout(FALLACY, REJUV_5PC),
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
   ],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Skill),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Skill, Substat.Heavy),
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Skill),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Skill, Substat.Heavy),
+  }),
     rotation: SPR_ROTATION,
   sequences: [SPR_S1, SPR_S2, SPR_S3, SPR_S4, SPR_S5, SPR_S6],
 });

@@ -42,7 +42,7 @@ import {
   stacksOfEnemy,
   queueOn,
   tickInEnemy,
-  asSource,
+  addStatAs,
   setStacksSelf,
   stacksOf,
   withMoment,
@@ -137,7 +137,7 @@ export const GLACIO_CHAFE = new Debuff({
     hitGlobal: () => {
         const held = stacksOfEnemy(GLACIO_CHAFE);
         const team = currentTeam();
-        const applier = team.slots.find((s) => s.name === team.sourceOf.get(GLACIO_CHAFE)) ?? currentMember();
+        const applier = memberNamed(team.sourceOf.get(GLACIO_CHAFE)) ?? currentMember();
         const own = team.slots[team.onField] === applier && applier.resonator ? OWN_CHAFE_RUNGS.get(applier.resonator) : undefined;
         const rungs = own ?? GLACIO_CHAFE_ACTIONS;
         for (let n = Math.max(1, held - applied(GLACIO_CHAFE) + 1); n <= held; n++) {
@@ -165,7 +165,7 @@ export const FUSION_BURST = new Debuff({
   applyStats: () => {
     if (!isType(Subtype.FusionBurst) || currentHit().mv !== 0) return;
     const rung = FUSION_BURST_ACTIONS[currentTeam().enemyMax(FUSION_BURST)];
-    if (rung) asSource(rung, () => addStat(Stat.AddMv, rung.mv));
+    if (rung) addStatAs(rung, Stat.AddMv, rung.mv);
   },
   // the burst takes the stacks with it and whatever landed past the cap is lost, so the target
   // rebuilds from empty. Cap is the fight's, not the declared 10. On the hit that filled it (the
@@ -292,7 +292,7 @@ export const HELIACAL_EMBER_ACTIONS: (Action | null)[] = [null, ...SPECTRO_FRAZZ
     applyStats: () => {
       for (let n = i; n >= 0; n--) {
         const rung = SPECTRO_FRAZZLE_ACTIONS[n + 1]!;
-        asSource(rung, () => addStat(Stat.AddMv, rung.mv));
+        addStatAs(rung, Stat.AddMv, rung.mv);
       }
     },
   }))];
@@ -344,7 +344,7 @@ export const ELECTRO_FLARE: Debuff = new Debuff({
   applyStats: () => {
     if (!isType(Subtype.ElectroFlare) || currentHit().mv !== 0) return;
     const rung = negativeStatusRung(ELECTRO_FLARE_DMG, frozenStacks());
-    if (rung) asSource(rung, () => addStat(Stat.AddMv, rung.mv));
+    if (rung) addStatAs(rung, Stat.AddMv, rung.mv);
   },
   tick: {
     every: 300,
@@ -379,27 +379,44 @@ const NEGATIVE_STATUSES: Debuff[] = [HAVOC_BANE, GLACIO_CHAFE, ELECTRO_FLARE, FU
  *  `appliedByMe`, not `applied`: every caller is an "on inflicting a Negative Status" passive, and
  *  a marker that inflicts one off a teammate's cast (Chisa's Unseen Snare) is that marker owner's
  *  doing, not the teammate's — their weapon/sonata must not pay out for it. */
+/** The member named `name`, if any — a loop, not a capturing `find`, for hooks run on every hit. */
+function memberNamed(name: string | undefined): TeamMember | undefined {
+  for (const s of currentTeam().slots) if (s.name === name) return s;
+  return undefined;
+}
+
 /** Fire a status's own rung on whoever put the status there — they are on field for none of it,
  *  but the damage is theirs (a Buling array ticking through the DPS's turn lands in her column).
  *  Falls back to whoever is acting if that resonator is no longer a member to name. */
 export function queueOnApplier(status: Debuff, rung: Action): void {
-  const source = currentTeam().sourceOf.get(status);
-  const applier = currentTeam().slots.find((s) => s.name === source)?.resonator;
+  const applier = memberNamed(currentTeam().sourceOf.get(status))?.resonator;
   if (applier) queueOn(applier, rung);
   else queue(rung);
 }
 
-export const inflictedNegativeStatus = (): boolean => NEGATIVE_STATUSES.some((d) => appliedByMe(d) > 0);
+export const inflictedNegativeStatus = (): boolean => {
+  for (const d of NEGATIVE_STATUSES) if (appliedByMe(d) > 0) return true;
+  return false;
+};
 
 /** Did *anyone* put one of the six on the target this action — what a passive keyed to the whole
  *  team's inflicts reads rather than to its own holder's (Xuanling's Still as Withered Wood), and
  *  the one that survives a marker re-sourcing the status onto its own owner. */
-export const anyNegativeStatusInflicted = (): boolean => NEGATIVE_STATUSES.some((d) => applied(d) > 0);
+export const anyNegativeStatusInflicted = (): boolean => {
+  for (const d of NEGATIVE_STATUSES) if (applied(d) > 0) return true;
+  return false;
+};
 
 /** Does the target carry any of the six *right now* — what a passive keyed to the target's own
  *  state reads, rather than to what the action being evaluated just put on (Cartethyia's Outro). */
-export const hasNegativeStatus = (): boolean => NEGATIVE_STATUSES.some((d) => stacksOfEnemy(d) > 0);
+export const hasNegativeStatus = (): boolean => {
+  for (const d of NEGATIVE_STATUSES) if (stacksOfEnemy(d) > 0) return true;
+  return false;
+};
 
 /** The same question about one specific member — for a passive watching the whole team from
  *  updateGlobal (Kumokiri's team half), where "me" is the holder rather than whoever is acting. */
-export const inflictedNegativeStatusBy = (member: TeamMember): boolean => NEGATIVE_STATUSES.some((d) => appliedByMember(d, member) > 0);
+export const inflictedNegativeStatusBy = (member: TeamMember): boolean => {
+  for (const d of NEGATIVE_STATUSES) if (appliedByMember(d, member) > 0) return true;
+  return false;
+};

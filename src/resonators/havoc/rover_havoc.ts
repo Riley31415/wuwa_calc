@@ -25,8 +25,10 @@ import { ActionGroup, Action, Cooldown, Rotation, ECHO, INTRO, OUTRO, START, DOD
 import { HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { BLAZING_BRILLIANCE, RED_SPRING } from "../../weapons/sword.js";
+import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
 import { NM_CROWNLESS, HAVOC_ECLIPSE_5PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -142,7 +144,7 @@ const ESkill = roverAction("Skill - Umbra: Lifetaker", { requireBuff: DARK_SURGE
   ], castConcerto: 1500});
 
 // --- liberation: Deadening Abyss — also shreds the target's own Havoc RES (S4)
-const Liberation = roverAction("Liberation - Deadening Abyss", { animFrames: 139, timestop: [0, 139], motionStop: [0, 139], castPriority: 10, cooldown: 60 * 16, node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 139, mv: 152090, offtune: 53760 }], castConcerto: 2000, resetEnergy: true });
+const Liberation = roverAction("Liberation - Deadening Abyss", { animFrames: 139, timestop: [0, 139], motionStop: [0, 139], castPriority: 10, cooldown: 60 * 16, node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 139, mv: 152090, offtune: 53760 }], castConcerto: 2000, castEnergy: -12500 });
 
 // --- intro / outro
 const Intro = roverAction("Intro - Instant of Annihilation", { endPosition: Position.Grounded, animFrames: 60, castPriority: 11, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 60, mv: 19881, energy: 1000, offtune: 1867, forte1: 29 }], castConcerto: 1000 });
@@ -177,12 +179,13 @@ const S4_RES_SHRED = new Debuff({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
 const ROVER_TALENTS = new Talent({
   name: "Havoc Rover: Talents",
-  stats: [[Stat.BonusAtk, 12], [Stat.DmgBonus, 12, Attribute.Havoc]],
+  stats: [[Stat.BonusAtk, 11.9999997], [Stat.DmgBonus, 12, Attribute.Havoc]],
 });
 
 /** Him, as a Resonator: name/element/weapon, every grant/spend/queue rule his kit needs, and his
  *  own base stat line. `Tier.Free` — see the file header. */
 const ROVER_HAVOC_RESONATOR = new Resonator({
+  id: 1604,
   name: "Havoc Rover",
   talent: ROVER_TALENTS,
   inherent1: RH_INHERENT_1,
@@ -253,12 +256,15 @@ const RH_ROTATION = new Rotation([
 // his real 43311 build: resonator + talents + both Inherent Skills + Forte Circuit + all six
 // sequence nodes (Tier.Free), weapon, mainslot echo, sonata pieces, mainstat/substat
 export const ROVER_HAVOC = new Loadout({
+  id: 16041,
   resonator: ROVER_HAVOC_RESONATOR,
-  weapons: [RED_SPRING, EMERALD_OF_GENESIS, BLAZING_BRILLIANCE],
-  echoLoadouts: [new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC)],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
-  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.Basic, Substat.AtkPct, Substat.FlatAtk, Substat.Skill),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Basic, Substat.AtkPct, Substat.FlatAtk, Substat.Skill, Substat.Heavy),
+  weapons: [RED_SPRING, EMERALD_OF_GENESIS, BLAZING_BRILLIANCE, LUMINGLOSS, FEATHER_EDGE],
+  echoes: new Echoes({
+    sets: [new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC)],
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
+    substats: substats(Substat.CritRate, Substat.CritDmg, Substat.Basic, Substat.AtkPct, Substat.FlatAtk, Substat.Skill),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Basic, Substat.AtkPct, Substat.FlatAtk, Substat.Skill, Substat.Heavy),
+  }),
     rotation: RH_ROTATION,
   sequences: [ROVER_S1, ROVER_S2, ROVER_S3, ROVER_S4, ROVER_S5, ROVER_S6],
 });

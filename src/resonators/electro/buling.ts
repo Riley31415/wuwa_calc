@@ -39,7 +39,8 @@ import {
   applyCurrent,
   stacksOfTeam,
   isHeld,
-  casting, addGain,
+  casting,
+  addGain,
   runningAction,
   runningAnyOf,
   currentHit,
@@ -51,9 +52,9 @@ import {
   stacksOf,
   frozenStacks,
   currentTeam,
-  asSource,
   queue,
   cancelHits,
+  addStatAs,
 } from "../../engine/context.js";
 import { Action, ActionField, Cooldown, Rotation, NOINTRO, ECHO, ActionGroup, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
 import type { BulletDef } from "../../engine/rotation.js";
@@ -66,6 +67,7 @@ import { JINHSI_RESONATOR } from "../spectro/jinhsi.js";
 import { SUOMING_RESONATOR } from "./suoming.js";
 import { HSIN_RESONATOR } from "./hsin.js";
 import { mainstats, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -193,7 +195,7 @@ const Harmony = bulingAction("Liberation - Flashing Thunder Spell - Harmony", {
     // S5: the Array's 6 more Electro Flare the moment it is generated, at frame 0
     { hitFrame: 0, element: null, type: null, subtype: null, updateDebuffs: () => { if (isHeld(BL_S5)) inflictElectroFlare(6); } },
     { hitFrame: 187, mv: 53679, offtune: 72000 },
-  ], castConcerto: 2000, resetEnergy: true,
+  ], castConcerto: 2000, castEnergy: -15000,
   updateBuffs: () => {
     for (const stage of THUNDER_SPELL_STAGES) revokeTeam(stage);
     applyTeam(PRIMORDIAL_QI, 1);
@@ -207,7 +209,7 @@ const Harmony = bulingAction("Liberation - Flashing Thunder Spell - Harmony", {
 const FlashingThunderSpell = bulingAction("Liberation - Flashing Thunder Spell", {
   animFrames: 244, animPriority: { 238: 2 }, castPriority: 10, timestop: [0, 231], motionStop: [0, 187],
   cooldown: LIB_CD,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 187, mv: 35786, offtune: 36000 }], castConcerto: 2000, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 187, mv: 35786, offtune: 36000 }], castConcerto: 2000, castEnergy: -15000,
 });
 /** The one Liberation a rotation writes, resolved on its row the way the Heavy is: Harmony while
  *  she holds Yin-Yang Balance, the plain cast otherwise. */
@@ -282,7 +284,7 @@ function thunderSpell(stage: string, next: (() => Buff) | null, pay: () => void)
 const HEAVEN_EARTH_MIND = thunderSpell("Heaven, Earth, Mind", null, () => {
   addStat(Stat.DmgBonus, 25, Type.Skill);
   if (currentTeam().slots.find((m) => m.resonator === BULING_RESONATOR)?.isHeld(BL_S6)) {
-    asSource(BL_S6, () => addStat(Stat.DmgBonus, 25, Type.Skill));
+    addStatAs(BL_S6, Stat.DmgBonus, 25, Type.Skill);
   }
 });
 const YIN_AND_YANG = thunderSpell("Yin and Yang", () => HEAVEN_EARTH_MIND, () => addStat(Stat.DmgBonus, 10, Type.Skill));
@@ -369,10 +371,11 @@ const BL_S6 = new Sequence({
 // Healing Bonus+ nodes are unused by the formula (healing out of scope), tracked for completeness.
 const BULING_TALENTS = new Talent({
   name: "Buling: Talents",
-  stats: [[Stat.BonusAtk, 12], [Stat.HealingBonus, 12]],
+  stats: [[Stat.BonusAtk, 11.9999997], [Stat.HealingBonus, 12]],
 });
 
 const BULING_RESONATOR = new Resonator({
+  id: 1307,
   name: "Buling",
   talent: BULING_TALENTS,
   inherent1: BL_INHERENT_1,
@@ -409,16 +412,19 @@ const BL_ROTATION = new Rotation([
 // her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat, all six sequences (by explicit instruction — see file header)
 export const BULING = new Loadout({
+  id: 13071,
   resonator: BULING_RESONATOR,
   weapons: [VARIATION],
-  echoLoadouts: [
+  echoes: new Echoes({
+    sets: [
     new EchoLoadout(FALLACY, REJUV_5PC),
     // Tinged Yearning's extra ATK is for whoever obtains or responds to a Unison
     new EchoLoadout(FORMLESS_DEMON, TINGED_YEARNING_5PC).requires(JINHSI_RESONATOR, SUOMING_RESONATOR, HSIN_RESONATOR),
   ],
-  mainstats: [mainstats(Mainstat.CD4, Mainstat.ER3, Mainstat.ER3, Mainstat.ATK1, Mainstat.ATK1)],
-  substat: substats(Substat.Er, Substat.CritRate, Substat.CritDmg, Substat.Liberation, Substat.AtkPct, Substat.Basic),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.Liberation, Substat.AtkPct, Substat.Basic, Substat.Heavy),
+    mainstats: [mainstats(Mainstat.CD4, Mainstat.ER3, Mainstat.ER3, Mainstat.ATK1, Mainstat.ATK1)],
+    substats: substats(Substat.Er, Substat.CritRate, Substat.CritDmg, Substat.Liberation, Substat.AtkPct, Substat.Basic),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.Liberation, Substat.AtkPct, Substat.Basic, Substat.Heavy),
+  }),
   rotation: BL_ROTATION,
   sequences: [BL_S1, BL_S2, BL_S3, BL_S4, BL_S5, BL_S6],
 });

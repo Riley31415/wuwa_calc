@@ -25,7 +25,6 @@
 import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, BuffTarget, Position } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
-  asSource,
   addGain,
   addForte1,
   applyCurrent,
@@ -42,19 +41,22 @@ import {
   queue,
   revokeCurrent,
   addStat,
-  getStat,
+  finalStat,
   frozenStacks,
   inflicting,
   runningBullet,
+  addStatAs,
 } from "../../engine/context.js";
 import { ActionGroup, Action, ActionField, Rotation, ECHO, ActionTag, INTRO, OUTRO, START, DODGE } from "../../engine/rotation.js";
 import { applied, applyTeam } from "../../engine/context.js";
 import { SHIELD, gainShield } from "../../shared/status.js";
 import { JINGRAN_SIG, THUNDERFLARE_DOMINION, VERDANT_SUMMIT } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
+import { AUTUMNTRACE, AUREATE_ZENITH } from "../../weapons/battlepass.js";
 import { MYRIAD_SNARE, LAMP_5PC, LAMP_2PC } from "../../echoes/mengzhou.js";
 import { TUNE_BREAK, tuneBreak } from "../../shared/tunebreak.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { COV_3PC } from "../../echoes/septimont.js";
 
@@ -172,7 +174,7 @@ const Lib = jingranAction("Liberation - Burial of Thousand Souls", {
     { hitFrame: 280, commitFrame: 262, mv: 9315, offtune: 21000 },
     { hitFrame: 290, commitFrame: 262, mv: 9315, offtune: 21000 },
     { hitFrame: 300, commitFrame: 262, mv: 9315, offtune: 21000 },
-  ], castForte1: 200, castForte2: 10000, resetEnergy: true, castConcerto: 2000,
+  ], castForte1: 200, castForte2: 10000, castEnergy: -12500, castConcerto: 2000,
 });
 /** One per heavy attack while Mingfire is up. Node Liberation (attributed to it) but no `cast`:
  *  it's a summon, not a press. */
@@ -230,14 +232,12 @@ const EFHA = jingranAction("Forte Heavy - Soul Raid", { minForte1: 300, requireB
 /** The HP fold every HP-scaled conversion below reads. Only ever accurate from convertStats(): every
  *  other held Gear's own applyStats() has to have already run. */
 function hp(): number {
-  const base = getStat(Stat.BaseHp);
-  return base + getStat(Stat.BonusHp) / 100 * base + getStat(Stat.FlatHp);
+  return finalStat(Stat.BaseHp);
 }
 
 /** Same fold, for DEF — what `JINGRAN_HP_TO_FUSION` reads to zero his own DEF out exactly. */
 function def(): number {
-  const base = getStat(Stat.BaseDef);
-  return base + getStat(Stat.BonusDef) / 100 * base + getStat(Stat.FlatDef);
+  return finalStat(Stat.BaseDef);
 }
 
 /** How many whole 1000-HP steps his HP-scaled conversions read, capped at 50 (the shared 50,000
@@ -324,7 +324,7 @@ const JINGRAN_HP_TO_ATK = new Buff({
     const steps = hpSteps(); // 36 ATK/1000 HP, capped 1800
     addStat(Stat.FlatAtk, 36 * steps);
     // S3's Yin-Yang Everflow takes the step to 50 — the 14 more a step is that node's own
-    if (isHeld(JR_EVERFLOW)) asSource(JR_S3, () => addStat(Stat.FlatAtk, 14 * steps));
+    if (isHeld(JR_EVERFLOW)) addStatAs(JR_S3, Stat.FlatAtk, 14 * steps);
   },
 });
 
@@ -457,7 +457,7 @@ const JR_SEQUENCES = [JR_S1, JR_S2, JR_S3, JR_S4, JR_S5, JR_S6];
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
 const JINGRAN_TALENTS = new Talent({
   name: "Jingran: Talents",
-  stats: [[Stat.CritRate, 8], [Stat.BonusHp, 12]],
+  stats: [[Stat.CritRate, 8], [Stat.BonusHp, 11.9999997]],
 });
 
 /** Shadow Step: every dodge she makes on the ground in combat — a fixed 30 + 25 Fusion, Basic
@@ -465,6 +465,7 @@ const JINGRAN_TALENTS = new Talent({
 const ShadowStep = jingranAction("Dodge - Shadow Step", { castPosition: Position.Grounded, cast: Cast.Dodge, animFrames: 20, animPriority: { 20: 0 }, castPriority: 6, type: Type.Basic, scaling: Scaling.Fixed, bullets: [{ hitFrame: 4, mv: 3000 }, { hitFrame: 16, mv: 2500 }]});
 
 export const JINGRAN_RESONATOR = new Resonator({
+  id: 1212,
   name: "Jingran",
   stats: [[Stat.BaseHp, 15375], [Stat.BaseAtk, 312.5]],
   talent: JINGRAN_TALENTS,
@@ -538,13 +539,16 @@ const JR_ROTATION_S2 = new Rotation([
 // his real 44111 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat
 export const JINGRAN = new Loadout({
+  id: 12121,
   resonator: JINGRAN_RESONATOR,
-  weapons: [JINGRAN_SIG, NEW_STD_BRAUDBLADE, THUNDERFLARE_DOMINION, LUSTROUS_RAZOR, VERDANT_SUMMIT],
-  echoLoadouts: [new EchoLoadout(MYRIAD_SNARE, LAMP_5PC),
+  weapons: [JINGRAN_SIG, NEW_STD_BRAUDBLADE, THUNDERFLARE_DOMINION, LUSTROUS_RAZOR, VERDANT_SUMMIT, AUTUMNTRACE, AUREATE_ZENITH],
+  echoes: new Echoes({
+    sets: [new EchoLoadout(MYRIAD_SNARE, LAMP_5PC),
   new EchoLoadout(MYRIAD_SNARE, COV_3PC, LAMP_2PC)],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.HP4, Mainstat.Fusion3, Mainstat.ATK1, Mainstat.HP1),
-  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.HpPct, Substat.Heavy, Substat.AtkPct, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.HpPct, Substat.Heavy, Substat.AtkPct, Substat.FlatHp, Substat.FlatAtk),
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.HP4, Mainstat.Fusion3, Mainstat.ATK1, Mainstat.HP1),
+    substats: substats(Substat.CritRate, Substat.CritDmg, Substat.HpPct, Substat.Heavy, Substat.AtkPct, Substat.FlatAtk),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.HpPct, Substat.Heavy, Substat.AtkPct, Substat.FlatHp, Substat.FlatAtk),
+  }),
   rotation: { 0: JR_ROTATION, 2: JR_ROTATION_S2 },
   sequences: JR_SEQUENCES,
 });

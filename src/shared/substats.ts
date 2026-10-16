@@ -1,20 +1,19 @@
 /** An echo build's substats: five echoes, five rolls each, twenty-five total. Every roll is
  *  valued at a percentile of the value spread Kuro discloses for it; the whole spread is one
- *  constant piece of gear. */
+ *  `Spread`, which echoes.ts deals out over the five echoes. */
 import { Buff } from "../engine/gear.js";
 import type { StatLine } from "../engine/gear.js";
-import { addStat } from "../engine/context.js";
 import { Stat, Type, scopedStat, statLabel } from "../engine/stats.js";
 import type { StatKey, Tag } from "../engine/stats.js";
 
 /** The spread's rolls as one buff apiece: each named for the spread and the stat it rolls as that
  *  stat is named everywhere else ("ChemX32 - Crit Rate", "ChemX32 - Flat
  *  ATK" — `ROLL`'s own short label calls both ATK% and Flat ATK "ATK"), and carrying a single roll's
- *  value. Never equipped and never evaluated — the piece's own `constantStats` is what the fight
+ *  value. Never equipped and never evaluated — the echoes carrying the rolls are what the fight
  *  reads; these exist so the loadout hover can list a spread roll by roll, the five Crit Rate ones
  *  folding into a line of their own. Most rolls first, `Substat` order within a count. */
-const ROLL_BUFFS = new WeakMap<Buff, Buff[]>();
-export const substatRollBuffs = (piece: Buff): Buff[] => ROLL_BUFFS.get(piece) ?? [];
+const ROLL_BUFFS = new WeakMap<Spread, Buff[]>();
+export const substatRollBuffs = (spread: Spread): Buff[] => ROLL_BUFFS.get(spread) ?? [];
 const rollBuffsOf = (prefix: string, counts: Map<Substat, number>, p: number): Buff[] =>
   [...counts].sort((a, b) => b[1] - a[1] || a[0] - b[0])
     .flatMap(([s, n]) => {
@@ -29,8 +28,9 @@ const rollBuffsOf = (prefix: string, counts: Map<Substat, number>, p: number): B
 export enum Substat { CritRate, CritDmg, Er, AtkPct, FlatAtk, HpPct, FlatHp, DefPct, FlatDef, Basic, Heavy, Skill, Liberation }
 
 /** The value spread ATK%, HP% and the four dmg bonuses share, and the two weightings behind every
- *  spread: eight values out of 103, or crit's own eight out of 300 (Kuro's KR product info). */
-const PCT = [6.4, 7.1, 7.9, 8.6, 9.4, 10.1, 10.9, 11.6];
+ *  spread: eight values out of 103, or crit's own eight out of 300 (Kuro's KR product info). The
+ *  game shows a roll cut to one decimal, so every other tier here carries the 0.05 it hides. */
+const PCT = [6.4, 7.15, 7.9, 8.65, 9.4, 10.15, 10.9, 11.65];
 const WEIGHTS = [7, 8, 21, 25, 18, 15, 6, 3];
 const CRIT_WEIGHTS = [70, 70, 70, 24, 24, 24, 9, 9];
 
@@ -44,7 +44,7 @@ const ROLL: Record<Substat, { stat: Stat; tag?: Tag; values: number[]; weights: 
   [Substat.FlatAtk]: { stat: Stat.FlatAtk, values: [30, 40, 50, 60], weights: [7, 54, 39, 3], label: "ATK" },
   [Substat.HpPct]: { stat: Stat.BonusHp, values: PCT, weights: WEIGHTS, label: "HP" },
   [Substat.FlatHp]: { stat: Stat.FlatHp, values: [320, 360, 390, 430, 470, 510, 540, 580], weights: WEIGHTS, label: "HP" },
-  [Substat.DefPct]: { stat: Stat.BonusDef, values: [8.1, 9, 10, 10.9, 11.8, 12.8, 13.8, 14.7], weights: WEIGHTS, label: "DEF" },
+  [Substat.DefPct]: { stat: Stat.BonusDef, values: [8.1, 9.05, 10, 10.95, 11.9, 12.85, 13.8, 14.75], weights: WEIGHTS, label: "DEF" },
   [Substat.FlatDef]: { stat: Stat.FlatDef, values: [40, 50, 60, 70], weights: [15, 46, 33, 9], label: "DEF" },
   [Substat.Basic]: { stat: Stat.DmgBonus, tag: Type.Basic, values: PCT, weights: WEIGHTS, label: "Basic" },
   [Substat.Heavy]: { stat: Stat.DmgBonus, tag: Type.Heavy, values: PCT, weights: WEIGHTS, label: "Heavy" },
@@ -55,19 +55,25 @@ const ROLL: Record<Substat, { stat: Stat; tag?: Tag; values: number[]; weights: 
 /** A substat's stat, value spread and line label, for the tuning simulator (src/tuning). */
 export const rollSpread = (s: Substat): Readonly<typeof ROLL[Substat]> => ROLL[s];
 
-/** One constant piece carrying exactly these rolled lines, `[stat, value]` each — the tuning
- *  simulator's echoes, where every line has its own value rather than a percentile's. */
-export function rolledPiece(name: string, lines: readonly (readonly [Substat, number])[]): Buff {
-  const totals = new Map<Substat, number>();
-  for (const [s, v] of lines) totals.set(s, (totals.get(s) ?? 0) + v);
-  const entries = [...totals].map(([s, v]) => [ROLL[s].stat, v, ROLL[s].tag] as const);
-  return new Buff({
-    name,
-    constantStats: () => {
-      for (const [stat, value, tag] of entries) addStat(stat, value, tag);
-    },
-  });
+/** One roll of `s` worth `value` as a stat line. */
+export const rollLine = (s: Substat, value: number): StatLine => {
+  const { stat, tag } = ROLL[s];
+  return tag === undefined ? [stat, value] : [stat, value, tag];
+};
+
+/** A spread as it is worn: every roll and its value, most important stat first. echoes.ts deals
+ *  the rolls out over the five echoes. */
+export class Spread {
+  constructor(readonly name: string, readonly rolls: readonly (readonly [Substat, number])[]) {}
 }
+
+/** Every roll `counts` names, valued at percentile `p`. */
+const rollsAt = (counts: Map<Substat, number>, p: number): [Substat, number][] =>
+  [...counts].flatMap(([s, n]) => Array.from({ length: n }, (): [Substat, number] => [s, rollAt(s, p)]));
+
+/** A spread of exactly these rolled lines, `[stat, value]` each — the tuning simulator's echoes,
+ *  where every line has its own value rather than a percentile's. */
+export const rolledPiece = (name: string, lines: readonly (readonly [Substat, number])[]): Spread => new Spread(name, lines);
 
 /** What a roll of `s` is worth at percentile `p` of its own spread: the lowest value its weights
  *  carry `p` up to, so 0.5 is the median roll and 0.8 the one four rolls in five come under. */
@@ -108,15 +114,15 @@ const PROMOTIONS: [number, number, number[]][] = [[2, 2, SHAPE], [3, 2, [5, 4, 3
 export class ErSpread {
   /** Fewest ER rolls first — `[1, 2, 3]` where the kit named no ER at all, and a lone `[5]` where
    *  it named ER first. */
-  readonly tiers: { rolls: number; piece: Buff }[];
+  readonly tiers: { rolls: number; piece: Spread }[];
   /** The five stats the kit named, most important first — what every tier is built from. */
   readonly named: Substat[];
   /** The high-investment spread with no ER line at all, worn by a kit whose Liberation costs
    *  nothing (`maxEnergy: 0`) — there the roll would be paying down a bar that never fills, and the
    *  slot goes to the sixth stat instead. Null on ChemX32, which carries its ER roll either way. */
-  readonly noEr: Buff | null;
+  readonly noEr: Spread | null;
 
-  constructor(named: Substat[], tiers: { rolls: number; piece: Buff }[], noEr: Buff | null = null) {
+  constructor(named: Substat[], tiers: { rolls: number; piece: Spread }[], noEr: Spread | null = null) {
     this.named = named;
     this.tiers = tiers;
     this.noEr = noEr;
@@ -125,7 +131,7 @@ export class ErSpread {
   /** The cheapest tier carrying at least `rolls` ER rolls, or the top one where nothing does — a
    *  combo wanting more than the spread can pay has to find it on an ER 3-cost main stat, and the
    *  solver is what reaches for one (see `rankedMainstats`). */
-  at(rolls: number): Buff {
+  at(rolls: number): Spread {
     return (this.tiers.find((t) => t.rolls >= rolls) ?? this.tiers[this.tiers.length - 1]!).piece;
   }
 }
@@ -145,7 +151,7 @@ export function spreadCounts(named: readonly Substat[], shape: readonly number[]
  *  each of the eight left over. Named after the stats that tell two spreads apart — every one of
  *  them rolls crit, so crit is left out of the name. `ownEr` is whether the ER in `named` is the
  *  kit's own rather than a promotion's. */
-function spreadPiece(named: Substat[], shape: number[] = SHAPE, ownEr = false): Buff {
+function spreadPiece(named: Substat[], shape: number[] = SHAPE, ownEr = false): Spread {
   const counts = spreadCounts(named, shape);
   // the name is what the spread is spent on, so it reads the five that take `SHAPE` and not the
   // sixth, which is one roll named only so the hover leaves it lit. ER only reads as part of it
@@ -154,11 +160,7 @@ function spreadPiece(named: Substat[], shape: number[] = SHAPE, ownEr = false): 
   const labels = [...new Set(named.slice(0, shape.length)
     .filter((s) => s > Substat.CritDmg && (s !== Substat.Er || ownEr))
     .map((s) => ROLL[s].label))];
-  const lines = [...counts].map(([s, n]) => [ROLL[s].stat, rollAt(s, 0.5) * n, ROLL[s].tag] as const);
-  const piece = new Buff({
-    name: `ChemX32 - ${labels.join(" ")}`,
-    constantStats: () => { for (const [stat, value, tag] of lines) addStat(stat, value, tag); },
-  });
+  const piece = new Spread(`ChemX32 - ${labels.join(" ")}`, rollsAt(counts, 0.5));
   ROLL_BUFFS.set(piece, rollBuffsOf("ChemX32", counts, 0.5));
   return piece;
 }
@@ -187,7 +189,8 @@ const HIGH_PERCENTILE = ROLL[Substat.Er].weights.filter((_, i) => ROLL[Substat.E
 
 /** What one ER roll is worth on the spread a build wears — ChemX32's median, or the high-investment
  *  percentile's — what the ER requirement is paid down in. */
-export const erRollValue = (highSubs = false): number => rollAt(Substat.Er, highSubs ? HIGH_PERCENTILE : 0.5);
+const ER_ROLL = rollAt(Substat.Er, 0.5), HIGH_ER_ROLL = rollAt(Substat.Er, HIGH_PERCENTILE);
+export const erRollValue = (highSubs = false): number => (highSubs ? HIGH_ER_ROLL : ER_ROLL);
 
 /** A build's rolls: the five stats named here, most important first, take 5/5/2/2/2 of the
  *  twenty-five and each of the other eight takes one. ER is one of those eight unless a kit
@@ -220,7 +223,7 @@ const HIGH_PROMOTIONS: [number, number][] = [[2, 4], [3, 3]];
 /** One high-investment piece from the stats it names, in priority order. `extras` are the sixth and
  *  seventh stats the kit asked for — a single roll each wherever the tier puts them, and left out of
  *  the name; `ownEr` is whether the ER in `named` is the kit's own rather than a promotion's. */
-function highPiece(named: Substat[], extras: Substat[], ownEr = false): Buff {
+function highPiece(named: Substat[], extras: Substat[], ownEr = false): Spread {
   const counts = new Map<Substat, number>();
   named.forEach((s, i) => counts.set(s, HIGH_SHAPE[i] ?? 1));
   for (const [s, n] of counts) if (n > 5) throw new Error(`highSubs(): ${ROLL[s].label} rolls ${n} times, a build has five echoes`);
@@ -228,11 +231,7 @@ function highPiece(named: Substat[], extras: Substat[], ownEr = false): Buff {
   // promoted in for the bar it is the Energy tax the spread pays, not what the spread is
   const labels = [...new Set(named.filter((s) => s > Substat.CritDmg && !extras.includes(s) && (s !== Substat.Er || ownEr))
     .map((s) => ROLL[s].label))];
-  const lines = [...counts].map(([s, n]) => [ROLL[s].stat, rollAt(s, HIGH_PERCENTILE) * n, ROLL[s].tag] as const);
-  const piece = new Buff({
-    name: `High Invest - ${labels.join(" ")}`,
-    constantStats: () => { for (const [stat, value, tag] of lines) addStat(stat, value, tag); },
-  });
+  const piece = new Spread(`High Invest - ${labels.join(" ")}`, rollsAt(counts, HIGH_PERCENTILE));
   ROLL_BUFFS.set(piece, rollBuffsOf("High Invest", counts, HIGH_PERCENTILE));
   return piece;
 }

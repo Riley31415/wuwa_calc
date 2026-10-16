@@ -15,6 +15,7 @@ export const THE_LAST_DANCE = refinements((r, rank) => {
     stats: [[Stat.DmgBonus, [48, 60, 72, 84, 96][r]!, Type.Skill]],
   });
   return new Weapon({
+    id: 21030016,
     weaponType: WeaponType.Pistols, name: `The Last Dance${rank}`,
     stats: [[Stat.BaseAtk, 500], [Stat.CritDmg, 72], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     grants: [{ on: onCast(Cast.Intro, Cast.Liberation), buff: SILENT_EULOGY }],
@@ -36,6 +37,7 @@ export const LUX_UMBRA = refinements((r, rank) => {
     stats: [[Stat.Amp, [24, 30, 36, 42, 48][r]!, Type.Echo]],
   });
   return new Weapon({
+    id: 21030036,
     weaponType: WeaponType.Pistols, name: `Lux & Umbra${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritDmg, 48.6], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     applyStats: () => {
@@ -64,6 +66,7 @@ export const WOODLAND_ARIA = refinements((r, rank) => {
     stats: [[EnemyStat.ResReduce, [10, 11.5, 13, 14.5, 16][r]!, Attribute.Aero]],
   });
   return new Weapon({
+    id: 21030026,
     weaponType: WeaponType.Pistols, name: `Woodland Aria${rank}`,
     stats: [[Stat.BaseAtk, 500], [Stat.CritRate, 36], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     grants: [
@@ -89,6 +92,7 @@ export const SPECTRUM_BLASTER = refinements((r, rank) => {
     stats: [[Stat.DmgBonus, [8, 10, 12, 14, 16][r]!]], perStack: true,
   });
   return new Weapon({
+    id: 21030046,
     weaponType: WeaponType.Pistols, name: `Spectrum Blaster${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritRate, 24.3], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     grants: [
@@ -120,6 +124,7 @@ export const SKULL_THRASHER = refinements((r, rank) => {
     stats: [[Stat.BonusAtk, [24, 30, 36, 42, 48][r]!]],
   });
   return new Weapon({
+    id: 21030066,
     weaponType: WeaponType.Pistols, name: `Skull Thrasher${rank}`,
     stats: [[Stat.BaseAtk, 500], [Stat.CritDmg, 72], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     grants: [
@@ -144,6 +149,7 @@ export const SPECTRAL_TRIGGER = refinements((r, rank) => {
     stats: [[Stat.Amp, [30, 37.5, 45, 52.5, 60][r]!, Type.Heavy], [Stat.DefIgnoreNew, [10, 12.5, 15, 17.5, 20][r]!, Type.Heavy]],
   });
   return new Weapon({
+    id: 21030056,
     weaponType: WeaponType.Pistols, name: `Spectral Trigger${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritDmg, 48.6], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     grants: [

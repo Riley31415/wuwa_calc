@@ -11,6 +11,7 @@
  */
 import type { Action } from "./rotation.js";
 import { Stat, EnemyStat, Scaling, MV_UNIT } from "./stats.js";
+import { PANEL_INDEX } from "./state.js";
 import type { StatRow } from "./state.js";
 
 /** A resolved action snapshot, from `State.resolve()` — everything the formula reads off it. */
@@ -216,16 +217,15 @@ export function damageFactors(snapshot: Snapshot): DamageFactors {
 }
 
 /**
- * `floor(base) + floor(floor(base) x bonus%) + flat` — the one fold ATK, HP and DEF each come out
- * of the totals by, and the only place that formula is written. The game floors the base before
- * the percentage is taken and floors that product too, so a fractional base is lost twice over.
- * All three stay unscoped, matching the old engine: only formula-facing stats scope. The base is
- * itself a summed entry (a resonator's own kit-base value plus a weapon's own base line), not a
- * fixed per-slot number, matching the old engine's total().
+ * `floor(base) + panel + floor(floor(base) x combat%) + flat` — the one fold ATK, HP and DEF each
+ * come out of the totals by, and the only place that formula is written. The panel shares are
+ * already points (state.ts's `PANEL_INDEX`); the combat % (`bonus`) is every applyStats/convertStats
+ * % summed, floored once off the floored base. The base is the resonator's own base line plus the
+ * weapon's. All of it stays unscoped.
  */
 export const foldStat = (stats: StatRow, base: Stat, bonus: Stat, flat: Stat): number => {
   const b = Math.floor(stats[base]!);
-  return b + Math.floor(b * stats[bonus]! / 100) + stats[flat]!;
+  return b + stats[PANEL_INDEX + base]! + Math.floor(b * stats[bonus]! / 100) + stats[flat]!;
 };
 
 /** Where each of a row's factors sits in its stretch of `FACTOR_COUNT` (`damageFactorsInto()`). */

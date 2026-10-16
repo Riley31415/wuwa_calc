@@ -36,8 +36,10 @@ import { HERON, STONEWALL_BRACER, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzho
 import { JINGRAN_RESONATOR } from "./jingran.js";
 import { EMPYREAN_ANTHEM_5PC, HECATE } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { THE_LAST_DANCE } from "../../weapons/pistol.js";
+import { THUNDERBOLT, SOLAR_FLAME } from "../../weapons/battlepass.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -83,7 +85,7 @@ const FSkill = mortefiAction("Forte Skill - Fury Fugue", { minForte1: 100, animF
 //     window is a fresh Rhythmic Vibrato ramp, so the old one is wiped here.
 const Liberation = mortefiAction("Liberation - Violent Finale", {
   animFrames: 120, castPriority: 10, timestop: [0, 120], motionStop: [0, 64], cooldown: 60 * 20,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 62, mv: 15905, offtune: 96000 }], castConcerto: 2000, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 62, mv: 15905, offtune: 96000 }], castConcerto: 2000, castEnergy: -12500,
   updateBuffs: () => { revokeCurrent(VIBRATO); applyTeam(BURNING_RHAPSODY, 28); },
 });
 /** Burning Rhapsody as the report reads it: the field his Liberation puts out, which every
@@ -258,12 +260,13 @@ const MORTEFI_S6 = new Sequence({
 // as every other resonator's own
 const MORTEFI_TALENTS = new Talent({
   name: "Mortefi: Talents",
-  stats: [[Stat.BonusAtk, 12], [Stat.DmgBonus, 12, Attribute.Fusion]],
+  stats: [[Stat.BonusAtk, 11.9999997], [Stat.DmgBonus, 12, Attribute.Fusion]],
 });
 
 /** Him, as a Resonator: name/element/weapon, every grant/spend/queue rule his kit needs, and his
  *  own base stat line. `Tier.Free` — see the file header. */
 const MORTEFI_RESONATOR = new Resonator({
+  id: 1204,
   name: "Mortefi",
   talent: MORTEFI_TALENTS,
   inherent1: MO_INHERENT_1,
@@ -301,17 +304,20 @@ const MO_ROTATION = new Rotation([
 // his real 5pc Moonlit Clouds + Impermanence Heron build, Static Mist signature-adjacent standard
 // weapon, all six sequence nodes (Tier.Free — see file header)
 export const MORTEFI = new Loadout({
+  id: 12041,
   resonator: MORTEFI_RESONATOR,
-  weapons: [STATIC_MIST, CADENZA, NEW_STD_PISTOL, THE_LAST_DANCE],
-  echoLoadouts: [
+  weapons: [STATIC_MIST, CADENZA, NEW_STD_PISTOL, THE_LAST_DANCE, THUNDERBOLT, SOLAR_FLAME],
+  echoes: new Echoes({
+    sets: [
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
     // worn for the shield, which Jingran's Trace the Vestige feeds on
     new EchoLoadout(STONEWALL_BRACER, MOONLIT_CLOUDS_5PC).requires(JINGRAN_RESONATOR),
     new EchoLoadout(HECATE, EMPYREAN_ANTHEM_5PC),
   ],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation, Substat.Skill),
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation, Substat.Skill),
+  }),
     rotation: MO_ROTATION,
   sequences: [MORTEFI_S1, MORTEFI_S2, MORTEFI_S3, MORTEFI_S4, MORTEFI_S5, MORTEFI_S6],
 });

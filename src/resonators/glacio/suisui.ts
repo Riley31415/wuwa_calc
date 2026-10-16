@@ -85,6 +85,7 @@ import { FIRSTLIGHTS_HERALD } from "../../weapons/rectifier.js";
 import { VARIATION } from "../../weapons/standard.js";
 import { FORBIDDEN_BASTION, FEATHERED_TRACE_5PC } from "../../echoes/mengzhou.js";
 import { mainstats, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -144,7 +145,7 @@ const SKY_CD = new Cooldown({ frames: 60 * 25 });
  *  her into Drizzle Stance, which clears Floral Epistle on the way in. HP-scaled, and one of the
  *  two casts Sky Over Water enhances. */
 const SPRING = { minForte1: 120,
-  animFrames: 78, animPriority: { 78: 2 }, castPriority: 7,
+  animFrames: 78, animPriority: { 78: 2 }, castPriority: 7,endPosition: Position.Midair,
   node: Node.Skill, cast: Cast.Skill, type: Type.Skill, scaling: Scaling.Hp,
   castForte1: -120, resetForte2: true,
   updateBuffs: () => applyCurrent(DRIZZLE_STANCE, 1),
@@ -153,7 +154,7 @@ const SPRING = { minForte1: 120,
     applyTeam(ENRICHMENT, 2);
   },
 };
-const ESkill = suisuiAction("Skill - Awakening Spring", { ...SPRING, cooldown: 60 * 15,
+const ESkill = suisuiAction("Skill - Awakening Spring", { ...SPRING, cooldown: 60 * 15, 
   bullets: [{ hitFrame: 60, mv: 2863, energy: 500, concerto: 960, offtune: 9600 }] });
 const ESkillSky = suisuiAction("Skill - Awakening Spring (Sky Over Water)", { ...SPRING, cooldown: SKY_CD,
   bullets: [{ hitFrame: 60, mv: 2863, energy: 1800, concerto: 2760, offtune: 81600 }] });
@@ -210,8 +211,13 @@ const FHA = suisuiAction("Heavy - Drizzle Stance", { animFrames: 97, castPriorit
 // held on out of the Heavy, a Plunging Attack
 const FHA2 = suisuiAction("Basic - Illuminating Dew", { chains: [FHA], endPosition: Position.Grounded, animFrames: 64, animPriority: { 64: 2 }, castPriority: 5, requireBuff: DRIZZLE_STANCE, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 30, mv: 10498, energy: 275, concerto: 880, offtune: 8800 }]});
 // a Plunging Attack, out of the Heavy or from mid-air, so no chains or castPosition can say which
-const FMA = suisuiAction("Basic - Swallow's Cut", { endPosition: Position.Grounded, animFrames: 60, animPriority: { 58: 2 }, castPriority: 5, requireBuff: DRIZZLE_STANCE, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 33, mv: 10765, energy: 282, concerto: 903, offtune: 9024 }]});
-const FSkill = suisuiAction("Skill - Vernal Screen: Drizzle Stance", { animFrames: 54, animPriority: { 54: 2 }, castPriority: 4, requireBuff: DRIZZLE_STANCE, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+const FMA = suisuiAction("Basic - Swallow's Cut", { 
+  castPosition: Position.Midair,
+  endPosition: Position.Grounded, animFrames: 60, animPriority: { 58: 2 }, castPriority: 5, 
+  requireBuff: DRIZZLE_STANCE, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 33, mv: 10765, energy: 282, concerto: 903, offtune: 9024 }]});
+const FSkill = suisuiAction("Skill - Vernal Screen: Drizzle Stance", {
+  endPosition: Position.Grounded,  animFrames: 54, animPriority: { 54: 2 }, castPriority: 4, 
+  requireBuff: DRIZZLE_STANCE, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 26, mv: 1193, energy: 19, concerto: 60, offtune: 600, forte2: 100 },
     { hitFrame: 30, commitFrame: 26, mv: 1193, energy: 19, concerto: 60, offtune: 600 },
     { hitFrame: 35, commitFrame: 26, mv: 1193, energy: 19, concerto: 60, offtune: 600 },
@@ -223,15 +229,15 @@ const FSkill = suisuiAction("Skill - Vernal Screen: Drizzle Stance", { animFrame
 
 /** Song of Thoroughfare: no damage of its own, just the Landscape and its 20 Concerto. */
 const Liberation = suisuiAction("Liberation - Song of Thoroughfare", {
-  animFrames: 264, castPriority: 10, timestop: [0, 264], motionStop: [0, 264], cooldown: 60 * 25,
-  node: Node.Liberation, cast: Cast.Liberation, castConcerto: 2000, resetEnergy: true,
+  animFrames: 264, castPriority: 10, timestop: [0, 264], motionStop: [0, 264], cooldown: 60 * 25,endPosition: Position.Midair, 
+  node: Node.Liberation, cast: Cast.Liberation, castConcerto: 2000, castEnergy: -17500,
   updateBuffs: () => applyTeam(CEASELESS_LANDSCAPE, 1)
 });
 
 /** Tinkling Jade: the other cast Sky Over Water enhances, and the ordinary way into Drizzle Stance
  *  — it spends whatever Cloud Breath she is holding whether or not the bar is full. */
 const JADE = {
-  endPosition: Position.Grounded, animFrames: 78, animPriority: { 78: 2 }, castPriority: 11, noSwapFrames: 60, motionStop: [4, 58],
+  endPosition: Position.Midair, animFrames: 78, animPriority: { 78: 2 }, castPriority: 11, noSwapFrames: 60, motionStop: [4, 58],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, scaling: Scaling.Hp,
   castConcerto: 1000, resetForte1: true, resetForte2: true,
   updateBuffs: () => applyCurrent(DRIZZLE_STANCE, 1),
@@ -464,9 +470,14 @@ const CLOUDS_POUR_WATCH = new Buff({
     const actor = currentTeam().slot;
     // inflicting Havoc Bane is deliberately not here — only spending it pays
     if (!actor.resonator) return;
-    if (TAGGED_STATUSES.some(([status, tag]) => appliedByMember(status, actor) || isType(tag)) || consumedByMember(HAVOC_BANE, actor)) {
-      addBuff(actor.resonator, CLOUDS_POUR, 1);
+    // a loop rather than `.some()`, whose callback would hold `actor` in a scope allocated every hit
+    let tagged = false;
+    for (const [status, tag] of TAGGED_STATUSES) {
+      if (!appliedByMember(status, actor) && !isType(tag)) continue;
+      tagged = true;
+      break;
     }
+    if (tagged || consumedByMember(HAVOC_BANE, actor)) addBuff(actor.resonator, CLOUDS_POUR, 1);
   },
   afterAction: () => {
     const actor = currentTeam().slot;
@@ -532,12 +543,13 @@ const SS_INHERENT_2 = new Inherent({ name: "Inherent: Glimmering Gold" });
 const SUISUI_TALENTS = new Talent({
   name: "Suisui: Talents",
   stats: [
-    [Stat.BonusHp, 12],
+    [Stat.BonusHp, 11.9999997],
     [Stat.HealingBonus, 12], // stat-tree Healing Bonus+ nodes — unused by the formula
   ],
 });
 
 const SUISUI_RESONATOR = new Resonator({
+  id: 1110,
   name: "Suisui",
   talent: SUISUI_TALENTS,
   inherent1: SS_INHERENT_1,
@@ -596,14 +608,17 @@ const SS_ROTATION_S3 = new Rotation([
 ]);
 
 export const SUISUI = new Loadout({
+  id: 11101,
   resonator: SUISUI_RESONATOR,
   weapons: [FIRSTLIGHTS_HERALD, VARIATION],
-  echoLoadouts: [
+  echoes: new Echoes({
+    sets: [
     new EchoLoadout(FORBIDDEN_BASTION, FEATHERED_TRACE_5PC),
   ],
-  mainstats: [mainstats(Mainstat.HP4, Mainstat.ER3, Mainstat.ER3, Mainstat.HP1, Mainstat.HP1)],
-  substat: substats(Substat.Er, Substat.CritDmg, Substat.CritRate, Substat.Skill, Substat.HpPct, Substat.FlatHp),
-  highSubstat: highSubs(Substat.CritDmg, Substat.CritRate, Substat.Er, Substat.Skill, Substat.HpPct, Substat.FlatHp, Substat.Basic),
+    mainstats: [mainstats(Mainstat.HP4, Mainstat.ER3, Mainstat.ER3, Mainstat.HP1, Mainstat.HP1)],
+    substats: substats(Substat.Er, Substat.CritDmg, Substat.CritRate, Substat.Skill, Substat.HpPct, Substat.FlatHp),
+    highSubstats: highSubs(Substat.CritDmg, Substat.CritRate, Substat.Er, Substat.Skill, Substat.HpPct, Substat.FlatHp, Substat.Basic),
+  }),
   rotation: { 0: SS_ROTATION, //3: SS_ROTATION_S3 disabled for er and rot extend
 
   },

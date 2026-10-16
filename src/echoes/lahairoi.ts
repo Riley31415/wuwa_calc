@@ -7,7 +7,7 @@
 import { Stat, Attribute, Type, Cast, Scaling, BuffTarget } from "../engine/stats.js";
 import { Buff, Sonata, Sonata2pc, Sonata1pc, Mainslot, handoff } from "../engine/gear.js";
 import {
-  isType, addStat, applyCurrent, casting, getStat, queueOutro, revokeCurrent, frozenStacks, isHeld, currentMember,
+  isType, addStat, applyCurrent, casting, getStat, queueOutro, revokeCurrent, frozenStacks, isHeld, currentMember, wears,
   extendCurrent, stacksOf,
   onType, onCast, onApplied, onInflict, both,
 } from "../engine/context.js";
@@ -25,7 +25,9 @@ export const ACTION_NAMELESS_EXPLORER = new SummonEcho("Echo - Nameless Explorer
   element: Attribute.Aero, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 27360, energy: 380 }],
 });
 export const NAMELESS_EXPLORER = new Mainslot({
+  id: 6000192,
   name: "Nameless Explorer",
+  cost: 4,
   action: ACTION_NAMELESS_EXPLORER,
   stats: [[Stat.DmgBonus, 12, Attribute.Aero], [Stat.DmgBonus, 20, Type.Echo]],
 });
@@ -33,13 +35,14 @@ export const NAMELESS_EXPLORER = new Mainslot({
 /** Sound of True Name, Sigrika's own sonata (paired directly with Nameless Explorer above).
  *  2pc: +10% Aero DMG Bonus flat. 5pc: dealing Echo Skill DMG grants +20% Echo Skill Crit Rate
  *  and +15% Aero DMG Bonus for 5s. */
-export const SOUND_OF_TRUE_NAME_2PC = new Sonata2pc({ name: "Sound of True Name 2pc", stats: [[Stat.DmgBonus, 10, Attribute.Aero]] });
+export const SOUND_OF_TRUE_NAME_2PC = new Sonata2pc({ id: 29, name: "Sound of True Name 2pc", echoes: () => [NAMELESS_EXPLORER, SPACETREK_EXPLORER], stats: [[Stat.DmgBonus, 10, Attribute.Aero]] });
 export const SOUND_OF_TRUE_NAME_BUFF = new Buff({
   name: "Sound of True Name 5pc",
   duration: 60 * 5,
   stats: [[Stat.CritRate, 20, Type.Echo], [Stat.DmgBonus, 15, Attribute.Aero]],
 });
 export const SOUND_OF_TRUE_NAME_5PC = new Sonata({
+  id: 29,
   name: "Sound of True Name 5pc",
   sonata2pc: SOUND_OF_TRUE_NAME_2PC,
   grants: [{ on: onType(Type.Echo), buff: SOUND_OF_TRUE_NAME_BUFF, onHit: true }],
@@ -62,7 +65,9 @@ export const ACTION_HYVATIA = new SummonEcho("Echo - Hyvatia", {
 export const HYVATIA_HANDOFF = handoff("Hyvatia: Outro", () => addStat(Stat.DmgBonus, 10));
 
 export const HYVATIA = new Mainslot({
+  id: 6000189,
   name: "Hyvatia",
+  cost: 4,
   action: ACTION_HYVATIA,
 });
 
@@ -77,7 +82,9 @@ export const ACTION_REACTOR_HUSK = new TransformEcho("Echo - Reactor Husk", {
   element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo,
 });
 export const REACTOR_HUSK = new Mainslot({
+  id: 6000190,
   name: "Reactor Husk",
+  cost: 4,
   action: ACTION_REACTOR_HUSK,
   stats: [[Stat.ER, 10]],
 });
@@ -89,7 +96,9 @@ export const ACTION_SPACETREK = new SummonEcho("Echo - Spacetrek Explorer", {
   element: Attribute.Fusion, scaling: Scaling.Atk, updateDebuffs: () => gainShield()
 });
 export const SPACETREK_EXPLORER = new Mainslot({
+  id: 6000184,
   name: "Spacetrek Explorer",
+  cost: 3,
   action: ACTION_SPACETREK,
 });
 
@@ -104,7 +113,9 @@ export const ACTION_VOIDBORNE_CONSTRUCT = new SummonEcho("Echo - Reminiscence: V
   bullets: [{ hitFrame: 0, mv: 2188 * 5 + 16416, energy: 12 * 5 + 136 }], 
 });
 export const VOIDBORNE_CONSTRUCT = new Mainslot({
+  id: 6000199,
   name: "Reminiscence: Threnodian - Voidborne",
+  cost: 4,
   action: ACTION_VOIDBORNE_CONSTRUCT,
   stats: [[Stat.DmgBonus, 12, Attribute.Glacio], [Stat.DmgBonus, 12, Type.Liberation]],
 });
@@ -118,7 +129,9 @@ export const ACTION_GLOMMOTH = new SummonEcho("Echo - Glommoth", {
 });
 export const GLOMMOTH_HANDOFF = handoff("Glommoth: Outro", () => addStat(Stat.DmgBonus, 12, Attribute.Glacio));
 export const GLOMMOTH = new Mainslot({
+  id: 6000195,
   name: "Glommoth",
+  cost: 3,
   action: ACTION_GLOMMOTH,
 });
 
@@ -126,8 +139,9 @@ export const GLOMMOTH = new Mainslot({
  *  Glacio Chafe grants +10% Glacio DMG for 15s and, once every 25s, Snowfall (15s), spent one way
  *  only: Resonance Liberation DMG for +25% Crit. Rate, or an Outro for +25% Glacio DMG to the
  *  incoming resonator. `onInflict`: the stacks Lucilla's Film Roll adds are hers, not the wearer's. */
-export const QUIET_SNOWFALL_2PC = new Sonata2pc({ name: "Wishes of Quiet Snowfall 2pc", stats: [[Stat.DmgBonus, 10, Attribute.Glacio]] });
+export const QUIET_SNOWFALL_2PC = new Sonata2pc({ id: 30, name: "Wishes of Quiet Snowfall 2pc", echoes: [VOIDBORNE_CONSTRUCT, GLOMMOTH], stats: [[Stat.DmgBonus, 10, Attribute.Glacio]] });
 export const QUIET_SNOWFALL_5PC = new Sonata({
+  id: 30,
   name: "Wishes of Quiet Snowfall 5pc",
   sonata2pc: QUIET_SNOWFALL_2PC,
   grants: [
@@ -189,8 +203,9 @@ export const SNOWFALL_OUTRO = handoff("Wishes of Quiet Snowfall 5pc (outro)", ()
  *  handoff — the incoming resonator gets +15% ATK, plus 0.3% more per point of their own Tune
  *  Break Boost, capped at another +15% (50 points), for 15s or until switched out — the
  *  receiver's own outro is both, so it's the Moonlit Clouds shape. */
-export const NEONLIGHT_LEAP_2PC = new Sonata2pc({ name: "Pact of Neonlight Leap 2pc", stats: [[Stat.DmgBonus, 10, Attribute.Spectro]] });
+export const NEONLIGHT_LEAP_2PC = new Sonata2pc({ id: 24, name: "Pact of Neonlight Leap 2pc", echoes: [HYVATIA], stats: [[Stat.DmgBonus, 10, Attribute.Spectro]] });
 export const NEONLIGHT_LEAP_5PC = new Sonata({
+  id: 24,
   name: "Pact of Neonlight Leap 5pc",
   sonata2pc: NEONLIGHT_LEAP_2PC,
   grants: [{ on: onCast(Cast.Outro), buff: () => NEONLIGHT_LEAP_HANDOFF, to: BuffTarget.Next }],
@@ -211,8 +226,9 @@ export const NEONLIGHT_LEAP_HANDOFF = new Buff({
  *  teammate grants the whole team ATK, 0.2% per 1% of the healer's own Off-Tune Buildup Rate —
  *  taken at the 25% cap per CLAUDE.md's own-stats rule (125% needed; base 100% plus Mornye's
  *  field's +50 clears it). 4s team window, so lost on the wearer's next intro. */
-export const STARRY_RADIANCE_2PC = new Sonata2pc({ name: "Halo of Starry Radiance 2pc", stats: [[Stat.HealingBonus, 10]] });
+export const STARRY_RADIANCE_2PC = new Sonata2pc({ id: 25, name: "Halo of Starry Radiance 2pc", echoes: [REACTOR_HUSK, SPACETREK_EXPLORER], stats: [[Stat.HealingBonus, 10]] });
 export const STARRY_RADIANCE_5PC = new Sonata({
+  id: 25,
   name: "Halo of Starry Radiance 5pc",
   sonata2pc: STARRY_RADIANCE_2PC,
   grants: [{ on: onApplied(HEALS), buff: () => STARRY_RADIANCE_TEAM, to: BuffTarget.Team }],
@@ -228,8 +244,9 @@ export const STARRY_RADIANCE_TEAM = new Buff({
 /** Chromatic Foam. 2pc: +10% Fusion DMG Bonus flat. 5pc: inflicting Fusion Burst grants +10%
  *  Fusion DMG Bonus for 15s; while that window is up, the wearer's Outro hands the incoming
  *  resonator +25% Fusion DMG Bonus for 15s. */
-export const CHROMATIC_FOAM_2PC = new Sonata2pc({ name: "Chromatic Foam 2pc", stats: [[Stat.DmgBonus, 10, Attribute.Fusion]] });
+export const CHROMATIC_FOAM_2PC = new Sonata2pc({ id: 28, name: "Chromatic Foam 2pc", echoes: () => [REACTOR_HUSK, TRICKSTER, NEBULOUS_CANNON, SPACETREK_EXPLORER], stats: [[Stat.DmgBonus, 10, Attribute.Fusion]] });
 export const CHROMATIC_FOAM_5PC = new Sonata({
+  id: 28,
   name: "Chromatic Foam 5pc",
   sonata2pc: CHROMATIC_FOAM_2PC,
   grants: [{ on: onInflict(FUSION_BURST), buff: () => CHROMATIC_FOAM_BUFF }],
@@ -252,8 +269,9 @@ export const CHROMATIC_FOAM_HANDOFF = new Buff({
 /** Trailblazing Star, the other Fusion sonata of the era. 2pc: +10% Fusion DMG Bonus flat. 5pc:
  *  inflicting either Fusion Burst or Tune Rupture - Shifting grants +20% Crit. Rate and +20%
  *  Fusion DMG Bonus for 8s. */
-export const TRAILBLAZING_STAR_2PC = new Sonata2pc({ name: "Trailblazing Star 2pc", stats: [[Stat.DmgBonus, 10, Attribute.Fusion]] });
+export const TRAILBLAZING_STAR_2PC = new Sonata2pc({ id: 27, name: "Trailblazing Star 2pc", echoes: () => [SIGILLUM, GLOMMOTH], stats: [[Stat.DmgBonus, 10, Attribute.Fusion]] });
 export const TRAILBLAZING_STAR_5PC = new Sonata({
+  id: 27,
   name: "Trailblazing Star 5pc",
   sonata2pc: TRAILBLAZING_STAR_2PC,
   grants: [{ on: onInflict(FUSION_BURST, TUNE_RUPTURE_SHIFTING), buff: () => TRAILBLAZING_STAR_BUFF }],
@@ -269,8 +287,9 @@ export const TRAILBLAZING_STAR_BUFF = new Buff({
  *  after the outro. At 3 stacks, casting Resonance Liberation grants +40% Basic Attack DMG Bonus;
  *  the page states no duration for it, so it's a short self buff like the stacks, lost after the
  *  outro, and pays into the Liberation itself when that deals Basic Attack DMG. */
-export const GILDED_REVELATION_2PC = new Sonata2pc({ name: "Rite of Gilded Revelation 2pc", stats: [[Stat.DmgBonus, 10, Attribute.Spectro]] });
+export const GILDED_REVELATION_2PC = new Sonata2pc({ id: 26, name: "Rite of Gilded Revelation 2pc", echoes: () => [HYVATIA, NEBULOUS_CANNON], stats: [[Stat.DmgBonus, 10, Attribute.Spectro]] });
 export const GILDED_REVELATION_5PC = new Sonata({
+  id: 26,
   name: "Rite of Gilded Revelation 5pc",
   sonata2pc: GILDED_REVELATION_2PC,
   grants: [{ on: onType(Type.Basic), buff: () => GILDED_REVELATION_STACKS, onHit: true }],
@@ -294,7 +313,9 @@ export const ACTION_NEBULOUS_CANNON = new TransformEcho("Echo - Twin Nova: Nebul
   element: Attribute.Spectro, scaling: Scaling.Atk, type: Type.Echo,
 });
 export const NEBULOUS_CANNON = new Mainslot({
+  id: 6000179,
   name: "Twin Nova: Nebulous Cannon",
+  cost: 3,
   action: ACTION_NEBULOUS_CANNON,
   stats: [[Stat.DmgBonus, 12, Attribute.Spectro], [Stat.DmgBonus, 12, Type.Basic]],
 });
@@ -317,7 +338,9 @@ export const TRICKSTER_HANDOFF = new Buff({
   stats: [[Stat.DmgBonus, 12, Attribute.Fusion]],
 });
 export const TRICKSTER = new Mainslot({
+  id: 6000200,
   name: "Reminiscence: Denia",
+  cost: 4,
   action: ACTION_TRICKSTER,
 });
 
@@ -332,7 +355,9 @@ export const ACTION_VOIDWING_MOTH = new TransformEcho("Echo - Voidwing Moth", {
 });
 export const VOIDWING_HANDOFF = handoff("Voidwing Moth: Outro", () => addStat(Stat.BonusAtk, 12));
 export const VOIDWING_MOTH = new Mainslot({
+  id: 6000198,
   name: "Voidwing Moth",
+  cost: 3,
   action: ACTION_VOIDWING_MOTH,
 });
 
@@ -340,8 +365,9 @@ export const VOIDWING_MOTH = new Mainslot({
  *  inflicting Tune Rupture/Strain - Shifting grants the whole team +20 Tune Break Boost for 30s —
  *  permanent uptime, same name doesn't stack. The real stat, so the Strain payout and the damage
  *  formula's own tbbFactor both see it. */
-export const REEL_2PC = new Sonata2pc({ name: "Reel of Spliced Memories 2pc", stats: [[Stat.BonusAtk, 10]] });
+export const REEL_2PC = new Sonata2pc({ id: 31, name: "Reel of Spliced Memories 2pc", echoes: [NAMELESS_EXPLORER, VOIDWING_MOTH], stats: [[Stat.BonusAtk, 10]] });
 export const REEL_5PC = new Sonata({
+  id: 31,
   name: "Reel of Spliced Memories 5pc",
   sonata2pc: REEL_2PC,
   grants: [{ on: onInflict(TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING), buff: () => REEL_TEAM, to: BuffTarget.Team }],
@@ -351,10 +377,9 @@ export const REEL_TEAM = new Buff({ name: "Reel of Spliced Memories 5pc", durati
 /* ---------------------------------------------------------------- Rebecca and Lucy, the collab */
 
 /** "Reminiscence - Nightmare: Adam Smasher" is one echo with three casts — a generic 16-hit
- *  Physical one for anybody else, and a special one each for the two resonators who unlock it. Only
- *  the two special forms exist here, as a Mainslot apiece, because a Mainslot carries exactly one
- *  Action and the two differ in element as well as shape (Lucy's single 273.6% Spectro slam,
- *  Rebecca's 16 x 17.10% Electro missile volley). Both also carry a flat +15% Crit. Rate.
+ *  Physical one for anybody else, and a special one each for the two resonators who unlock it
+ *  (Lucy's single 273.6% Spectro slam, Rebecca's 16 x 17.10% Electro missile volley), who also get
+ *  +15% Crit. Rate.
  *
  *  Its sonata, Shadow of Shattered Dreams, has a *one*-piece bonus and nothing else, so it is a
  *  `Sonata1pc` worn beside two ordinary 2-piece sets — see each resonator's own `echoLoadouts`.
@@ -366,18 +391,14 @@ export const SHATTERED_DREAMS = new Buff({
   stats: [[Stat.DmgBonus, 35, Type.Basic], [Stat.DmgBonus, 35, Type.Heavy]],
 });
 export const SHATTERED_DREAMS_1PC = new Sonata1pc({
+  id: 32,
   name: "Shadow of Shattered Dreams 1pc",
-  grants: [{ on: onInflict(TUNE_HACK_SHIFTING), buff: SHATTERED_DREAMS }],
+  echoes: () => [ADAM_SMASHER], grants: [{ on: onInflict(TUNE_HACK_SHIFTING), buff: SHATTERED_DREAMS }],
 });
 
 export const ACTION_ADAM_SMASHER_LUCY = new SummonEcho("Echo - Adam Smasher", {
   cooldown: 60 * 20,
   element: Attribute.Spectro, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 27360, energy: 380 }],
-});
-export const ADAM_SMASHER_LUCY = new Mainslot({
-  name: "Nightmare: Adam Smasher",
-  action: ACTION_ADAM_SMASHER_LUCY,
-  stats: [[Stat.CritRate, 15]],
 });
 
 export const ACTION_ADAM_SMASHER_REBECCA = new SummonEcho("Echo - Adam Smasher", {
@@ -385,10 +406,17 @@ export const ACTION_ADAM_SMASHER_REBECCA = new SummonEcho("Echo - Adam Smasher",
   element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
   bullets: [{ hitFrame: 0, mv: 1710 * 16, energy: 23 * 16 }], 
 });
-export const ADAM_SMASHER_REBECCA = new Mainslot({
+export const ACTION_ADAM_SMASHER = new SummonEcho("Echo - Adam Smasher", {
+  cooldown: 60 * 20,
+  element: Attribute.Physical, scaling: Scaling.Atk, type: Type.Echo,
+  bullets: [{ hitFrame: 0, mv: 1026 * 16, energy: 14 * 16 }],
+});
+export const ADAM_SMASHER = new Mainslot({
+  id: 6000201,
   name: "Nightmare: Adam Smasher",
-  action: ACTION_ADAM_SMASHER_REBECCA,
-  stats: [[Stat.CritRate, 15]],
+  cost: 4,
+  action: () => (wears("Lucy") ? ACTION_ADAM_SMASHER_LUCY : wears("Rebecca") ? ACTION_ADAM_SMASHER_REBECCA : ACTION_ADAM_SMASHER),
+  constantStats: () => { if (wears("Lucy") || wears("Rebecca")) addStat(Stat.CritRate, 15); },
 });
 
 /* ------------------------------------------------------------------------------ Aemeath, 3.6 */
@@ -401,7 +429,9 @@ export const ACTION_SIGILLUM = new SummonEcho("Echo - Sigillum", {
   element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 6840 + 20520, energy: 23 + 213 }],
 });
 export const SIGILLUM = new Mainslot({
+  id: 6000191,
   name: "Sigillum",
+  cost: 4,
   action: ACTION_SIGILLUM,
   constantStats: () => { if (currentMember().resonator?.name === "Aemeath") addStat(Stat.DmgBonus, 25, Type.Liberation); },
 });

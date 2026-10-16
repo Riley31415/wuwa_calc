@@ -3,13 +3,14 @@
  * `addStat`, the `applied`/`consumed` questions, the forte gauges and concerto, every
  * grant/spend/revoke path, and the queues. All of it reads `ctx` for whose turn it is.
  */
-import { Stat, EnemyStat, Attribute, Type, Subtype, Cast, scopedStat, tagBand, SUBTYPE_BITS } from "./stats.js";
-import type { Tag } from "./stats.js";
+import { Stat, EnemyStat, Attribute, Type, Subtype, Cast, scopedStat, splitStat, tagBand, SUBTYPE_BITS } from "./stats.js";
+import type { Tag, StatKey } from "./stats.js";
+import { foldStat } from "./damage.js";
 import type { Action, Bullet, Cooldown } from "./rotation.js";
 import { ctx, noteMutation, recordConsumed, pendingQueue, tagWord, recordWrite, recordRead, moved, applied as appliedRecord, consumed as consumedRecord } from "./runtime.js";
-import { Gear, Buff, Debuff, Resonator, Mainslot } from "./gear.js";
-import type { Trigger } from "./gear.js";
-import { State, TeamMember, StatEntry, HeldBuff, insertByDue, timedEntry, SUBTYPE_AMP_INDEX, SUBTYPE_CRIT_RATE_INDEX, SUBTYPE_CRIT_DMG_INDEX, SUBTYPE_TOTAL_DMG_INDEX, SUBTYPE_DAMAGE_TAKEN_INDEX, BASIC_DMG_BONUS_INDEX } from "./state.js";
+import { Gear, Buff, Debuff, Resonator, Mainslot, Weapon } from "./gear.js";
+import type { Trigger, StatLine } from "./gear.js";
+import { State, TeamMember, StatEntry, HeldBuff, insertByDue, sortByDue, timedEntry, SUBTYPE_AMP_INDEX, SUBTYPE_CRIT_RATE_INDEX, SUBTYPE_CRIT_DMG_INDEX, SUBTYPE_TOTAL_DMG_INDEX, SUBTYPE_DAMAGE_TAKEN_INDEX, BASIC_DMG_BONUS_INDEX, PANEL_INDEX } from "./state.js";
 import type { StatRow } from "./state.js";
 
 /** The three pools a phase reads — the acting slot's own, then team-wide, then enemy — as the
@@ -227,13 +228,35 @@ export function typeOverride(type: Type | Subtype): void {
  *  as values a def can hold. `onInflict` is "when *you* inflict" (`appliedByMe`), `onApplied` any
  *  application this action; `either` ORs any of them. `onAction` names the presses themselves,
  *  which is what a resonator's own kit reaches for where a weapon only knows the cast. */
-export const onCast = (...casts: Cast[]): Trigger => () => casts.some((c) => casting(c));
-export const onAction = (...actions: Action[]): Trigger => () => actions.some((a) => runningAction(a));
-export const onType = (...types: (Type | Subtype)[]): Trigger => () => types.some((t) => isType(t));
-export const onInflict = (...gears: Gear[]): Trigger => inflicting(() => gears.some((g) => appliedByMe(g) > 0));
-export const onApplied = (...gears: Gear[]): Trigger => inflicting(() => gears.some((g) => applied(g) > 0));
-export const either = (...triggers: Trigger[]): Trigger => combined(() => triggers.some((t) => t()), triggers);
-export const both = (...triggers: Trigger[]): Trigger => combined(() => triggers.every((t) => t()), triggers);
+// loops, not `.some()`: these run on every grant check, and a callback would be allocated per call
+export const onCast = (...casts: Cast[]): Trigger => () => {
+  for (let i = 0; i < casts.length; i++) if (casting(casts[i]!)) return true;
+  return false;
+};
+export const onAction = (...actions: Action[]): Trigger => () => {
+  for (let i = 0; i < actions.length; i++) if (runningAction(actions[i]!)) return true;
+  return false;
+};
+export const onType = (...types: (Type | Subtype)[]): Trigger => () => {
+  for (let i = 0; i < types.length; i++) if (isType(types[i]!)) return true;
+  return false;
+};
+export const onInflict = (...gears: Gear[]): Trigger => inflicting(() => {
+  for (let i = 0; i < gears.length; i++) if (appliedByMe(gears[i]!) > 0) return true;
+  return false;
+});
+export const onApplied = (...gears: Gear[]): Trigger => inflicting(() => {
+  for (let i = 0; i < gears.length; i++) if (applied(gears[i]!) > 0) return true;
+  return false;
+});
+export const either = (...triggers: Trigger[]): Trigger => combined(() => {
+  for (let i = 0; i < triggers.length; i++) if (triggers[i]!()) return true;
+  return false;
+}, triggers);
+export const both = (...triggers: Trigger[]): Trigger => combined(() => {
+  for (let i = 0; i < triggers.length; i++) if (!triggers[i]!()) return false;
+  return true;
+}, triggers);
 /** A trigger reading what the action inflicted: its grant fires wherever the inflicting was. */
 export function inflicting(fn: () => boolean): Trigger {
   const t: Trigger = fn;
@@ -383,6 +406,17 @@ function write(effective: StatRow, index: number, value: number): void {
 
 function pushStat(stat: Stat | EnemyStat, tag: Tag | undefined, value: number): void {
   const slot = ctx.slot!;
+  // a constant ATK%/HP%/DEF% is a panel entry: floored on its own, or summed into the echo adding it
+  // and traced as its own line under whichever piece added it (`panelEntry`)
+  if (ctx.inConst && stat >= Stat.BonusAtk && stat <= Stat.BonusDef) {
+    const i = stat - Stat.BonusAtk;
+    if (!ctx.panelGroup) panelWrite(slot, i, value);
+    else {
+      ctx.panelGroup[i] = ctx.panelGroup[i]! + value;
+      if (ctx.tracing) traceEntry(slot, stat, value);
+    }
+    return;
+  }
 
   // The formula-facing total: an unscoped contribution always counts, a scoped one only when its
   // own tag is the action's in that band — `ctx.tagWord` masked to the tag's six bits is the
@@ -390,29 +424,65 @@ function pushStat(stat: Stat | EnemyStat, tag: Tag | undefined, value: number): 
   // be a single read rather than a re-sum over every scope.
   if (tag === undefined || (ctx.tagWord & tagBand(tag)) === tag) {
     write(slot.effective, stat, value);
-    // ...and again into the Negative-Status-scoped subtotal, if that's what this is (see
-    // SUBTYPE_AMP_INDEX). Only reached by an amplification that carried a scope at all, so it
-    // costs nothing on the ordinary path.
-    if (tag !== undefined && (tag & SUBTYPE_BITS) !== 0) {
-      if (stat === Stat.Amp) write(slot.effective, SUBTYPE_AMP_INDEX, value);
-      // ...and the Negative-Status-scoped crit the same way — all a dot/tune row crits off
-      else if (stat === Stat.CritRate) write(slot.effective, SUBTYPE_CRIT_RATE_INDEX, value);
-      else if (stat === Stat.CritDmg) write(slot.effective, SUBTYPE_CRIT_DMG_INDEX, value);
-      // ...and the scoped "deals more" / "takes more", the only ones a dot row reads
-      else if (stat === Stat.TotalDmg) write(slot.effective, SUBTYPE_TOTAL_DMG_INDEX, value);
-      else if (stat === Stat.DamageTaken) write(slot.effective, SUBTYPE_DAMAGE_TAKEN_INDEX, value);
-    }
-    // ...and the Basic-scoped part of DMG Bonus into its own (see BASIC_DMG_BONUS_INDEX)
-    if (stat === Stat.DmgBonus && tag === Type.Basic) write(slot.effective, BASIC_DMG_BONUS_INDEX, value);
+    if (tag !== undefined) writeSplits(slot.effective, stat, tag, value);
   }
 
-  if (!ctx.tracing) return;
+  if (ctx.tracing) traceEntry(slot, tag === undefined ? stat : scopedStat(tag, stat), value);
+}
 
-  // Trace-only from here (see `ctx.tracing`): the scoped running total and the per-entry record the
-  // report's own hover panels read. `toString()`, not `.name` directly — a maxStacks > 1 Gear
-  // reads "Name xN" (see Gear's own toString()), so those panels show the stack count behind
-  // every value.
-  const key = tag === undefined ? stat : scopedStat(tag, stat);
+/** A matched scoped line's own subtotals beside its stat. The part of an amplification scoped to a
+ *  Negative Status (see SUBTYPE_AMP_INDEX) — only an amplification that carried a scope at all
+ *  reaches here, so it costs nothing on the ordinary path — and the same for crit, the only crit a
+ *  dot/tune row reads, and the scoped "deals more" / "takes more", the only ones a dot row reads;
+ *  and the Basic-scoped part of DMG Bonus (see BASIC_DMG_BONUS_INDEX). */
+function writeSplits(effective: StatRow, stat: Stat | EnemyStat, tag: Tag, value: number): void {
+  if ((tag & SUBTYPE_BITS) !== 0) {
+    if (stat === Stat.Amp) write(effective, SUBTYPE_AMP_INDEX, value);
+    else if (stat === Stat.CritRate) write(effective, SUBTYPE_CRIT_RATE_INDEX, value);
+    else if (stat === Stat.CritDmg) write(effective, SUBTYPE_CRIT_DMG_INDEX, value);
+    else if (stat === Stat.TotalDmg) write(effective, SUBTYPE_TOTAL_DMG_INDEX, value);
+    else if (stat === Stat.DamageTaken) write(effective, SUBTYPE_DAMAGE_TAKEN_INDEX, value);
+  }
+  if (stat === Stat.DmgBonus && tag === Type.Basic) write(effective, BASIC_DMG_BONUS_INDEX, value);
+}
+
+/** A Gear's `stats` lines compiled once (gear.ts's `Buff`): each stat, value, tag (0 for none) and the
+ *  band that tag is tested in — what `payLines()` adds, in order. */
+export interface CompiledLines { stats: Int32Array; values: Float64Array; tags: Int32Array; bands: Int32Array }
+export function compileLines(lines: readonly StatLine[]): CompiledLines {
+  const n = lines.length;
+  const out: CompiledLines = { stats: new Int32Array(n), values: new Float64Array(n), tags: new Int32Array(n), bands: new Int32Array(n) };
+  lines.forEach(([stat, value, tag], i) => {
+    out.stats[i] = stat;
+    out.values[i] = value;
+    out.tags[i] = tag ?? 0;
+    out.bands[i] = tag === undefined ? 0 : tagBand(tag);
+  });
+  return out;
+}
+/** `addStat()` for each of `lines` (times `n` where `perStack`): the very additions in the very order,
+ *  with the checks a held buff's own lines never need made once — the generic path while tracing, or
+ *  in a constant pass, which a panel entry needs. Run on every hit a buff pays on. */
+export function payLines(lines: CompiledLines, perStack: boolean, n: number): void {
+  const { stats, values, tags, bands } = lines;
+  if (ctx.tracing || ctx.inConst) {
+    for (let i = 0; i < stats.length; i++) pushStat(stats[i]!, tags[i]! || undefined, perStack ? values[i]! * n : values[i]!);
+    return;
+  }
+  const effective = ctx.slot!.effective, word = ctx.tagWord;
+  for (let i = 0; i < stats.length; i++) {
+    const tag = tags[i]!;
+    if (tag !== 0 && (word & bands[i]!) !== tag) continue;
+    const stat = stats[i]!, value = perStack ? values[i]! * n : values[i]!;
+    write(effective, stat, value);
+    if (tag !== 0) writeSplits(effective, stat, tag, value);
+  }
+}
+
+/** The scoped running total and the per-entry record the report's own hover panels read, traced
+ *  only. `toString()`, not `.name` directly — a maxStacks > 1 Gear reads "Name xN" (see Gear's own
+ *  toString()), so those panels show the stack count behind every value. */
+function traceEntry(slot: TeamMember, key: StatKey, value: number): void {
   slot.entries.push({
     stat: key, value,
     source: ctx.buff?.toString() ?? "",
@@ -420,6 +490,31 @@ function pushStat(stat: Stat | EnemyStat, tag: Tag | undefined, value: number): 
     gear: ctx.buff ?? null,
   });
   slot.totals.set(key, (slot.totals.get(key) ?? 0) + value);
+}
+
+/** One panel entry of `pct` ATK%/HP%/DEF% (`i` 0, 1, 2): `floor(PanelBase x pct)` points into the
+ *  row's panel share, the panel base being the resonator's floored base plus the weapon's unfloored
+ *  one. Traced as the % it is, unless its parts already were (`panelEntry`). */
+function panelWrite(slot: TeamMember, i: number, pct: number, trace = true): void {
+  write(slot.effective, PANEL_INDEX + i, Math.floor((Math.floor(slot.charBase[i]!) + slot.weaponBase[i]!) * pct / 100));
+  if (trace && ctx.tracing) traceEntry(slot, Stat.BonusAtk + i, pct);
+}
+
+/** One echo's constant stats as one panel entry: every ATK%/HP%/DEF% `fn` adds is summed, then floored
+ *  once — each part traced as it is added, under the piece adding it. Constant stats only. */
+export function panelEntry(fn: () => void): void {
+  if (!ctx.inConst) throw new Error(`${ctx.buff?.name ?? "?"}: panelEntry() outside constantStats`);
+  const group = [0, 0, 0];
+  ctx.panelGroup = group;
+  try { fn(); } finally { ctx.panelGroup = null; }
+  for (let i = 0; i < 3; i++) if (group[i]) panelWrite(ctx.slot!, i, group[i]!, false);
+}
+
+/** Banks a resonator's or weapon's own Base ATK/HP/DEF lines on `slot`, kept apart for the panel base. */
+function noteBase(slot: TeamMember, gear: Gear): void {
+  if (!(gear instanceof Resonator) && !(gear instanceof Weapon)) return;
+  const into: number[] = gear instanceof Weapon ? slot.weaponBase : slot.charBase;
+  for (const [stat, value] of gear.decl.stats) if (stat <= Stat.BaseDef) into[stat] = into[stat]! + value;
 }
 
 /** Contribute a personal stat — optionally scoped (`addStat(Stat.DmgBonus, 12, Attribute.Havoc)`).
@@ -462,7 +557,7 @@ const ALL_SUBTYPES: Subtype[] = [
  * so it lands on whichever pass actually matches its own tag — the three bands are independent,
  * so one pass tests one attribute and one Type and one Subtype candidate at once, `ALL_TYPES`'s
  * own length many passes covering the lot. An unscoped call (`tag === undefined`) matches every
- * pass regardless, so it is deduped back down to the one entry it actually is afterward. For the
+ * pass regardless, so only its first pass's entry is kept. For the
  * loadout hover's own "menu stats" section (index.ts).
  */
 export function menuStats(gear: Gear[]): StatEntry[] {
@@ -470,31 +565,31 @@ export function menuStats(gear: Gear[]): StatEntry[] {
   const state = new State([]);
   // the ambient pointers this cold run borrows, put back with an Object.assign below —
   // `menuStats` is called mid-render, and a real fight may be part-way through one
-  const saved = { slot: ctx.slot, state: ctx.state, buff: ctx.buff, stacks: ctx.stacks, tagWord: ctx.tagWord, tracing: ctx.tracing };
+  const saved = { slot: ctx.slot, state: ctx.state, buff: ctx.buff, stacks: ctx.stacks, tagWord: ctx.tagWord, tracing: ctx.tracing, inConst: ctx.inConst };
   ctx.slot = slot;
   ctx.state = state;
   ctx.stacks = 1;
   ctx.tracing = true;
+  ctx.inConst = true;
+  // the wearer, for a piece paying by who wears it (Adam Smasher's crit)
+  slot.resonator = gear.find((g): g is Resonator => g instanceof Resonator) ?? null;
+  for (const g of gear) noteBase(slot, g);
   const passes = ALL_TYPES.length;
+  // an unscoped call lands on every pass, so past the first only the scoped ones are kept: two lines
+  // of one stat on one piece stay two entries
+  const kept: StatEntry[] = [];
   for (const g of gear) {
     if (!g.constantStatsFn) continue;
     ctx.buff = g;
     for (let i = 0; i < passes; i++) {
       ctx.tagWord = (ALL_ATTRIBUTES[i] ?? 0) | ALL_TYPES[i]! | (ALL_SUBTYPES[i] ?? 0);
+      const from = slot.entries.length;
       g.constantStatsFn();
+      for (let k = from; k < slot.entries.length; k++) if (i === 0 || splitStat(slot.entries[k]!.stat)[1] !== null) kept.push(slot.entries[k]!);
     }
   }
   Object.assign(ctx, saved);
-
-  // Collapse the duplicate pushes an unscoped call made on every pass back down to one — a scoped
-  // call only ever matched a single pass to begin with, so this is a no-op for those.
-  const seen = new Set<string>();
-  return slot.entries.filter((e) => {
-    const key = `${e.source}\0${e.stat}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  return kept;
 }
 
 /** Running total for the action being evaluated, including any scoped variant matching it — one
@@ -504,6 +599,35 @@ export function getStat(stat: Stat): number {
   return ctx.slot!.effective[stat]!;
 }
 export function pct(stat: Stat): number { return getStat(stat) / 100; }
+/** The acting resonator's final ATK, HP or DEF (named by its `Stat.Base*`), folded as the engine
+ *  folds it — for a kit that converts off the whole stat (Jingran's HP steps). */
+export function finalStat(base: Stat.BaseAtk | Stat.BaseHp | Stat.BaseDef): number {
+  const bonus = Stat.BonusAtk + base, flat = Stat.FlatAtk + base;
+  if (ctx.recording) {
+    recordRead(base);
+    recordRead(PANEL_INDEX + base);
+    recordRead(bonus);
+    recordRead(flat);
+  }
+  return foldStat(ctx.slot!.effective, base, bonus, flat);
+}
+
+/** The character screen's HP, ATK and DEF for `gear` read cold — every constant stat, nothing else. */
+export function panelStats(gear: Gear[]): { hp: number; atk: number; def: number } {
+  const slot = new TeamMember("");
+  const saved = { slot: ctx.slot, state: ctx.state, buff: ctx.buff, stacks: ctx.stacks, tagWord: ctx.tagWord, tracing: ctx.tracing, inConst: ctx.inConst, recording: ctx.recording };
+  Object.assign(ctx, { slot, state: new State([]), stacks: 1, tagWord: 0, tracing: false, inConst: true, recording: false });
+  slot.resonator = gear.find((g): g is Resonator => g instanceof Resonator) ?? null;
+  for (const g of gear) noteBase(slot, g);
+  for (const g of gear) {
+    if (!g.constantStatsFn) continue;
+    ctx.buff = g;
+    g.constantStatsFn();
+  }
+  Object.assign(ctx, saved);
+  const e = slot.effective;
+  return { hp: foldStat(e, Stat.BaseHp, Stat.BonusHp, Stat.FlatHp), atk: foldStat(e, Stat.BaseAtk, Stat.BonusAtk, Stat.FlatAtk), def: foldStat(e, Stat.BaseDef, Stat.BonusDef, Stat.FlatDef) };
+}
 /** The Basic Attack DMG Bonus alone — every `addStat(Stat.DmgBonus, n, Type.Basic)` this action
  *  counted, and nothing plain or element-scoped. The one scoped subtotal kept outside tracing
  *  (see state.ts's own BASIC_DMG_BONUS_INDEX); 0 on an action the scope didn't match. */
@@ -586,10 +710,12 @@ export function addGain(gain: Gain): void {
   g[6] = g[6]! + (gain.forte5 ?? 0);
   g[7] = g[7]! + (gain.offtune ?? 0);
   g[8] = g[8]! + (gain.directOfftune ?? 0);
-  if (ctx.tracing) {
-    const gains = GAIN_KEYS.map((k) => gain[k] ?? 0);
-    ctx.adds.push({ source: ctx.buff?.toString() ?? "", owner: (ctx.buff && ctx.state!.sourceOf.get(ctx.buff)) ?? ctx.slot!.name ?? null, gains, onCast: ctx.inCast });
-  }
+  if (ctx.tracing) traceGain(gain);
+}
+/** `addGain()`'s trace entry, apart so an untraced call allocates no closure scope for it. */
+function traceGain(gain: Gain): void {
+  const gains = GAIN_KEYS.map((k) => gain[k] ?? 0);
+  ctx.adds.push({ source: ctx.buff?.toString() ?? "", owner: (ctx.buff && ctx.state!.sourceOf.get(ctx.buff)) ?? ctx.slot!.name ?? null, gains, onCast: ctx.inCast });
 }
 /** What hooks have added to this part of the press so far (`addGain()`). */
 export function gained(key: keyof Gain): number { return ctx.gain[GAIN_KEYS.indexOf(key)]!; }
@@ -640,11 +766,12 @@ export function equip(gear: Gear, n = 1): number {
   attribute(gear);
   const result = ctx.slot!.addStack(gear, n);
   ctx.slot!.equipped.add(gear);
+  noteBase(ctx.slot!, gear);
   if (gear instanceof Mainslot) {
     ctx.slot!.mainslot = gear;
     // the echo's own casts are the echo's: what one of them grants (Voidwing Moth's outro handoff)
     // came off the piece equipped here, not off a source of its own (see `State.grantedBy`)
-    if (ctx.tracing) for (const a of [gear.action, gear.onfield, gear.outro, gear.cancel]) ctx.state!.grantedBy.set(a, gear);
+    if (ctx.tracing) for (const a of gear.cast().forms) ctx.state!.grantedBy.set(a, gear);
   }
   // as `ctx.buff` for the call, same as every other hook: what combatStart() grants inherits
   // this gear's own source, and maxStackIncrease() can name it
@@ -670,7 +797,7 @@ export function removeStack(buff: Buff, n = 1): number { return ctx.slot!.remove
 export function revokeCurrent(buff: Buff): void { ctx.slot!.revoke(buff); }
 /** Push a held buff's own expiry `frames` later — "extends its duration by Ns". */
 export function extendCurrent(buff: Buff, frames: number): void {
-  noteMutation(buff.id, 9e6 + frames);
+  noteMutation(buff.engineId, 9e6 + frames);
   ctx.slot!.stacks.extend(buff, frames);
 }
 
@@ -685,6 +812,11 @@ export function currentGear(): Gear { return ctx.buff!; }
  *  other revoke, just this one condition spelled out once instead of copied at every call site. */
 export function lostOnSwap(): void {
   if (ctx.act!.swapOut) revokeCurrent(currentGear() as Buff);
+}
+
+/** Whether the acting resonator is `name` — for an echo whose cast or bonus is a named wearer's own. */
+export function wears(name: string): boolean {
+  return ctx.slot!.resonator?.name === name;
 }
 
 /** Run `fn` with its stats sourced to `gear` rather than to the Gear whose hook is running — for
@@ -702,6 +834,15 @@ export function asSource<T>(gear: Gear, fn: () => T): T {
   ctx.buff = gear;
   ctx.stacks = -1;
   try { return fn(); } finally { ctx.buff = prev; ctx.stacks = prevStacks; }
+}
+
+/** `asSource(gear, () => addStat(stat, value, tag))` with no closure to allocate — for a hook paying
+ *  on every hit. */
+export function addStatAs(gear: Gear, stat: Stat, value: number, tag?: Tag): void {
+  const prev = ctx.buff, prevStacks = ctx.stacks;
+  ctx.buff = gear;
+  ctx.stacks = -1;
+  try { pushStat(stat, tag, value); } finally { ctx.buff = prev; ctx.stacks = prevStacks; }
 }
 
 /** Run `fn` as whoever is *acting* rather than as the Gear's own holder — for the one hook where
@@ -790,7 +931,7 @@ export function applyOthers(buff: Buff, n = 1): void {
 export function queueOutro(buff: Buff): void {
   // attributed here, at the outro that publishes it — not when the next resonator adopts it,
   // which would credit the buff to whoever received it rather than whoever handed it over
-  noteMutation(buff.id, 3e6);
+  noteMutation(buff.engineId, 3e6);
   if (ctx.dryRun) return;
   attribute(buff);
   ctx.state!.outroQueue.push(buff);
@@ -799,7 +940,7 @@ export function queueOutro(buff: Buff): void {
 /** An Outro's own buff for whoever intros next — landing on their Intro's QTE frame (`qteFrames`),
  *  its duration starting there. */
 export function queueQTE(buff: Buff): void {
-  noteMutation(buff.id, 3e6 + 1);
+  noteMutation(buff.engineId, 3e6 + 1);
   if (ctx.dryRun) return;
   attribute(buff);
   ctx.state!.qteQueue.push(buff);
@@ -835,7 +976,7 @@ const queuedBy = (): HeldBuff | null => {
  *  tick queuing it. It lands behind the press's own hits on that frame. */
 export function queue(action: Action, delay = 0): void {
   inheritPiece(action);
-  noteMutation(action.id, 4e6);
+  noteMutation(action.engineId, 4e6);
   if (ctx.dryRun) return;
   const slot = ctx.state!.slots.indexOf(ctx.slot!);
   if (!delay) {
@@ -861,7 +1002,7 @@ function queueOnSlot(slot: number, action: Action): void {
  *  is, so it lands on its own owner however far the field has moved on by then. */
 export function queueOnIntro(action: Action): void {
   inheritPiece(action);
-  noteMutation(action.id, 7e6);
+  noteMutation(action.engineId, 7e6);
   if (ctx.dryRun) return;
   ctx.state!.introQueue.push({ action, slot: ctx.state!.slots.indexOf(ctx.slot!), by: queuedBy(), event: false });
 }
@@ -879,7 +1020,7 @@ export function queueOnIntro(action: Action): void {
  *    clock then stands, and at the fight's end one already cast holds the end back until it plays. */
 export function queueEvent(action: Action): void {
   inheritPiece(action);
-  noteMutation(action.id, 5e6);
+  noteMutation(action.engineId, 5e6);
   if (ctx.dryRun) return;
   pendingQueue.push({ action, slot: -1, by: queuedBy(), event: true });
 }
@@ -891,7 +1032,7 @@ export function queueEvent(action: Action): void {
  *  no-opping" contract as `addBuff()`. */
 export function queueOn(resonator: Resonator, action: Action): void {
   inheritPiece(action);
-  noteMutation(action.id, 6e6);
+  noteMutation(action.engineId, 6e6);
   if (ctx.dryRun) return;
   queueOnSlot(ctx.state!.slots.indexOf(ctx.state!.memberOf(resonator)), action);
 }
@@ -901,7 +1042,7 @@ export function queueOn(resonator: Resonator, action: Action): void {
  *  attack Phrolova's own swap-out sets going plays behind whoever comes in). */
 export function queueOnBehindNext(resonator: Resonator, action: Action): void {
   inheritPiece(action);
-  noteMutation(action.id, 9e6);
+  noteMutation(action.engineId, 9e6);
   if (ctx.dryRun) return;
   const state = ctx.state!;
   state.behindNext.push({ action, slot: state.slots.indexOf(state.memberOf(resonator)), by: queuedBy(), at: ctx.tickAt ?? castFrame(), stamp: ctx.actionStamp });
@@ -921,6 +1062,33 @@ export function applyOn(resonator: Resonator | null, fn: () => void): void {
   insertByDue(ctx.state!.timed, timedEntry(ctx.tickAt, null, slot, queuedBy(), undefined, fn, undefined, undefined, undefined));
 }
 
+
+/** Send every other member off the field (Augusta's Everbright Protector): a press of theirs still
+ *  playing behind a swap is cut here — its end lands now, its bullets committed by now still land,
+ *  the rest never do — then each one's own `sentOff` runs on their slot, as their own kit. */
+export function sendOthersOff(): void {
+  const state = ctx.state!, prev = ctx.slot, now = state.real;
+  for (const member of state.slots) {
+    if (member === prev) continue;
+    if (!ctx.dryRun) {
+      const slot = state.slots.indexOf(member);
+      for (const end of state.timed.filter((h) => h.behind && h.slot === slot && h.due > now)) {
+        state.timed = state.timed.filter((h) => {
+          if (h === end || h.into === null || h.into !== end.into || h.action?.half !== "hit") return true;
+          const b = h.action.formOf!.bullets[h.action.hitIndex]!;
+          return h.at! - b.hitFrame + b.commitFrame <= now;
+        });
+        end.due = now;
+      }
+      sortByDue(state.timed);
+      member.endsAt = Math.min(member.endsAt, now);
+    }
+    const r = member.resonator;
+    if (!r?.sentOff) continue;
+    ctx.slot = member;
+    try { asSource(r, r.sentOff); } finally { ctx.slot = prev; }
+  }
+}
 
 /** Take back every hit and end still queued of a press in `presses` (or a form of one): an attack
  *  cut off mid-animation keeps what already landed and nothing after (Phrolova's Hecate). */

@@ -33,7 +33,6 @@
 import { Stat, Attribute, WeaponType, Type, Subtype, Cast, Node, Scaling, Position } from "../../engine/stats.js";
 import { Buff, Debuff, Talent, Inherent, ResonanceMode, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
-  asSource,
   addStat,
   addBuff,
   revokeBuff,
@@ -62,14 +61,17 @@ import {
   forte2,
   inflicting,
   addGain,
+  addStatAs,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, ECHO, INTRO, OUTRO, START, DODGE } from "../../engine/rotation.js";
 import { TUNE_RUPTURE_SHIFTING, TUNE_SHIFTABLE, TUNE_BREAK, applyRupture, tuneRuptureResponse, tuneBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
 import { FUSION_BURST, FUSION_BURST_ACTIONS, queueOnApplier } from "../../shared/status.js";
 import { EVERBRIGHT_POLESTAR } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
+import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
 import { SIGILLUM, TRAILBLAZING_STAR_5PC } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* =================================================================================== shared */
@@ -278,7 +280,7 @@ const Lib1 = aemeathAction("Liberation - Heavenfall Edict: Overdrive", {
     { hitFrame: 245, commitFrame: 238, mv: 26774, offtune: 22400 },
     { hitFrame: 252, commitFrame: 238, mv: 26774, offtune: 22400 },
   ], castConcerto: 2000,
-  resetEnergy: true, castForte1: 3000, castForte2: 1,
+  castEnergy: -12500, castForte1: 3000, castForte2: 1,
   updateBuffs: () => {
     toMech();
     applyCurrent(UNBOUND, 1);
@@ -347,7 +349,7 @@ const STARDUST = new Buff({
     if (!runningAction(DuetBurst)) return;
     addStat(Stat.MulMv, 200);
     // S2 raises the Stardust Duet's own Fusion Burst multiplier to 400% — the 200 over it is its own
-    if (isHeld(AE_S2)) asSource(AE_S2, () => addStat(Stat.MulMv, 200));
+    if (isHeld(AE_S2)) addStatAs(AE_S2, Stat.MulMv, 200);
   },
   afterAction: () => { if (runningAction(Volley) || runningAction(DuetBurst)) removeStack(STARDUST, 1); },
 });
@@ -377,7 +379,7 @@ const AE_INHERENT_1 = new Inherent({
 
 const AEMEATH_TALENTS = new Talent({
   name: "Aemeath: Talents",
-  stats: [[Stat.BonusAtk, 12], [Stat.CritRate, 8]],
+  stats: [[Stat.BonusAtk, 11.9999997], [Stat.CritRate, 8]],
 });
 
 /** Between the Stars' own grant, from `hitGlobal` so a teammate's own hit is seen — which runs
@@ -405,6 +407,7 @@ const TB_BASE = tuneBreak(90, [0, 89], [0, 68], SWORD_BREAK);
 const TB_FORM = tuneBreak(94, [0, 94], [0, 64], [[4, 17334], [48, 22666], [74, 120000]]);
 
 export const AEMEATH_RESONATOR = new Resonator({
+  id: 1210,
   name: "Aemeath",
   talent: AEMEATH_TALENTS,
   inherent1: AE_INHERENT_1,
@@ -568,11 +571,11 @@ const BETWEEN_THE_STARS_RUPTURE = new Buff({
   // S3 replaces the tiering outright: a flat 60% off the first inflict, and Finale amplified with it
   applyStats: () => {
     const tiers = betweenTheStars();
-    if (isHeld(AE_S3)) asSource(AE_S3, () => addStat(Stat.CritDmg, 60));
+    if (isHeld(AE_S3)) addStatAs(AE_S3, Stat.CritDmg, 60);
     else addStat(Stat.CritDmg, 20 * tiers);
     if (!runningAction(Lib2)) return;
     if (tiers >= 3) addStat(Stat.Amp, 25);
-    else if (isHeld(AE_S3)) asSource(AE_S3, () => addStat(Stat.Amp, 25));
+    else if (isHeld(AE_S3)) addStatAs(AE_S3, Stat.Amp, 25);
   },
 });
 
@@ -645,12 +648,15 @@ const AE_ROTATION_S1 = new Rotation([
 ]);
 
 export const AEMEATH_RUPTURE = new Loadout({
+  id: 12101,
   resonator: AEMEATH_RESONATOR,
-  weapons: [EVERBRIGHT_POLESTAR, EMERALD_OF_GENESIS],
-  echoLoadouts: [new EchoLoadout(SIGILLUM, TRAILBLAZING_STAR_5PC)],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Basic, Substat.Skill),
+  weapons: [EVERBRIGHT_POLESTAR, EMERALD_OF_GENESIS, LUMINGLOSS, FEATHER_EDGE],
+  echoes: new Echoes({
+    sets: [new EchoLoadout(SIGILLUM, TRAILBLAZING_STAR_5PC)],
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Basic, Substat.Skill),
+  }),
   rotation: { 0: AE_ROTATION, 1: AE_ROTATION_S1 },
   sequences: AE_SEQUENCES,
   mode: MODE_RUPTURE,
@@ -674,11 +680,11 @@ const FUSION_TRAIL = new Debuff({
   name: "Aemeath: Fusion Trail", maxStacks: 30, duration: 60 * 30,
   applyStats: () => {
     if (!runningAction(DuetBurst)) return;
-    // the count is read out here: inside `asSource` the "current" gear is the node, not this trail
+    // the count is read out here: inside `addStatAs` the "current" gear is the node, not this trail
     const trail = frozenStacks();
     addStat(Stat.MulMv, 10 * trail);
     // S2 pays 15% a stack rather than 10% — the 5 more a stack is the node's own
-    if (isHeld(AE_S2)) asSource(AE_S2, () => addStat(Stat.MulMv, 5 * trail));
+    if (isHeld(AE_S2)) addStatAs(AE_S2, Stat.MulMv, 5 * trail);
   },
   // a single hit, so spent once it is in — ahead of Stardust giving up its charge at the press's end
   afterHit: () => { if (runningAction(DuetBurst) && stacksOf(STARDUST) !== 2) revokeEnemy(FUSION_TRAIL); },
@@ -691,11 +697,11 @@ const BETWEEN_THE_STARS_BURST = new Buff({
   display: () => `Inherent: Between the Stars (burst) x${Math.min(2, betweenTheStars())}`,
   applyStats: () => {
     const n = Math.min(2, betweenTheStars());
-    if (isHeld(AE_S3)) asSource(AE_S3, () => addStat(Stat.CritDmg, 60));
+    if (isHeld(AE_S3)) addStatAs(AE_S3, Stat.CritDmg, 60);
     else addStat(Stat.CritDmg, 30 * n);
     if (!runningAction(Lib2)) return;
     if (n >= 2) addStat(Stat.Amp, 25);
-    else if (isHeld(AE_S3)) asSource(AE_S3, () => addStat(Stat.Amp, 25));
+    else if (isHeld(AE_S3)) addStatAs(AE_S3, Stat.Amp, 25);
   },
 });
 
@@ -730,14 +736,17 @@ const MODE_BURST = new ResonanceMode({
 });
 
 export const AEMEATH_BURST = new Loadout({
+  id: 12102,
   resonator: AEMEATH_RESONATOR,
-  weapons: [EVERBRIGHT_POLESTAR, EMERALD_OF_GENESIS],
-  echoLoadouts: [
+  weapons: [EVERBRIGHT_POLESTAR, EMERALD_OF_GENESIS, LUMINGLOSS, FEATHER_EDGE],
+  echoes: new Echoes({
+    sets: [
     new EchoLoadout(SIGILLUM, TRAILBLAZING_STAR_5PC),
   ],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Basic, Substat.Skill),
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Basic, Substat.Skill),
+  }),
   rotation: { 0: AE_ROTATION, 1: AE_ROTATION_S1 },
   sequences: AE_SEQUENCES,
   mode: MODE_BURST,

@@ -7,15 +7,16 @@ import type { StatKey, Tag } from "../engine/stats.js";
 import type { StatEntry } from "../engine/state.js";
 import { Sonata } from "../engine/gear.js";
 import type { Buff, Gear } from "../engine/gear.js";
-import { menuStats } from "../engine/context.js";
+import { menuStats, panelStats } from "../engine/context.js";
 import { substatRollBuffs, litStats } from "../shared/substats.js";
 import { erRollsFor } from "../solve/teamrun.js";
 import { mainstatSlotBuffs } from "../shared/mainstats.js";
 import { TUNE_BREAK_ENEMY } from "../shared/tunebreak.js";
+import { Echo } from "../shared/echoes.js";
 import type { HeldBuff } from "../engine/state.js";
 import type { ChainGroup, ResolvedSnapshot } from "../engine/evaluate.js";
-import { fmt, fmtExact } from "./display.js";
-import type { Column, TraceEntry, InfoEntry } from "./display.js";
+import { fmt, fmtExact, fmtPct } from "./display.js";
+import type { Column, TraceEntry, InfoEntry, RowHit } from "./display.js";
 import type { Member, Combo } from "../solve/solver.js";
 import { loadoutName } from "../solve/solver.js";
 import { hitsOf } from "../solve/teamrun.js";
@@ -60,12 +61,16 @@ export const rect = (el: Element): DOMRect => {
   return z === 1 ? r : new DOMRect(r.x / z, r.y / z, r.width / z, r.height / z);
 };
 
-/** Copy a block of cells: plain text padded to each column's longest in a ``` block, which lines up in a
- *  fixed-width font, and an HTML table for spreadsheets and rich editors, which split it into cells. */
-export function copyBlock(rows: string[][]): void {
+/** Where a copied block is headed: Discord's plain text, or a spreadsheet's cells. */
+export type CopyMode = "discord" | "sheets";
+
+/** Copy a block of cells, with an HTML table for spreadsheets and rich editors, which split it into
+ *  cells. Its plain text is, for Discord, padded to each column's longest in a ``` block, which lines
+ *  up in a fixed-width font; for Sheets, tab-separated, which a paste splits into cells too. */
+export function copyBlock(rows: string[][], mode: CopyMode = "discord"): void {
   const wide = rows[0]?.map((_, c) => Math.max(...rows.map((r) => r[c]!.length))) ?? [];
   const text = rows.map((r) => r.map((t, c) => t.padEnd(wide[c]!)).join("  ").trimEnd()).join("\n");
-  const plain = "```\n" + text + "\n```";
+  const plain = mode === "sheets" ? rows.map((r) => r.join("\t")).join("\n") : "```\n" + text + "\n```";
   const html = `<table>${rows.map((r) => `<tr>${r.map((t) => `<td>${esc(t)}</td>`).join("")}</tr>`).join("")}</table>`;
   const clip = navigator.clipboard;
   if (!clip) return;
@@ -83,7 +88,8 @@ export const clearPops = (): void => { document.body.querySelectorAll(":scope > 
 
 const unit = (r: TraceEntry): string => ((r.percent ?? (r.stat !== undefined ? isPercent(r.stat) : false)) ? "%" : "");
 
-const SECTION_ORDER = ["base", "bonus", "flat", "final"];
+// energy's cast section ahead of its hits' and their multiplier (display.ts)
+const SECTION_ORDER = ["base", "bonus", "flat", "final", "cast", "energy"];
 const SECTION_RANK = (key: string | null): number => {
   if (key === null) return -1;
   const word = key.split(" ")[0]!.toLowerCase();
@@ -97,7 +103,8 @@ export const panelRow = (r: TraceEntry, slotHue: Map<string, string>, { noSource
   const source = (r.count ?? 1) > 1 ? `${r.source} x${r.count}` : r.source;
   // the panel is the exact figure unless the row asks for a length — a derived ratio does, since
   // its decimals run as long as the division does
-  const show = (v: number): string => (r.digits === undefined ? fmtExact(v) : fmt(v, r.digits, true));
+  // a percent reads to two decimals, rounded
+  const show = (v: number): string => (unit(r) ? fmtPct(v) : r.digits === undefined ? fmtExact(v) : fmt(v, r.digits, true));
   const value = `<td class="v">${r.text !== undefined ? esc(r.text)
     : r.mult ? `&times;${show(r.value)}` : `${show(r.value)}${unit(r)}`}</td>`;
   if (r.summary) return `<tr class="sum${r.joined ? " joined" : ""}"><td class="k">${esc(label)}</td>${value}</tr>`;
@@ -138,12 +145,26 @@ export function popover(col: Column, rows: TraceEntry[] | undefined, total: numb
     : `<tr class="sec${empty ? " plain" : ""}"><td colspan="2">`
       + `${esc(empty || (col.fullEmpty ?? col.full ?? col.label))}</td></tr>`;
   const sum = col.noTotal ? "" : `<tr class="sum"><td class="k">Total</td>`
-    + `<td class="v">${fmtExact(total)}${col.percent ? "%" : ""}${esc(suffix)}</td></tr>`;
+    + `<td class="v">${col.percent ? `${fmtPct(total)}%` : fmtExact(total)}${esc(suffix)}</td></tr>`;
   // what follows the Total opens a heading wherever its section changes (energy's Energy Regen)
   const tail = after.map((r, i) => (r.section && r.section !== after[i - 1]?.section
     ? `<tr class="sec"><td colspan="2">${esc(r.section)}</td></tr>` : "") + row(r)).join("");
   return lazyPop(`<span class="pop stat${col.key === "avg" ? " damage" : ""}"><table>${titled}`
     + `${before.map(row).join("")}${sum}${tail}</table></span>`);
+}
+
+/** The avg cell's hover: every damaging hit the row landed — on average, on a crit, on none — each
+ *  numbered within its own press (a group's start again at 1), then their totals under a rule. */
+export function hitsPopover(hits: RowHit[]): string {
+  if (!hits.length) return "";
+  const row = (label: string, v: number[], cls = ""): string =>
+    `<tr${cls}><td class="k">${esc(label)}</td>${v.map((x) => `<td class="v">${fmt(x, 0)}</td>`).join("")}</tr>`;
+  const total = hits.reduce((t, h) => [t[0]! + h.avg, t[1]! + h.crit, t[2]! + h.noCrit], [0, 0, 0]);
+  return lazyPop(`<span class="pop stat hits"><table>`
+    + `<tr class="sec"><td>Hits</td><td>Avg</td><td>Crit</td><td>Base</td></tr>`
+    + hits.map((h) => row(`Hit ${h.n}`, [h.avg, h.crit, h.noCrit])).join("")
+    + row("Total", total, ' class="sum"')
+    + `</table></span>`);
 }
 
 export function infoPopover(info: InfoEntry[] | undefined, slotHue: Map<string, string>): string {
@@ -265,7 +286,8 @@ function eachHit(lines: ChainGroup[], slot: string | null, fn: (snap: ResolvedSn
 /* ---------------------------------------------------------------------------------- loadout */
 
 /** A member's equipped gear for one combo, labelled by slot — inherents, weapon, mainslot, sets,
- *  mainstat, substats. Matrix is left out: it is a filter on the resonator, not a build pick. */
+ *  the five echoes wearing the main stats and substats. Matrix is left out: it is a filter on the
+ *  resonator, not a build pick. */
 export function equippedGear(member: Member, combo: Combo, erRolls = 1): [string, Gear][] {
   const l = member.loadout;
   const r = l.resonator;
@@ -273,7 +295,7 @@ export function equippedGear(member: Member, combo: Combo, erRolls = 1): [string
     ...(r.inherent2 ? [["Inherent", r.inherent2] as [string, Gear]] : []),
     ["Weapon", combo.weapon], ["Mainslot", combo.echo.mainslot],
     ...combo.echo.sets.map((g, i): [string, Gear] => [i === 0 ? "Sonata" : "", g]),
-    ["Mainstats", combo.mainstat], ["Substats", l.spread(combo.highSubs, erRolls)]];
+    ...l.echoes.worn(combo.echo, combo.mainstat, l.spread(combo.highSubs, erRolls)).map((g): [string, Gear] => ["Echo", g])];
 }
 
 /** Dmg Bonus scope buckets for the menu stats — each keeps only its biggest line. */
@@ -292,16 +314,17 @@ const OTHER_SCOPES = [
 /** The build's constant stats as the game's character screen shows them (`menuStats()`), zeros dropped. */
 function menuStatRows(member: Member, combo: Combo, erRolls: number): { label: string; value: string }[] {
   const l = member.loadout;
-  const entries = menuStats(l.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs, erRolls));
+  const pieces = l.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs, erRolls);
+  const entries = menuStats(pieces);
   const totals = new Map<number, number>();
   for (const e of entries) totals.set(e.stat, (totals.get(e.stat) ?? 0) + e.value);
   const get = (key: number) => totals.get(key) ?? 0;
-  const fold = (base: Stat, bonus: Stat, flat: Stat) => get(base) * (1 + get(bonus) / 100) + get(flat);
+  const folded = panelStats(pieces);
 
   const rows: { label: string; value: string }[] = [];
   const push = (label: string, value: number, percent: boolean) => {
     if (!value) return;
-    rows.push({ label, value: `${fmt(value, percent ? 1 : 0, percent)}${percent ? "%" : ""}` });
+    rows.push({ label, value: percent ? `${fmtPct(value)}%` : fmt(value) });
   };
   const pushBest = (scopes: (Attribute | Type | Subtype)[]) => {
     let bestTag: Attribute | Type | Subtype | null = null, bestValue = 0;
@@ -312,9 +335,9 @@ function menuStatRows(member: Member, combo: Combo, erRolls: number): { label: s
     if (bestTag !== null) push(statLabel(scopedStat(bestTag, Stat.DmgBonus)), bestValue, true);
   };
 
-  push("HP", fold(Stat.BaseHp, Stat.BonusHp, Stat.FlatHp), false);
-  push("ATK", fold(Stat.BaseAtk, Stat.BonusAtk, Stat.FlatAtk), false);
-  push("DEF", fold(Stat.BaseDef, Stat.BonusDef, Stat.FlatDef), false);
+  push("HP", folded.hp, false);
+  push("ATK", folded.atk, false);
+  push("DEF", folded.def, false);
   push(statLabel(Stat.ER), get(Stat.ER), true);
   push(statLabel(Stat.CritRate), get(Stat.CritRate), true);
   push(statLabel(Stat.CritDmg), get(Stat.CritDmg), true);
@@ -393,7 +416,7 @@ function buffStats(run: TeamRun, keep: (root: Gear, e: StatEntry, slot: string) 
  *  must not print those same lines a second time — a resonator's own base stats, a weapon's flat
  *  ATK. Keyed on the value as well, so a piece that also adds to that stat mid-fight (a threshold,
  *  a Concerto on a cast) keeps the part the Stats section never showed. */
-const lineKey = (e: StatEntry): string => `${e.gear?.id} ${e.stat} ${e.value}`;
+const lineKey = (e: StatEntry): string => `${e.gear?.engineId} ${e.stat} ${e.value}`;
 const constantKeys = (stats: StatEntry[]): Set<string> => new Set(stats.map(lineKey));
 
 /** A panel line — a trace entry, plus `dim` for the ones a spread only rolled once. */
@@ -409,7 +432,7 @@ const statRow = (e: PanelRow, owner: string, slotHue: Map<string, string>, noSta
   // a sonata two of them wear reads as whoever equipped it last
   return `<tr class="stat${e.dim ? " one" : ""}"><td class="s" style="--own:${slotHue.get(owner) ?? FALLBACK_HUE}">${esc(e.source)}</td>`
     + (noStat ? "" : `<td class="k">${esc(statLabel(e.stat))}</td>`)
-    + `<td class="v">${fmt(e.value / statDisplayScale(stat), percent ? 1 : 0)}${percent ? "%" : ""}</td></tr>`;
+    + `<td class="v">${percent ? `${fmtPct(e.value / statDisplayScale(stat))}%` : fmt(e.value / statDisplayScale(stat))}</td></tr>`;
 };
 
 /** A loadout cell's hover: what the pieces grant the character screen (`menuStats()`), and under
@@ -490,7 +513,8 @@ export function loadoutTable(run: TeamRun, needs?: Map<string, Map<string, strin
   // everything anybody on the team holds — what tells a kit's own buff (put up by a cast, which
   // nobody equips) apart from a piece's
   const equipped = new Set(builds.flatMap(({ member, combo, erRolls: n }) =>
-    member.loadout.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs, n)));
+    member.loadout.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs, n)
+      .flatMap((g) => (g instanceof Echo ? [g, ...g.sources] : [g]))));
 
   // the resonator herself, under her own name, with any chain level and mode: her kit's own
   // pieces, which are every piece she holds that isn't one of the build picks the rows below list
@@ -516,13 +540,13 @@ export function loadoutTable(run: TeamRun, needs?: Map<string, Map<string, strin
   // half) reads inside that cell's panel, the way a 5pc's always has
   rows.push(row("Sonata", builds.map((b) => {
     const sets = b.combo.echo.sets;
-    const pieces = sets.flatMap((g) => (g instanceof Sonata ? [g, g.sonata2pc] : [g]));
+    const pieces = sets.flatMap((g): Gear[] => (g instanceof Sonata ? [g, g.sonata2pc] : [g]));
     return gearCell(b.member.name, sets[0] ?? null, pieces, pick(b.slot, "sonata"));
   })));
   // Both spreads are their own list rather than a piece plus what it granted: five echoes' own
   // main and secondary stats, and the twenty-five rolls folded by stat. All Stats — nothing here
   // is granted mid-fight — and no collapsed totals above them, which only said the same sums twice.
-  const spreadCell = (piece: Buff, owner: string, stats: PanelRow[], heading: string, noStat = false, picks = ""): string => {
+  const spreadCell = (piece: { name: string }, owner: string, stats: PanelRow[], heading: string, noStat = false, picks = ""): string => {
     const hover = statsPanel(stats, [], owner, slotHue, heading, noStat);
     return `<div class="c has"${hover}${picks}>${esc(piece.name)}</div>`;
   };
@@ -779,7 +803,12 @@ export function wireSourcePanels(root: HTMLElement): void {
       if (open?.contains(e.target as Node)) return;
       const onHome = !!openHome?.contains(e.target as Node);
       close();
-      if (onHome) return;
+      // the click that closes a panel on its own cell does only that: a cut's tag sits in a group's
+      // name, whose row would otherwise open or close under it
+      if (onHome) {
+        e.preventDefault();
+        return;
+      }
     }
     const { cell, pop } = panelIn(e.target);
     if (!cell) return;
@@ -1129,11 +1158,15 @@ function barChart(bars: Bar[]): string {
   // none (a summon's, an Outro's) readable
   const weights = bars.map((b) => Math.max(b.frames, 60));
   const unit = plotW / weights.reduce((a, w) => a + w, 0);
+  // a lit bar's fill: its colour brightened by 1.35, the way a CSS brightness() filter would read
+  // without the filter's repaint, which dragged on every hover move
+  const lit = (hex: string): string => `#${[1, 3, 5].map((k) => Math.min(255, Math.round(parseInt(hex.slice(k, k + 2), 16) * 1.35))
+    .toString(16).padStart(2, "0")).join("")}`;
   let x = left;
   const rects = bars.map((b, i) => {
     const h = (b.dmg / peak) * plotH, slot = weights[i]! * unit;
     const rect = `<rect data-act="${b.act}" x="${f(x)}" y="${f(top + plotH - h)}"`
-      + ` width="${f(Math.max(slot * 0.9, 0.6))}" height="${f(h)}" fill="${b.color}"/>`;
+      + ` width="${f(Math.max(slot * 0.9, 0.6))}" height="${f(h)}" fill="${b.color}" style="--lit:${lit(b.color)}"/>`;
     x += slot;
     return rect;
   }).join("");
@@ -1174,53 +1207,102 @@ const distributionRow = (selected: string): string =>
   `<div class="rtrow dist"><div class="c distbody">${distBody(distCells.get(selected))}</div></div>`;
 
 /** The popup a hovered bar opens at the cursor: its action's colour bar and wash, the name with
- *  every cast of it summed, and its share of the figure the chart is for. One, made on first use. */
+ *  every cast of it summed, and its share of the figure the chart is for. One, made on first use;
+ *  rebuilt and measured only when the action changes, and otherwise just moved. */
 let barPop: HTMLElement | null = null;
+let barPopAct: BarAction | null = null, barPopSize = { width: 0, height: 0 };
 function showBarPop(act: BarAction, total: number, x: number, y: number): void {
   if (!barPop) {
     barPop = document.createElement("div");
     barPop.className = "barpop";
     document.body.append(barPop);
   }
-  barPop.style.setProperty("--own", act.color);
-  barPop.innerHTML = `<span class="nm">${esc(act.name)}${act.casts > 1 ? ` x${act.casts}` : ""}</span>`
-    + `<span class="v">${fmt(act.dmg)}</span><span class="pct">${fmt((act.dmg / total) * 100, 1)}%</span>`;
   barPop.hidden = false;
+  if (act !== barPopAct) {
+    barPopAct = act;
+    barPop.style.setProperty("--own", act.color);
+    barPop.innerHTML = `<span class="nm">${esc(act.name)}${act.casts > 1 ? ` x${act.casts}` : ""}</span>`
+      + `<span class="v">${fmt(act.dmg)}</span><span class="pct">${fmt((act.dmg / total) * 100, 1)}%</span>`;
+    barPopSize = barPop.getBoundingClientRect();
+  }
   // its bottom-right corner on the pointer, or its bottom-left where the viewport runs out first
-  const { width, height } = barPop.getBoundingClientRect();
+  const { width, height } = barPopSize;
   barPop.style.left = `${x - width < 0 ? x : x - width}px`;
   barPop.style.top = `${y - height}px`;
 }
+const hideBarPop = (): void => {
+  if (!barPop) return;
+  barPop.hidden = true;
+  barPopAct = null;
+};
+
+/** A chart's bars as the hover reads them, read off the svg once: each bar's left edge in view units,
+ *  its action, and every bar of each action. */
+interface BarGeometry { lefts: number[]; acts: number[]; byAct: Map<number, SVGRectElement[]> }
+const BAR_GEOMETRY = new WeakMap<SVGSVGElement, BarGeometry>();
+function barGeometry(svg: SVGSVGElement): BarGeometry {
+  let g = BAR_GEOMETRY.get(svg);
+  if (g) return g;
+  g = { lefts: [], acts: [], byAct: new Map() };
+  for (const r of svg.querySelectorAll<SVGRectElement>("rect[data-act]")) {
+    const act = Number(r.dataset.act);
+    g.lefts.push(r.x.baseVal.value);
+    g.acts.push(act);
+    const own = g.byAct.get(act);
+    if (own) own.push(r);
+    else g.byAct.set(act, [r]);
+  }
+  BAR_GEOMETRY.set(svg, g);
+  return g;
+}
 
 /** Hovering the chart: the bar under the cursor's own column (the bars are too thin to aim at),
- *  every bar of the same action lit, and the popup for that action. */
+ *  every bar of the same action lit, and the popup for that action — one update a frame. */
 function wireBarHover(body: HTMLElement): void {
-  let lit = -1;
-  const light = (act: number): void => {
-    if (act === lit) return;
-    lit = act;
-    for (const r of body.querySelectorAll<SVGRectElement>("svg.bars rect[data-act]")) r.classList.toggle("lit", Number(r.dataset.act) === act);
+  // keyed on the bars themselves, which a redrawn chart (another figure clicked) never shares
+  let lit: SVGRectElement[] = [];
+  const light = (rects: SVGRectElement[]): void => {
+    if (rects === lit) return;
+    for (const r of lit) r.classList.remove("lit");
+    for (const r of rects) r.classList.add("lit");
+    lit = rects;
   };
-  body.addEventListener("mousemove", (e) => {
+  const NONE: SVGRectElement[] = [];
+  let last: MouseEvent | null = null, queued = false;
+  const update = (): void => {
+    queued = false;
+    const e = last;
+    if (!e) return;
     const svg = (e.target as Element).closest<SVGSVGElement>("svg.bars");
-    const bars = svg ? [...svg.querySelectorAll<SVGRectElement>("rect[data-act]")] : [];
-    if (!svg || !shownChart || !bars.length) {
-      light(-1);
-      if (barPop) barPop.hidden = true;
+    const g = svg ? barGeometry(svg) : null;
+    if (!svg || !g || !shownChart || !g.lefts.length) {
+      light(NONE);
+      hideBarPop();
       return;
     }
     // the column under the cursor is the bar: its own slot runs from its left edge to the next's
     const box = svg.getBoundingClientRect(), view = svg.viewBox.baseVal;
     const at = ((e.clientX - box.left) / box.width) * view.width;
-    let i = 0;
-    while (i + 1 < bars.length && bars[i + 1]!.x.baseVal.value <= at) i++;
-    const act = Number(bars[i]!.dataset.act);
-    light(act);
+    let lo = 0, hi = g.lefts.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (g.lefts[mid]! <= at) lo = mid;
+      else hi = mid - 1;
+    }
+    const act = g.acts[lo]!;
+    light(g.byAct.get(act) ?? NONE);
     showBarPop(shownChart.acts[act]!, shownChart.total, e.clientX, e.clientY);
+  };
+  body.addEventListener("mousemove", (e) => {
+    last = e;
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(update);
   });
   body.addEventListener("mouseleave", () => {
-    light(-1);
-    if (barPop) barPop.hidden = true;
+    last = null;
+    light(NONE);
+    hideBarPop();
   });
 }
 

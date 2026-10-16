@@ -26,8 +26,10 @@ import {
 import { ActionGroup, Action, Cooldown, Rotation, START_LAST, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
 import { BLAZING_BRILLIANCE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
+import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
 import { NM_INFERNO_RIDER, MOLTEN_RIFT_5PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -141,7 +143,7 @@ const FlamingSacrifice = changliAction("Forte Heavy - Flaming Sacrifice", { cast
 // --- liberation: Radiance of Fealty — grants 4 Enflamement outright and opens Fiery Feather
 const Liberation = changliAction("Liberation - Radiance of Fealty", {
   animFrames: 191, animPriority: { 191: 2 }, castPriority: 10, timestop: [0, 189], motionStop: [0, 158], cooldown: 60 * 20,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 163, mv: 121275, offtune: 100800 }], castConcerto: 2000, castForte1: 4, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 163, mv: 121275, offtune: 100800 }], castConcerto: 2000, castForte1: 4, castEnergy: -12500,
   updateBuffs: () => applyCurrent(FIERY_FEATHER, 1),
 });
 
@@ -259,10 +261,11 @@ const CH_S6 = new Sequence({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const CHANGLI_TALENTS = new Talent({
   name: "Changli: Talents",
-  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 12]],
+  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 11.9999997]],
 });
 
 const CHANGLI_RESONATOR = new Resonator({
+  id: 1205,
   name: "Changli",
   stats: [[Stat.BaseHp, 10387.5], [Stat.BaseAtk, 462.5], [Stat.BaseDef, 1099.998]],
   matrix: matrix("Changli", 25),
@@ -292,12 +295,12 @@ const BA1234 = new ActionGroup("Basic - Blazing Enlightenment 1234", [BA1, BA2, 
 const BA34 = new ActionGroup("Basic - Blazing Enlightenment 34", [BA3, BA4]);
 
 const CH_ROTATION = new Rotation([
-  START_LAST, BA1.instaCancel(), Skill, Liberation, FlamingSacrifice.instaSwap(),
+  START_LAST, BA1.instaCancel(), Skill.hitCancel(), Liberation, FlamingSacrifice.instaSwap(),
 
-  INTRO, SMA.cancel(),
-  Skill, SMA.cancel(),
-  Skill, SMA, 
+  INTRO, SMA, 
   MHA, BA34.dodgeCancel(), SBA,
+  Skill, SBA,
+  Skill, SBA, // cance?
   FlamingSacrifice.cancel(),
   Liberation, FlamingSacrifice.swapCancel(),
   OUTRO,
@@ -308,12 +311,15 @@ const CH_ROTATION = new Rotation([
 // her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat
 export const CHANGLI = new Loadout({
+  id: 12051,
   resonator: CHANGLI_RESONATOR,
   sequences: [CH_S1, CH_S2, CH_S3, CH_S4, CH_S5, CH_S6],
-  weapons: [BLAZING_BRILLIANCE, EMERALD_OF_GENESIS],
-  echoLoadouts: [new EchoLoadout(NM_INFERNO_RIDER, MOLTEN_RIFT_5PC)],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
-  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation, Substat.Basic),
+  weapons: [BLAZING_BRILLIANCE, EMERALD_OF_GENESIS, LUMINGLOSS, FEATHER_EDGE],
+  echoes: new Echoes({
+    sets: [new EchoLoadout(NM_INFERNO_RIDER, MOLTEN_RIFT_5PC)],
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
+    substats: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation, Substat.Basic),
+  }),
     rotation: CH_ROTATION,
 });

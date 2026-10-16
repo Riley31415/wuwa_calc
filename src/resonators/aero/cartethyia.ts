@@ -72,8 +72,10 @@ import {
 } from "../../shared/status.js";
 import { DEFIERS_THORN, RED_SPRING } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
+import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
 import { FLEURDELYS, WINDWARD_5PC } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -323,7 +325,7 @@ const Liberation = cartethyiaAction("Liberation - A Knight's Heartfelt Prayers",
     // wuwalab's enter_manifest
     { hitFrame: 154, element: null, type: null, subtype: null, updateDebuffs: () => applyCurrent(MANIFEST, 1) },
     { hitFrame: 198, mv: 0 },
-  ], castConcerto: 2000, resetEnergy: true,
+  ], castConcerto: 2000, castEnergy: -12500,
 });
 /** Blade of Howling Squall: spends every Conviction, ends Manifest, and strips the target's Aero
  *  Erosion — 20% amplification on this one hit per stack taken, five at most. The strip lands at
@@ -522,7 +524,7 @@ const CT_S6 = new Sequence({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const CARTETHYIA_TALENTS = new Talent({
   name: "Cartethyia: Talents",
-  stats: [[Stat.CritRate, 8], [Stat.BonusHp, 12]],
+  stats: [[Stat.CritRate, 8], [Stat.BonusHp, 11.9999997]],
 });
 
 /** Her, as a Resonator: name/element/weapon, and her own base stat line. The Intro resolves by
@@ -531,6 +533,7 @@ const TB_BASE = tuneBreak(91, [0, 91], [0, 70], SWORD_BREAK);
 const TB_FORM = tuneBreak(94, [0, 94], [0, 64], BROADBLADE_BREAK);
 
 export const CARTETHYIA_RESONATOR = new Resonator({
+  id: 1409,
   name: "Cartethyia",
   talent: CARTETHYIA_TALENTS,
   inherent1: CT_INHERENT_1,
@@ -572,12 +575,15 @@ const CT_ROTATION = new Rotation([
 // her real 43311 build: resonator + talents + both Inherent Skills, her own sword and echo, the
 // two Aero Erosion sonatas, mainstat/substat
 export const CARTETHYIA = new Loadout({
+  id: 14091,
   resonator: CARTETHYIA_RESONATOR,
   sequences: [CT_S1, CT_S2, CT_S3, CT_S4, CT_S5, CT_S6],
-  weapons: [DEFIERS_THORN, EMERALD_OF_GENESIS, RED_SPRING],
-  echoLoadouts: [new EchoLoadout(FLEURDELYS, WINDWARD_5PC)],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.HP4, Mainstat.Aero3, Mainstat.HP1),
-  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.HpPct, Substat.Basic, Substat.FlatHp, Substat.Liberation),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.HpPct, Substat.Basic, Substat.FlatHp, Substat.Liberation, Substat.Skill),
+  weapons: [DEFIERS_THORN, EMERALD_OF_GENESIS, RED_SPRING, LUMINGLOSS, FEATHER_EDGE],
+  echoes: new Echoes({
+    sets: [new EchoLoadout(FLEURDELYS, WINDWARD_5PC)],
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.HP4, Mainstat.Aero3, Mainstat.HP1),
+    substats: substats(Substat.CritRate, Substat.CritDmg, Substat.HpPct, Substat.Basic, Substat.FlatHp, Substat.Liberation),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.HpPct, Substat.Basic, Substat.FlatHp, Substat.Liberation, Substat.Skill),
+  }),
   rotation: CT_ROTATION,
 });

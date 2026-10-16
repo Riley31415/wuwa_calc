@@ -29,8 +29,10 @@ import { tuneBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
 import { EMERALD_OF_GENESIS, OVERTURE } from "../../weapons/standard.js";
 import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { BLAZING_BRILLIANCE } from "../../weapons/sword.js";
+import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -59,7 +61,7 @@ const Skill = sanhuaAction("Skill - Eternal Frost", {
 });
 const Liberation = sanhuaAction("Liberation - Glacial Gaze", {
   animFrames: 97, animPriority: { 93: 0 }, castPriority: 10, timestop: [0, 90], motionStop: [0, 90], cooldown: 60 * 16,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 72, mv: 80948, offtune: 61440 }], castConcerto: 2000, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 72, mv: 80948, offtune: 61440 }], castConcerto: 2000, castEnergy: -12500,
   updateBuffs: () => applyCurrent(GLACIER_BUFF, 1),
 });
 
@@ -223,12 +225,13 @@ const SANHUA_S6 = new Sequence({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const SANHUA_TALENTS = new Talent({
   name: "Sanhua: Talents",
-  stats: [[Stat.BonusAtk, 12], [Stat.DmgBonus, 12, Attribute.Glacio]],
+  stats: [[Stat.BonusAtk, 11.9999997], [Stat.DmgBonus, 12, Attribute.Glacio]],
 });
 
 /** Her, as a Resonator: name/element/weapon, every grant/spend/queue rule her kit needs, and her
  *  own base stat line. `Tier.Free` — see the file header. */
 const SANHUA_RESONATOR = new Resonator({
+  id: 1102,
   name: "Sanhua",
   talent: SANHUA_TALENTS,
   inherent1: SH_INHERENT_1,
@@ -266,12 +269,15 @@ const SH_ROTATION = new Rotation([
 // her real build: resonator + talents + both Inherent Skills + every sequence node
 // (Tier.Free — see file header), weapon, mainslot echo, sonata pieces, mainstat/substat
 export const SANHUA = new Loadout({
+  id: 11021,
   resonator: SANHUA_RESONATOR,
-  weapons: [BLAZING_BRILLIANCE, EMERALD_OF_GENESIS, OVERTURE],
-  echoLoadouts: [new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC)],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation, Substat.Heavy),
+  weapons: [BLAZING_BRILLIANCE, EMERALD_OF_GENESIS, OVERTURE, LUMINGLOSS, FEATHER_EDGE],
+  echoes: new Echoes({
+    sets: [new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC)],
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation, Substat.Heavy),
+  }),
     rotation: { 0: SH_ROTATION, 5: SH_ROTATION_S5 },
   sequences: [SANHUA_S1, SANHUA_S2, SANHUA_S3, SANHUA_S4, SANHUA_S5, SANHUA_S6],
 });

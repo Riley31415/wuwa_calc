@@ -18,7 +18,6 @@
 import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, Subtype, Position } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
-  asSource,
   applyTeam,
   applyEnemy,
   revokeTeam,
@@ -33,6 +32,7 @@ import {
   casting,
   previousPress,
   saveChain,
+  addStatAs,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Cooldown, Rotation, NOINTRO, ECHO, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
 import { tuneBreak } from "../../shared/tunebreak.js";
@@ -41,8 +41,10 @@ import { WOODLAND_ARIA } from "../../weapons/pistol.js";
 import { NM_KELPIE } from "../../echoes/rinascita.js";
 import { GUSTS_OF_WELKIN_5PC } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
+import { THUNDERBOLT, SOLAR_FLAME } from "../../weapons/battlepass.js";
 import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -172,7 +174,7 @@ function cadenza(name: string, inflict: () => void): Action {
           revokeTeam(RECITAL);
         },
       },
-    ], castConcerto: 2000, resetEnergy: true,
+    ], castConcerto: 2000, castEnergy: -12500,
     updateBuffs: () => applyTeam(RECITAL, 1),
   });
 }
@@ -199,8 +201,8 @@ const Outro = ciacconaAction("Outro - Windcalling Tune", {
 /* ------------------------------------------------------------------------------------ buffs */
 
 /** Solo Concert: opened by Basic Attack Stage 4 (Ciaccona's own, or an Ensemble Sylph finishing it
- *  for her), +24% Aero DMG Bonus to the whole team, not stackable. No stated duration, so it's
- *  lost on her own next Intro like every other team buff here. */
+ *  for her), +24% Aero DMG Bonus to the whole team, not stackable. No stated duration: it stands
+ *  until she and her Sylphs are sent off the field (`sentOff`). */
 const SOLO_CONCERT = new Buff({
   name: "Ciaccona: Solo Concert",
   stats: [[Stat.DmgBonus, 24, Attribute.Aero]],
@@ -213,7 +215,7 @@ const RECITAL = new Buff({
   // since the node is her local gear and this buff pays whoever acts
   applyStats: () => {
     if (currentTeam().slots.find((m) => m.resonator === CIACCONA_RESONATOR)?.isHeld(CI_S2)) {
-      asSource(CI_S2, () => addStat(Stat.DmgBonus, 40, Attribute.Aero));
+      addStatAs(CI_S2, Stat.DmgBonus, 40, Attribute.Aero);
     }
   },
 });
@@ -241,12 +243,13 @@ const WINDCALLING_TUNE = new Buff({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const CIACCONA_TALENTS = new Talent({
   name: "Ciaccona: Talents",
-  stats: [[Stat.BonusAtk, 12], [Stat.CritDmg, 16]],
+  stats: [[Stat.BonusAtk, 11.9999997], [Stat.CritDmg, 16]],
 });
 
 /** Her, as a Resonator: name/element/weapon, every grant/spend/queue rule her kit needs, and her
  *  own base stat line. */
 export const CIACCONA_RESONATOR = new Resonator({
+  id: 1407,
   name: "Ciaccona",
   talent: CIACCONA_TALENTS,
   inherent1: CI_INHERENT_1,
@@ -269,6 +272,14 @@ export const CIACCONA_RESONATOR = new Resonator({
     for (let p = previousPress(); p; p = p.cancelOf ?? p.formOf) {
       if (p === BA1 || p === BA2 || p === BA3) saveChain(p);
     }
+  },
+
+  // Augusta's Everbright Protector sends her off: Recital and both Sylphs end, and the Solo Concert
+  // with them; the Tonics still to come are cut
+  sentOff: () => {
+    cancelHits(CADENZAS);
+    revokeTeam(RECITAL);
+    revokeTeam(SOLO_CONCERT);
   },
 
   stats: [[Stat.BaseHp, 12237.5], [Stat.BaseAtk, 375], [Stat.BaseDef, 1197.7756]],
@@ -368,19 +379,20 @@ const CI_ROTATION_S3 = new Rotation([
 // echo and the one sonata that pays for the Aero Erosion she frozenStacks, mainstat/substat
 const CIACCONA_BUILD = {
   resonator: CIACCONA_RESONATOR,
-  weapons: [WOODLAND_ARIA, NEW_STD_PISTOL, STATIC_MIST],
-  echoLoadouts: [new EchoLoadout(NM_KELPIE, GUSTS_OF_WELKIN_5PC),
-    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC)
-  ],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Heavy),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Basic, Substat.Heavy),
+  weapons: [WOODLAND_ARIA, NEW_STD_PISTOL, STATIC_MIST, THUNDERBOLT, SOLAR_FLAME],
+  echoes: new Echoes({
+    sets: [new EchoLoadout(NM_KELPIE, GUSTS_OF_WELKIN_5PC), new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC)],
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Heavy),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Basic, Substat.Heavy),
+  }),
   sequences: CI_SEQUENCES,
 };
 export const CIACCONA = new Loadout({
+  id: 14071,
   ...CIACCONA_BUILD,
   rotation: { 0: CI_ROTATION, // 3: CI_ROTATION_S3 disabled for er and extension issue
    },
 });
 /** Recital on the yellow Tonic: Spectro Frazzle instead of Aero Erosion off all twenty. */
-export const CIACCONA_YELLOW = new Loadout({ ...CIACCONA_BUILD, rotation: { 0: CI_ROTATION_YELLOW } });
+export const CIACCONA_YELLOW = new Loadout({ id: 14072, ...CIACCONA_BUILD, rotation: { 0: CI_ROTATION_YELLOW } });

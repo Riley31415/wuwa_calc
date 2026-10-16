@@ -58,6 +58,10 @@ export const ctx: {
   /** Set while a stat hook (applyStats, convertStats, lateConvertStats, constantStats) runs: none may
    *  change a buff, a gauge or the queue, only write stats. */
   inStats: boolean;
+  /** Set while constantStats run: a constant ATK%/HP%/DEF% is a panel entry, floored on its own. */
+  inConst: boolean;
+  /** An echo's own panel entries while it adds them (`panelEntry()`), summed before the one floor. */
+  panelGroup: number[] | null;
   /** Set while a marker resolves (an Intro Resolver, ECHO): it picks a cast and may only read. */
   inResolve: boolean;
   /** Set while a handoff plans the visit it opens, ahead of its Outro: what that Outro moves hasn't. */
@@ -148,6 +152,8 @@ export const ctx: {
   guarded: false,
   mutHash: 0,
   inStats: false,
+  inConst: false,
+  panelGroup: null,
   inResolve: false,
   handoffPending: false,
   inCast: false,
@@ -254,10 +260,10 @@ export const noteMutation = (id: number, n: number): void => {
 };
 /** The stats `evaluate()` banks into the running gauges — a variant that moves any of these would
  *  bank differently, so the real build's fight isn't its fight either. */
-export const RESOURCE_STATS: Stat[] = [Stat.OfftuneBuildup, Stat.EnergyRegenMult, Stat.OfftuneMult];
+export const RESOURCE_STATS: Stat[] = [Stat.OfftuneBuildup, Stat.HitEnergyMult, Stat.OfftuneMult];
 
 /** What was granted (or spent) during the action being evaluated, by Gear and by whose doing —
- *  what `applied()`/`appliedByMe()`/`consumed()` answer from. Flat arrays indexed by `Gear.id`,
+ *  what `applied()`/`appliedByMe()`/`consumed()` answer from. Flat arrays indexed by `Gear.engineId`,
  *  each entry current only while its stamp is this action's (`ctx.actionStamp`), so nothing is
  *  cleared between actions; `by` keeps one count per member (`TeamMember.index`, the enemy last).
  *  Module-level rather than on the State so the stack methods (which have no State in hand) can
@@ -281,7 +287,7 @@ export class GrantRecord {
   }
   /** Record `n` of `gear`, credited to member `who` (-1 for nobody). */
   add(gear: Gear, n: number, who: number): void {
-    const id = gear.id, stamp = ctx.actionStamp;
+    const id = gear.engineId, stamp = ctx.actionStamp;
     if (id >= this.stamp.length) this.grow(id);
     if (this.gearsStamp !== stamp) { this.gearsStamp = stamp; this.gearsLen = 0; }
     if (this.stamp[id] !== stamp) { this.stamp[id] = stamp; this.now[id] = n; this.gears[this.gearsLen++] = gear; }
@@ -292,11 +298,11 @@ export class GrantRecord {
     else this.by[k] = this.by[k]! + n;
   }
   get(gear: Gear): number {
-    const id = gear.id;
+    const id = gear.engineId;
     return id < this.stamp.length && this.stamp[id] === ctx.actionStamp ? this.now[id]! : 0;
   }
   getBy(gear: Gear, who: number): number {
-    const k = gear.id * MEMBERS + who;
+    const k = gear.engineId * MEMBERS + who;
     return k < this.byStamp.length && this.byStamp[k] === ctx.actionStamp ? this.by[k]! : 0;
   }
   /** The Gear recorded this action, in order — `length` of them, the array reused. */

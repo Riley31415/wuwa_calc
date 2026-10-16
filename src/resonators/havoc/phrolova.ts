@@ -43,9 +43,11 @@ import {
 import { ActionGroup, Action, Rotation, NOINTRO, ECHO, ActionTag, INTRO, OUTRO, waitFor } from "../../engine/rotation.js";
 import { LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";
 import { COSMIC_RIPPLES } from "../../weapons/standard.js";
+import { AUGMENT, RADIANT_DAWN } from "../../weapons/battlepass.js";
 import { DREAM_OF_THE_LOST_3PC } from "../../echoes/septimont.js";
 import { NM_HECATE } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { HAVOC_ECLIPSE_2PC } from "../../echoes/jinzhou.js";
 
@@ -60,6 +62,10 @@ const REINCARNATE = new Buff({ name: "Phrolova: Reincarnate" });
 /** Resolving Chord: activated by Scarlet Coda's last hit, the state Waltz of Forsaken Depths needs;
  *  casting the Waltz ends it. */
 const RESOLVING_CHORD = new Buff({ name: "Phrolova: Resolving Chord" });
+
+/** Maestro ended with her off field: switching to her without an Intro casts Curtain Call. Her
+ *  next press of her own spends it. */
+const CURTAIN_CALL_READY = new Buff({ name: "Phrolova: Curtain Call Ready" });
 
 /** Maestro: the Waltz standing, until its last note is consumed (see the Hecate block below). */
 export const MAESTRO = new Buff({
@@ -396,13 +402,14 @@ function startMaestro(): void {
   setQueue(1, 0, 0);
 }
 
-/** Maestro ends — its last note consumed, any cast of hers but Hecate's, or Augusta's Liberation —
- *  and Hecate's queue, every hit of hers still in flight and every note she held go with it. */
-export function endMaestro(): void {
-  const team = currentTeam();
-  if (!team.slots.some((m) => m.resonator === PHROLOVA_RESONATOR) || !her().stacksOf(MAESTRO)) return;
+/** Maestro ends — its last note consumed or any cast of hers but Hecate's — and Hecate's queue,
+ *  every hit of hers still in flight (bar `keepHits`) and every note she held go with it. Ended
+ *  with her off field, Curtain Call waits for her return. */
+function endMaestro(keepHits = false): void {
+  if (!her().stacksOf(MAESTRO)) return;
   her().revoke(MAESTRO);
-  cancelHits(MOVES);
+  if (!keepHits) cancelHits(MOVES);
+  if (offField()) her().addStack(CURTAIN_CALL_READY, 1);
   setQueue(0, 0, 0);
   // and every note she held with it, the Echo chances too
   her().setStacks(NOTES, 1 << 16);
@@ -556,12 +563,13 @@ const PH_S6 = new Sequence({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const PHROLOVA_TALENTS = new Talent({
   name: "Phrolova: Talents",
-  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 12]],
+  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 11.9999997]],
 });
 
 /** Her, as a Resonator: name/element, every grant/spend/queue rule her kit needs, and her own
  *  base stat line. */
 export const PHROLOVA_RESONATOR = new Resonator({
+  id: 1608,
   name: "Phrolova",
   talent: PHROLOVA_TALENTS,
   inherent1: PH_INHERENT_1,
@@ -573,7 +581,7 @@ export const PHROLOVA_RESONATOR = new Resonator({
   intro: () => (stacksOf(MAESTRO) ? EIntro : Intro),
   outro: Outro,
   // switching to her in Maestro without an Intro casts Curtain Call; no Plunging Attack is modelled
-  swapIn: () => (stacksOf(MAESTRO) ? CurtainCall : BA2),
+  swapIn: () => (stacksOf(MAESTRO) || stacksOf(CURTAIN_CALL_READY) ? CurtainCall : BA2),
   // Maestro still open means Suite of Immortality (EIntro) instead of plain Intro
   maxEnergy: 0,
   maxForte1: 6,
@@ -586,7 +594,13 @@ export const PHROLOVA_RESONATOR = new Resonator({
   },
   // leaving the field in Maestro is where Hecate takes over
   // her swap-out sets Hecate going; its attack is cast behind the next resonator's press
-  updateBuffs: () => { if (currentCast().swapOut && stacksOf(MAESTRO)) hecateNext(false, true); },
+  updateBuffs: () => {
+    if (currentCast().swapOut && stacksOf(MAESTRO)) hecateNext(false, true);
+    if (!triggeredAction()) revokeCurrent(CURTAIN_CALL_READY);
+  },
+  // Augusta's Everbright Protector sends her off: Maestro ends and Hecate stops, her attack
+  // already out still landing
+  sentOff: () => endMaestro(true),
 
   stats: [[Stat.BaseHp, 10775], [Stat.BaseAtk, 437.5], [Stat.BaseDef, 1136.6646]],
 });
@@ -651,25 +665,31 @@ const PHRO_5FBA_S2 = new Rotation([
 ]);
 
 export const PHRO_12s = new Loadout({
+  id: 16081,
   resonator: PHROLOVA_RESONATOR,
-  weapons: [LETHEAN_ELEGY, COSMIC_RIPPLES, STRINGMASTER],
-  echoLoadouts: [new EchoLoadout(NM_HECATE, DREAM_OF_THE_LOST_3PC, HAVOC_ECLIPSE_2PC)],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Basic),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Basic, Substat.Liberation),
+  weapons: [LETHEAN_ELEGY, COSMIC_RIPPLES, STRINGMASTER, AUGMENT, RADIANT_DAWN],
+  echoes: new Echoes({
+    sets: [new EchoLoadout(NM_HECATE, DREAM_OF_THE_LOST_3PC, HAVOC_ECLIPSE_2PC)],
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Basic),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Basic, Substat.Liberation),
+  }),
     rotation: { 0: PHRO_5FBA, 2: PHRO_5FBA_S2 },
   sequences: [PH_S1, PH_S2, PH_S3, PH_S4, PH_S5, PH_S6],
 });
 
 export const PHRO_10s = new Loadout({
+  id: 16082,
   resonator: PHROLOVA_RESONATOR,
-  weapons: [LETHEAN_ELEGY, COSMIC_RIPPLES, STRINGMASTER],
-  echoLoadouts: [
+  weapons: [LETHEAN_ELEGY, COSMIC_RIPPLES, STRINGMASTER, AUGMENT, RADIANT_DAWN],
+  echoes: new Echoes({
+    sets: [
     new EchoLoadout(NM_HECATE, DREAM_OF_THE_LOST_3PC, HAVOC_ECLIPSE_2PC),
   ],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Basic),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Basic, Substat.Liberation),
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Basic),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Basic, Substat.Liberation),
+  }),
     rotation: { 0: PHRO_FAST, 2: PHRO_FAST_S2 },
   sequences: [PH_S1, PH_S2, PH_S3, PH_S4, PH_S5, PH_S6],
 });

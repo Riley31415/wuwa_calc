@@ -48,9 +48,11 @@ import {
 import { ActionGroup, Action, Rotation, ActionField, ECHO, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
 import { LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
+import { AUGMENT, RADIANT_DAWN } from "../../weapons/battlepass.js";
 import { EMPYREAN_ANTHEM_5PC } from "../../echoes/rinascita.js";
 import { NM_TEMPEST_MEPHIS, HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -136,7 +138,7 @@ const Liberation = yinlinAction("Liberation - Thundering Wrath", { animFrames: 1
     { hitFrame: 191, mv: 11656, offtune: 5143 },
     { hitFrame: 191, mv: 11656, offtune: 5143 },
     { hitFrame: 191, mv: 11656, offtune: 5143 },
-  ], castConcerto: 2000, resetEnergy: true });
+  ], castConcerto: 2000, castEnergy: -12500 });
 
 /** Chameleon Cipher: spends every Judgement Point, upgrades Sinner's Mark to Punishment Mark. */
 // PLACEHOLDER FRAMES
@@ -246,7 +248,7 @@ const YINLIN_OUTRO = new Buff({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const YINLIN_TALENTS = new Talent({
   name: "Yinlin: Talents",
-  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 12]],
+  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 11.9999997]],
 });
 
 const YINLIN_MATRIX = matrix("Yinlin", 20, {
@@ -254,6 +256,7 @@ const YINLIN_MATRIX = matrix("Yinlin", 20, {
 });
 
 const YINLIN_RESONATOR = new Resonator({
+  id: 1302,
   name: "Yinlin",
   stats: [[Stat.BaseHp, 11000], [Stat.BaseAtk, 400], [Stat.BaseDef, 1283.331]],
   matrix: YINLIN_MATRIX,
@@ -366,15 +369,18 @@ const YINLIN_MATRIX_TEAM = new Buff({
 });
 
 export const YINLIN = new Loadout({
+  id: 13021,
   resonator: YINLIN_RESONATOR,
-  weapons: [STRINGMASTER, COSMIC_RIPPLES, LETHEAN_ELEGY, NEW_STD_RECTIFIER],
-  echoLoadouts: [
+  weapons: [STRINGMASTER, COSMIC_RIPPLES, LETHEAN_ELEGY, NEW_STD_RECTIFIER, AUGMENT, RADIANT_DAWN],
+  echoes: new Echoes({
+    sets: [
     new EchoLoadout(NM_TEMPEST_MEPHIS, EMPYREAN_ANTHEM_5PC),
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
   ],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation, Substat.Heavy),
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation, Substat.Heavy),
+  }),
   rotation: YL_ROTATION,
   sequences: YL_SEQUENCES,
 });

@@ -19,6 +19,7 @@ export const VERDANT_SUMMIT = refinements((r, rank) => {
     stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Type.Heavy]], perStack: true,
   });
   return new Weapon({
+    id: 21010016,
     weaponType: WeaponType.Broadblade, name: `Verdant Summit${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritDmg, 48.6], [Stat.DmgBonus, [12, 15, 18, 21, 24][r]!]],
     grants: [{ on: onCast(Cast.Intro, Cast.Liberation), buff: SWORDSWORN_STACKS }],
@@ -40,6 +41,7 @@ export const AGES_OF_HARVEST = refinements((r, rank) => {
     stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Type.Skill]],
   });
   return new Weapon({
+    id: 21010026,
     weaponType: WeaponType.Broadblade, name: `Ages of Harvest${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritRate, 24.3], [Stat.DmgBonus, [12, 15, 18, 21, 24][r]!]],
     grants: [
@@ -62,6 +64,7 @@ export const THUNDERFLARE_DOMINION = refinements((r, rank) => {
     stats: [[Stat.DefIgnoreNew, [7.2, 8.4, 9.6, 10.8, 12][r]!, Type.Heavy]], perStack: true,
   });
   return new Weapon({
+    id: 21010046,
     weaponType: WeaponType.Broadblade, name: `Thunderflare Dominion${rank}`,
     stats: [[Stat.BaseAtk, 675], [Stat.CritRate, 12.15], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     grants: [
@@ -93,6 +96,7 @@ export const WILDFIRE_MARK = refinements((r, rank) => {
     },
   });
   return new Weapon({
+    id: 21010036,
     weaponType: WeaponType.Broadblade, name: `Wildfire Mark${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritDmg, 48.6], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     grants: [{ on: onCast(Cast.Intro, Cast.Liberation), buff: WILDFIRE_LIB_DMG }],
@@ -134,6 +138,7 @@ export const JINGRAN_SIG = refinements((r, rank) => {
     },
   });
   return new Weapon({
+    id: 21010076,
     weaponType: WeaponType.Broadblade, name: `Thousandfold Deliverance${rank}`,
     stats: [[Stat.BaseAtk, 412.5], [Stat.BonusHp, 72.225], [Stat.DmgBonus, [12, 15, 18, 21, 24][r]!]],
     // two separate triggers, so his Intro — which also shields — pays both and stacks twice
@@ -169,6 +174,7 @@ export const STARFIELD_CALIBRATOR = refinements((r, rank) => {
     },
   });
   return new Weapon({
+    id: 21010066,
     weaponType: WeaponType.Broadblade, name: `Starfield Calibrator${rank}`,
     stats: [[Stat.BaseAtk, 412.5], [Stat.ER, 77.04], [Stat.BonusDef, [16, 20, 24, 28, 32][r]!]],
     combatStart: () => applyCurrent(DEFINITE_SOLUTION, 1),
@@ -201,6 +207,7 @@ export const KUMOKIRI = refinements((r, rank) => {
     },
   });
   return new Weapon({
+    id: 21010056,
     weaponType: WeaponType.Broadblade, name: `Kumokiri${rank}`,
     stats: [[Stat.BaseAtk, 500], [Stat.CritRate, 36], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     grants: [{ on: onCast(Cast.Intro), buff: THREAD_OF_FATE_STACKS }],

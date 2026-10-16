@@ -46,8 +46,10 @@ import { tuneBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
 import { HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { BLAZING_BRILLIANCE, EMERALD_SENTENCE } from "../../weapons/sword.js";
+import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
 import { NM_HERON, MIDNIGHT_VEIL_5PC } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { CROWNLESS, HAVOC_ECLIPSE_5PC, HERON, MOONLIT_CLOUDS_5PC, REJUV_5PC } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
@@ -190,7 +192,7 @@ const Liberation = danjinAction("Liberation - Crimson Bloom", { animFrames: 192,
     { hitFrame: 120, mv: 4909, offtune: 3840 },
     { hitFrame: 128, mv: 4909, offtune: 3840 },
     { hitFrame: 169, mv: 39265, offtune: 30720 },
-  ], castConcerto: 2000, resetEnergy: true }); // 49.09%x8+392.65%
+  ], castConcerto: 2000, castEnergy: -10000 }); // 49.09%x8+392.65%
 
 const Intro = danjinAction("Intro - Vindication", { endPosition: Position.Grounded, qteFrames: 62, animFrames: 103, noSwapFrames: 92, animPriority: { 99: 1 }, castPriority: 11, motionStop: [4, 51], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 54, mv: 4971, energy: 250, offtune: 3060 },
@@ -253,10 +255,11 @@ const DANJIN_OUTRO = new Buff({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const DANJIN_TALENTS = new Talent({
   name: "Danjin: Talents",
-  stats: [[Stat.BonusAtk, 12], [Stat.DmgBonus, 12, Attribute.Havoc]],
+  stats: [[Stat.BonusAtk, 11.9999997], [Stat.DmgBonus, 12, Attribute.Havoc]],
 });
 
 const DANJIN_RESONATOR = new Resonator({
+  id: 1602,
   name: "Danjin",
   talent: DANJIN_TALENTS,
   inherent1: DJ_INHERENT_OVERFLOW,
@@ -368,16 +371,19 @@ const DJ_ROTATION = new Rotation([
 // her real build: resonator + talents + both Inherent Skills + every sequence node
 // (Tier.Free — see file header), weapon, mainslot echo, sonata pieces, mainstat/substat
 export const DANJIN = new Loadout({
+  id: 16021,
   resonator: DANJIN_RESONATOR,
-  weapons: [EMERALD_SENTENCE, EMERALD_OF_GENESIS, BLAZING_BRILLIANCE],
-  echoLoadouts: [new EchoLoadout(NM_HERON, MIDNIGHT_VEIL_5PC),
+  weapons: [EMERALD_SENTENCE, EMERALD_OF_GENESIS, BLAZING_BRILLIANCE, LUMINGLOSS, FEATHER_EDGE],
+  echoes: new Echoes({
+    sets: [new EchoLoadout(NM_HERON, MIDNIGHT_VEIL_5PC),
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
     new EchoLoadout(FALLACY, REJUV_5PC),
     new EchoLoadout(CROWNLESS, HAVOC_ECLIPSE_5PC),
   ],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Liberation),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Liberation, Substat.Skill),
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Liberation),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Liberation, Substat.Skill),
+  }),
     rotation: DJ_ROTATION,
   sequences: [DJ_S1, DJ_S2, DJ_S3, DJ_S4, DJ_S5, DJ_S6],
 });

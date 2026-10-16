@@ -41,8 +41,10 @@ import {
 import { ActionGroup, Action, Rotation, ActionField, NOINTRO, ECHO, INTRO, OUTRO, DODGE, JUMP } from "../../engine/rotation.js";
 import { RIME_DRAPED_SPROUTS, STRINGMASTER, LETHEAN_ELEGY, WHISPERS_OF_SIRENS } from "../../weapons/rectifier.js";
 import { VARIATION, NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
+import { AUGMENT, RADIANT_DAWN } from "../../weapons/battlepass.js";
 import { EMPYREAN_ANTHEM_5PC, NM_LAMPY } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 
@@ -135,7 +137,7 @@ const FSkill3 = zhezhiAction("Forte Skill - Creation's Zenith", { minForte2: 2, 
 // opens the Inklit Spirit window, no damage of its own — the window itself is INKLIT_SPIRITS below
 const Liberation = zhezhiAction("Liberation - Living Canvas", {
   animFrames: 166, castPriority: 10, timestop: [0, 166], motionStop: [0, 166], cooldown: 60 * 25,
-  node: Node.Liberation, cast: Cast.Liberation, castConcerto: 2000, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, castConcerto: 2000, castEnergy: -12500,
   updateBuffs: () => applyTeam(INKLIT_SPIRITS, isHeld(ZZ_S2) ? 27 : 21),
 });
 const INKLIT_FIELD = new ActionField("Zhezhi: Inklit Spirits");
@@ -232,7 +234,7 @@ const ZZ_INHERENT_2 = new Inherent({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const ZHEZHI_TALENTS = new Talent({
   name: "Zhezhi: Talents",
-  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 12]],
+  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 11.9999997]],
 });
 
 const ZHEZHI_MATRIX = matrix("Zhezhi", 20, {
@@ -240,6 +242,7 @@ const ZHEZHI_MATRIX = matrix("Zhezhi", 20, {
 });
 
 const ZHEZHI_RESONATOR = new Resonator({
+  id: 1105,
   name: "Zhezhi",
   matrix: ZHEZHI_MATRIX,
   talent: ZHEZHI_TALENTS,
@@ -342,15 +345,18 @@ const ZHEZHI_MATRIX_TEAM = new Buff({
 });
 
 export const ZHEZHI = new Loadout({
+  id: 11051,
   resonator: ZHEZHI_RESONATOR,
-  weapons: [RIME_DRAPED_SPROUTS, COSMIC_RIPPLES, VARIATION, NEW_STD_RECTIFIER, STRINGMASTER, LETHEAN_ELEGY, WHISPERS_OF_SIRENS],
-  echoLoadouts: [
+  weapons: [RIME_DRAPED_SPROUTS, COSMIC_RIPPLES, VARIATION, NEW_STD_RECTIFIER, STRINGMASTER, LETHEAN_ELEGY, WHISPERS_OF_SIRENS, AUGMENT, RADIANT_DAWN],
+  echoes: new Echoes({
+    sets: [
     new EchoLoadout(NM_LAMPY, EMPYREAN_ANTHEM_5PC),
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
   ],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
-  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.Basic, Substat.AtkPct, Substat.FlatAtk, Substat.Skill),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Basic, Substat.AtkPct, Substat.FlatAtk, Substat.Skill, Substat.Heavy),
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
+    substats: substats(Substat.CritRate, Substat.CritDmg, Substat.Basic, Substat.AtkPct, Substat.FlatAtk, Substat.Skill),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Basic, Substat.AtkPct, Substat.FlatAtk, Substat.Skill, Substat.Heavy),
+  }),
   rotation: ZZ_ROTATION,
   sequences: ZZ_SEQUENCES,
 });

@@ -21,17 +21,17 @@
  * Markers are `Action`s so a kit can keep writing one plain array, but none of them is a cast:
  * INTRO and the three ECHO_* markers stand for one and resolve through `Action.resolve` at run
  * time, and the rest are read by the compiler here and never reach `evaluate()`. A resonator
- * leaves the field on an OUTRO or on a cast's swap form (`.swapCancel()`, `.instaSwap()`), which the
- * scheduler follows with SWAP unless an Outro comes next; there is no bare swap to write.
+ * leaves the field on an OUTRO, on a cast's swap form (`.swapCancel()`, `.instaSwap()`), which the
+ * scheduler follows with SWAP unless an Outro comes next, or on a SWAP written after a press played out.
  */
-import { Gear } from "./gear.js";
+import { Gear, NO_CAPS } from "./gear.js";
 import { run } from "./evaluate.js";
 import { currentMember, isCast } from "./context.js";
 import { ctx, resolving } from "./runtime.js";
-import type { GearDef, Mainslot } from "./gear.js";
+import type { GearDef, EchoCast } from "./gear.js";
 import type { State, TeamMember, VisitGate } from "./state.js";
 import type { Result } from "./evaluate.js";
-import { Cast, CAST_NAME, ActionTag, INSTA_DELAY, MASH_DELAY, HOLD_DELAY, CANCEL_DELAY, SWAP_DELAY, FULL_CONCERTO, Position, splitStop } from "./stats.js";
+import { Cast, CAST_NAME, ActionTag, INSTA_DELAY, MASH_DELAY, HOLD_DELAY, CANCEL_DELAY, SWAP_DELAY, Position, splitStop } from "./stats.js";
 import type { Attribute, Type, Subtype, Node, Scaling } from "./stats.js";
 
 /* ------------------------------------------------------------------------------- the action */
@@ -49,7 +49,8 @@ export interface ActionDef extends GearDef {
    *  drain), and the flat regen a kit grants on the press rather than on a landed hit. A hit's own
    *  gains are its bullet's, so a press whose hit lands later (an outro, an insta swap, a summon)
    *  or never (an insta cut) still pays its cast share then. evaluate() banks both. A cast runs no
-   *  stat, so its energy is flat: neither ER nor the Energy Regen Multiplier scales it. */
+   *  stat, so its energy is flat: neither ER nor the Hit Energy Multiplier scales it, and none of it
+   *  is shared. */
   castEnergy?: number;
   castConcerto?: number;
   /** Off-tune the cast moves the bar by, unscaled by Off-Tune Buildup Rate like direct off-tune.
@@ -64,11 +65,6 @@ export interface ActionDef extends GearDef {
    *  own — the shared Tune Break, which is nobody's turn (`State.enemy`'s name). Defaults to whoever
    *  cast it. */
   slot?: string;
-  /** Marks the actual button-press Liberation cast that spends the Energy bar — used only to
-   *  reset RealEnergy (see `TeamMember.realEnergy`) back to 0 once it fires. Never set on a
-   *  Liberation-tagged follow-up that doesn't itself cost the bar, or on a kit whose Liberation
-   *  costs no Resonance Energy at all (`maxEnergy: 0`). */
-  resetEnergy?: boolean;
   /** This cast empties the gauge — a Liberation that spends the whole bar, a form switch that
    *  clears it — whatever it held, without the kit having to declare the cap as a negative delta
    *  and clamp to it first. The gauge is set to 0 *ahead of* this cast's own `castForteN` (and any
@@ -82,7 +78,9 @@ export interface ActionDef extends GearDef {
   /** The cast's condition on its owner's bars as it is cast — at least `minX`, at most `maxX`
    *  (Iuno's Absolute Fullness `minConcerto: 100`, Hsin's Stilling All Horizons `maxForte2: 0`).
    *  What a cast spends is no condition of its own. A row cast outside one reads red, and a hold
-   *  cancel holds until the next press's are met (`Action.holdPaid()`). */
+   *  cancel holds until the next press's are met (`Action.holdPaid()`). Energy takes none: the
+   *  lookahead a hold and a visit's gates bank the bars by (`bankBar`) runs no stat, so it would
+   *  read energy without ER — the constructor throws on either. */
   minEnergy?: number;
   maxEnergy?: number;
   minConcerto?: number;
@@ -247,18 +245,16 @@ export function cancelCost(a: Action, cut: ActionTag | null): { action: number; 
   return { action, timestop, global, total: action - timestop + global };
 }
 
-/** A bar after `delta` banks on it, the way evaluate() banks one — `k` 0 energy and 1 concerto,
- *  which a gain never leaves below empty (and a concerto spend takes from its 100 ceiling); 2-6 a
- *  forte gauge, which a reset or a red bar taking a gain (or any cast) empties first, a spend
- *  starting from its cap. A reset empties energy the same way. */
-export function bankBar(k: number, g: number, delta: number, reset: boolean, cast: boolean, cap: readonly number[]): number {
-  if (k === 0) return Math.max(0, (reset ? 0 : g) + delta);
-  if (k === 1) return delta < 0 ? Math.min(g, FULL_CONCERTO) + delta : Math.max(0, g + delta);
-  const max = cap[k - 2]!;
-  if (reset || (g < 0 && (delta > 0 || cast))) g = 0;
-  if (max > 0 && delta < 0 && g > max) g = max;
-  return g + delta;
-}
+/** A bar after `delta` banks on it, the way evaluate() banks every one — energy, concerto, forte,
+ *  off-tune alike. It fills past `cap` freely; a spend starts from the cap rather than the overrun
+ *  (0 is no cap); a bar left below empty is short, and the next gain starts it from 0. */
+export const bank = (bar: number, delta: number, cap: number): number =>
+  (delta > 0 && bar < 0 ? 0 : delta < 0 && cap > 0 && bar > cap ? cap : bar) + delta;
+
+/** `bank()` for bar `k` of a press (0 energy, 1 concerto, 2-6 forte), a forte gauge's `resetForteN`
+ *  emptying it first. `cap` is the member's own, bar by bar (`Resonator.caps`). */
+export const bankBar = (k: number, g: number, delta: number, reset: boolean, cap: readonly number[]): number =>
+  bank(reset ? 0 : g, delta, cap[k]!);
 
 export interface CooldownDef {
   /** Frames one charge takes to come back — a function where a sequence shortens it, read when
@@ -338,7 +334,6 @@ export class Action extends Gear {
   castOfftune: number;
   castForte: readonly number[];
   slot: string | null;
-  resetEnergy: boolean;
   /** The cast's condition (`ActionDef.minEnergy` and on), bar by bar — energy, concerto, forte 1-5 —
    *  or null where it has none. */
   castMin: number[] | null;
@@ -360,6 +355,9 @@ export class Action extends Gear {
   readonly castGains: readonly number[];
   readonly resetBars: readonly boolean[];
   readonly bulletGains: readonly number[];
+  /** Per bar, which part moves it (-1 the cast, else a bullet) and by how much, zeroes left out (`bankPress`). */
+  readonly gainFrom: readonly (readonly number[])[];
+  readonly gainBy: readonly (readonly number[])[];
   resolveFn?: () => Action | null;
   animFrames: number;
   /** `ActionDef.animPriority` as [frame, tier] windows, in frame order; empty where it has none. */
@@ -436,7 +434,9 @@ export class Action extends Gear {
     this.castConcerto = def.castConcerto ?? 0;
     this.castOfftune = def.castOfftune ?? 0;
     this.slot = def.slot ?? null;
-    this.resetEnergy = def.resetEnergy ?? false;
+    if (def.minEnergy !== undefined || def.maxEnergy !== undefined) {
+      throw new Error(`${name}: an energy cast condition would be read without ER (bankBar runs no stat)`);
+    }
     const min = [def.minEnergy, def.minConcerto, def.minForte1, def.minForte2, def.minForte3, def.minForte4, def.minForte5];
     const max = [def.maxEnergy, def.maxConcerto, def.maxForte1, def.maxForte2, def.maxForte3, def.maxForte4, def.maxForte5];
     this.castMin = min.some((v) => v !== undefined) ? min.map((v) => v ?? -Infinity) : null;
@@ -458,8 +458,27 @@ export class Action extends Gear {
     this.banks = banks;
     this.resetForte = [!!def.resetForte1, !!def.resetForte2, !!def.resetForte3, !!def.resetForte4, !!def.resetForte5];
     this.castGains = [this.castEnergy, this.castConcerto, ...this.castForte];
-    this.resetBars = [this.resetEnergy, false, ...this.resetForte];
+    this.resetBars = [false, false, ...this.resetForte];
     this.bulletGains = this.bullets.flatMap((h) => [h.energy, h.concerto, h.forte1, h.forte2, h.forte3, h.forte4, h.forte5]);
+    // per bar, the gains that move it — the cast's (-1) then each bullet's — zero ones left out
+    const gainFrom: number[][] = [], gainBy: number[][] = [];
+    this.gainFrom = gainFrom;
+    this.gainBy = gainBy;
+    for (let k = 0; k < 7; k++) {
+      const from: number[] = [], by: number[] = [];
+      if (this.castGains[k]) {
+        from.push(-1);
+        by.push(this.castGains[k]!);
+      }
+      for (let j = 0; j < this.bullets.length; j++) {
+        const d = this.bulletGains[j * 7 + k]!;
+        if (!d) continue;
+        from.push(j);
+        by.push(d);
+      }
+      gainFrom.push(from);
+      gainBy.push(by);
+    }
     this.resolveFn = def.resolve;
     // a kit's def is often typed loosely (`def: object`), so a bare number gets this far
     if (typeof def.timestop === "number" || typeof def.motionStop === "number") throw new Error(`${name}: timestop/motionStop are [start, end) ranges`);
@@ -490,15 +509,23 @@ export class Action extends Gear {
   follows(prev: Action | null): boolean {
     if (!this.chainsDef) return true;
     if (!prev) return false;
-    const list = typeof this.chainsDef === "function" ? this.chainsDef() : this.chainsDef;
-    for (const entry of list) {
-      const cast = castMarkers().get(entry);
+    if (!this.chainList) {
+      // every `chains` thunk is a forward reference, so its list is read once
+      this.chainList = typeof this.chainsDef === "function" ? this.chainsDef() : this.chainsDef;
+      this.chainCasts = this.chainList.map((entry) => castMarkers().get(entry) ?? -1);
+    }
+    const list = this.chainList, casts = this.chainCasts!;
+    for (let e = 0; e < list.length; e++) {
+      const entry = list[e]!, cast = casts[e]!;
       for (let a: Action | null = prev; a; a = a.cancelOf ?? a.formOf) {
-        if (cast !== undefined ? a.cast === cast : a === entry) return true;
+        if (cast >= 0 ? a.cast === cast : a === entry) return true;
       }
     }
     return false;
   }
+  /** `chains` as read once, and the cast each entry stands for where it is a marker (-1 otherwise). */
+  private chainList?: readonly Action[];
+  private chainCasts?: number[];
   /** Does it name presses it must follow (`chains`)? */
   get chained(): boolean { return this.chainsDef !== null; }
   /** `chains` as names, for an error naming what a press may follow. */
@@ -530,10 +557,15 @@ export class Action extends Gear {
   /** What the clock charges this press cut short by `kind` (`cancelCost()`) — a method, so
    *  evaluate.ts reaches it through the type-only import it keeps on this module. */
   cost(cut: ActionTag | null): ReturnType<typeof cancelCost> {
+    // the two keys nearly every call asks, as fields
+    if (cut === null) return (this.costNull ??= cancelCost(this, null));
+    if (cut === ActionTag.Default) return (this.costDefault ??= cancelCost(this, cut));
     let out = this.costs?.get(cut);
     if (!out) (this.costs ??= new Map()).set(cut, (out = cancelCost(this, cut)));
     return out;
   }
+  private costNull?: ReturnType<typeof cancelCost>;
+  private costDefault?: ReturnType<typeof cancelCost>;
   /** Does cutting this echo by `kind` — its dash after included, for a dash cut — free its wearer
    *  sooner than pressing it whole? Where it doesn't, the echo plays whole and drops the dash. */
   cutPays(kind: ActionTag): boolean {
@@ -554,29 +586,34 @@ export class Action extends Gear {
     return this.castGains;
   }
   /** Which of `bars` (energy, concerto, forte 1-5, as the cast finds them) fall outside this cast's
-   *  condition (`ActionDef.minEnergy` and on) — a forte gauge left below empty reading as empty —
-   *  or null where it has none or every one is met. */
+   *  condition (`ActionDef.minEnergy` and on) — a bar left below empty reading as empty — or null
+   *  where it has none or every one is met. */
   castUnmet(bars: readonly number[]): boolean[] | null {
-    if (!this.castMin && !this.castMax) return null;
-    const out = bars.map((v, k) => {
-      const at = k >= 2 ? Math.max(0, v) : v;
+    if (this.castMet(bars)) return null;
+    return bars.map((v, k) => {
+      const at = Math.max(0, v);
       return at < (this.castMin?.[k] ?? -Infinity) - 1e-9 || at > (this.castMax?.[k] ?? Infinity) + 1e-9;
     });
-    return out.some(Boolean) ? out : null;
+  }
+  /** `castUnmet()` as a yes/no, with nothing allocated: does every bar meet the condition? */
+  castMet(bars: readonly number[]): boolean {
+    const min = this.castMin, max = this.castMax;
+    if (!min && !max) return true;
+    for (let k = 0; k < bars.length; k++) {
+      const at = Math.max(0, bars[k]!);
+      if (at < (min?.[k] ?? -Infinity) - 1e-9 || at > (max?.[k] ?? Infinity) + 1e-9) return false;
+    }
+    return true;
   }
   /** Which of this cast's `requireBuff` buffs neither `owner`, the team nor the target holds, or
    *  null where it has none or every one stands. */
   buffsUnmet(state: State, owner: TeamMember): Gear[] | null {
-    if (!this.requireBuffs) return null;
-    const out = this.requireBuffs.filter((g) => !owner.isHeld(g) && !state.globalStacks.has(g) && !state.enemyStacks.has(g));
-    return out.length ? out : null;
+    return this.requireBuffs ? buffsHeld(this.requireBuffs, state, owner, false) : null;
   }
   /** Which of this cast's `forbidBuff` buffs `owner`, the team or the target holds, or null where it
    *  has none or none stands. */
   buffsForbidden(state: State, owner: TeamMember): Gear[] | null {
-    if (!this.forbidBuffs) return null;
-    const out = this.forbidBuffs.filter((g) => owner.isHeld(g) || state.globalStacks.has(g) || state.enemyStacks.has(g));
-    return out.length ? out : null;
+    return this.forbidBuffs ? buffsHeld(this.forbidBuffs, state, owner, true) : null;
   }
   /** The animation frame a hold cancel of this press has its owner's `bars` (energy, concerto,
    *  forte 1-5, before its cast) meeting `next`'s cast condition: 0 where they do on the cast's own
@@ -588,14 +625,14 @@ export class Action extends Gear {
     pending: readonly { at: number; bullet: Bullet }[] = []): number {
     if (!next || (!next.castMin && !next.castMax)) return 0;
     const cast = this.castGains, reset = this.resetBars;
-    const g = bars.map((v, k) => bankBar(k, v, cast[k]! + (castGain?.[k] ?? 0), reset[k]!, this.cast !== null, cap));
-    if (!next.castUnmet(g)) return 0;
+    const g = bars.map((v, k) => bankBar(k, v, cast[k]! + (castGain?.[k] ?? 0), reset[k]!, cap));
+    if (next.castMet(g)) return 0;
     let last = this.bullets.length ? 0 : this.animFrames;
     const hits = [...this.bullets.map((bullet) => ({ at: bullet.hitFrame, bullet, own: true })), ...pending.map((p) => ({ ...p, own: false }))];
     for (const { at, bullet: b, own } of hits.sort((x, y) => x.at - y.at)) {
       if (at >= this.animFrames && !own) continue;
-      for (let k = 0; k < 7; k++) g[k] = bankBar(k, g[k]!, barGain(b, k), false, false, cap);
-      if (!next.castUnmet(g)) return Math.min(at, this.animFrames);
+      for (let k = 0; k < 7; k++) g[k] = bankBar(k, g[k]!, barGain(b, k), false, cap);
+      if (next.castMet(g)) return Math.min(at, this.animFrames);
       if (own) last = at;
     }
     return Math.min(last, this.animFrames);
@@ -739,7 +776,7 @@ export class Action extends Gear {
         bullets: [{ ...h, hitFrame: 0, commitFrame: 0 }],
         animFrames: 0, animPriority: undefined, noSwapFrames: 0, timestop: undefined, motionStop: undefined, cooldown: undefined,
         castEnergy: 0, castConcerto: 0, castOfftune: 0, castForte1: 0, castForte2: 0, castForte3: 0, castForte4: 0, castForte5: 0,
-        resetEnergy: false, resetForte1: false, resetForte2: false, resetForte3: false, resetForte4: false, resetForte5: false,
+        resetForte1: false, resetForte2: false, resetForte3: false, resetForte4: false, resetForte5: false,
         // the swap was the cast's; the hit is no cut of its own
         tag: this.tag === ActionTag.OffField ? ActionTag.OffField : ActionTag.Default,
       });
@@ -758,7 +795,7 @@ export class Action extends Gear {
         bullets: [],
         animFrames: 0, animPriority: undefined, noSwapFrames: 0, timestop: undefined, motionStop: undefined, cooldown: undefined,
         castEnergy: 0, castConcerto: 0, castOfftune: 0, castForte1: 0, castForte2: 0, castForte3: 0, castForte4: 0, castForte5: 0,
-        resetEnergy: false, resetForte1: false, resetForte2: false, resetForte3: false, resetForte4: false, resetForte5: false,
+        resetForte1: false, resetForte2: false, resetForte3: false, resetForte4: false, resetForte5: false,
         tag: this.tag === ActionTag.OffField ? ActionTag.OffField : ActionTag.Default,
       });
       this.endCopy.formOf = this;
@@ -956,13 +993,23 @@ export class DashMarker extends Action {
     super(isJump ? "Jump Placeholder" : "Dodge Placeholder", {
       resolve: () => {
         // an echo pressed whole, or one short enough to insta cancel with no dash: no dash at all
-        const mainslot = currentMember().mainslot;
-        const undashed = kind === ActionTag.InstaDodge && mainslot?.cancel.tag === ActionTag.InstaCancel;
-        if (after === ECHO && mainslot && (undashed || !mainslot.onfield.cutPays(kind))) return null;
-        return dashFor(isJump, after === INTRO ? currentMember().resonator?.intro?.() ?? after : after === ECHO ? mainslot?.onfield ?? after : after);
+        const echo = currentMember().mainslot?.cast();
+        const undashed = kind === ActionTag.InstaDodge && echo?.cancel.tag === ActionTag.InstaCancel;
+        if (after === ECHO && echo && (undashed || !echo.onfield.cutPays(kind))) return null;
+        return dashFor(isJump, after === INTRO ? currentMember().resonator?.intro?.() ?? after : after === ECHO ? echo?.onfield ?? after : after);
       },
     });
   }
+}
+
+/** Which of `buffs` `owner`, the team or the target holds (`held`) or doesn't, or null for none —
+ *  `buffsUnmet()`/`buffsForbidden()`, apart so neither call allocates a closure scope it rarely needs. */
+function buffsHeld(buffs: readonly Gear[], state: State, owner: TeamMember, held: boolean): Gear[] | null {
+  let out: Gear[] | null = null;
+  for (const g of buffs) {
+    if ((owner.isHeld(g) || state.globalStacks.has(g) || state.enemyStacks.has(g)) === held) (out ??= []).push(g);
+  }
+  return out;
 }
 
 /** A bullet's gain on bar `k` — energy, concerto, forte 1-5. */
@@ -1112,11 +1159,11 @@ export function slotPosition(rotations: Rotation[], i: number): number {
 }
 
 /** A marker resolving to one form of the equipped mainslot echo. */
-const echoForm = (name: string, written: string, pick: (m: Mainslot) => Action): Action => new Action(name, {
+const echoForm = (name: string, written: string, pick: (m: EchoCast) => Action): Action => new Action(name, {
   resolve: () => {
-    const mainslot = currentMember().mainslot;
-    if (!mainslot) throw new Error(`${currentMember().name} casts ${written} but has no Mainslot equipped`);
-    return pick(mainslot);
+    const echo = currentMember().mainslot?.cast();
+    if (!echo) throw new Error(`${currentMember().name} casts ${written} but has no Mainslot equipped`);
+    return pick(echo);
   },
 });
 const ECHO_SWAP_FORM = echoForm("Echo Placeholder (swap)", "ECHO.swap()", (m) => m.outro);
@@ -1139,9 +1186,9 @@ class EchoMarker extends Action {
  *  right where it stands. */
 export const ECHO: Action = new EchoMarker("Echo Placeholder (on field)", {
   resolve: () => {
-    const mainslot = currentMember().mainslot;
-    if (!mainslot) throw new Error(`${currentMember().name} casts ECHO but has no Mainslot equipped`);
-    return mainslot.onfield;
+    const echo = currentMember().mainslot?.cast();
+    if (!echo) throw new Error(`${currentMember().name} casts ECHO but has no Mainslot equipped`);
+    return echo.onfield;
   },
 });
 
@@ -1186,9 +1233,9 @@ export const NOINTRO_OPENER = new Action("No Intro (Opener)");
  *  NOINTRO chain, which they must declare. */
 const SWAP_EXIT = new Action("Swap Exit");
 
-/** The swap out a swap form leaves on, played right after it unless an Outro follows
- *  (`runRotations()` puts it in): no frames, no cast — an OFF_FIELD row, dimmed. Its cast and an Outro's
- *  are the only things that take a resonator off the field: "lost on swap", the field handed on. */
+/** The swap out: after a swap form unless an Outro follows (`runRotations()` puts it in), or written
+ *  after a press played out. No frames, no delay, no cast — an OFF_FIELD row, dimmed. Its cast and
+ *  an Outro's are the only things that take a resonator off the field. */
 export const SWAP = new Action("Swap", { tag: ActionTag.OffField });
 
 /* ------------------------------------------------------------------------------ the rotation */
@@ -1271,11 +1318,17 @@ function chainMembers(chain: Chain): { members: Action[]; lastMarker: number } {
 /** `g` (energy, concerto, forte 1-5) as `a`'s cast and bullets bank it — only the bullets committed
  *  by `hold` where a hold cancel lets go there (-1: every one). */
 function bankPress(g: number[], a: Action, cap: readonly number[], hold: number): void {
-  const cast = a.castGains, reset = a.resetBars, gains = a.bulletGains, bullets = a.bullets, isCast = a.cast !== null;
+  const reset = a.resetBars, bullets = a.bullets;
   for (let k = 0; k < 7; k++) {
-    let v = bankBar(k, g[k]!, cast[k]!, reset[k]!, isCast, cap);
-    for (let j = 0; j < bullets.length; j++) if (hold < 0 || bullets[j]!.commitFrame <= hold) v = bankBar(k, v, gains[j * 7 + k]!, false, false, cap);
-    g[k] = v;
+    // a zero gain banks as `+ 0`, which only the closing `+ 0` can still show
+    let v = reset[k] ? 0 : g[k]!;
+    const from = a.gainFrom[k]!, by = a.gainBy[k]!;
+    for (let t = 0; t < from.length; t++) {
+      const j = from[t]!;
+      if (j >= 0 && hold >= 0 && bullets[j]!.commitFrame > hold) continue;
+      v = bank(v, by[t]!, cap[k]!);
+    }
+    g[k] = v + 0;
   }
 }
 
@@ -1289,7 +1342,7 @@ export class Rotation {
    *  then START's for any) — body only, closing cast included. `null` where none is declared. */
   startCombat: (Action[] | null)[] = [null, null, null];
   opener: Chain | null = null;
-  intro: Chain;
+  intro!: Chain;
   /** The DOUBLE_INTRO section: `exit` is SWAP_EXIT for the swap-back form (its last cast's
    *  `.swap()`, running into the Intro) or its outro for the outro-back form. */
   doubleIntro: Chain | null = null;
@@ -1303,8 +1356,19 @@ export class Rotation {
   /** The INTRO_FIRST/LAST chains, each played in place of `intro` while this resonator stands in
    *  that position (`slotPosition()`). */
   intros: (Chain | null)[] = [null, null];
+  /** What compiling the written list threw: the loadout naming this rotation throws it under its
+   *  resonator's name (`Loadout`), which the list itself doesn't know. */
+  error: Error | null = null;
 
   constructor(actions: Action[]) {
+    try {
+      this.compile(actions);
+    } catch (e) {
+      this.error = e instanceof Error ? e : new Error(String(e));
+    }
+  }
+
+  private compile(actions: Action[]): void {
     // `intro@n` are the per-position chains' own phases
     let phase: "none" | "opener" | "double" | "intro" | "first" | "firstOpener" | `intro@${number}` = "none";
     const prefix: Action[] = [], loop: Action[] = [], dbl: Action[] = [], first: Action[] = [], firstPre: Action[] = [];
@@ -1357,6 +1421,14 @@ export class Rotation {
     while (entries.length) {
       const written = entries.shift()!;
       const [bare, step] = unstep(written);
+      // a written SWAP closes the chain open on the press before it, played out — the scheduler plays
+      // the swap itself, behind any wait for the next visit (a section keeps it as its last entry)
+      if (written === SWAP && !inStart.length) {
+        if (entries[0] && isOutro(unstep(entries[0])[0])) throw new Error("rotation: SWAP right before OUTRO — the Outro is the swap: write one or the other");
+        if (phase === "none" || !body()?.length) throw new Error("rotation: SWAP with no press before it in its chain");
+        close(SWAP_EXIT);
+        continue;
+      }
       // a marker that casts INTRO, cut (`INTRO_LAST.mashCancel()`), is that marker and the INTRO it casts, cut
       if (step && (bare === INTRO_OPENER || bare === DOUBLE_INTRO || introPosition(bare) >= 0)) {
         entries.unshift(bare, new CancelledStep(INTRO, step.kind));
@@ -1506,11 +1578,11 @@ const opensChain = (a: Action): boolean =>
   isIntro(a) || [NOINTRO, NOINTRO_OPENER, INTRO_OPENER, DOUBLE_INTRO, ...INTROS].includes(a);
 const unstep = (a: Action): [Action, CancelledStep | null] => (a instanceof CancelledStep ? [a.of, a] : [a, null]);
 
-/** Does this entry leave the field — a cast's `swap()` / `instaSwap()` form, the echo's, or a group
- *  ending on one? What closes a start-of-combat section. */
+/** Does this entry leave the field — a written SWAP, a cast's `swap()` / `instaSwap()` form, the
+ *  echo's, or a group ending on one? What closes a start-of-combat section. */
 function leavesField(a: Action): boolean {
   const last = a instanceof ActionGroup ? a.actions[a.actions.length - 1]! : a;
-  if (last === ECHO_SWAP_FORM || last === ECHO_INSTA_SWAP_FORM) return true;
+  if (last === SWAP || last === ECHO_SWAP_FORM || last === ECHO_INSTA_SWAP_FORM) return true;
   return (last.tag === ActionTag.SwapCancel || last.tag === ActionTag.InstaSwap || last.tag === ActionTag.MashSwap) && (last.formOf ?? last.cancelOf) !== null;
 }
 /** A swap form goes last in its chain or section, or right before its Outro — `list` as `who`
@@ -1800,7 +1872,7 @@ export function runRotations(state: State, rotations: Rotation[], count: number)
         ctx.handoffPending = false;
       }
     };
-    return chainGates(chain, into.resonator?.intro ? INTRO : null, resolve, [into.energy, into.concerto, ...into.forte], into.resonator?.maxForte ?? [0, 0, 0, 0, 0]);
+    return chainGates(chain, into.resonator?.intro ? INTRO : null, resolve, [into.energy, into.concerto, ...into.forte], into.resonator?.caps ?? NO_CAPS);
   };
   state.plannedGates = (to, visit) => planned(to, false, visit);
   state.handoffWaits = true;
@@ -1929,7 +2001,9 @@ export function runRotations(state: State, rotations: Rotation[], count: number)
     const last = opening[opening.length - 1]!;
     checkSwapOuts(state.slots[i]!.name, opening);
     const stays = next === i && leavesField(last);
-    const chain = stays ? [...opening.slice(0, -1), staysOnField(last)] : leavesField(last) ? [...opening, SWAP] : opening;
+    // ...a written SWAP its own swap, dropped where nobody is swapped to
+    const kept = last === SWAP ? [] : [staysOnField(last)];
+    const chain = stays ? [...opening.slice(0, -1), ...kept] : leavesField(last) && last !== SWAP ? [...opening, SWAP] : opening;
     out[section]!.push(...run(state, chain));
     state.active = next;
   }

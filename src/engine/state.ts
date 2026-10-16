@@ -35,10 +35,6 @@ export const EMPTY_HELD: HeldBuff[] = [];
 export const EMPTY_FORTE: [number, number, number, number, number] = [0, 0, 0, 0, 0];
 export const EMPTY_FIELDS: ActionField[] = [];
 
-/** A member's own RealEnergy ceiling — clamped to their resonator's own maxEnergy, floored at 0. */
-export const capEnergy = (member: TeamMember, value: number): number =>
-  Math.min(member.resonator?.maxEnergy ?? 0, Math.max(0, value));
-
 /**
  * `effective` is indexed by the stat itself: `Stat` and `EnemyStat` are numeric and share one index
  * space (stats.ts), so a contribution is one add in place with no lookup at all. `pushStat()`
@@ -69,10 +65,13 @@ export const SUBTYPE_CRIT_DMG_INDEX = STAT_COUNT + 3;
  *  only "deals N% more" / "takes N% more" a dot row reads, split off exactly as the amp above. */
 export const SUBTYPE_TOTAL_DMG_INDEX = STAT_COUNT + 4;
 export const SUBTYPE_DAMAGE_TAKEN_INDEX = STAT_COUNT + 5;
+/** Three more, ATK/HP/DEF in `Stat.Base*` order: the panel's shares, in points — every constant
+ *  ATK%/HP%/DEF% floored on its own off the panel base, which `pushStat()` writes in place of the %. */
+export const PANEL_INDEX = STAT_COUNT + 6;
 
 /** One stat row: every stat plus the split slots above, indexed by the stat itself. */
 export type StatRow = Float64Array;
-export const STAT_ROW_LENGTH = STAT_COUNT + 6;
+export const STAT_ROW_LENGTH = STAT_COUNT + 9;
 /** A fresh all-zero row. Untraced runs reuse each slot's rows, so only a traced run allocates per action. */
 export const statRow = (): StatRow => new Float64Array(STAT_ROW_LENGTH);
 /** What every action's own `effective` starts as; read-only. */
@@ -118,11 +117,18 @@ export interface VariantMemo {
   mv: number; out: number[] | null;
   /** The constant base the finished row was built on, and whether nothing was written ahead of it. */
   base: StatRow | null; zeroPre: boolean;
+  /** The variants it found banking a resource otherwise — flagged unsafe again on every run reusing it. */
+  unsafe: number[];
+  /** The real build's own average at `mv`, beside `out`. */
+  primary: number;
 }
 /** A cooldown-gated press of a visit, and how many frames after the handoff it comes up. */
 export interface VisitGate { cd: Cooldown; offset: number; press: string; use?: number }
 
 export interface MemberSnapshot { pool: PoolSnapshot; castHooks: Set<GlobalHook>; hitHooks: Set<GlobalHook>; forte: number[]; concerto: number }
+
+/** `Pool.own`'s bits: which roster arrays the pool may write in place. */
+const OWN_LIST = 1, OWN_COUNTS = 2, OWN_HOOKS = 4, OWN_GLOBAL = 8;
 
 /** The next free `Gear.poolIdx`. */
 let nextPoolIdx = 0;
@@ -194,15 +200,55 @@ class Pool {
 
   has(gear: Gear): boolean { return this.pos(gear) >= 0; }
 
-  /** Everything a dry run can move, by reference — the arrays are never written in place, and
-   *  `at`/`expires` are cloned before a ctx.guarded write ever touches them — for `restore()`. */
+  /** Which roster arrays nothing else holds, so a write may go in place: `list`, `counts`, the outer
+   *  `hooks`/`fns`, `globalHooks` (`OWN_*`), and per phase its own `hooks[p]`/`fns[p]` (`ownPhases`). */
+  private own = 0;
+  private ownPhases = 0;
+  /** The roster arrays are now held elsewhere (a phase's capture, a snapshot): the next write copies. */
+  share(): void {
+    this.own = 0;
+    this.ownPhases = 0;
+  }
+  /** `globalHooks` alone is held elsewhere (`runGlobals()` walking it). */
+  shareGlobals(): void { this.own &= ~OWN_GLOBAL; }
+  private ownCounts(): number[] {
+    if (!(this.own & OWN_COUNTS)) {
+      this.counts = this.counts.slice();
+      this.own |= OWN_COUNTS;
+    }
+    return this.counts;
+  }
+  /** Phase `p`'s pair, made this pool's own first where it is held elsewhere. */
+  private ownPhase(p: number): void {
+    if (!(this.own & OWN_HOOKS)) {
+      this.hooks = this.hooks.slice();
+      this.fns = this.fns.slice();
+      this.own |= OWN_HOOKS;
+    }
+    if (this.ownPhases & (1 << p)) return;
+    this.hooks[p] = this.hooks[p]!.slice();
+    this.fns[p] = this.fns[p]!.slice();
+    this.ownPhases |= 1 << p;
+  }
+  private ownGlobals(): GlobalHook[] {
+    if (!(this.own & OWN_GLOBAL)) {
+      this.globalHooks = this.globalHooks.slice();
+      this.own |= OWN_GLOBAL;
+    }
+    return this.globalHooks;
+  }
+
+  /** Everything a dry run can move, by reference — the roster arrays are copied before a write once
+   *  shared, and `at`/`expires` cloned before a ctx.guarded write ever touches them — for `restore()`. */
   snapshotInto(s: PoolSnapshot): void {
+    this.share();
     s.list = this.list; s.counts = this.counts; s.hooks = this.hooks; s.phases = this.phases; s.fns = this.fns; s.globalHooks = this.globalHooks; s.at = this.at; s.dead = this.dead;
     s.expires = this.expires; s.nextExpiry = this.nextExpiry;
     s.progress = this.progress; s.ticks = this.ticks; s.ticking = this.ticking;
   }
   restore(s: PoolSnapshot): void {
     this.list = s.list; this.counts = s.counts; this.hooks = s.hooks; this.phases = s.phases; this.fns = s.fns; this.globalHooks = s.globalHooks; this.at = s.at; this.dead = s.dead;
+    this.share();
     ctx.poolVersion++;
     this.expires = s.expires; this.nextExpiry = s.nextExpiry;
     this.progress = s.progress; this.ticks = s.ticks; this.ticking = s.ticking;
@@ -349,9 +395,7 @@ class Pool {
   set(gear: Gear, n: number, refresh = true): void {
     const i = this.pos(gear);
     if (i >= 0) {
-      const counts = this.counts.slice();
-      counts[i] = n;
-      this.counts = counts;
+      this.ownCounts()[i] = n;
       ctx.poolVersion++;
       if (refresh) this.stamp(i, gear);
       return;
@@ -359,9 +403,14 @@ class Pool {
     const k = this.list.length;
     const w = this.write(gear);
     this.at[w] = k + 1;
-    const list = this.list.slice(), counts = this.counts.slice();
-    list.push(gear); counts.push(n);
-    this.list = list; this.counts = counts;
+    if (!(this.own & OWN_LIST)) {
+      this.list = this.list.slice();
+      this.own |= OWN_LIST;
+    }
+    this.list.push(gear);
+    this.ownCounts().push(n);
+    // the clocks' index is rebuilt off `list`, which may have grown in place
+    this.tickFor = null;
     ctx.poolVersion++;
     this.writeExpiry(k);
     this.expires[k] = 0;
@@ -369,20 +418,15 @@ class Pool {
     this.progress[k] = 0; this.ticks[k] = 0;
     this.stamp(k, gear);
     if (gear.hookMask) {
-      const hooks = this.hooks.slice(), fns = this.fns.slice();
       for (let mask = gear.hookMask, p = 0; mask; mask >>= 1, p++) {
         if (!(mask & 1)) continue;
-        const phase = hooks[p]!.slice(), fn = fns[p]!.slice();
-        phase.push(k);
-        fn.push(gear.hookFns[p]!);
-        hooks[p] = phase;
-        fns[p] = fn;
+        this.ownPhase(p);
+        this.hooks[p]!.push(k);
+        this.fns[p]!.push(gear.hookFns[p]!);
       }
-      this.hooks = hooks;
-      this.fns = fns;
       this.phases |= gear.hookMask;
     }
-    if (gear.globalEntry) this.globalHooks = [...this.globalHooks, gear.globalEntry];
+    if (gear.globalEntry) this.ownGlobals().push(gear.globalEntry);
     if (gear.constantStatsFn) ctx.constVersion++;
     if (gear.tickFn) this.ticking++;
   }
@@ -394,19 +438,22 @@ class Pool {
     if (gear.constantStatsFn) ctx.constVersion++;
     if (gear.tickFn) this.ticking--;
     if (gear.hookMask) {
-      const hooks = this.hooks.slice(), fns = this.fns.slice();
       for (let mask = gear.hookMask, p = 0; mask; mask >>= 1, p++) {
         if (!(mask & 1)) continue;
-        const at = hooks[p]!.indexOf(i);
-        hooks[p] = hooks[p]!.filter((_, n) => n !== at);
-        fns[p] = fns[p]!.filter((_, n) => n !== at);
-        if (!hooks[p]!.length) this.phases &= ~(1 << p);
+        this.ownPhase(p);
+        const hooks = this.hooks[p]!, at = hooks.indexOf(i);
+        if (at >= 0) {
+          removeAt(hooks, at);
+          removeAt(this.fns[p]!, at);
+        }
+        if (!hooks.length) this.phases &= ~(1 << p);
       }
-      this.hooks = hooks;
-      this.fns = fns;
       ctx.poolVersion++;
     }
-    if (gear.globalEntry) this.globalHooks = this.globalHooks.filter((g) => g !== gear.globalEntry);
+    if (gear.globalEntry) {
+      const hooks = this.ownGlobals(), at = hooks.indexOf(gear.globalEntry);
+      if (at >= 0) removeAt(hooks, at);
+    }
     // rarely: the dead cost nothing but their slot, so this only bounds how far `list` outgrows
     // the ~20 live entries it describes
     if (++this.dead > 32) this.compact();
@@ -434,10 +481,36 @@ class Pool {
     }
     // a fresh array, never the snapshot's: under a guard the old one is what `restore()` hands back
     this.list = list; this.counts = counts; this.hooks = hooks; this.phases = phases; this.fns = fns; this.dead = 0;
+    // all fresh, but `globalHooks`, which compacting leaves as it was
+    this.own = OWN_LIST | OWN_COUNTS | OWN_HOOKS | (this.own & OWN_GLOBAL);
+    this.ownPhases = (1 << PHASE_COUNT) - 1;
     ctx.poolVersion++;
     this.expires = expires; this.expiresCloned = true;
     this.progress = progress; this.ticks = ticks; this.ticksCloned = true;
   }
+}
+
+/** `planned` brought `bank` frames sooner, none before the handoff. */
+function sooner(planned: readonly VisitGate[], bank: number): VisitGate[] {
+  return planned.map((g) => ({ ...g, offset: g.offset - Math.min(bank, g.offset) }));
+}
+/** `learned`, then each planned gate on a cooldown it never used. */
+function withUnlearned(learned: readonly VisitGate[], planned: readonly VisitGate[]): VisitGate[] {
+  const out = [...learned];
+  for (const g of planned) if (!learned.some((l) => l.cd === g.cd)) out.push(g);
+  return out;
+}
+
+/** `list` less its entry at `at`, in place — `splice` would allocate the one it drops. */
+function removeAt<T>(list: T[], at: number): void {
+  for (let n = at + 1; n < list.length; n++) list[n - 1] = list[n]!;
+  list.length--;
+}
+
+/** The gate of `list` for `press`'s `use`th reach of it, if any. */
+function gateOf(list: readonly VisitGate[], press: string, use: number): VisitGate | undefined {
+  for (const g of list) if (g.press === press && g.use === use) return g;
+  return undefined;
 }
 
 /** Where every Gear's mutable facts actually live — never on the Gear itself. */
@@ -454,6 +527,10 @@ export class TeamMember {
    *  scanning this member's whole held set every time an ECHO_* marker comes up (see
    *  `run()`). Set once at team setup, like `resonator` above. */
   mainslot: Mainslot | null = null;
+  /** The resonator's own Base ATK/HP/DEF and the weapon's, kept apart for the panel base
+   *  (`floor(character) + weapon`) every constant % is floored off. Set by `equip()`. */
+  charBase: [number, number, number] = [0, 0, 0];
+  weaponBase: [number, number, number] = [0, 0, 0];
   /** Generic forte gauges — a resonator assigns its own meaning onto whichever fits its kit
    *  (Jingran's Qi is forte 1, his Mingfire is forte 2). Real numeric bars, not stacking Buffs:
    *  nothing here caps at a Buff's own maxStacks, and there's no revoke-at-0 — a kit clamps its
@@ -461,7 +538,8 @@ export class TeamMember {
    *  Resource.Forte1-5. */
   forte: [number, number, number, number, number] = [0, 0, 0, 0, 0];
   /** Running totals, banked automatically by evaluate() itself off each press and whatever its
-   *  hooks added (`addGain()`) — no kit ever writes to these directly, the same way none writes `forte`. */
+   *  hooks added (`addGain()`) — no kit ever writes to these directly, the same way none writes
+   *  `forte`. Energy starts the fight full (Resonator's own combatStart). */
   energy = 0;
   concerto = 0;
   /** Per cooldown this member has drawn on: the charges standing, and the frame the next one comes
@@ -492,38 +570,35 @@ export class TeamMember {
   /** How many times this visit has reached each gated press so far. */
   private gateUses = new Map<string, number>();
   private gatePrev: VisitGate[] = [];
-  /** A second, parallel energy counter for the ER-requirement estimate (the detail page's own
-   *  Energy Requirements table) — unlike `energy` above, it starts a fight already filled (set to
-   *  `maxEnergy` by Resonator's own combatStart) and only resets on a `resetEnergy`-marked
-   *  Liberation cast, not on every outro. Same gain (and the same maxEnergy ceiling) as `energy`,
-   *  plus half of every *other* member's own gain (see `evaluate()`). */
-  realEnergy = 0;
-  /** The running window feeding the ER requirement (teamrun.ts's `erRollsFor`): what this member
-   *  has banked since their last Liberation at the flat 100% the engine banks at, and the same
-   *  gains weighted by the ER they were actually taken at. ER never multiplies `energyGain`, so
-   *  the requirement is solved for afterwards rather than measured — which is also why it does not
-   *  move when the spread's own ER rolls do. */
-  erGain = 0;
-  erGainEr = 0;
-  /** ...and the flat gains in it (`addGain()`), which ER never scales. */
-  erFlat = 0;
-  /** The last closed window: the bar coming into that Liberation, and the two sums above as it
-   *  stood. The last one, not any one — the fight is opener plus three loops off one continuous
-   *  bar, so only the final loop is steady state. */
-  erBefore = 0;
+  /** The running record the ER requirement is solved off (evaluate.ts's `erWindow`): the open
+   *  window's gains — what the constant ER scales (`erA`: the hits' own and teammates' halves, at
+   *  100%) and the rest (`erB`: the ER buffs' share, flat gains) — and each closed one as `[erA, erB, a, b]`,
+   *  `a`/`b` the same split of the step that may have spent the bar. Solved for rather than measured
+   *  off the bar, so the requirement does not move with the spread's own ER rolls. */
   erA = 0;
-  erG = 0;
-  /** How many `resetEnergy` Liberations this member has cast: the opening one is handed a full bar
-   *  by combatStart, so it sets no requirement and opens the first real window instead. */
-  libCasts = 0;
+  erB = 0;
+  erWindows: number[] = [];
+  /** The same windows as the Energy Regen label breaks them down: this member's own hits at 100%
+   *  (`erHit`), their flat gains (`erFlat`), and each teammate's half by team position (`erGot`) —
+   *  the open one here, and each closed one in `erParts` beside its `erWindows` entry, the spending
+   *  step's own gains in and its spend apart. */
+  erHit = 0;
+  erFlat = 0;
+  erGot: number[] = [];
+  erParts: { hit: number; flat: number; got: number[]; spend: number }[] = [];
   /** The constant ER this build actually wears, stamped after equipping. A Liberation that needs
    *  more than this is one the bar never filled, and `runTeam` re-equips rather than finish a run
    *  on a build that cannot cast what its rotation lists. */
   constEr = 0;
-  /** The largest requirement any of this member's Liberations has asked for so far — the opener's
-   *  included, since a cast the build cannot pay for is wrong wherever in the fight it falls. */
+  /** The constant ER a traced run's Energy column reads at — the requirement exactly, set by
+   *  teamrun.ts's `runTeamInner` — and that bar, banked beside `energy` the same way with only the
+   *  constant ER's share differing. -1: the column reads `energy` itself. */
+  shownEr = -1;
+  shownEnergy = 0;
+  /** The largest requirement any of this member's energy spends has asked for so far — the
+   *  opener's included, since a cast the build cannot pay for is wrong wherever in the fight it falls. */
   erWorst = 0;
-  /** Every requirement this member's Liberations asked for, in order (`erWorst` is their largest):
+  /** The requirement as each energy spend left it, in order (`erWorst` is their largest):
    *  what `deriveRun` checks another constant ER against, which a constant shift leaves unmoved. */
   erWants: number[] = [];
   /** Whether a Liberation short of its bar should abandon the run for this member — set only while
@@ -569,6 +644,11 @@ export class TeamMember {
    *  `ctx.constVersion` moves on. */
   constBase = new Map<number, StatRow>();
   constBaseVersion = -1;
+  /** The last tag word's `constBase` and `variantAt` entries, read ahead of the maps (-1: none). */
+  lastBaseTag = -1;
+  lastBase: StatRow | null = null;
+  lastAtTag = -1;
+  lastAt: VariantAt | null = null;
   /** Builds re-scored on every action alongside this member's own (`evaluate()`), each as the
    *  constant-stat pieces it wears in place of the build's: a main stat, a set's 2pc, the substat tier
    *  its ER puts it on. Nothing else in the fight changes, such a piece only ever feeding its wearer. */
@@ -579,6 +659,9 @@ export class TeamMember {
   variantAt = new Map<number, VariantAt>();
   /** The pieces the variants swap, by id (`variantBasesOf()`); null until read. */
   variantKey: string | null = null;
+  /** The roster cache's table of this slot's variants by tag word (`variantBasesOf()`), and whose. */
+  variantRoster: object | null = null;
+  variantTable: Map<number, VariantAt> | null = null;
   /** Set per variant when its dry re-run would have changed the fight — a mutation the real build
    *  didn't make, or a resource stat that banks differently — so its scores can't be trusted and
    *  the solver runs it for real instead. */
@@ -602,7 +685,7 @@ export class TeamMember {
    * (`applySelf(BUFF, 1)` every action, the commonest shape there is) would otherwise copy the
    * counts for nothing on most actions. */
   addStack(gear: Gear, n = 1): number {
-    noteMutation(gear.id, n);
+    noteMutation(gear.engineId, n);
     if (!ctx.dryRun) recordApplied(gear, n);
     const next = Math.min(gear.maxStacks, this.stacksOf(gear) + n);
     // held-at-`next` already, so the pool is what it would be written to — the grant still
@@ -613,7 +696,7 @@ export class TeamMember {
     return next;
   }
   removeStack(gear: Gear, n = 1): number {
-    noteMutation(gear.id, -n);
+    noteMutation(gear.engineId, -n);
     const next = Math.max(0, this.stacksOf(gear) - n);
     if (next === 0) {
       if (!this.stacks.has(gear)) return 0;
@@ -627,7 +710,7 @@ export class TeamMember {
     return next;
   }
   setStacks(gear: Gear, n: number): number {
-    noteMutation(gear.id, 1e6 + n);
+    noteMutation(gear.engineId, 1e6 + n);
     if (!ctx.dryRun) recordApplied(gear, n - this.stacksOf(gear));
     const next = Math.max(0, Math.min(gear.maxStacks, n));
     if (next === 0) {
@@ -643,7 +726,7 @@ export class TeamMember {
     return next;
   }
   revoke(gear: Gear): void {
-    noteMutation(gear.id, -1e6);
+    noteMutation(gear.engineId, -1e6);
     if (!this.stacks.has(gear)) return;
     this.stacks.delete(gear);
     for (const d of gear.lostWithThis) this.revoke(d);
@@ -723,7 +806,7 @@ export class TeamMember {
     const use = (this.gateUses.get(press) ?? 0) + 1;
     this.gateUses.set(press, use);
     const offset = now - this.handoffAt;
-    const before = this.gatePrev.find((g) => g.press === press && g.use === use);
+    const before = gateOf(this.gatePrev, press, use);
     const drift = !!before && Math.abs(offset - before.offset) <= 10;
     this.gates.get(this.handoffKey)!.push({ cd, offset: drift ? Math.min(offset, before!.offset) : offset, press, use });
   }
@@ -735,12 +818,12 @@ export class TeamMember {
     // time stop still standing into the visit (`bank` real frames) stands the game timer still
     // through its first presses, bringing every planned press that much sooner (a learned one
     // already played through its own)
-    if (planned && bank) planned = planned.map((g) => ({ ...g, offset: g.offset - Math.min(bank, g.offset) }));
+    if (planned && bank) planned = sooner(planned, bank);
     // a visit not seen from this handoff yet goes by its own presses' frames (`chainGates`), and
     // a cooldown the last one never used goes by them too
     const learned = from ? this.gates.get(from) : undefined;
     const gates = !learned ? planned : !planned ? learned
-      : [...learned, ...planned.filter((g) => !learned.some((l) => l.cd === g.cd))];
+      : withUnlearned(learned, planned);
     if (!gates?.length) return null;
     const uses = new Map<Cooldown, VisitGate[]>();
     for (const g of gates) {
@@ -1124,7 +1207,7 @@ export class State {
 
   stacksOfGlobal(gear: Gear): number { return this.globalStacks.get(gear) ?? 0; }
   addStackGlobal(gear: Gear, n = 1): number {
-    noteMutation(gear.id, n);
+    noteMutation(gear.engineId, n);
     const next = Math.min(gear.maxStacks, this.stacksOfGlobal(gear) + n);
     if (!ctx.dryRun) recordApplied(gear, n);
     if (this.globalStacks.get(gear) === next) { this.globalStacks.touch(gear); return next; }
@@ -1132,7 +1215,7 @@ export class State {
     return next;
   }
   removeStackGlobal(gear: Gear, n = 1): number {
-    noteMutation(gear.id, -n);
+    noteMutation(gear.engineId, -n);
     const next = Math.max(0, this.stacksOfGlobal(gear) - n);
     if (next === 0) {
       if (!this.globalStacks.has(gear)) return 0;
@@ -1145,7 +1228,7 @@ export class State {
     return next;
   }
   revokeGlobal(gear: Gear): void {
-    noteMutation(gear.id, -1e6);
+    noteMutation(gear.engineId, -1e6);
     if (!this.globalStacks.has(gear)) return;
     this.globalStacks.delete(gear);
     for (const d of gear.lostWithThis) this.revokeGlobal(d);
@@ -1154,7 +1237,7 @@ export class State {
   stacksOfEnemy(gear: Gear): number { return this.enemyStacks.get(gear) ?? 0; }
   enemyMax(gear: Gear): number { return gear.maxStacks + (this.enemyMaxIncrease.get(gear) ?? 0); }
   increaseMaxEnemy(gear: Gear, n: number, source: string): void {
-    noteMutation(gear.id, 2e6 + n);
+    noteMutation(gear.engineId, 2e6 + n);
     if (ctx.dryRun) return;
     let sources = this.enemyMaxSources.get(gear);
     if (!sources) this.enemyMaxSources.set(gear, (sources = new Set()));
@@ -1163,7 +1246,7 @@ export class State {
     this.enemyMaxIncrease.set(gear, (this.enemyMaxIncrease.get(gear) ?? 0) + n);
   }
   addStackEnemy(gear: Gear, n = 1): number {
-    noteMutation(gear.id, n);
+    noteMutation(gear.engineId, n);
     const next = Math.min(this.enemyMax(gear), this.stacksOfEnemy(gear) + n);
     if (!ctx.dryRun) recordApplied(gear, n);
     if (this.enemyStacks.get(gear) === next) { this.enemyStacks.touch(gear); return next; }
@@ -1171,7 +1254,7 @@ export class State {
     return next;
   }
   removeStackEnemy(gear: Gear, n = 1): number {
-    noteMutation(gear.id, -n);
+    noteMutation(gear.engineId, -n);
     const next = Math.max(0, this.stacksOfEnemy(gear) - n);
     if (next === 0) {
       if (!this.enemyStacks.has(gear)) return 0;
@@ -1184,7 +1267,7 @@ export class State {
     return next;
   }
   revokeEnemy(gear: Gear): void {
-    noteMutation(gear.id, -1e6);
+    noteMutation(gear.engineId, -1e6);
     if (!this.enemyStacks.has(gear)) return;
     this.enemyStacks.delete(gear);
     for (const d of gear.lostWithThis) this.revokeEnemy(d);
@@ -1227,12 +1310,18 @@ export class State {
     this.collectTicks(this.globalStacks, acting, null, a, b, motionStop, presser, TICKS_DUE);
     this.collectTicks(this.enemyStacks, acting, null, a, b, motionStop, presser, TICKS_DUE);
     if (TICKS_DUE.length) {
-      for (const { gear, n, at, slot } of TICKS_DUE.splice(0)) {
-        ctx.slot = slot;
-        ctx.buff = gear;
-        ctx.stacks = -1;
-        ctx.tickAt = realA + at - a;
-        gear.tickFn!(n);
+      // a fire never collects more, so the list is walked as it stands and emptied after
+      try {
+        for (let i = 0; i < TICKS_DUE.length; i++) {
+          const { gear, n, at, slot } = TICKS_DUE[i]!;
+          ctx.slot = slot;
+          ctx.buff = gear;
+          ctx.stacks = -1;
+          ctx.tickAt = realA + at - a;
+          gear.tickFn!(n);
+        }
+      } finally {
+        TICKS_DUE.length = 0;
       }
     }
     ctx.tickAt = null;

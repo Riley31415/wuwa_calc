@@ -4,9 +4,9 @@
  * per element rather than generic, so a mismatched slot doesn't silently pay full price.
  */
 import { Buff } from "../engine/gear.js";
-import { addStat } from "../engine/context.js";
+import type { StatLine } from "../engine/gear.js";
 import { Stat, Attribute, scopedStat, statLabel, STAT_NAME, TAG_NAME } from "../engine/stats.js";
-import type { StatKey, Tag } from "../engine/stats.js";
+import type { Tag } from "../engine/stats.js";
 
 /** Every main stat an echo can roll, one entry per stat *and* cost — ATK/HP/DEF exist at every
  *  cost, crit only at 4, ER and an element only at 3, and no physical 3-cost exists in-game. */
@@ -43,7 +43,10 @@ const SECONDARY: Record<number, readonly [Stat, number]> =
   { 4: [Stat.FlatAtk, 150], 3: [Stat.FlatAtk, 100], 1: [Stat.FlatHp, 2280] };
 
 /** The enum runs cost-major, so where a key sits in it is what it costs. */
-const costOf = (key: Mainstat): number => (key <= Mainstat.DEF4 ? 4 : key <= Mainstat.Havoc3 ? 3 : 1);
+export const costOf = (key: Mainstat): number => (key <= Mainstat.DEF4 ? 4 : key <= Mainstat.Havoc3 ? 3 : 1);
+
+/** What one echo rolling `key` wears for it: its main stat and the secondary its cost decides. */
+export const mainLines = (key: Mainstat): StatLine[] => [MAIN[key], SECONDARY[costOf(key)]!];
 
 /** How one echo reads in a build's name: the stat as it's named everywhere else, or just the
  *  element for a 3-cost that rolls one. The percent sign goes — every main stat here is one — and
@@ -57,21 +60,17 @@ const label = (key: Mainstat): string => {
   return costOf(key) === 1 ? word.toLowerCase() : word;
 };
 
-/** Each echo of a build as a buff of its own — named for its cost and main stat ("4C Crit Rate",
- *  "3C Fusion Dmg Bonus") and carrying the two stats that echo actually wears, its main and the
- *  secondary its cost decides. Never equipped and never evaluated: the piece's own `constantStats`
- *  is what the fight reads, and these exist so the loadout hover can list a build echo by echo
- *  rather than as five collapsed totals. Five buffs, ten stat lines. */
-const SLOT_BUFFS = new WeakMap<Buff, Buff[]>();
-export const mainstatSlotBuffs = (piece: Buff): Buff[] => SLOT_BUFFS.get(piece) ?? [];
-const slotBuffOf = (key: Mainstat): Buff => {
+/** How one echo's main stat reads: its cost and stat ("4C Crit Rate", "3C Fusion Dmg Bonus"). */
+export const slotName = (key: Mainstat): string => {
   const [stat, , tag] = MAIN[key];
-  const cost = costOf(key);
-  return new Buff({
-    name: `${cost}C ${statLabel(tag ? scopedStat(tag, stat) : stat)}`,
-    stats: [MAIN[key], SECONDARY[cost]!],
-  });
+  return `${costOf(key)}C ${statLabel(tag ? scopedStat(tag, stat) : stat)}`;
 };
+
+/** Each echo of a build as a buff of its own, carrying the two stats that echo wears for its main
+ *  stat. Never equipped and never evaluated: echoes.ts's echo pieces are what the fight reads, and
+ *  these exist so the loadout hover can list a build echo by echo. Five buffs, ten stat lines. */
+const SLOT_BUFFS = new WeakMap<MainstatBuild, Buff[]>();
+export const mainstatSlotBuffs = (build: MainstatBuild): Buff[] => SLOT_BUFFS.get(build) ?? [];
 
 /** Where a 43311 build sits among the ones the solver may prune (solver.ts's `scoreMainstatsRun`):
  *  a crit 4-cost and 3-costs of ATK or one element only. There the 4-cost only moves crit, which the
@@ -87,8 +86,8 @@ export interface CritLine {
   /** The 1-costs, which are never pruned across. */
   ones: string;
 }
-const CRIT_LINES = new WeakMap<Buff, CritLine>();
-export const critLineOf = (piece: Buff): CritLine | undefined => CRIT_LINES.get(piece);
+const CRIT_LINES = new WeakMap<MainstatBuild, CritLine>();
+export const critLineOf = (build: MainstatBuild): CritLine | undefined => CRIT_LINES.get(build);
 
 const critLine = (slots: Mainstat[]): CritLine | undefined => {
   if (slots.map(costOf).join("") !== "43311") return undefined;
@@ -104,41 +103,29 @@ const critLine = (slots: Mainstat[]): CritLine | undefined => {
 /** Five echoes to a build, cost capped at twelve. */
 const SLOTS = 5, COST_CAP = 12;
 
+/** One main-stat build: the five echoes' main stats, highest cost first — the order echoes.ts deals
+ *  them out in. Not gear itself; echoes.ts builds the five echoes that wear it. */
+export class MainstatBuild {
+  constructor(readonly name: string, readonly slots: readonly Mainstat[]) {}
+}
+
 /**
  * Define one main-stat build from its five echoes in any order, e.g. `mainstats(CR4, CD4, ATK1,
- * ATK1, ATK1)` for 44111 double-crit. Returns the `Buff`. The name leads with the cost layout and
- * then names each stat highest cost first, since ATK/HP/DEF are legal at every cost.
+ * ATK1, ATK1)` for 44111 double-crit. The name leads with the cost layout and then names each stat
+ * highest cost first, since ATK/HP/DEF are legal at every cost.
  */
-export function mainstats(...slots: Mainstat[]): Buff {
+export function mainstats(...slots: Mainstat[]): MainstatBuild {
   slots = [...slots].sort((a, b) => costOf(b) - costOf(a));
   const spec = slots.map((key) => `${label(key)}${costOf(key)}`).join(" ");
   if (slots.length !== SLOTS) throw new Error(`mainstats(${spec}): ${slots.length} echoes, expected ${SLOTS}`);
   const cost = slots.reduce((n, key) => n + costOf(key), 0);
   if (cost > COST_CAP) throw new Error(`mainstats(${spec}): costs ${cost}, over the ${COST_CAP} cap`);
 
-  const totals = new Map<StatKey, { stat: Stat; tag: Tag | null; value: number }>();
-  const bump = (entry: MainEntry): void => {
-    const [stat, value, tag] = entry;
-    const key = tag ? scopedStat(tag, stat) : stat;
-    const seen = totals.get(key);
-    if (seen) seen.value += value;
-    else totals.set(key, { stat, tag: tag ?? null, value });
-  };
-  for (const key of slots) {
-    bump(MAIN[key]);
-    bump(SECONDARY[costOf(key)]!);
-  }
-
-  const entries = [...totals.values()];
-  const layout = slots.map(costOf).join("");
-  const piece = new Buff({
-    name: `${layout} ${slots.map(label).join(" ")}`,
-    constantStats: () => { for (const { stat, tag, value } of entries) addStat(stat, value, tag ?? undefined); },
-  });
-  SLOT_BUFFS.set(piece, slots.map(slotBuffOf));
+  const build = new MainstatBuild(`${slots.map(costOf).join("")} ${slots.map(label).join(" ")}`, slots);
+  SLOT_BUFFS.set(build, slots.map((key) => new Buff({ name: slotName(key), stats: mainLines(key) })));
   const line = critLine(slots);
-  if (line) CRIT_LINES.set(piece, line);
-  return piece;
+  if (line) CRIT_LINES.set(build, line);
+  return build;
 }
 
 /** Every unordered n-slot pick from `keys` — slots of one cost are interchangeable, so CR CD and
@@ -153,11 +140,11 @@ const multisets = <T>(keys: T[], n: number): T[][] =>
  * from the options of its own cost. A loadout names this rather than a single `mainstats()`
  * build; the comparison table runs every one of them (see index.ts's own combos).
  */
-export function mainstatOptions(...options: Mainstat[]): Buff[] {
+export function mainstatOptions(...options: Mainstat[]): MainstatBuild[] {
   const c4 = options.filter((key) => costOf(key) === 4);
   const c3 = options.filter((key) => costOf(key) === 3);
   const c1 = options.filter((key) => costOf(key) === 1);
-  const builds: Buff[] = [];
+  const builds: MainstatBuild[] = [];
   for (const four of c4) for (const three of multisets(c3, 2)) for (const one of multisets(c1, 2)) {
     builds.push(mainstats(four, ...three, ...one));
   }
@@ -187,7 +174,7 @@ const elements = (spec: Array<Mainstat | null>): Mainstat[][] =>
   spec.includes(null) ? ELEMENTS.map((e) => spec.map((key) => key ?? e)) : [spec as Mainstat[]];
 
 /** Every build worth comparing. A loadout doesn't read this; it's swept over to rank builds. */
-export const ALL_MAINSTATS: Buff[] = [];
+export const ALL_MAINSTATS: MainstatBuild[] = [];
 const build = (...slots: Mainstat[]): void => { ALL_MAINSTATS.push(mainstats(...slots)); };
 
 /** 43311 and 43111 — the layouts that spend the full cost budget. */
