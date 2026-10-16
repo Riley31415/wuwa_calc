@@ -14,6 +14,7 @@ import { hitsOf, erRollsFor } from "../solve/teamrun.js";
 import { ER_TOLERANCE } from "../shared/substats.js";
 import { results, detailFor, FALLBACK_HUE } from "./model.js";
 import { esc, lazyPop, rect, zoom, clearPops, popover, hitsPopover, infoPopover, buffsPopover, framesPopover, equippedGear, dprTable, loadoutTable, wireDistribution, drivePanel, dropPanel, holdPanels, copyBlock } from "./panels.js";
+import { HOLD, watchTouch, swallowClick, grabDot, makeDot } from "./cellpick.js";
 import { rememberTableScroll } from "./table.js";
 import { canPick } from "./pickmenu.js";
 
@@ -578,12 +579,20 @@ interface CellSel {
   r1: number;
   c0: number;
   c1: number;
+  /** Picked by a finger, which gives it the dot (`grabCellDot`). */
+  touch: boolean;
+  /** While the dot is dragged: the edges it sits on, and whether it is back on its own corner. */
+  dot?: [number, number];
+  empty?: boolean;
 }
+/** Where a press landed: the rows and columns it found and its own cell among them. */
+type CellAt = Pick<CellSel, "rows" | "cols" | "ar" | "ac">;
 
 /** The block of cells a press ran over — a reading marker like the singled-out column, and the
  *  same one: taking either takes the other off. */
 let cellSel: CellSel | null = null;
 let cellSelBox: HTMLElement | null = null;
+let cellSelDot: HTMLElement | null = null;
 /** Whether a press is down on the log, where its pointer last was in page px, and the page's own
  *  zoom as the press found it — read again on every report, it costs a look at the table's layout
  *  for each one, which is what a pointer handler must do least of. */
@@ -596,6 +605,8 @@ function clearBlock(): void {
   cellSel = null;
   cellSelBox?.remove();
   cellSelBox = null;
+  cellSelDot?.remove();
+  cellSelDot = null;
 }
 
 /** Where row `i` sits inside the grid, measured on the first ask and kept after (`span`). The
@@ -623,10 +634,89 @@ function aimBlock(sel: CellSel, row: number, col: number, gridTop: number): void
   const top = rowSpan(sel, sel.r0, gridTop)[0];
   const left = sel.cols[sel.c0]!.left;
   const box = cellSelBox ?? (cellSelBox = cellBox(sel.grid));
+  box.hidden = false;
   box.style.left = `${left}px`;
   box.style.top = `${top}px`;
   box.style.width = `${sel.cols[sel.c1]!.right - left}px`;
   box.style.height = `${rowSpan(sel, sel.r1, gridTop)[1] - top}px`;
+  paintCellDot(sel, gridTop);
+}
+
+/* Edges for the dot, inside the grid: row edge `r` is row `r`'s top, column edge `c` column `c`'s left,
+   the last of each the far side. */
+const edgeTop = (sel: CellSel, r: number, gridTop: number): number =>
+  (r < sel.rows.length ? rowSpan(sel, r, gridTop)[0] : rowSpan(sel, sel.rows.length - 1, gridTop)[1]);
+const edgeLeft = (sel: CellSel, c: number): number =>
+  (c < sel.cols.length ? sel.cols[c]!.left : sel.cols[sel.cols.length - 1]!.right);
+
+/** A finger's block wears its dot on the corner being dragged, the bottom-right at rest. */
+function paintCellDot(sel: CellSel, gridTop: number): void {
+  if (!sel.touch) return;
+  const dot = cellSelDot ?? (cellSelDot = makeDot(sel.grid, grabCellDot));
+  const [r, c] = sel.dot ?? [sel.r1 + 1, sel.c1 + 1];
+  dot.style.left = `${edgeLeft(sel, c)}px`;
+  dot.style.top = `${edgeTop(sel, r, gridTop)}px`;
+}
+
+/** The edges nearest page point `x`/`y`, walked from the last row reached as `trackBlock` walks. */
+function edgeAt(sel: CellSel, x: number, y: number): [number, number] {
+  const g = rect(sel.grid);
+  const at = y - g.top, n = sel.rows.length;
+  let r = Math.min(Math.max(sel.fr, 0), n);
+  while (r < n && edgeTop(sel, r + 1, g.top) <= at) r++;
+  while (r > 0 && edgeTop(sel, r, g.top) > at) r--;
+  if (r < n && edgeTop(sel, r + 1, g.top) - at < at - edgeTop(sel, r, g.top)) r++;
+  sel.fr = Math.min(r, n - 1);
+  let c = 0;
+  for (let k = 1; k <= sel.cols.length; k++) if (Math.abs(edgeLeft(sel, k) - (x - g.left)) < Math.abs(edgeLeft(sel, c) - (x - g.left))) c = k;
+  return [r, c];
+}
+
+/** The dot pressed: the corner follows the finger, and a block left empty is taken off on release. */
+function grabCellDot(e: PointerEvent): void {
+  const sel = cellSel;
+  if (!sel) return;
+  dropPanel();
+  // groups may have opened since: the block's rows are found again by element
+  const rows = [...sel.grid.querySelectorAll<HTMLElement>(".r")].filter((r) => r.offsetParent);
+  const r0 = rows.indexOf(sel.rows[sel.r0]!), r1 = rows.indexOf(sel.rows[sel.r1]!);
+  if (r0 < 0 || r1 < 0) {
+    clearBlock();
+    return;
+  }
+  Object.assign(sel, { rows, span: [], r0, r1, fr: r1 });
+  grabDot(e, {
+    grid: sel.grid,
+    corners: () => [[sel.r0, sel.c0], [sel.r1 + 1, sel.c1 + 1]],
+    edgeAt: (x, y) => edgeAt(sel, x, y),
+    aim: (from, to) => {
+      const gridTop = rect(sel.grid).top;
+      sel.dot = to;
+      sel.empty = from[0] === to[0] || from[1] === to[1];
+      if (sel.empty) {
+        if (cellSelBox) cellSelBox.hidden = true;
+        paintCellDot(sel, gridTop);
+        return;
+      }
+      sel.ar = Math.min(from[0], to[0]);
+      sel.ac = Math.min(from[1], to[1]);
+      aimBlock(sel, Math.max(from[0], to[0]) - 1, Math.max(from[1], to[1]) - 1, gridTop);
+      sel.fr = to[0];
+    },
+    done: (empty) => {
+      sel.dot = undefined;
+      sel.empty = false;
+      if (empty) {
+        clearBlock();
+        return;
+      }
+      const gridTop = rect(sel.grid).top;
+      paintCellDot(sel, gridTop);
+      // the sum rides the block's bottom-right cell
+      const html = sel.r0 === sel.r1 ? "" : blockPanel(sel);
+      if (html) drivePanel(sel.rows[sel.r1]!.children[sel.cols[sel.c1]!.nth]!, html);
+    },
+  });
 }
 
 /** The block's own cells, a row of them at a time. */
@@ -725,75 +815,18 @@ addEventListener("keydown", (e) => {
   copyBlock(blockCells(cellSel).map((row) => row.map(copyText)));
 });
 
-/**
- * Press and drag over the log to pick out a block of cells: any rectangle, any columns. The block
- * wears the same blue outline a singled-out column does, and stands from the press until the next
- * block or until a heading singles a column out instead — the two are the one marker, so starting
- * a block takes a singled-out column off outright.
- *
- * No panel opens while the press is down. A block reaching more than one avg cell, or more than
- * one of a member's resource cells, says what they come to (`blockPanel`), left up to be read once
- * the pointer comes up; any other block is the outline alone, and Ctrl+C is what reads it.
- *
- * A block already up is taken off by a plain click anywhere in the log, which does nothing else:
- * the cell it lands on is picked up only by a press that is held or dragged (`arming`), so the
- * click that clears the table does not open a panel or lay a new block down in the same stroke.
- *
- * Rows are re-read on every press rather than kept, since a group opening or a field summary
- * swapping changes which cells are on screen, and only those are picked up or added in.
- */
+/** Pick a block of log cells with the table's gestures (cellpick.ts): a click or tap opens the cell's
+ *  panel, a hold or drag is a block, whose sum (`blockPanel`) stands once the press lets go. */
 function wireCellSelect(root: HTMLElement): void {
   clearBlock();
   holding = false;
   const grid = root.querySelector<HTMLElement>(".gridwrap .grid");
   if (!grid) return;
+  /** When the mouse's press went down: a click or a hold. */
+  let pressedAt = 0;
 
-  /** A press made while a block already stood, waiting to find out which it is: held or dragged it
-   *  picks its own cell up, let go of it was the click that took the old block off and no more. */
-  let arming: { begin: () => void; timer: ReturnType<typeof setTimeout>; x: number; y: number } | null = null;
-  const HELD_AT = 250, MOVED_AT = 3;
-
-  /** Keep the click the press is about to end on from opening the cell's own panel: a reach across
-   *  the table, and the press that takes a block off, are presses on the log rather than clicks on
-   *  the one cell they happen to have landed on. `keepDefault` leaves the row itself to do what
-   *  the click would have done anyway — a group under the press still opens or closes, which the
-   *  reader taking a block off has no reason to be denied. A reach across the table is denied it:
-   *  the group it set out from would open out from under the block just drawn. */
-  const swallowClick = (keepDefault: boolean): void => {
-    const swallow = (e: Event): void => {
-      if (!keepDefault) e.preventDefault();
-      e.stopPropagation();
-    };
-    addEventListener("click", swallow, { capture: true, once: true });
-    setTimeout(() => removeEventListener("click", swallow, true), 0);
-  };
-
-  const end = (): void => {
-    flushTrack();
-    if (arming) {
-      clearTimeout(arming.timer);
-      arming = null;
-      holdPanels(false);
-      swallowClick(true);
-      return;
-    }
-    if (!holding) return;
-    holding = false;
-    holdPanels(false);
-    const sel = cellSel!;
-    if (sel.r0 === sel.r1 && sel.c0 === sel.c1) {
-      dropPanel();
-      return;
-    }
-    swallowClick(false);
-  };
-
-  grid.addEventListener("pointerdown", (e) => {
-    const cell = (e.target as HTMLElement).closest<HTMLElement>(".r:not(.head) > .c");
-    if (e.button !== 0 || holding || arming || !cell) return;
-    // a cut's tag box is a panel of its own, not the start of a block: left uncaptured, its click
-    // lands on the tag rather than the cell
-    if ((e.target as HTMLElement).closest(".ctag")) return;
+  /** The log's rows and columns as a press finds them (a group may have opened), and its cell among them. */
+  const measure = (cell: HTMLElement): CellAt | null => {
     const g = rect(grid);
     const cols = [...grid.querySelectorAll<HTMLElement>(":scope > .r.head > .c[data-col]")]
       .map((h, nth) => {
@@ -806,47 +839,64 @@ function wireCellSelect(root: HTMLElement): void {
     const rows = [...grid.querySelectorAll<HTMLElement>(".r")].filter((r) => r.offsetParent);
     const ar = rows.indexOf(row);
     const ac = cols.findIndex((c) => c.nth === [...row.children].indexOf(cell));
-    if (ar < 0 || ac < 0) return;
+    return ar < 0 || ac < 0 ? null : { rows, cols, ar, ac };
+  };
 
-    e.preventDefault();
-    cell.setPointerCapture(e.pointerId);
+  /** Pick the one cell `at` names, putting down any block or singled-out column. */
+  const pick = (at: CellAt, touch: boolean): void => {
     dropPanel();
-    holdPanels(true);
-    // the block and a singled-out column are the one marker: taking this one takes that one off
     selected = null;
     selBox?.remove();
     selBox = null;
+    clearBlock();
+    cellSel = { grid, ...at, span: [], fr: at.ar, r0: at.ar, r1: at.ar, c0: at.ac, c1: at.ac, touch };
+    aimBlock(cellSel, at.ar, at.ac, rect(grid).top);
+  };
+
+  const end = (): void => {
+    flushTrack();
+    if (!holding) return;
+    holding = false;
+    holdPanels(false);
+    const sel = cellSel!;
+    const one = sel.r0 === sel.r1 && sel.c0 === sel.c1;
+    // a quick press that stayed on its cell was a click: it opens the cell's panel
+    if (one && performance.now() - pressedAt < HOLD) {
+      dropPanel();
+      return;
+    }
+    // a hold or a drag: its click would open a panel over the sum, or the group it set out from
+    if (one) dropPanel();
+    swallowClick();
+  };
+
+  grid.addEventListener("pointerdown", (e) => {
+    const target = e.target as HTMLElement;
+    const cell = target.closest<HTMLElement>(".r:not(.head) > .c");
+    // a cut's tag box is a panel of its own, not the start of a block: left uncaptured, its click
+    // lands on the tag rather than the cell
+    if (e.button !== 0 || holding || !cell || target.closest(".ctag, .celldot")) return;
+    const at = measure(cell);
+    if (!at) return;
+    if (e.pointerType === "touch") {
+      watchTouch(e, cell, () => pick(at, true), () => pick(at, true));
+      return;
+    }
+    e.preventDefault();
+    cell.setPointerCapture(e.pointerId);
+    holdPanels(true);
     pressScale = zoom();
     px = e.clientX / pressScale;
     py = e.clientY / pressScale;
-
-    const begin = (): void => {
-      arming = null;
-      holding = true;
-      cellSel = { grid, rows, span: [], cols, ar, ac, fr: ar, r0: ar, r1: ar, c0: ac, c1: ac };
-      aimBlock(cellSel, ar, ac, rect(grid).top);
-    };
-    // a block already up is put down by this press before anything else, and the press has to
-    // stay down to pick a new one up in its place — a plain click on the log is how the reader
-    // takes a block off, and it would be no use if it laid another straight back down
-    if (!cellSel) {
-      begin();
-      return;
-    }
-    clearBlock();
-    arming = { begin, timer: setTimeout(begin, HELD_AT), x: px, y: py };
+    pressedAt = performance.now();
+    pick(at, false);
+    holding = true;
   });
 
   grid.addEventListener("pointermove", (e) => {
-    if (!holding && !arming) return;
+    if (!holding || e.pointerType === "touch") return;
     px = e.clientX / pressScale;
     py = e.clientY / pressScale;
-    if (arming) {
-      // a drag is as good as a hold: it is plainly a reach across the table, not a click
-      if (Math.abs(px - arming.x) < MOVED_AT && Math.abs(py - arming.y) < MOVED_AT) return;
-      clearTimeout(arming.timer);
-      arming.begin();
-    }
     queueTrack();
   });
 

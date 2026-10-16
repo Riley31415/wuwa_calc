@@ -32,6 +32,7 @@ import {
 import type { ResonatorFilter, OptionKind, TeamRow } from "./model.js";
 import type { SearchKind, SearchHit } from "./filterbar.js";
 import { esc, deferredPop, rect, zoom, clearPops, subsLabel, CLICK, dropPanel, holdPanels, copyBlock } from "./panels.js";
+import { HOLD, watchTouch, swallowClick, grabDot, makeDot } from "./cellpick.js";
 import type { CopyMode } from "./panels.js";
 
 const app = document.getElementById("app")!;
@@ -833,13 +834,16 @@ export function drawWindow(force = false, scrollTop?: number): void {
 
 /* ------------------------------------------------------------------------------ cell block */
 
-/** A block of cells pressed and dragged over, read by Ctrl+C. Rows are indexes into the sorted
- *  table (-1 the heading), since only a window of them is ever drawn; columns are grid tracks. */
-interface Block { ar: number; ac: number; r0: number; r1: number; c0: number; c1: number }
+/** A block of cells picked out: rows index the sorted table (-1 the heading), columns are tracks.
+ *  `touch` gives it the dot (cellpick.ts); `empty` while the dot sits on its own corner. */
+interface Block { ar: number; ac: number; r0: number; r1: number; c0: number; c1: number; touch: boolean; empty?: boolean }
 let block: Block | null = null;
 let blockBox: HTMLElement | null = null;
-/** The press that may yet become a block, and the pointer in page px. */
-let blockPress: { x: number; y: number; scale: number } | null = null;
+let blockDot: HTMLElement | null = null;
+/** The edges the dot sits on while it is dragged; null, the block's own bottom-right. */
+let dotAt: [number, number] | null = null;
+/** A mouse press that picked its cell: when, and whether it reached another — a click or a hold. */
+let blockPress: { at: number; scale: number; moved: boolean } | null = null;
 let blocking = false;
 let bx = 0, by = 0;
 /** The two copy buttons under a finished block (`showCopyMenu`). */
@@ -856,10 +860,22 @@ const rowTopOf = (i: number): number => i * rowHeight + tableView!.extra[i]! * l
 
 function clearBlock(): void {
   block = null;
+  dotAt = null;
   blockBox?.remove();
   blockBox = null;
+  blockDot?.remove();
+  blockDot = null;
   copyMenu?.remove();
   copyMenu = null;
+}
+
+/** The cell pressed, where a block can hold it: never Pin (the first track) or the rotation link (the last). */
+function pickable(target: Element): Element | null {
+  const cell = target.closest?.(".tgrid .c");
+  const row = cell?.parentElement;
+  if (!cell || !row) return null;
+  const at = [...row.children].indexOf(cell);
+  return at > 0 && at < row.children.length - 1 ? cell : null;
 }
 
 /** The row and track under page point `x`/`y`: the heading wherever it is pinned, else the row its
@@ -881,6 +897,28 @@ function blockCellAt(grid: HTMLElement, x: number, y: number): [number, number] 
   return [lo, col];
 }
 
+/** The row and track edges nearest page point `x`/`y` (cellpick.ts's `DotGrid`), from the heading's
+ *  top (-1, unpinned) to the last row's bottom, and from Pin's right to the rotation link's left. */
+function blockEdgeAt(grid: HTMLElement, x: number, y: number): [number, number] {
+  const heads = [...grid.querySelectorAll(".thead > .c")].map(rect);
+  const n = tableView!.sorted.length;
+  const at = y - rect(grid).top;
+  const edgeY = (e: number): number => (e < 0 ? 0 : heads[0]!.height + rowTopOf(e));
+  let lo = -1, hi = n;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (edgeY(mid) <= at) lo = mid;
+    else hi = mid - 1;
+  }
+  const row = lo < n && edgeY(lo + 1) - at < at - edgeY(lo) ? lo + 1 : lo;
+  let col = 1;
+  for (let c = 2; c < heads.length; c++) if (Math.abs(heads[c]!.left - x) < Math.abs(heads[col]!.left - x)) col = c;
+  return [row, col];
+}
+
+/** The copy buttons' gap (px) under the outline, as the hover panels', and the further drop past the dot. */
+const MENU_GAP = 4, DOT_CLEAR = 9;
+
 /** Draw the block's outline over its cells, inside the table's wrap — the grid itself is redrawn
  *  under every scroll window. The heading is outlined where it sits unpinned. */
 function paintBlock(): void {
@@ -894,15 +932,25 @@ function paintBlock(): void {
     blockBox = wrap.appendChild(document.createElement("div"));
     blockBox.className = "cellbox";
   }
-  const top = g.top - w.top + y(block.r0);
-  blockBox.style.left = `${heads[block.c0]!.left - w.left}px`;
-  blockBox.style.top = `${top}px`;
-  blockBox.style.width = `${heads[block.c1]!.right - heads[block.c0]!.left}px`;
-  blockBox.style.height = `${g.top - w.top + y(block.r1 + 1) - top}px`;
+  blockBox.hidden = !!block.empty;
+  if (!block.empty) {
+    const top = g.top - w.top + y(block.r0);
+    blockBox.style.left = `${heads[block.c0]!.left - w.left}px`;
+    blockBox.style.top = `${top}px`;
+    blockBox.style.width = `${heads[block.c1]!.right - heads[block.c0]!.left}px`;
+    blockBox.style.height = `${g.top - w.top + y(block.r1 + 1) - top}px`;
+  }
+  // the dot rides the corner being dragged, the bottom-right at rest
+  if (block.touch) {
+    if (!blockDot?.isConnected) blockDot = makeDot(wrap, grabBlockDot);
+    const [r, c] = dotAt ?? [block.r1 + 1, block.c1 + 1];
+    blockDot.style.left = `${heads[c]!.left - w.left}px`;
+    blockDot.style.top = `${g.top - w.top + y(r)}px`;
+  }
   // the copy buttons hang under the block's bottom edge, flush with its right one
   if (copyMenu) {
     copyMenu.style.left = `${heads[block.c1]!.right - w.left - copyMenu.offsetWidth}px`;
-    copyMenu.style.top = `${g.top - w.top + y(block.r1 + 1)}px`;
+    copyMenu.style.top = `${g.top - w.top + y(block.r1 + 1) + MENU_GAP + (block.touch ? DOT_CLEAR : 0)}px`;
   }
 }
 
@@ -912,7 +960,8 @@ function showCopyMenu(): void {
   const wrap = app.querySelector<HTMLElement>(".tcwrap");
   const tracks = app.querySelectorAll(".tgrid .thead > .c").length;
   // Pin is the first track and the rotation link the last, and neither is ever copied
-  if (!block || !wrap || block.c1 < 1 || block.c0 > tracks - 2) return;
+  if (!block || block.empty || !wrap || block.c1 < 1 || block.c0 > tracks - 2) return;
+  copyMenu?.remove();
   const item = (mode: CopyMode, label: string): string =>
     `<button type="button" class="ctxitem" data-copy="${mode}">${label}</button>`;
   copyMenu = wrap.appendChild(document.createElement("div"));
@@ -921,16 +970,10 @@ function showCopyMenu(): void {
   paintBlock();
 }
 
-function trackTableBlock(): void {
-  const grid = app.querySelector<HTMLElement>(".tgrid");
-  if (!blocking || !grid || !tableView?.sorted.length) return;
-  const [row, col] = blockCellAt(grid, bx, by);
-  if (!block) block = { ar: row, ac: col, r0: row, r1: row, c0: col, c1: col };
-  block.r0 = Math.min(block.ar, row);
-  block.r1 = Math.max(block.ar, row);
-  block.c0 = Math.min(block.ac, col);
-  block.c1 = Math.max(block.ac, col);
-  // a block over the Compare column measures it against its own bottom row, which reads 100%
+/** A block of rows over the Compare column measures it against its bottom row; one Compare cell's
+ *  own click sets the baseline itself. */
+function measureFromBlock(grid: HTMLElement): void {
+  if (!block || block.empty || block.r1 <= block.r0 || !tableView) return;
   const compare = [...grid.querySelectorAll(".thead > .c")].findIndex((c) => c.classList.contains("huehead"));
   const bottom = tableView.sorted[block.r1]?.[0];
   if (bottom && block.c0 <= compare && compare <= block.c1 && baselineTeam !== bottom) {
@@ -938,6 +981,19 @@ function trackTableBlock(): void {
     tableView.ranks = rankAll(tableView.sorted);
     drawWindow(true);
   }
+}
+
+function trackTableBlock(): void {
+  const grid = app.querySelector<HTMLElement>(".tgrid");
+  if (!blocking || !grid || !tableView?.sorted.length) return;
+  const [row, col] = blockCellAt(grid, bx, by);
+  if (!block) block = { ar: row, ac: col, r0: row, r1: row, c0: col, c1: col, touch: false };
+  if ((row !== block.ar || col !== block.ac) && blockPress) blockPress.moved = true;
+  block.r0 = Math.min(block.ar, row);
+  block.r1 = Math.max(block.ar, row);
+  block.c0 = Math.min(block.ac, col);
+  block.c1 = Math.max(block.ac, col);
+  measureFromBlock(grid);
   paintBlock();
 }
 
@@ -950,53 +1006,95 @@ const queueBlock = (): void => {
   });
 };
 
-/** A press anywhere takes the block off; one on the table that then moves a few px lays a new one
- *  down from where it landed, and the click it ends on is swallowed. A press that stays put is a
- *  plain click on its cell. */
-addEventListener("pointerdown", (e) => {
-  // a press on the copy buttons leaves the block they copy standing
-  if ((e.target as Element).closest?.(".copymenu")) return;
+/** Pick the cell a finger picked out (cellpick.ts's `watchTouch`), dot and all. */
+function pickTouched(row: number, col: number): void {
   clearBlock();
-  const cell = (e.target as Element).closest?.(".tgrid .c");
-  // ...and one anywhere in Pin's column (the first), its heading cell included, is only ever its click
-  const at = cell?.parentElement ? [...cell.parentElement.children].indexOf(cell) : -1;
-  if (e.button !== 0 || !cell || at <= 0) return;
+  block = { ar: row, ac: col, r0: row, r1: row, c0: col, c1: col, touch: true };
+  paintBlock();
+}
+
+/** The dot pressed: the corner follows the finger, and a block left empty is taken off on release. */
+function grabBlockDot(e: PointerEvent): void {
+  const grid = app.querySelector<HTMLElement>(".tgrid");
+  const held = block;
+  if (!grid || !held) return;
+  copyMenu?.remove();
+  copyMenu = null;
+  grabDot(e, {
+    grid,
+    corners: () => [[held.r0, held.c0], [held.r1 + 1, held.c1 + 1]],
+    edgeAt: (x, y) => blockEdgeAt(grid, x, y),
+    aim: (from, to) => {
+      const [r0, r1] = from[0] <= to[0] ? [from[0], to[0]] : [to[0], from[0]];
+      const [c0, c1] = from[1] <= to[1] ? [from[1], to[1]] : [to[1], from[1]];
+      dotAt = to;
+      block = { ar: r0, ac: c0, r0, r1: r1 - 1, c0, c1: c1 - 1, touch: true, empty: r0 === r1 || c0 === c1 };
+      paintBlock();
+    },
+    done: (empty) => {
+      dotAt = null;
+      if (empty) {
+        clearBlock();
+        return;
+      }
+      measureFromBlock(grid);
+      showCopyMenu();
+    },
+  });
+}
+
+/** A mouse picks its cell on the press: a quick release there is a click (its menu opens), a hold or
+ *  drag a block (copy buttons). A finger: tap = pick + menu, long press = pick + copy buttons. */
+addEventListener("pointerdown", (e) => {
+  const target = e.target as Element;
+  // the copy buttons and the dot work on the block standing
+  if (target.closest?.(".copymenu, .celldot")) return;
+  const cell = pickable(target);
+  const grid = app.querySelector<HTMLElement>(".tgrid");
+  if (e.pointerType === "touch") {
+    if (!cell || !grid || !tableView?.sorted.length) {
+      watchTouch(e, null, clearBlock);
+      return;
+    }
+    const scale = zoom();
+    const [row, col] = blockCellAt(grid, e.clientX / scale, e.clientY / scale);
+    watchTouch(e, cell, () => pickTouched(row, col), () => {
+      pickTouched(row, col);
+      showCopyMenu();
+    });
+    return;
+  }
+  clearBlock();
+  if (e.button !== 0 || !cell || !grid || !tableView?.sorted.length) return;
   const scale = zoom();
-  blockPress = { x: e.clientX / scale, y: e.clientY / scale, scale };
+  blockPress = { at: performance.now(), scale, moved: false };
+  [bx, by] = [e.clientX / scale, e.clientY / scale];
+  blocking = true;
+  dropPanel();
+  holdPanels(true);
+  trackTableBlock();
 });
 addEventListener("pointermove", (e) => {
-  if (!blockPress) return;
+  if (!blockPress || e.pointerType === "touch") return;
   bx = e.clientX / blockPress.scale;
   by = e.clientY / blockPress.scale;
-  if (!blocking) {
-    if (Math.abs(bx - blockPress.x) < 5 && Math.abs(by - blockPress.y) < 5) return;
-    blocking = true;
-    dropPanel();
-    holdPanels(true);
-    // the block's own corner is where the press landed, not where the drag was noticed
-    const grid = app.querySelector<HTMLElement>(".tgrid");
-    if (!grid || !tableView?.sorted.length) return;
-    const [row, col] = blockCellAt(grid, blockPress.x, blockPress.y);
-    block = { ar: row, ac: col, r0: row, r1: row, c0: col, c1: col };
-  }
   queueBlock();
 });
-const endBlockPress = (): void => {
-  blockPress = null;
-  if (!blocking) return;
-  blocking = false;
+const endBlockPress = (e: PointerEvent): void => {
+  const press = blockPress;
+  if (!press || e.pointerType === "touch") return;
   if (blockRaf) {
     cancelAnimationFrame(blockRaf);
     blockRaf = 0;
+    trackTableBlock();
   }
+  blockPress = null;
+  blocking = false;
   holdPanels(false);
+  // a quick press that never left its cell was a click: its click goes on
+  if (!press.moved && performance.now() - press.at < HOLD) return;
   showCopyMenu();
-  const swallow = (e: Event): void => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
-  addEventListener("click", swallow, { capture: true, once: true });
-  setTimeout(() => removeEventListener("click", swallow, true), 0);
+  swallowClick();
 };
 addEventListener("pointerup", endBlockPress);
 addEventListener("pointercancel", endBlockPress);

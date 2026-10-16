@@ -2208,7 +2208,7 @@ function statsPanel(stats, buffs, owner, slotHue, heading = "Stats", noStat = fa
     return "";
   return lazyPop(`<span class="pop gear"><table>` + (stats.length ? `<tr class="sec"><td colspan="${cols}">${esc(heading)}</td></tr>${stats.map(row).join("")}` : "") + (buffs.length ? `<tr class="sec"><td colspan="${cols}">Buffs</td></tr>${buffs.map(row).join("")}` : "") + `</table></span>`);
 }
-function loadoutTable(run, needs, pickable) {
+function loadoutTable(run, needs, pickable2) {
   const erRolls = erRollsFor(run.teamKey, run.members, run.combo);
   const builds = run.members.map((m, i) => ({ member: m, combo: run.combo[i], erRolls: erRolls[i], slot: i }));
   const slotHue = new Map([
@@ -2219,7 +2219,7 @@ function loadoutTable(run, needs, pickable) {
     const l = member2.loadout, r = l.resonator;
     return [r, r.talent, r.inherent1, r.inherent2, combo.matrix, l.mode, ...l.sequences.slice(0, combo.sequence)].filter((g) => g != null);
   };
-  const pick = (slot, kind) => pickable?.(slot, kind) ? ` data-pick="${kind}" data-slot="${slot}"` : "";
+  const pick = (slot, kind) => pickable2?.(slot, kind) ? ` data-pick="${kind}" data-slot="${slot}"` : "";
   const equipped = new Set(builds.flatMap(({ member: member2, combo, erRolls: n }) => member2.loadout.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs, n).flatMap((g) => g instanceof Echo ? [g, ...g.sources] : [g])));
   const head = `<div class="rtrow rthead"><div class="c lbl">Resonator</div>` + builds.map((b) => {
     const hover = resonatorPopover(run, kitOf(b), equipped, b.member.name, slotHue);
@@ -2304,7 +2304,7 @@ var drivePanel = (cell2, html) => driver?.show(cell2, html);
 var dropPanel = () => driver?.hide();
 var holdPanels = (on) => driver?.hold(on);
 function wireSourcePanels(root) {
-  const GAP = 4, EDGE = 6;
+  const GAP = 4, EDGE2 = 6;
   let open = null;
   let openHome = null;
   let pinned = false;
@@ -2327,13 +2327,13 @@ function wireSourcePanels(root) {
     const onTable = !!cell2.closest(".tcwrap");
     const natural = !onTable && cell2.classList.contains("num") ? c.right - p.width : c.left;
     const wrap = onTable ? null : cell2.closest(".gridwrap");
-    const tableLeft = wrap ? rect(wrap).left : EDGE;
-    const minLeft = Math.max(EDGE, tableLeft);
-    const left = Math.max(minLeft, Math.min(natural, winW - p.width - EDGE));
+    const tableLeft = wrap ? rect(wrap).left : EDGE2;
+    const minLeft = Math.max(EDGE2, tableLeft);
+    const left = Math.max(minLeft, Math.min(natural, winW - p.width - EDGE2));
     const above = c.top - p.height - GAP;
     const below = c.bottom + GAP;
-    const fitsBelow = below + p.height <= winH - EDGE;
-    const top = fitsBelow ? below : Math.max(EDGE, above);
+    const fitsBelow = below + p.height <= winH - EDGE2;
+    const top = fitsBelow ? below : Math.max(EDGE2, above);
     pop.style.left = `${left}px`;
     pop.style.top = `${top}px`;
     pop.style.visibility = "";
@@ -2799,6 +2799,145 @@ function wireDistribution(root) {
     body.innerHTML = distBody(distCells.get(key));
   });
   wireBarHover(body);
+}
+
+// dist/src/page/cellpick.js
+var HOLD = 500;
+var touching = false;
+addEventListener("pointerdown", (e) => {
+  touching = e.pointerType === "touch";
+}, true);
+addEventListener("contextmenu", (e) => {
+  if (!touching)
+    return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+}, true);
+function swallowClick(wait = 0) {
+  const swallow = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+  addEventListener("click", swallow, { capture: true, once: true });
+  setTimeout(() => removeEventListener("click", swallow, true), wait);
+}
+var watch = null;
+function watchTouch(e, cell2, tap, long = () => {
+}) {
+  if (watch?.event === e)
+    return;
+  if (watch)
+    clearTimeout(watch.timer);
+  const r = cell2?.getBoundingClientRect();
+  const w = {
+    event: e,
+    x: e.clientX,
+    y: e.clientY,
+    w: r?.width ?? 0,
+    h: r?.height ?? 0,
+    tap,
+    long,
+    fired: false,
+    scrolled: false,
+    timer: setTimeout(() => {
+      if (watch !== w)
+        return;
+      w.fired = true;
+      if (cell2)
+        w.long();
+    }, HOLD)
+  };
+  watch = w;
+}
+addEventListener("pointercancel", (e) => {
+  if (watch && e.pointerType === "touch")
+    watch.scrolled = true;
+}, true);
+addEventListener("touchmove", (e) => {
+  const t = e.touches[0];
+  if (!watch || watch.fired || !t)
+    return;
+  if (Math.abs(t.clientX - watch.x) <= watch.w && Math.abs(t.clientY - watch.y) <= watch.h)
+    return;
+  clearTimeout(watch.timer);
+  watch = null;
+}, { passive: true, capture: true });
+addEventListener("touchend", () => {
+  const w = watch;
+  if (!w)
+    return;
+  watch = null;
+  clearTimeout(w.timer);
+  if (w.fired)
+    swallowClick(600);
+  else if (!w.scrolled)
+    w.tap();
+}, true);
+function scrollerOf(el, axis) {
+  for (let at = el.parentElement; at; at = at.parentElement) {
+    const s = getComputedStyle(at);
+    const flow = axis === "x" ? s.overflowX : s.overflowY;
+    const room = axis === "x" ? at.scrollWidth > at.clientWidth : at.scrollHeight > at.clientHeight;
+    if (room && (flow === "auto" || flow === "scroll"))
+      return at;
+  }
+  return document.scrollingElement ?? document.documentElement;
+}
+var EDGE = 48;
+var STEP = 18;
+function grabDot(e, host) {
+  e.preventDefault();
+  e.stopPropagation();
+  e.target.setPointerCapture?.(e.pointerId);
+  const [from] = host.corners();
+  let cx = e.clientX, cy = e.clientY;
+  let to = host.corners()[1];
+  const sx = scrollerOf(host.grid, "x"), sy = scrollerOf(host.grid, "y");
+  const aim = () => {
+    const z = zoom();
+    to = host.edgeAt(cx / z, cy / z);
+    host.aim(from, to);
+  };
+  let raf = 0;
+  const roll = () => {
+    raf = 0;
+    const speed = (near) => near < EDGE ? Math.ceil(STEP * (1 - Math.max(0, near) / EDGE)) : 0;
+    const dx = speed(innerWidth - cx) - speed(cx), dy = speed(innerHeight - cy) - speed(cy);
+    if (!dx && !dy)
+      return;
+    sx.scrollLeft += dx;
+    sy.scrollTop += dy;
+    aim();
+    raf = requestAnimationFrame(roll);
+  };
+  const move = (m) => {
+    if (m.pointerId !== e.pointerId)
+      return;
+    [cx, cy] = [m.clientX, m.clientY];
+    aim();
+    if (!raf)
+      raf = requestAnimationFrame(roll);
+  };
+  const up = (u) => {
+    if (u.pointerId !== e.pointerId)
+      return;
+    removeEventListener("pointermove", move);
+    removeEventListener("pointerup", up);
+    removeEventListener("pointercancel", up);
+    if (raf)
+      cancelAnimationFrame(raf);
+    swallowClick(600);
+    host.done(to[0] === from[0] || to[1] === from[1]);
+  };
+  addEventListener("pointermove", move);
+  addEventListener("pointerup", up);
+  addEventListener("pointercancel", up);
+}
+function makeDot(parent, grab) {
+  const dot = parent.appendChild(document.createElement("div"));
+  dot.className = "celldot";
+  dot.addEventListener("pointerdown", grab);
+  return dot;
 }
 
 // dist/src/page/filterbar.js
@@ -3693,6 +3832,8 @@ function drawWindow(force = false, scrollTop) {
 }
 var block = null;
 var blockBox = null;
+var blockDot = null;
+var dotAt = null;
 var blockPress = null;
 var blocking = false;
 var bx = 0;
@@ -3708,10 +3849,21 @@ try {
 var rowTopOf = (i) => i * rowHeight + tableView.extra[i] * lineHeight;
 function clearBlock() {
   block = null;
+  dotAt = null;
   blockBox?.remove();
   blockBox = null;
+  blockDot?.remove();
+  blockDot = null;
   copyMenu?.remove();
   copyMenu = null;
+}
+function pickable(target) {
+  const cell2 = target.closest?.(".tgrid .c");
+  const row = cell2?.parentElement;
+  if (!cell2 || !row)
+    return null;
+  const at = [...row.children].indexOf(cell2);
+  return at > 0 && at < row.children.length - 1 ? cell2 : null;
 }
 function blockCellAt(grid, x, y) {
   const heads = [...grid.querySelectorAll(".thead > .c")].map(rect);
@@ -3732,6 +3884,28 @@ function blockCellAt(grid, x, y) {
   }
   return [lo, col];
 }
+function blockEdgeAt(grid, x, y) {
+  const heads = [...grid.querySelectorAll(".thead > .c")].map(rect);
+  const n = tableView.sorted.length;
+  const at = y - rect(grid).top;
+  const edgeY = (e) => e < 0 ? 0 : heads[0].height + rowTopOf(e);
+  let lo = -1, hi = n;
+  while (lo < hi) {
+    const mid = lo + hi + 1 >> 1;
+    if (edgeY(mid) <= at)
+      lo = mid;
+    else
+      hi = mid - 1;
+  }
+  const row = lo < n && edgeY(lo + 1) - at < at - edgeY(lo) ? lo + 1 : lo;
+  let col = 1;
+  for (let c = 2; c < heads.length; c++)
+    if (Math.abs(heads[c].left - x) < Math.abs(heads[col].left - x))
+      col = c;
+  return [row, col];
+}
+var MENU_GAP = 4;
+var DOT_CLEAR = 9;
 function paintBlock() {
   const wrap = app2.querySelector(".tcwrap");
   const grid = wrap?.querySelector(".tgrid");
@@ -3744,38 +3918,41 @@ function paintBlock() {
     blockBox = wrap.appendChild(document.createElement("div"));
     blockBox.className = "cellbox";
   }
-  const top = g.top - w.top + y(block.r0);
-  blockBox.style.left = `${heads[block.c0].left - w.left}px`;
-  blockBox.style.top = `${top}px`;
-  blockBox.style.width = `${heads[block.c1].right - heads[block.c0].left}px`;
-  blockBox.style.height = `${g.top - w.top + y(block.r1 + 1) - top}px`;
+  blockBox.hidden = !!block.empty;
+  if (!block.empty) {
+    const top = g.top - w.top + y(block.r0);
+    blockBox.style.left = `${heads[block.c0].left - w.left}px`;
+    blockBox.style.top = `${top}px`;
+    blockBox.style.width = `${heads[block.c1].right - heads[block.c0].left}px`;
+    blockBox.style.height = `${g.top - w.top + y(block.r1 + 1) - top}px`;
+  }
+  if (block.touch) {
+    if (!blockDot?.isConnected)
+      blockDot = makeDot(wrap, grabBlockDot);
+    const [r, c] = dotAt ?? [block.r1 + 1, block.c1 + 1];
+    blockDot.style.left = `${heads[c].left - w.left}px`;
+    blockDot.style.top = `${g.top - w.top + y(r)}px`;
+  }
   if (copyMenu) {
     copyMenu.style.left = `${heads[block.c1].right - w.left - copyMenu.offsetWidth}px`;
-    copyMenu.style.top = `${g.top - w.top + y(block.r1 + 1)}px`;
+    copyMenu.style.top = `${g.top - w.top + y(block.r1 + 1) + MENU_GAP + (block.touch ? DOT_CLEAR : 0)}px`;
   }
 }
 function showCopyMenu() {
   const wrap = app2.querySelector(".tcwrap");
   const tracks = app2.querySelectorAll(".tgrid .thead > .c").length;
-  if (!block || !wrap || block.c1 < 1 || block.c0 > tracks - 2)
+  if (!block || block.empty || !wrap || block.c1 < 1 || block.c0 > tracks - 2)
     return;
+  copyMenu?.remove();
   const item = (mode, label) => `<button type="button" class="ctxitem" data-copy="${mode}">${label}</button>`;
   copyMenu = wrap.appendChild(document.createElement("div"));
   copyMenu.className = "copymenu";
   copyMenu.innerHTML = item("sheets", "Copy to Sheets") + item("discord", "Copy to Discord");
   paintBlock();
 }
-function trackTableBlock() {
-  const grid = app2.querySelector(".tgrid");
-  if (!blocking || !grid || !tableView?.sorted.length)
+function measureFromBlock(grid) {
+  if (!block || block.empty || block.r1 <= block.r0 || !tableView)
     return;
-  const [row, col] = blockCellAt(grid, bx, by);
-  if (!block)
-    block = { ar: row, ac: col, r0: row, r1: row, c0: col, c1: col };
-  block.r0 = Math.min(block.ar, row);
-  block.r1 = Math.max(block.ar, row);
-  block.c0 = Math.min(block.ac, col);
-  block.c1 = Math.max(block.ac, col);
   const compare = [...grid.querySelectorAll(".thead > .c")].findIndex((c) => c.classList.contains("huehead"));
   const bottom = tableView.sorted[block.r1]?.[0];
   if (bottom && block.c0 <= compare && compare <= block.c1 && baselineTeam !== bottom) {
@@ -3783,6 +3960,21 @@ function trackTableBlock() {
     tableView.ranks = rankAll(tableView.sorted);
     drawWindow(true);
   }
+}
+function trackTableBlock() {
+  const grid = app2.querySelector(".tgrid");
+  if (!blocking || !grid || !tableView?.sorted.length)
+    return;
+  const [row, col] = blockCellAt(grid, bx, by);
+  if (!block)
+    block = { ar: row, ac: col, r0: row, r1: row, c0: col, c1: col, touch: false };
+  if ((row !== block.ar || col !== block.ac) && blockPress)
+    blockPress.moved = true;
+  block.r0 = Math.min(block.ar, row);
+  block.r1 = Math.max(block.ar, row);
+  block.c0 = Math.min(block.ac, col);
+  block.c1 = Math.max(block.ac, col);
+  measureFromBlock(grid);
   paintBlock();
 }
 var blockRaf = 0;
@@ -3794,53 +3986,93 @@ var queueBlock = () => {
     trackTableBlock();
   });
 };
-addEventListener("pointerdown", (e) => {
-  if (e.target.closest?.(".copymenu"))
-    return;
+function pickTouched(row, col) {
   clearBlock();
-  const cell2 = e.target.closest?.(".tgrid .c");
-  const at = cell2?.parentElement ? [...cell2.parentElement.children].indexOf(cell2) : -1;
-  if (e.button !== 0 || !cell2 || at <= 0)
+  block = { ar: row, ac: col, r0: row, r1: row, c0: col, c1: col, touch: true };
+  paintBlock();
+}
+function grabBlockDot(e) {
+  const grid = app2.querySelector(".tgrid");
+  const held = block;
+  if (!grid || !held)
+    return;
+  copyMenu?.remove();
+  copyMenu = null;
+  grabDot(e, {
+    grid,
+    corners: () => [[held.r0, held.c0], [held.r1 + 1, held.c1 + 1]],
+    edgeAt: (x, y) => blockEdgeAt(grid, x, y),
+    aim: (from, to) => {
+      const [r0, r1] = from[0] <= to[0] ? [from[0], to[0]] : [to[0], from[0]];
+      const [c0, c1] = from[1] <= to[1] ? [from[1], to[1]] : [to[1], from[1]];
+      dotAt = to;
+      block = { ar: r0, ac: c0, r0, r1: r1 - 1, c0, c1: c1 - 1, touch: true, empty: r0 === r1 || c0 === c1 };
+      paintBlock();
+    },
+    done: (empty) => {
+      dotAt = null;
+      if (empty) {
+        clearBlock();
+        return;
+      }
+      measureFromBlock(grid);
+      showCopyMenu();
+    }
+  });
+}
+addEventListener("pointerdown", (e) => {
+  const target = e.target;
+  if (target.closest?.(".copymenu, .celldot"))
+    return;
+  const cell2 = pickable(target);
+  const grid = app2.querySelector(".tgrid");
+  if (e.pointerType === "touch") {
+    if (!cell2 || !grid || !tableView?.sorted.length) {
+      watchTouch(e, null, clearBlock);
+      return;
+    }
+    const scale2 = zoom();
+    const [row, col] = blockCellAt(grid, e.clientX / scale2, e.clientY / scale2);
+    watchTouch(e, cell2, () => pickTouched(row, col), () => {
+      pickTouched(row, col);
+      showCopyMenu();
+    });
+    return;
+  }
+  clearBlock();
+  if (e.button !== 0 || !cell2 || !grid || !tableView?.sorted.length)
     return;
   const scale = zoom();
-  blockPress = { x: e.clientX / scale, y: e.clientY / scale, scale };
+  blockPress = { at: performance.now(), scale, moved: false };
+  [bx, by] = [e.clientX / scale, e.clientY / scale];
+  blocking = true;
+  dropPanel();
+  holdPanels(true);
+  trackTableBlock();
 });
 addEventListener("pointermove", (e) => {
-  if (!blockPress)
+  if (!blockPress || e.pointerType === "touch")
     return;
   bx = e.clientX / blockPress.scale;
   by = e.clientY / blockPress.scale;
-  if (!blocking) {
-    if (Math.abs(bx - blockPress.x) < 5 && Math.abs(by - blockPress.y) < 5)
-      return;
-    blocking = true;
-    dropPanel();
-    holdPanels(true);
-    const grid = app2.querySelector(".tgrid");
-    if (!grid || !tableView?.sorted.length)
-      return;
-    const [row, col] = blockCellAt(grid, blockPress.x, blockPress.y);
-    block = { ar: row, ac: col, r0: row, r1: row, c0: col, c1: col };
-  }
   queueBlock();
 });
-var endBlockPress = () => {
-  blockPress = null;
-  if (!blocking)
+var endBlockPress = (e) => {
+  const press = blockPress;
+  if (!press || e.pointerType === "touch")
     return;
-  blocking = false;
   if (blockRaf) {
     cancelAnimationFrame(blockRaf);
     blockRaf = 0;
+    trackTableBlock();
   }
+  blockPress = null;
+  blocking = false;
   holdPanels(false);
+  if (!press.moved && performance.now() - press.at < HOLD)
+    return;
   showCopyMenu();
-  const swallow = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
-  addEventListener("click", swallow, { capture: true, once: true });
-  setTimeout(() => removeEventListener("click", swallow, true), 0);
+  swallowClick();
 };
 addEventListener("pointerup", endBlockPress);
 addEventListener("pointercancel", endBlockPress);
@@ -5079,6 +5311,7 @@ function blockPanel(sel) {
 }
 var cellSel = null;
 var cellSelBox = null;
+var cellSelDot = null;
 var holding = false;
 var px = 0;
 var py = 0;
@@ -5087,6 +5320,8 @@ function clearBlock2() {
   cellSel = null;
   cellSelBox?.remove();
   cellSelBox = null;
+  cellSelDot?.remove();
+  cellSelDot = null;
 }
 function rowSpan(sel, i, gridTop) {
   const seen = sel.span[i];
@@ -5110,10 +5345,85 @@ function aimBlock(sel, row, col, gridTop) {
   const top = rowSpan(sel, sel.r0, gridTop)[0];
   const left = sel.cols[sel.c0].left;
   const box = cellSelBox ?? (cellSelBox = cellBox(sel.grid));
+  box.hidden = false;
   box.style.left = `${left}px`;
   box.style.top = `${top}px`;
   box.style.width = `${sel.cols[sel.c1].right - left}px`;
   box.style.height = `${rowSpan(sel, sel.r1, gridTop)[1] - top}px`;
+  paintCellDot(sel, gridTop);
+}
+var edgeTop = (sel, r, gridTop) => r < sel.rows.length ? rowSpan(sel, r, gridTop)[0] : rowSpan(sel, sel.rows.length - 1, gridTop)[1];
+var edgeLeft = (sel, c) => c < sel.cols.length ? sel.cols[c].left : sel.cols[sel.cols.length - 1].right;
+function paintCellDot(sel, gridTop) {
+  if (!sel.touch)
+    return;
+  const dot = cellSelDot ?? (cellSelDot = makeDot(sel.grid, grabCellDot));
+  const [r, c] = sel.dot ?? [sel.r1 + 1, sel.c1 + 1];
+  dot.style.left = `${edgeLeft(sel, c)}px`;
+  dot.style.top = `${edgeTop(sel, r, gridTop)}px`;
+}
+function edgeAt(sel, x, y) {
+  const g = rect(sel.grid);
+  const at = y - g.top, n = sel.rows.length;
+  let r = Math.min(Math.max(sel.fr, 0), n);
+  while (r < n && edgeTop(sel, r + 1, g.top) <= at)
+    r++;
+  while (r > 0 && edgeTop(sel, r, g.top) > at)
+    r--;
+  if (r < n && edgeTop(sel, r + 1, g.top) - at < at - edgeTop(sel, r, g.top))
+    r++;
+  sel.fr = Math.min(r, n - 1);
+  let c = 0;
+  for (let k = 1; k <= sel.cols.length; k++)
+    if (Math.abs(edgeLeft(sel, k) - (x - g.left)) < Math.abs(edgeLeft(sel, c) - (x - g.left)))
+      c = k;
+  return [r, c];
+}
+function grabCellDot(e) {
+  const sel = cellSel;
+  if (!sel)
+    return;
+  dropPanel();
+  const rows = [...sel.grid.querySelectorAll(".r")].filter((r) => r.offsetParent);
+  const r0 = rows.indexOf(sel.rows[sel.r0]), r1 = rows.indexOf(sel.rows[sel.r1]);
+  if (r0 < 0 || r1 < 0) {
+    clearBlock2();
+    return;
+  }
+  Object.assign(sel, { rows, span: [], r0, r1, fr: r1 });
+  grabDot(e, {
+    grid: sel.grid,
+    corners: () => [[sel.r0, sel.c0], [sel.r1 + 1, sel.c1 + 1]],
+    edgeAt: (x, y) => edgeAt(sel, x, y),
+    aim: (from, to) => {
+      const gridTop = rect(sel.grid).top;
+      sel.dot = to;
+      sel.empty = from[0] === to[0] || from[1] === to[1];
+      if (sel.empty) {
+        if (cellSelBox)
+          cellSelBox.hidden = true;
+        paintCellDot(sel, gridTop);
+        return;
+      }
+      sel.ar = Math.min(from[0], to[0]);
+      sel.ac = Math.min(from[1], to[1]);
+      aimBlock(sel, Math.max(from[0], to[0]) - 1, Math.max(from[1], to[1]) - 1, gridTop);
+      sel.fr = to[0];
+    },
+    done: (empty) => {
+      sel.dot = void 0;
+      sel.empty = false;
+      if (empty) {
+        clearBlock2();
+        return;
+      }
+      const gridTop = rect(sel.grid).top;
+      paintCellDot(sel, gridTop);
+      const html = sel.r0 === sel.r1 ? "" : blockPanel(sel);
+      if (html)
+        drivePanel(sel.rows[sel.r1].children[sel.cols[sel.c1].nth], html);
+    }
+  });
 }
 function blockCells(sel) {
   const out = [];
@@ -5194,43 +5504,8 @@ function wireCellSelect(root) {
   const grid = root.querySelector(".gridwrap .grid");
   if (!grid)
     return;
-  let arming = null;
-  const HELD_AT = 250, MOVED_AT = 3;
-  const swallowClick = (keepDefault) => {
-    const swallow = (e) => {
-      if (!keepDefault)
-        e.preventDefault();
-      e.stopPropagation();
-    };
-    addEventListener("click", swallow, { capture: true, once: true });
-    setTimeout(() => removeEventListener("click", swallow, true), 0);
-  };
-  const end = () => {
-    flushTrack();
-    if (arming) {
-      clearTimeout(arming.timer);
-      arming = null;
-      holdPanels(false);
-      swallowClick(true);
-      return;
-    }
-    if (!holding)
-      return;
-    holding = false;
-    holdPanels(false);
-    const sel = cellSel;
-    if (sel.r0 === sel.r1 && sel.c0 === sel.c1) {
-      dropPanel();
-      return;
-    }
-    swallowClick(false);
-  };
-  grid.addEventListener("pointerdown", (e) => {
-    const cell2 = e.target.closest(".r:not(.head) > .c");
-    if (e.button !== 0 || holding || arming || !cell2)
-      return;
-    if (e.target.closest(".ctag"))
-      return;
+  let pressedAt = 0;
+  const measure = (cell2) => {
     const g = rect(grid);
     const cols = [...grid.querySelectorAll(":scope > .r.head > .c[data-col]")].map((h, nth) => {
       const r = rect(h);
@@ -5240,42 +5515,60 @@ function wireCellSelect(root) {
     const rows = [...grid.querySelectorAll(".r")].filter((r) => r.offsetParent);
     const ar = rows.indexOf(row);
     const ac = cols.findIndex((c) => c.nth === [...row.children].indexOf(cell2));
-    if (ar < 0 || ac < 0)
-      return;
-    e.preventDefault();
-    cell2.setPointerCapture(e.pointerId);
+    return ar < 0 || ac < 0 ? null : { rows, cols, ar, ac };
+  };
+  const pick = (at, touch) => {
     dropPanel();
-    holdPanels(true);
     selected = null;
     selBox?.remove();
     selBox = null;
+    clearBlock2();
+    cellSel = { grid, ...at, span: [], fr: at.ar, r0: at.ar, r1: at.ar, c0: at.ac, c1: at.ac, touch };
+    aimBlock(cellSel, at.ar, at.ac, rect(grid).top);
+  };
+  const end = () => {
+    flushTrack();
+    if (!holding)
+      return;
+    holding = false;
+    holdPanels(false);
+    const sel = cellSel;
+    const one = sel.r0 === sel.r1 && sel.c0 === sel.c1;
+    if (one && performance.now() - pressedAt < HOLD) {
+      dropPanel();
+      return;
+    }
+    if (one)
+      dropPanel();
+    swallowClick();
+  };
+  grid.addEventListener("pointerdown", (e) => {
+    const target = e.target;
+    const cell2 = target.closest(".r:not(.head) > .c");
+    if (e.button !== 0 || holding || !cell2 || target.closest(".ctag, .celldot"))
+      return;
+    const at = measure(cell2);
+    if (!at)
+      return;
+    if (e.pointerType === "touch") {
+      watchTouch(e, cell2, () => pick(at, true), () => pick(at, true));
+      return;
+    }
+    e.preventDefault();
+    cell2.setPointerCapture(e.pointerId);
+    holdPanels(true);
     pressScale = zoom();
     px = e.clientX / pressScale;
     py = e.clientY / pressScale;
-    const begin = () => {
-      arming = null;
-      holding = true;
-      cellSel = { grid, rows, span: [], cols, ar, ac, fr: ar, r0: ar, r1: ar, c0: ac, c1: ac };
-      aimBlock(cellSel, ar, ac, rect(grid).top);
-    };
-    if (!cellSel) {
-      begin();
-      return;
-    }
-    clearBlock2();
-    arming = { begin, timer: setTimeout(begin, HELD_AT), x: px, y: py };
+    pressedAt = performance.now();
+    pick(at, false);
+    holding = true;
   });
   grid.addEventListener("pointermove", (e) => {
-    if (!holding && !arming)
+    if (!holding || e.pointerType === "touch")
       return;
     px = e.clientX / pressScale;
     py = e.clientY / pressScale;
-    if (arming) {
-      if (Math.abs(px - arming.x) < MOVED_AT && Math.abs(py - arming.y) < MOVED_AT)
-        return;
-      clearTimeout(arming.timer);
-      arming.begin();
-    }
     queueTrack();
   });
   grid.addEventListener("pointerup", end);
