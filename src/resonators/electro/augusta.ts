@@ -49,12 +49,12 @@ import {
   sendOthersOff,
   addStatAs,
 } from "../../engine/context.js";
-import { Action, Rotation, ECHO, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
+import { Action, Rotation, DODGE } from "../../engine/rotation.js";
 import { gainShield } from "../../shared/status.js";
 import { THUNDERFLARE_DOMINION, VERDANT_SUMMIT } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { AUTUMNTRACE, AUREATE_ZENITH } from "../../weapons/battlepass.js";
-import { FALSE_SOVEREIGN, COV_3PC } from "../../echoes/septimont.js";
+import { FALSE_SOVEREIGN, COV_3PC, ACTION_FALSE_SOVEREIGN } from "../../echoes/septimont.js";
 import { VOID_THUNDER_2PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
@@ -280,7 +280,6 @@ const AUGUSTA_RESONATOR = new Resonator({
   weapon: WeaponType.Broadblade,
   color: "#e8734f",
   intro: Intro,
-  outro: Outro,
   swapIn: BA1,
   swapInAir: MA,
   maxEnergy: 12500,
@@ -362,8 +361,8 @@ const AG_SEQUENCES = [AG_S1, AG_S2, AG_S3, AG_S4, AG_S5, AG_S6];
 // Undying Sunlight chain. She's never the team's own lead, so this covers both opener and loop.
 
 const AG_ROTATION = new Rotation([
-  INTRO, FHA1, FHA2, Skill, FHA1, FHA2, HA.cancel(), Lib1, HA.cancel(),
-  FSkill1, FSkill2, FSkill3.holdCancel(), Lib2, FJump, ECHO.instaSwap(), OUTRO,
+  Intro, FHA1, FHA2, Skill, FHA1, FHA2, HA.cancel(), Lib1, HA.cancel(),
+  FSkill1, FSkill2, FSkill3.holdCancel(), Lib2, FJump, ACTION_FALSE_SOVEREIGN.instaSwap(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

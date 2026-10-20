@@ -38,14 +38,14 @@ import {
   runningAnyOf,
   isHeld,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, ECHO, ActionField, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, ActionField, DODGE } from "../../engine/rotation.js";
 import { IUNO_SIG, VERITYS_HANDLE } from "../../weapons/gauntlet.js";
 import { ABYSS_SURGES, NEW_STD_GAUNTLET } from "../../weapons/standard.js";
 import { STONARD, AETHER_STRIKE } from "../../weapons/battlepass.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
-import { NM_MEPHIS, VOID_THUNDER_5PC } from "../../echoes/jinzhou.js";
+import { NM_MEPHIS, VOID_THUNDER_5PC, ACTION_NM_MEPHIS } from "../../echoes/jinzhou.js";
 
 /* ----------------------------------------------------------------------------------- states */
 
@@ -145,7 +145,7 @@ const UForte = xlyAction("Forte Skill - Law of Reigns", { minForte2: 5, requireB
 });
 /** Revamp, the mid-air follow-up to Decipher/Divergence — considered Liberation DMG. */
 // PLACEHOLDER FRAMES
-const FBA = xlyAction("Mid-air - Revamp", { chains: [FSkill, USkill], castPosition: Position.Midair, animFrames: 95, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, bullets: [
+const FBA = xlyAction("Mid-air - Revamp", { chains: [FSkill, USkill], castPosition: Position.Midair, endPosition: Position.Grounded, animFrames: 95, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, bullets: [
     { hitFrame: 67, mv: 2187, energy: 28, offtune: 880 },
     { hitFrame: 67, mv: 2187, energy: 28, offtune: 880 },
     { hitFrame: 67, mv: 2187, energy: 28, offtune: 880 },
@@ -219,7 +219,6 @@ const XIANGLI_YAO_RESONATOR = new Resonator({
   weapon: WeaponType.Gauntlets,
   color: "#6b74e8",
   intro: Intro,
-  outro: Outro,
   // Intuition replaces his Basic Attack with Pivot - Impale
   swapIn: () => (isHeld(INTUITION) ? UBA1 : BA1),
   swapInAir: MA,
@@ -305,12 +304,12 @@ const XLY_SEQUENCES = [XLY_S1, XLY_S2, XLY_S3, XLY_S4, XLY_S5, XLY_S6];
 const UBA123 = new ActionGroup("Basic - Pivot: Impale 123", [UBA1, UBA2, UBA3]);
 
 const XLY_ROTATION = new Rotation([
-  INTRO,
+  Intro,
   Liberation,
   USkill, FBA, UForte,
   UBA123, UForte,
   USkill, FBA, UForte,
-  ECHO.instaSwap(), OUTRO,
+  ACTION_NM_MEPHIS.instaSwap(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

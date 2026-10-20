@@ -47,13 +47,13 @@ import {
   runningBullet,
   addStatAs,
 } from "../../engine/context.js";
-import { ActionGroup, Action, ActionField, Rotation, ECHO, ActionTag, INTRO, OUTRO, START, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, ActionField, Rotation, ActionTag, START, DODGE } from "../../engine/rotation.js";
 import { applied, applyTeam } from "../../engine/context.js";
 import { SHIELD, gainShield } from "../../shared/status.js";
 import { JINGRAN_SIG, THUNDERFLARE_DOMINION, VERDANT_SUMMIT } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { AUTUMNTRACE, AUREATE_ZENITH } from "../../weapons/battlepass.js";
-import { MYRIAD_SNARE, LAMP_5PC, LAMP_2PC } from "../../echoes/mengzhou.js";
+import { MYRIAD_SNARE, LAMP_5PC, LAMP_2PC, ACTION_MYRIAD_SNARE } from "../../echoes/mengzhou.js";
 import { TUNE_BREAK, tuneBreak } from "../../shared/tunebreak.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
@@ -476,7 +476,6 @@ export const JINGRAN_RESONATOR = new Resonator({
   dodge: ShadowStep,
   color: "#f2c13c",
   intro: Intro,
-  outro: Outro,
   // Qi Modulation picks the Basic Attack; in mid-air it is the plunge
   swapIn: () => (isHeld(YIN_VESSEL) ? EBA1 : BA1),
   swapInAir: MA,
@@ -514,23 +513,23 @@ const EBA234 = new ActionGroup("Basic - Drink Soul 234", [EBA2, EBA3, EBA4]);
 const BA234 = new ActionGroup("Basic - Devil's Bane 234", [BA2, BA3, BA4]);
 
 const JR_ROTATION = new Rotation([
-  INTRO,
+  Intro,
   Lib, FHA,
   EBA234.cancel(), EFHA,
   Skill12, FHA,
   ESkill12.cancel(), EFHA,
-  ECHO.instaSwap(), OUTRO,
+  ACTION_MYRIAD_SNARE.instaSwap(), Outro,
 ]);
 
 const JR_ROTATION_S2 = new Rotation([
   START, BA1.instaCancel(), FHA.instaSwap(),
 
-  INTRO,
+  Intro,
   Lib, EFHA,
   BA234.cancel(), FHA,
   ESkill12.cancel(), EFHA,
   Skill12, FHA,
-  ECHO.instaSwap(), OUTRO,
+  ACTION_MYRIAD_SNARE.instaSwap(), Outro,
 ]);
 
 

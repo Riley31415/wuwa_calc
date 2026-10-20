@@ -81,13 +81,13 @@ import {
   previousPress,
   addStatAs,
 } from "../../engine/context.js";
-import { ActionGroup, Action, ActionField, Cooldown, Rotation, ECHO, NOINTRO, NOINTRO_OPENER, INTRO, OUTRO, INTRO_OPENER, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, ActionField, Cooldown, Rotation, SWAPIN, SWAPIN_OPENER, DODGE } from "../../engine/rotation.js";
 import { TUNE_BREAK } from "../../shared/tunebreak.js";
 import { GLACIO_CHAFE, GLACIO_CHAFE_ACTIONS, HAVOC_BANE, HEALS, OWN_CHAFE_RUNGS } from "../../shared/status.js";
 import { FROSTBURN } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
-import { QUIET_SNOWFALL_5PC, VOIDBORNE_CONSTRUCT } from "../../echoes/lahairoi.js";
+import { QUIET_SNOWFALL_5PC, VOIDBORNE_CONSTRUCT, ACTION_VOIDBORNE_CONSTRUCT } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -573,7 +573,6 @@ export const HIYUKI_RESONATOR = new Resonator({
   dodge: (after) => (forte2() >= 100 && IaiFlash.follows(after) ? IaiFlash : null),
   color: "#87e6e6",
   intro: () => (isHeld(FORECLAIMED_SELF) ? FIntro : Intro),
-  outro: Outro,
   swapIn: () => (isHeld(FORECLAIMED_SELF) ? UBA1 : BA1),
   swapInAir: () => (isHeld(FORECLAIMED_SELF) ? FMA1 : MA),
   maxEnergy: 12500,
@@ -732,18 +731,18 @@ const UHAUBA23 = new ActionGroup("Heavy - Foreclaimed Self + Basic 23", [UHA, UB
 const BA123 = new ActionGroup("Basic - Present Self 123", [BA1, BA2, BA3]);
 
 const HY_ROTATION = new Rotation([
-  NOINTRO_OPENER, BA123.instaCancel(), Skill, BA3, FrostSplinter.mashCancel(), Lib1,
+  SWAPIN_OPENER, BA123.instaCancel(), Skill, BA3, FrostSplinter.mashCancel(), Lib1,
   UBA123.dodgeCancel(), UBA123.dodgeCancel(), Iai.instaJump(), USkill2.dodgeCancel(), Iai.instaJump(), USkill2.dodgeCancel(), Iai.hitDodge(),
-  ECHO, FHA, Lib2Tap, OUTRO,
+  ACTION_VOIDBORNE_CONSTRUCT, FHA, Lib2Tap, Outro,
 
-  INTRO_OPENER, BA3, FrostSplinter.mashCancel(), Lib1,
+  Intro.firstIntro(), BA3, FrostSplinter.mashCancel(), Lib1,
   UBA123.dodgeCancel(), UBA123.dodgeCancel(), Iai.instaJump(), USkill2.dodgeCancel(), Iai.instaJump(), USkill2.dodgeCancel(), Iai.hitDodge(),
-  ECHO, FHA, Lib2Tap, Skill.instaSwap(), OUTRO,
+  ACTION_VOIDBORNE_CONSTRUCT, FHA, Lib2Tap, Skill.instaSwap(), Outro,
 
-  NOINTRO, BA123.instaCancel(), Skill,
-  INTRO, BA3, FrostSplinter.mashCancel(), Lib1,
+  SWAPIN, BA123.instaCancel(), Skill,
+  Intro, BA3, FrostSplinter.mashCancel(), Lib1,
   UBA123.dodgeCancel(), UBA123.dodgeCancel(), Iai.instaJump(), USkill2.dodgeCancel(), Iai.instaJump(), USkill2.dodgeCancel(), Iai.hitDodge(),
-  ECHO, FHA, Lib2Hold, Skill.instaSwap(), OUTRO,
+  ACTION_VOIDBORNE_CONSTRUCT, FHA, Lib2Hold, Skill.instaSwap(), Outro,
 ]);
 
 /** From S2 on, the first visit alone has the Frostheart for a fourth Iai: the two Frostblight casts
@@ -751,20 +750,20 @@ const HY_ROTATION = new Rotation([
  *  Bitterfrost, and carries no Frostharden of its own — the three Inward Vision granted are spent
  *  by then, so it is the bare hit. Every later visit runs the ordinary line. */
 const HY_ROTATION_S2 = new Rotation([
-  NOINTRO_OPENER, BA123.instaCancel(), Skill, BA3, FrostSplinter.mashCancel(), Lib1,
+  SWAPIN_OPENER, BA123.instaCancel(), Skill, BA3, FrostSplinter.mashCancel(), Lib1,
   UBA123.dodgeCancel(), UBA123.dodgeCancel(), Iai.instaJump(), USkill2.dodgeCancel(), Iai.instaJump(), USkill2.dodgeCancel(), Iai,
   Iai.hitDodge(), // extra from s2
-  ECHO, FHA, Lib2Tap, OUTRO,
+  ACTION_VOIDBORNE_CONSTRUCT, FHA, Lib2Tap, Outro,
 
-  INTRO_OPENER, BA3, FrostSplinter.mashCancel(), Lib1,
+  Intro.firstIntro(), BA3, FrostSplinter.mashCancel(), Lib1,
   UBA123.dodgeCancel(), UBA123.dodgeCancel(), Iai.instaJump(), USkill2.dodgeCancel(), Iai.instaJump(), USkill2.dodgeCancel(), Iai,
   Iai.hitDodge(), // extra from s2
-  ECHO, FHA, Lib2Tap, Skill.instaSwap(), OUTRO,
+  ACTION_VOIDBORNE_CONSTRUCT, FHA, Lib2Tap, Skill.instaSwap(), Outro,
 
-  NOINTRO, BA123.instaCancel(), Skill,
-  INTRO, BA3, FrostSplinter.mashCancel(), Lib1,
+  SWAPIN, BA123.instaCancel(), Skill,
+  Intro, BA3, FrostSplinter.mashCancel(), Lib1,
   UBA123.dodgeCancel(), UBA123.dodgeCancel(), Iai.instaJump(), USkill2.dodgeCancel(), Iai.instaJump(), USkill2.dodgeCancel(), Iai.hitDodge(),
-  ECHO, FHA, Lib2Hold, Skill.instaSwap(), OUTRO,
+  ACTION_VOIDBORNE_CONSTRUCT, FHA, Lib2Hold, Skill.instaSwap(), Outro,
 ]);
 
 const HY_ECHOES = [

@@ -64,7 +64,7 @@ import {
   reduceCooldown,
   addGain,
 } from "../../engine/context.js";
-import { Action, Rotation, ECHO, ActionGroup, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
+import { Action, Rotation, ActionGroup, DODGE } from "../../engine/rotation.js";
 import { tuneBreak, SWORD_BREAK, BROADBLADE_BREAK } from "../../shared/tunebreak.js";
 import {
   AERO_EROSION, AERO_EROSION_ACTIONS, hasNegativeStatus, inflictedNegativeStatusBy, negativeStatusRung,
@@ -73,7 +73,7 @@ import {
 import { DEFIERS_THORN, RED_SPRING } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
-import { FLEURDELYS, WINDWARD_5PC } from "../../echoes/rinascita.js";
+import { FLEURDELYS, WINDWARD_5PC, ACTION_FLEURDELYS } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -544,7 +544,6 @@ export const CARTETHYIA_RESONATOR = new Resonator({
   color: "#3553fb",
   // resolved when its row is reached: whichever Intro the kit's state calls for there
   intro: () => (isHeld(MANIFEST) ? FIntro : Intro),
-  outro: Outro,
   swapIn: () => (isHeld(MANIFEST) ? FBA1 : BA1),
   // no mid-air string as Cartethyia: her Plunging Attack, in the form the standing shadows make
   swapInAir: () => (isHeld(MANIFEST) ? FMA1 : [Plunge, Plunge1, Plunge2, Plunge3][[SWORD_OF_VIRTUE, SWORD_OF_DIVINITY, SWORD_OF_DISCORD].filter((g) => isHeld(g)).length]!),
@@ -563,11 +562,11 @@ export const CARTETHYIA_RESONATOR = new Resonator({
 // covers opener and loop both.
 
 const CT_ROTATION = new Rotation([
-  INTRO, BA234.cancel(),
-  Skill, PlungeResolver.cancel(), ECHO,
+  Intro, BA234.cancel(),
+  Skill, PlungeResolver.cancel(), ACTION_FLEURDELYS,
   Liberation, FBA12345.cancel(),
   FSkill1, FSkill2, FBA345.cancel(),
-  Lib2, OUTRO,
+  Lib2, Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

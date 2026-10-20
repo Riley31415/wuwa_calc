@@ -59,16 +59,16 @@ import {
   runningAnyOf,
   addGain,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, ECHO, START_LAST, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, START_LAST, DODGE } from "../../engine/rotation.js";
 import { applyStrain, TUNE_BREAK, TUNE_STRAIN_SHIFTING, TUNE_STRAIN_INTERFERED, TUNE_SHIFTABLE, strainPayout, tuneBreak } from "../../shared/tunebreak.js";
 import { GLINT_OF_CLOUDS, RED_SPRING } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS, NEW_STD_SWORD } from "../../weapons/standard.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
-import { CALAMITY_EFFIGY, HEART_OF_EVILS_PURGE_5PC } from "../../echoes/mengzhou.js";
+import { CALAMITY_EFFIGY, HEART_OF_EVILS_PURGE_5PC, ACTION_CALAMITY_EFFIGY } from "../../echoes/mengzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
-import { NM_KELPIE, WINDWARD_5PC } from "../../echoes/rinascita.js";
+import { NM_KELPIE, WINDWARD_5PC, ACTION_NM_KELPIE } from "../../echoes/rinascita.js";
 import { CARTETHYIA_RESONATOR } from "./cartethyia.js";
 import { CIACCONA_RESONATOR } from "./ciaccona.js";
 import { ROVER_AERO_RESONATOR } from "./rover_aero.js";
@@ -421,7 +421,6 @@ export const QINGXIAO_RESONATOR = new Resonator({
   weapon: WeaponType.Sword,
   color: "#6cc5b0",
   intro: Intro,
-  outro: Outro,
   swapIn: () => (isHeld(EPHEMERAL) ? FBA1 : BA1),
   swapInAir: () => (isHeld(EPHEMERAL) ? FBA1 : MA1),
   tuneBreak: tuneBreak(120, [0, 120], [0, 100], [[64, 10000], [70, 10000, 64], [76, 10000, 64], [82, 10000, 64], [101, 120000]]),
@@ -558,10 +557,10 @@ const MA123 = new ActionGroup("Mid-air - Stringblade 123", [MA1, MA2, MA3]);
 const BA34 = new ActionGroup("Basic - Stringblade 34", [BA3, BA4]);
 
 const QX_ROTATION = new Rotation([
-  START_LAST, BA1.instaCancel(), Liberation, ECHO.instaSwap(),
-  INTRO, MA123, BA34, Skill, HA,
+  START_LAST, BA1.instaCancel(), Liberation, ACTION_CALAMITY_EFFIGY.instaSwap(),
+  Intro, MA123, BA34, Skill, HA,
   FBA1234.holdCancel(), FHA,
-  Liberation, ECHO.instaSwap(), OUTRO,
+  Liberation, ACTION_CALAMITY_EFFIGY.instaSwap(), Outro,
 ]);
 
 export const QINGXIAO = new Loadout({

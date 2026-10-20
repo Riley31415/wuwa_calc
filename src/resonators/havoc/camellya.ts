@@ -58,11 +58,11 @@ import {
   addGain,
   addStatAs,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, ECHO, INTRO, OUTRO, DOUBLE_INTRO, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, DODGE } from "../../engine/rotation.js";
 import { RED_SPRING } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
-import { NM_CROWNLESS, HAVOC_ECLIPSE_5PC } from "../../echoes/jinzhou.js";
+import { NM_CROWNLESS, HAVOC_ECLIPSE_5PC, ACTION_NM_CROWNLESS } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -358,7 +358,6 @@ const CAMELLYA_RESONATOR = new Resonator({
   tuneBreak: tuneBreak(89, [0, 91], [0, 70], SWORD_BREAK),
   color: "#891c2b",
   intro: Intro,
-  outro: () => (isHeld(TWINING) ? OutroEphemeral : Outro),
   // Blossom Mode replaces Basic Attack with Vining Waltz, which can be used in mid-air too
   swapIn: () => (isHeld(BLOSSOM_MODE) ? VW1 : BA1),
   swapInAir: () => (isHeld(BLOSSOM_MODE) ? VW1 : MA),
@@ -445,42 +444,42 @@ const CM_SEQUENCES = [CM_S1, CM_S2, CM_S3, CM_S4, CM_S5, CM_S6];
 const VW1234 = new ActionGroup("Basic - Vining Waltz 123H4", [VW1, VW2, VW3, BlazingWaltz, VW4]);
 
 const CM_ROTATION_16s = new Rotation([
-  INTRO, CrimsonBlossom.cancel(), ECHO.instaDodge(), VW1234, 
+  Intro, CrimsonBlossom.cancel(), ACTION_NM_CROWNLESS.instaDodge(), VW1234, 
   Liberation, VW1, Ephemeral, VW1234,
-  FloralRavage.instaSwap(), OUTRO,
+  FloralRavage.instaSwap(), OutroEphemeral,
 ]);
 const CM_ROTATION_16s_S6 = new Rotation([
-  INTRO, CrimsonBlossom.cancel(), ECHO, VW1234, 
+  Intro, CrimsonBlossom.cancel(), ACTION_NM_CROWNLESS, VW1234, 
   Liberation, VW1, Ephemeral, VW1234,
   FloralRavage, Perennial.instaSwap(),
 ]);
 
 const CM_ROTATION_DOUBLE = new Rotation([
-  DOUBLE_INTRO, CrimsonBlossom.cancel(), ECHO,
+  Intro.doubleIntro(), CrimsonBlossom.cancel(), ACTION_NM_CROWNLESS,
   HA, BA4, FloralRavage.instaSwap(),
 
-  INTRO, 
+  Intro, 
   Liberation, Ephemeral, CrimsonBlossom,
-  VW1234, FloralRavage, ECHO.instaSwap(),
-  OUTRO,
+  VW1234, FloralRavage, ACTION_NM_CROWNLESS.instaSwap(),
+  OutroEphemeral,
 ]);
 const CM_ROTATION_DOUBLE_FAST_SUP = new Rotation([
-  DOUBLE_INTRO, CrimsonBlossom.cancel(), ECHO,
+  Intro.doubleIntro(), CrimsonBlossom.cancel(), ACTION_NM_CROWNLESS,
   HA, BA4, FloralRavage.instaSwap(),
 
-  INTRO, 
+  Intro, 
   Liberation, Ephemeral, CrimsonBlossom,
-  VW1234, ECHO.instaDodge(), VW1234, FloralRavage, ECHO.instaSwap(),
-  OUTRO,
+  VW1234, ACTION_NM_CROWNLESS.instaDodge(), VW1234, FloralRavage, ACTION_NM_CROWNLESS.instaSwap(),
+  OutroEphemeral,
 ]);
 const CM_ROTATION_DOUBLE_S6 = new Rotation([
-  DOUBLE_INTRO, CrimsonBlossom.cancel(), ECHO,
+  Intro.doubleIntro(), CrimsonBlossom.cancel(), ACTION_NM_CROWNLESS,
   HA, BA4, FloralRavage.instaSwap(),
   
-  INTRO, 
+  Intro, 
   Liberation, Ephemeral, CrimsonBlossom,
-  VW1234, ECHO.instaDodge(), VW1, Perennial, VW1234, FloralRavage,
-  OUTRO,
+  VW1234, ACTION_NM_CROWNLESS.instaDodge(), VW1, Perennial, VW1234, FloralRavage,
+  OutroEphemeral,
 ]);
 
 

@@ -8,10 +8,13 @@ import type { Cast } from "./stats.js";
 import type { Action, Bullet } from "./rotation.js";
 import type { Gear } from "./gear.js";
 import type { State, TeamMember, HeldBuff } from "./state.js";
+import type { Gain } from "./context.js";
 
 /** One `addGain()` call, for the hover panels: who added what — energy, concerto, forte 1-5,
  *  off-tune, direct off-tune — and whether on the cast or a hit. */
-export interface GainAdd { source: string; owner: string | null; gains: number[]; onCast: boolean }
+/** A gain a hook made (`addGain()`), or one banked onto a member outside any row of theirs
+ *  (`background`: a tick, a teammate's energy share), which their next row carries. */
+export interface GainAdd { source: string; owner: string | null; gains: number[]; onCast: boolean; background?: boolean; label?: string }
 
 /** The engine's ambient state: which team, member, gear and action a hook is running for, plus the
  *  per-action scratch every phase writes through. One object rather than a module of `let`s
@@ -62,7 +65,7 @@ export const ctx: {
   inConst: boolean;
   /** An echo's own panel entries while it adds them (`panelEntry()`), summed before the one floor. */
   panelGroup: number[] | null;
-  /** Set while a marker resolves (an Intro Resolver, ECHO): it picks a cast and may only read. */
+  /** Set while a marker resolves (an Intro Resolver, an echo): it picks a cast and may only read. */
   inResolve: boolean;
   /** Set while a handoff plans the visit it opens, ahead of its Outro: what that Outro moves hasn't. */
   handoffPending: boolean;
@@ -124,9 +127,15 @@ export const ctx: {
   holdNext: Action | null;
   /** The acting member's presses still to come off the rotation, each resolved as reached (`nextPresses()`); set by `run()`. */
   nextPresses: () => Iterable<Action>;
+  /** evaluate.ts's `bankLoose()`, set where it is defined: context.ts importing it would close an
+   *  import cycle (gear -> context -> evaluate -> rotation -> gear) that leaves `Gear` undefined. */
+  bankLoose: (state: State, slot: TeamMember, gain: Gain) => void;
   /** What a hold cancel holds into once the steps run out: the press the next loop would cast after
    *  the Intro a fight ends on, which it never plays (rotation.ts's `finish()`). */
   holdBeyond: Action | null;
+  /** The member whose row `evaluate()` is building, null outside one: a gauge moved on anyone else is
+   *  theirs to carry to their next row (`TeamMember.background`). */
+  rowSlot: TeamMember | null;
   /** Where the hold cancel just evaluated let go, in animation frames; -1 for any other press. */
   holdCut: number;
   /** Bumped at the top of every `evaluate()`: what stamps this action's grant records (`applied`,
@@ -177,7 +186,11 @@ export const ctx: {
   cutReplaced: "",
   holdNext: null,
   nextPresses: () => [],
+  bankLoose: () => {
+    throw new Error("bankLoose() before evaluate.ts loaded");
+  },
   holdBeyond: null,
+  rowSlot: null,
   holdCut: -1,
   offFieldShift: 0,
   offFieldFrom: 0,
@@ -334,6 +347,17 @@ export const recordConsumed = (gear: Gear, n: number): void => {
 export const pendingQueue: { action: Action; slot: number; by: HeldBuff | null; event: boolean }[] = [];
 
 /** Resolve a marker under `ctx.inResolve`. */
+/** What moved `slot`'s bars (energy as its column reads it, concerto, forte 1-5) outside any row of
+ *  theirs, by whatever is running (`ctx.buff`) unless named: their next row carries it. Trace-only. */
+export function noteBackground(slot: TeamMember, moved: readonly number[], source?: string, owner?: string | null, label?: string): void {
+  if (!moved.some((v) => v !== 0)) return;
+  const by = ctx.buff;
+  slot.background.push({
+    source: source ?? by?.toString() ?? "", owner: owner !== undefined ? owner : (by && ctx.state!.sourceOf.get(by)) ?? slot.name,
+    gains: [...moved, 0, 0], onCast: false, background: true, label,
+  });
+}
+
 export function resolving<T>(f: () => T): T {
   const was = ctx.inResolve;
   ctx.inResolve = true;

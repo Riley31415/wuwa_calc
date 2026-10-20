@@ -77,13 +77,13 @@ import {
   saveChain,
   previousPress,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, NOINTRO, ECHO, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, SWAPIN, DODGE } from "../../engine/rotation.js";
 import {
   AERO_EROSION, ELECTRO_FLARE, ELECTRO_RAGE, FUSION_BURST, GLACIO_CHAFE, HAVOC_BANE, HEALS, SPECTRO_FRAZZLE,
   inflictedNegativeStatusBy, heal } from "../../shared/status.js";
 import { FIRSTLIGHTS_HERALD } from "../../weapons/rectifier.js";
 import { VARIATION } from "../../weapons/standard.js";
-import { FORBIDDEN_BASTION, FEATHERED_TRACE_5PC } from "../../echoes/mengzhou.js";
+import { FORBIDDEN_BASTION, FEATHERED_TRACE_5PC, ACTION_FORBIDDEN_BASTION } from "../../echoes/mengzhou.js";
 import { mainstats, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -558,7 +558,6 @@ const SUISUI_RESONATOR = new Resonator({
   weapon: WeaponType.Rectifier,
   color: "#e8e6a6",
   intro: IntroSky,
-  outro: Outro,
   // Drizzle Stance replaces her basics; there, Swallow's Cut is the press made in mid-air
   swapIn: () => (isHeld(DRIZZLE_STANCE) ? FBA1 : BA1),
   swapInAir: () => (isHeld(DRIZZLE_STANCE) ? FMA : MA),
@@ -592,19 +591,19 @@ const BA123 = new ActionGroup("Basic - Zephyr Stance 123", [BA1, BA2, BA3]);
  *  the scramble's Liberation is already banked) and 122.2 every loop after — both well clear of the
  *  100 the Outro spends. */
 const SS_ROTATION = new Rotation([
-  NOINTRO, BA123.cancel(), ESkillSky,
-  INTRO,
+  SWAPIN, BA123.cancel(), ESkillSky,
+  IntroSky,
   FSkill, FBA1234.cancel(),
-  ECHO.instaDodge(), Liberation, OUTRO,
+  ACTION_FORBIDDEN_BASTION.instaCancel(), Liberation, Outro,
 ]);
 
 /** From S3 the Drizzle skill chains straight into a Stage 4 that spends Kingfisher — +20 Concerto
  *  and +350 Floral Epistle — before the ordinary four-stage chain. */
 const SS_ROTATION_S3 = new Rotation([
-  NOINTRO, BA123.cancel(), ESkillSky,
-  INTRO,
+  SWAPIN, BA123.cancel(), ESkillSky,
+  IntroSky,
   FSkill, FBA4.cancel(),
-  ECHO.instaDodge(), Liberation, OUTRO,
+  ACTION_FORBIDDEN_BASTION.instaCancel(), Liberation, Outro,
 ]);
 
 export const SUISUI = new Loadout({

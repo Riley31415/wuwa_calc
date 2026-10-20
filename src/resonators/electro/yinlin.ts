@@ -45,12 +45,12 @@ import {
   frozenStacks,
   saveChain,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, ActionField, ECHO, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, ActionField, DODGE } from "../../engine/rotation.js";
 import { LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { AUGMENT, RADIANT_DAWN } from "../../weapons/battlepass.js";
 import { EMPYREAN_ANTHEM_5PC } from "../../echoes/rinascita.js";
-import { NM_TEMPEST_MEPHIS, HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
+import { NM_TEMPEST_MEPHIS, HERON, MOONLIT_CLOUDS_5PC, ACTION_NM_TEMPEST_MEPHIS, ACTION_HERON } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -267,7 +267,6 @@ const YINLIN_RESONATOR = new Resonator({
   weapon: WeaponType.Rectifier,
   color: "#a45ee8",
   intro: Intro,
-  outro: Outro,
   swapIn: BA1,
   swapInAir: MA,
   maxEnergy: 12500,
@@ -354,8 +353,8 @@ const YL_SEQUENCES = [YL_S1, YL_S2, YL_S3, YL_S4, YL_S5, YL_S6];
 const BA1234 = new ActionGroup("Basic - Zapstring's Dance 1234", [BA1, BA2, BA3, BA4]);
 
 const YL_ROTATION = new Rotation([
-  INTRO, Skill1, Liberation, BA1234, Skill2, FHA, ECHO.instaSwap(),
-  OUTRO,
+  Intro, Skill1, Liberation, BA1234, Skill2, FHA, ACTION_NM_TEMPEST_MEPHIS.instaSwap(), ACTION_HERON.instaSwap(),
+  Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

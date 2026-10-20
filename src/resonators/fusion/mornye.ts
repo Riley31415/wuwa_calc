@@ -41,14 +41,14 @@ import {
   addGain,
   addStatAs,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, NOINTRO, ECHO, INTRO, OUTRO, START_LAST, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, SWAPIN, START_LAST, DODGE } from "../../engine/rotation.js";
 import { HEALS, heal } from "../../shared/status.js";
 import {
   TUNE_BREAK, TUNE_RUPTURE_INTERFERED, TUNE_STRAIN_INTERFERED, tuneRuptureResponse, strainPayout,
 } from "../../shared/tunebreak.js";
 import { STARFIELD_CALIBRATOR } from "../../weapons/broadblade.js";
 import { DISCORD } from "../../weapons/standard.js";
-import { REACTOR_HUSK, SPACETREK_EXPLORER, STARRY_RADIANCE_5PC } from "../../echoes/lahairoi.js";
+import { REACTOR_HUSK, SPACETREK_EXPLORER, STARRY_RADIANCE_5PC, ACTION_REACTOR_HUSK, ACTION_SPACETREK } from "../../echoes/lahairoi.js";
 import { JINGRAN_RESONATOR } from "./jingran.js";
 import { mainstats, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
@@ -422,7 +422,6 @@ const MORNYE_RESONATOR = new Resonator({
   weapon: WeaponType.Broadblade,
   color: "#d2d4ff",
   intro: Intro,
-  outro: Outro,
   // Wide Field Observation Mode ends on a swap, so she always arrives in Baseline Mode; no mid-air chain, only the plunge
   swapIn: BA1,
   swapInAir: MA,
@@ -448,11 +447,11 @@ const WBA123 = new ActionGroup("Basic - Wide Field Observation 123", [WBA1, WBA2
 
 const MO_ROTATION = new Rotation([
   START_LAST, BA1.instaCancel(), Skill.instaSwap(),
-  NOINTRO, BA123, GeopotentialShift, 
+  SWAPIN, BA123, GeopotentialShift, 
 
-  INTRO.mashCancel(), Liberation, 
+  Intro.mashCancel(), Liberation, 
   WBA123.cancel(), DistributedArray, Inversion,
-  ECHO.instaSwap(), OUTRO,
+  ACTION_REACTOR_HUSK.instaSwap(), ACTION_SPACETREK.instaSwap(), Outro,
 ]);
 
 /** From S3 on, Distributed Array alone fills Relative Momentum, so every loop drops the Wide Field
@@ -461,11 +460,11 @@ const MO_ROTATION = new Rotation([
 const MO_ROTATION_S3 = new Rotation([
   START_LAST, BA1.instaCancel(), Skill.instaSwap(),
 
-  NOINTRO, BA123, GeopotentialShift, 
+  SWAPIN, BA123, GeopotentialShift, 
 
-  INTRO.mashCancel(), Liberation,
+  Intro.mashCancel(), Liberation,
   DistributedArray, Inversion, 
-  ECHO.instaSwap(), OUTRO,
+  ACTION_REACTOR_HUSK.instaSwap(), ACTION_SPACETREK.instaSwap(), Outro,
 ]);
 
 /** ER is the build: her Liberation converts everything past 100% into crit, so the sig's 77% and

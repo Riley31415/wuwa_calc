@@ -37,12 +37,12 @@ import {
   queueQTE,
   runningAnyOf,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, ECHO, INTRO, OUTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation } from "../../engine/rotation.js";
 import { tuneBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
 import { inflictElectroFlare, inflictedNegativeStatus, HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
-import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
-import { STAY_TUNED_3C, SWORN_VIGIL_5PC, ELECTRIC_REFLECTION_5PC, STAY_TUNED } from "../../echoes/mengzhou.js";
+import { HERON, MOONLIT_CLOUDS_5PC, ACTION_HERON } from "../../echoes/jinzhou.js";
+import { STAY_TUNED_3C, SWORN_VIGIL_5PC, ELECTRIC_REFLECTION_5PC, STAY_TUNED, ACTION_STAY_TUNED_3C, ACTION_STAY_TUNED } from "../../echoes/mengzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -361,7 +361,6 @@ const ROVER_ELECTRO_RESONATOR = new Resonator({
   weapon: WeaponType.Sword,
   color: "#b98ce8",
   intro: Intro,
-  outro: Outro,
   swapIn: BA1,
   swapInAir: MA,
   // 91 frames of time stop on a 90-frame break: the one over banks into the next press
@@ -387,7 +386,7 @@ const ROVER_ELECTRO_RESONATOR = new Resonator({
 const BA1234 = new ActionGroup("Basic - Deterrence 1234", [BA1, BA2, BA3, BA4]);
 
 const ER_ROTATION = new Rotation([
-  INTRO, BA1234, Skill, Repel.cancel(), Liberation, Overshock, ECHO.instaSwap(), OUTRO,
+  Intro, BA1234, Skill, Repel.cancel(), Liberation, Overshock, ACTION_HERON.instaSwap(), ACTION_STAY_TUNED_3C.instaSwap(), ACTION_STAY_TUNED.instaSwap(), Outro,
 ]);
 
 // The main-DPS loop: the same fill, the Liberation while the Surge is being built, then Overshock
@@ -403,9 +402,9 @@ const THRUM_HAVOC = new ActionGroup("Skill - Thrum: Havoc 123", [
 ]);
 
 const ER_ROTATION_MDPS = new Rotation([
-  INTRO, BA1234, Skill, Repel, OvershockHold, Liberation,
+  Intro, BA1234, Skill, Repel, OvershockHold, Liberation,
   THRUM_SPECTRO, THRUM_HAVOC, SilencingBlade,
-  ECHO.instaSwap(), OUTRO,
+  ACTION_HERON.instaSwap(), ACTION_STAY_TUNED_3C.instaSwap(), ACTION_STAY_TUNED.instaSwap(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

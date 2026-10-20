@@ -21,12 +21,12 @@ import {
   addEnemyStat,
   resetCooldown,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, ECHO, INTRO, OUTRO, START, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, START, DODGE } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { BLAZING_BRILLIANCE, RED_SPRING } from "../../weapons/sword.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
-import { NM_CROWNLESS, HAVOC_ECLIPSE_5PC } from "../../echoes/jinzhou.js";
+import { NM_CROWNLESS, HAVOC_ECLIPSE_5PC, ACTION_NM_CROWNLESS } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -194,7 +194,6 @@ const ROVER_HAVOC_RESONATOR = new Resonator({
   weapon: WeaponType.Sword,
   color: "#823ac6",
   intro: Intro,
-  outro: Outro,
   swapIn: () => (isHeld(DARK_SURGE) ? EBA1 : BA1),
   swapInAir: () => (isHeld(DARK_SURGE) ? EMA : MA),
   maxEnergy: 12500,
@@ -243,12 +242,12 @@ const BA12345 = new ActionGroup("Basic - Tuneslayer 12345", [BA1, BA2, BA3, BA4,
 const EBA12345 = new ActionGroup("Forte Basic - Umbra 12345", [EBA1, EBA2, EBA3, EBA4, EBA5]);
 
 const RH_ROTATION = new Rotation([
-  START, Liberation, ECHO.instaSwap(),
+  START, Liberation, ACTION_NM_CROWNLESS.instaSwap(),
 
-  INTRO, BA12345,
+  Intro, BA12345,
   Skill, Devastation, ESkill,
   EBA12345, EBA12345, EBA1,
-  Liberation, Skill, ECHO.instaSwap(), OUTRO,
+  Liberation, Skill, ACTION_NM_CROWNLESS.instaSwap(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

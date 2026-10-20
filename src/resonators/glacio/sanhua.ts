@@ -24,10 +24,10 @@ import {
   queue,
   queueQTE,
 } from "../../engine/context.js";
-import { Action, Rotation, ECHO, NOINTRO, ActionGroup, INTRO, OUTRO } from "../../engine/rotation.js";
+import { Action, Rotation, SWAPIN, ActionGroup } from "../../engine/rotation.js";
 import { tuneBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
 import { EMERALD_OF_GENESIS, OVERTURE } from "../../weapons/standard.js";
-import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
+import { HERON, MOONLIT_CLOUDS_5PC, ACTION_HERON } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -240,7 +240,6 @@ const SANHUA_RESONATOR = new Resonator({
   weapon: WeaponType.Sword,
   color: "#5fc9e8",
   intro: Intro,
-  outro: Outro,
   // her no-Intro chains open on Basic 2; no mid-air string, so the plunge
   swapIn: BA2,
   swapInAir: MA,
@@ -256,12 +255,12 @@ const SANHUA_RESONATOR = new Resonator({
 // this same rotation covers both opener and loop.
 
 const SH_ROTATION_S5 = new Rotation([
-  NOINTRO, BA23,
-  INTRO, Skill.cancel(), Liberation, FHA, ECHO.instaSwap(), OUTRO,
+  SWAPIN, BA23,
+  Intro, Skill.cancel(), Liberation, FHA, ACTION_HERON.instaSwap(), Outro,
 ]);
 const SH_ROTATION = new Rotation([
-  NOINTRO, BA234.cancel(), Skill, Liberation, FHA, ECHO.instaSwap(), OUTRO,
-  INTRO, FHA, Skill.cancel(), Liberation, FHA, ECHO.instaSwap(), OUTRO,
+  SWAPIN, BA234.cancel(), Skill, Liberation, FHA, ACTION_HERON.instaSwap(), Outro,
+  Intro, FHA, Skill.cancel(), Liberation, FHA, ACTION_HERON.instaSwap(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

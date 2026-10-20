@@ -41,17 +41,17 @@ import {
   queueQTE,
   forte1,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, ECHO, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, DODGE } from "../../engine/rotation.js";
 import { tuneBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
 import { HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { BLAZING_BRILLIANCE, EMERALD_SENTENCE } from "../../weapons/sword.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
-import { NM_HERON, MIDNIGHT_VEIL_5PC } from "../../echoes/rinascita.js";
+import { NM_HERON, MIDNIGHT_VEIL_5PC, ACTION_NM_HERON } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
-import { CROWNLESS, HAVOC_ECLIPSE_5PC, HERON, MOONLIT_CLOUDS_5PC, REJUV_5PC } from "../../echoes/jinzhou.js";
+import { CROWNLESS, HAVOC_ECLIPSE_5PC, HERON, MOONLIT_CLOUDS_5PC, REJUV_5PC, ACTION_HERON, ACTION_FALLACY, ACTION_CROWNLESS_1 } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -268,7 +268,6 @@ const DANJIN_RESONATOR = new Resonator({
   weapon: WeaponType.Sword,
   color: "#a83250",
   intro: Intro,
-  outro: Outro,
   swapIn: BA1,
   swapInAir: MA,
   tuneBreak: tuneBreak(91, [0, 91], [0, 70], SWORD_BREAK),
@@ -358,12 +357,12 @@ const Sanguine123 = new ActionGroup("Skill - Sanguine Pulse 123", [SanguinePulse
 const Forte12 = new ActionGroup("Forte Heavy - Chaoscleave + Scatterbloom", [Chaoscleave, Scatterbloom])
 
 const DJ_ROTATION = new Rotation([
-  INTRO, Crimson12.cancel(),
+  Intro, Crimson12.cancel(),
   Liberation,
   CarmineGleam, BA123,
   Sanguine123,
   Forte12,
-  ECHO.instaSwap(), OUTRO,
+  ACTION_NM_HERON.instaSwap(), ACTION_HERON.instaSwap(), ACTION_FALLACY.instaSwap(), ACTION_CROWNLESS_1.instaSwap(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

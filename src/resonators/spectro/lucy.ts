@@ -63,14 +63,14 @@ import {
   casting,
   isActive,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, START_LAST, ECHO, INTRO, OUTRO, INTRO_LAST, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, START_LAST, DODGE } from "../../engine/rotation.js";
 import { applied } from "../../engine/context.js";
 import { applyHack, tuneHackResponse, TUNE_HACK_SHIFTING, TUNE_HACK_INTERFERED, TUNE_SHIFTABLE } from "../../shared/tunebreak.js";
 import { SPECTRAL_TRIGGER } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
 import { THUNDERBOLT, SOLAR_FLAME } from "../../weapons/battlepass.js";
 import { CELESTIAL_LIGHT_2PC, LINGERING_TUNES_2PC, MOONLIT_CLOUDS_2PC } from "../../echoes/jinzhou.js";
-import { ADAM_SMASHER, SHATTERED_DREAMS_1PC, NEONLIGHT_LEAP_2PC, REEL_2PC } from "../../echoes/lahairoi.js";
+import { ADAM_SMASHER, SHATTERED_DREAMS_1PC, NEONLIGHT_LEAP_2PC, REEL_2PC, ACTION_ADAM_SMASHER_LUCY } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -549,7 +549,6 @@ export const LUCY_RESONATOR = new Resonator({
   weapon: WeaponType.Pistols,
   color: "#efe8de",
   intro: Intro,
-  outro: Outro,
   // Algorithm Compaction replaces the Basic and Mid-air Attacks
   swapIn: () => (isHeld(ALGORITHM_COMPACTION) ? EBA1 : BA1),
   swapInAir: () => (isHeld(ALGORITHM_COMPACTION) ? EMA : MA),
@@ -581,12 +580,12 @@ const BA234 = new ActionGroup("Basic - Locked Thread 234", [BA2, BA3, BA4]);
 const EBA234 = new ActionGroup("Basic - Thread Shredding 234", [EBA2, EBA3, EBA4]);
 
 const LC_ROTATION = new Rotation([
-  START_LAST, BA1.instaCancel(), Lib, ECHO, HA1.instaSwap(),
+  START_LAST, BA1.instaCancel(), Lib, ACTION_ADAM_SMASHER_LUCY, HA1.instaSwap(),
 
-  INTRO_LAST, BA234.cancel(), Skill1, Skill3,
+  Intro.inLastSlot(), BA234.cancel(), Skill1, Skill3,
   Deadlock, EBA234.holdCancel(),
-  DualThreading, MultiThreadingResolver, ECHO,
-  ELib, HA1, HA2.instaSwap(), OUTRO,
+  DualThreading, MultiThreadingResolver, ACTION_ADAM_SMASHER_LUCY,
+  ELib, HA1, HA2.instaSwap(), Outro,
 ]);
 
 /** Adam Smasher carries its own 1pc set, so the other four echoes run two ordinary 2-piece sets

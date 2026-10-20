@@ -55,13 +55,13 @@ import {
   runningAction,
   stacksOfEnemy,
 } from "../../engine/context.js";
-import { Action, ActionGroup, Rotation, ECHO, NOINTRO, ActionTag, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
+import { Action, ActionGroup, Rotation, SWAPIN, ActionTag, DODGE } from "../../engine/rotation.js";
 import { FRAZZLE_SLOWED, SPECTRO_FRAZZLE } from "../../shared/status.js";
 import { LUMINOUS_HYMN, STRINGMASTER } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { AUGMENT, RADIANT_DAWN } from "../../weapons/battlepass.js";
-import { ETERNAL_RADIANCE_5PC, CAPITANEUS } from "../../echoes/rinascita.js";
-import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
+import { ETERNAL_RADIANCE_5PC, CAPITANEUS, ACTION_CAPITANEUS } from "../../echoes/rinascita.js";
+import { HERON, MOONLIT_CLOUDS_5PC, ACTION_HERON } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -428,7 +428,6 @@ const PHOEBE_RESONATOR = new Resonator({
   weapon: WeaponType.Rectifier,
   color: "#f2e5c0",
   intro: Intro,
-  outro: Outro,
   // inside the Ring of Mirrors her Basic Attack is Chamuel's Star
   swapIn: () => (isHeld(RING_OF_MIRRORS) ? CBA1 : BA1),
   swapInAir: MA,
@@ -446,27 +445,27 @@ const PHOEBE_RESONATOR = new Resonator({
  *  that hands Silent Prayer on. 101.5 Concerto over the visit, so the Outro fires. */
 const PHOEBE_CONFESSION_ROTATION = new Rotation([
   // leading, she has no Intro's 10 Concerto: two more chains make up the OUTRO's 100
-  NOINTRO, BA1.instaCancel(), SkillConf.instaCancel(), Liberation, Skill.instaDodge(),
+  SWAPIN, BA1.instaCancel(), SkillConf.instaCancel(), Liberation, Skill.instaDodge(),
   CBA123.instaDodge(), Starflash.dodgeCancel(),
   CBA123.instaDodge(), 
-  CBA123.instaDodge(), Starflash, ECHO.instaCancel(), OUTRO,
+  CBA123.instaDodge(), Starflash, ACTION_HERON.instaCancel(), ACTION_CAPITANEUS.instaCancel(), Outro,
 
-  INTRO.mashCancel(), Liberation, SkillConf.instaDodge(), Skill.instaDodge(),
+  Intro.mashCancel(), Liberation, SkillConf.instaDodge(), Skill.instaDodge(),
   CBA123.instaDodge(), Starflash.dodgeCancel(),
   CBA123.instaDodge(), Starflash,
-  ECHO.instaCancel(), OUTRO,
+  ACTION_HERON.instaCancel(), ACTION_CAPITANEUS.instaCancel(), Outro,
 ]);
 
 /** Absolution: Starflash costs 15 instead of 30, so the same bar pays for four of them, and it is
  *  those four the stance is built around. Absolution Litany banks only 10 Concerto against Utter
  *  Confession's 40, which is exactly why this loop needs the two extra chains to reach 100. */
 const PHOEBE_ABSOLUTION_ROTATION = new Rotation([
-  INTRO.mashCancel(), Liberation, HeavyAbs.instaDodge(), Skill.instaDodge(),
+  Intro.mashCancel(), Liberation, ACTION_CAPITANEUS, HeavyAbs.instaDodge(), Skill.instaDodge(),
   CBA123.instaDodge(), Starflash.dodgeCancel(),
   CBA123.instaDodge(), Starflash.dodgeCancel(),
   CBA123.instaDodge(), Starflash.dodgeCancel(),
-  CBA123.instaDodge(), Starflash.cancel(),
-  ECHO.instaCancel(), OUTRO,
+  CBA123.instaDodge(), Starflash,
+  Outro,
 ]);
 
 /* ---------------------------------------------------------------------------------- loadouts */

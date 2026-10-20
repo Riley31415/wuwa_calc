@@ -56,13 +56,13 @@ import {
   cancelHits,
   addStatAs,
 } from "../../engine/context.js";
-import { Action, ActionField, Cooldown, Rotation, NOINTRO, ECHO, ActionGroup, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
+import { Action, ActionField, Cooldown, Rotation, SWAPIN, ActionGroup, DODGE } from "../../engine/rotation.js";
 import type { BulletDef } from "../../engine/rotation.js";
 import { HEALS, heal, inflictElectroFlare } from "../../shared/status.js";
 import { VARIATION } from "../../weapons/standard.js";
-import { REJUV_5PC } from "../../echoes/jinzhou.js";
+import { REJUV_5PC, ACTION_FALLACY } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
-import { FORMLESS_DEMON, TINGED_YEARNING_5PC } from "../../echoes/mengzhou.js";
+import { FORMLESS_DEMON, TINGED_YEARNING_5PC, ACTION_FORMLESS_DEMON } from "../../echoes/mengzhou.js";
 import { JINHSI_RESONATOR } from "../spectro/jinhsi.js";
 import { SUOMING_RESONATOR } from "./suoming.js";
 import { HSIN_RESONATOR } from "./hsin.js";
@@ -385,7 +385,6 @@ const BULING_RESONATOR = new Resonator({
   weapon: WeaponType.Rectifier,
   color: "#7a6ff0",
   intro: Intro,
-  outro: Outro,
   swapIn: BA1,
   swapInAir: MA,
   maxEnergy: 15000,
@@ -401,10 +400,10 @@ const BULING_RESONATOR = new Resonator({
 // Thunder Over Mountain for Minor Yang; Skill and Basic 4 bank two Thunders and the Heavy reads
 // [T, T] as Twin Thunders for Minor Yin — Yin-Yang Balance, so the Liberation resolves to Harmony.
 const BL_ROTATION = new Rotation([
-  NOINTRO, BA1.instaCancel(),
-  INTRO.mashCancel(),
-  Skill, BA4.jumpCancel(), MA, BA12.instaCancel(), HA, HA.cancel(), ECHO.instaDodge(), // TODO maybe cancel HA?
-  LIB, OUTRO,
+  SWAPIN, BA1.instaCancel(),
+  Intro.mashCancel(),
+  Skill, BA4.jumpCancel(), MA, BA12.instaCancel(), HA, HA.cancel(), ACTION_FALLACY.instaCancel(), ACTION_FORMLESS_DEMON.instaCancel(), // TODO maybe cancel HA?
+  LIB, Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

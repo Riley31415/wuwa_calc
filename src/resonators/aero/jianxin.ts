@@ -35,10 +35,10 @@ import {
   queueQTE,
   revokeCurrent,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, ECHO, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, DODGE } from "../../engine/rotation.js";
 import { HEALS, gainShield } from "../../shared/status.js";
 import { MARCATO } from "../../weapons/standard.js";
-import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
+import { HERON, MOONLIT_CLOUDS_5PC, ACTION_HERON } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -271,7 +271,6 @@ const JIANXIN_RESONATOR = new Resonator({
   weapon: WeaponType.Gauntlets,
   color: "#9fe0c8",
   intro: Intro,
-  outro: Outro,
   swapIn: BA1,
   swapInAir: MA,
   maxEnergy: 15000,
@@ -292,7 +291,7 @@ const JIANXIN_RESONATOR = new Resonator({
  *  Concerto and the swap costs 100, and two more presses are 9.58 — BA1234 again would be 22.9,
  *  far more than the bar needs. */
 const JX_ROTATION_S2 = new Rotation([
-  INTRO, ChiParry, ChiParry, Liberation, ZHOUTIAN_4, ECHO.instaSwap(), OUTRO,
+  Intro, ChiParry, ChiParry, Liberation, ZHOUTIAN_4, ACTION_HERON.instaSwap(), Outro,
 ]);
 
 export const JIANXIN = new Loadout({

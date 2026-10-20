@@ -83,13 +83,13 @@ import {
   addGain,
   addStatAs,
 } from "../../engine/context.js";
-import { Action, ActionField, ActionGroup, Rotation, ECHO, ActionTag, INTRO, OUTRO, DOUBLE_INTRO, INTRO_OPENER, DODGE } from "../../engine/rotation.js";
+import { Action, ActionField, ActionGroup, Rotation, ActionTag, DODGE } from "../../engine/rotation.js";
 import { UNISON, UNISON_BOON, UNISON_RESPONSE, BOON_REACTOR, grantBoon, respondToUnison, unisonIntro, unisonOutro, unisonResponse } from "../../shared/unison.js";
 import { ELECTRO_FLARE, ELECTRO_RAGE, FLARE_RETAINED, inflictElectroFlare } from "../../shared/status.js";
 import { BLOOMING_JADEHAVEN, FREEZE_FRAME, LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";
 import { COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { AUGMENT, RADIANT_DAWN } from "../../weapons/battlepass.js";
-import { STAY_TUNED, SWORN_VIGIL_5PC } from "../../echoes/mengzhou.js";
+import { STAY_TUNED, SWORN_VIGIL_5PC, ACTION_STAY_TUNED_HSIN } from "../../echoes/mengzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -944,7 +944,6 @@ export const HSIN_RESONATOR = new Resonator({
   updateDebuffs: () => { if (!isActive() && runningAnyOf(ANSWERING_HEART_HITS)) addGain({ forte1: -currentHit().forte1 }); },
   color: "#f1a49b",
   // resolved when its row is reached: whichever Intro the kit's state calls for there
-  outro: () => (isHeld(UNISON) ? OutroUnison : Outro),
   intro: () => {
       if (!isHeld(MODE_UNISON)) return isHeld(ILLUMINING_FORM) ? FlareIIntro : FlareIntro;
       const manifold = unisonIntro() || isHeld(SOURCE_INTENT);
@@ -982,23 +981,31 @@ const FBA12 = new ActionGroup("Basic - Illumining Form: Pillars Aligned 12", [FB
  *  kit's state calls for there. */
 
 const HS_ROTATION_FLARE = new Rotation([
-  INTRO, BA4.holdCancel(),
-  RealmProtector, Lib1, ECHO,
+  FlareIntro, BA4.holdCancel(),
+  RealmProtector, Lib1, ACTION_STAY_TUNED_HSIN,
   IBA1.instaCancel(), ISkill.mashCancel(),
   //IBA123.instaCancel(), ISkill.holdCancel(),
   PillarsAligned, 
   //FBA1234.holdCancel(), FHA,
   //FBA12.dodgeCancel(), FBA12.dodgeCancel(), FBA1.holdCancel(),FHA,
   FBA12.dodgeCancel(), FBA123.holdCancel(),FHA,
-  Lib2, BA1.instaSwap(), OUTRO,
+  Lib2, BA1.instaSwap(), Outro,
 ]);
+// her first arrival skips the Stage 4 the loop opens on
 const HS_ROTATION_FLARE_S2 = new Rotation([
-  INTRO, BA4.holdCancel(), INTRO_OPENER,  
-  RealmProtector, Lib1, ECHO,
+  FlareIntro.firstIntro(),
+  RealmProtector, Lib1, ACTION_STAY_TUNED_HSIN,
   IBA1.instaCancel(), ISkill.mashCancel(),
   PillarsAligned, 
   FBA12.dodgeCancel(), FBA123.holdCancel(),FHA,
-  Lib2, BA1.instaSwap(), OUTRO,
+  Lib2, BA1.instaSwap(), Outro,
+
+  FlareIntro, BA4.holdCancel(),
+  RealmProtector, Lib1, ACTION_STAY_TUNED_HSIN,
+  IBA1.instaCancel(), ISkill.mashCancel(),
+  PillarsAligned, 
+  FBA12.dodgeCancel(), FBA123.holdCancel(),FHA,
+  Lib2, BA1.instaSwap(), Outro,
 ]);
 
 // The Unison-mode loop, Jinhsi's double-Intro shape. The Answering pre-visit: the Intro (its
@@ -1009,24 +1016,29 @@ const HS_ROTATION_FLARE_S2 = new Rotation([
 // Leading, the Intro's 68 Answering Heart and its stages 1-2 are a full chain and then Stage 1-2
 // again, so the section's own Stage 3-4 continue it: 126 Heart into Realm Protector's 100.
 const HS_ROTATION_UNISON = new Rotation([
-  DOUBLE_INTRO, BA34.holdCancel(),
+  UIntro.doubleIntro(), ManifoldAnswering.doubleIntro(), BA34.holdCancel(),
   RealmProtector, Lib1,
-  IBA1.instaCancel(), ISkill.instaSwap(), OUTRO,
+  IBA1.instaCancel(), ISkill.instaSwap(), OutroUnison,
 
-  INTRO, 
-  ECHO, 
+  ManifoldIllumining, 
+  ACTION_STAY_TUNED_HSIN, 
   FBA12.dodgeCancel(), FBA123.holdCancel(),FHA,
-  Lib2, Skill.instaSwap(), OUTRO,
+  Lib2, Skill.instaSwap(), Outro,
 ]);
+// her first pre-visit skips the Stage 3-4 the loop's opens on
 const HS_ROTATION_UNISON_S2 = new Rotation([
-  DOUBLE_INTRO, BA34.holdCancel(), INTRO_OPENER,  
+  UIntro.firstDoubleIntro(), ManifoldAnswering.firstDoubleIntro(),
   RealmProtector, Lib1, 
-  IBA1.instaCancel(), ISkill.instaSwap(), OUTRO,
+  IBA1.instaCancel(), ISkill.instaSwap(), OutroUnison,
 
-  INTRO, 
-  ECHO, 
+  UIntro.doubleIntro(), ManifoldAnswering.doubleIntro(), BA34.holdCancel(),
+  RealmProtector, Lib1, 
+  IBA1.instaCancel(), ISkill.instaSwap(), OutroUnison,
+
+  ManifoldIllumining, 
+  ACTION_STAY_TUNED_HSIN, 
   FBA12.dodgeCancel(), FBA123.holdCancel(),FHA,
-  Lib2, Skill.instaSwap(), OUTRO,
+  Lib2, Skill.instaSwap(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

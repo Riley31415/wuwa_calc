@@ -21,7 +21,6 @@ import {
   applied,
   currentTeam,
   applyOthers,
-  elapsed,
   resetCooldown,
   runningAnyOf,
   onApplied,
@@ -33,17 +32,17 @@ import {
   saveChain,
   addStatAs,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, ECHO, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, DODGE } from "../../engine/rotation.js";
 import { SHIELD } from "../../shared/status.js";
 import { IUNO_SIG, VERITYS_HANDLE } from "../../weapons/gauntlet.js";
 import { MARCATO, NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
 import { STONARD, AETHER_STRIKE } from "../../weapons/battlepass.js";
-import { MYA, COV_3PC } from "../../echoes/septimont.js";
-import { WINDWARD_5PC, NM_KELPIE } from "../../echoes/rinascita.js";
+import { MYA, COV_3PC, ACTION_MYA } from "../../echoes/septimont.js";
+import { WINDWARD_5PC, NM_KELPIE, ACTION_NM_KELPIE } from "../../echoes/rinascita.js";
 import { CARTETHYIA_RESONATOR } from "./cartethyia.js";
 import { CIACCONA_RESONATOR } from "./ciaccona.js";
 import { ROVER_AERO_RESONATOR } from "./rover_aero.js";
-import { SIERRA_GALE_2PC, HERON, MOONLIT_CLOUDS_5PC, REJUV_5PC, FALLACY } from "../../echoes/jinzhou.js";
+import { SIERRA_GALE_2PC, HERON, MOONLIT_CLOUDS_5PC, REJUV_5PC, FALLACY, ACTION_HERON, ACTION_FALLACY } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -282,7 +281,6 @@ const IUNO_RESONATOR = new Resonator({
   weapon: WeaponType.Gauntlets,
   color: "#2dd4c0",
   intro: Intro,
-  outro: Outro,
   // New Moon attacks with the Moonbow, Sentience-enhanced while she holds any
   swapIn: () => (isHeld(NEW_MOON) ? (forte1() >= 1 ? FMA1 : MA1) : BA1),
   maxEnergy: 12500,
@@ -298,15 +296,21 @@ const IUNO_RESONATOR = new Resonator({
 
 /* --------------------------------------------------------------------------------- sequences */
 
-/** S1: +40% ATK while Lunar Cycle is held; the point of Energy a second inside the domain is paid by
- *  the domain itself (above). The interrupt immunity is no stat. */
+/** S1's point of Energy a second while she herself stands in her own Full Moon Domain: a clock that
+ *  runs only while the domain is up and she is the one on field. */
+const IO_S1_REGEN = new Buff({
+  name: "Iuno S1: Wax or Wane, All Gild the Bough (Energy)",
+  tick: {
+    every: () => (stacksOfTeam(IUNO_DOMAIN) > 0 && currentTeam().slots[currentTeam().onField]!.resonator === IUNO_RESONATOR ? 60 : 0),
+    fire: () => addGain({ energy: 100 }),
+  },
+});
+
+/** S1: +40% ATK while Lunar Cycle is held, and the domain's Energy above. The interrupt immunity
+ *  is no stat. */
 const IO_S1 = new Sequence({
   name: "Iuno S1: Wax or Wane, All Gild the Bough",
-  // a point of Energy a second while she herself stands in her own Full Moon Domain — this hook
-  // runs on her turns alone, which is that condition
-  updateBuffs: () => {
-    if (stacksOfTeam(IUNO_DOMAIN) > 0) addGain({ energy: Math.round(elapsed() * 100 / 60) });
-  },
+  combatStart: () => applyCurrent(IO_S1_REGEN, 1),
   applyStats: () => {
     if (isHeld(LUNAR_CYCLE)) addStat(Stat.BonusAtk, 40);
   },
@@ -360,29 +364,29 @@ const IO_S6 = new Sequence({
 const IO_SEQUENCES = [IO_S1, IO_S2, IO_S3, IO_S4, IO_S5, IO_S6];
 
 const IO_ROTATION = new Rotation([
-  INTRO, ECHO.instaDodge(), 
+  Intro, ACTION_MYA.instaCancel(), ACTION_HERON.instaDodge(), ACTION_FALLACY.instaCancel(), ACTION_NM_KELPIE.instaDodge(), 
   Liberation, JumpHeavy,
   FMA123.cancel(), FMSkill, FMSkill.cancel(), 
-  FHA.instaSwap(), OUTRO,
+  FHA.instaSwap(), Outro,
 ]);
 
 const IO_ROTATION_MDPS = new Rotation([
-  INTRO, ESkill, ECHO,
+  Intro, ESkill, ACTION_MYA, 
   JumpHeavy,
   FMSkill,
   FMA123.cancel(), Liberation, 
   FMA123.cancel(), FMSkill, 
   MA123.cancel(), 
-  FHA.instaSwap(), OUTRO,
+  FHA.instaSwap(), Outro,
 ]);
 
 /** The same at S6 — see IO_ROTATION_S6. */
 const IO_ROTATION_MDPS_S6 = new Rotation([
-  INTRO, Liberation, JumpHeavy,
+  Intro, Liberation, JumpHeavy,
   FMSkill, 
   FMA123.cancel(), FMSkill.cancel(),
-  FHA, ECHO, 
-  FMSkill, FMA123.cancel(), FMSkill, OUTRO,
+  FHA, ACTION_MYA,
+  FMSkill, FMA123.cancel(), FMSkill, Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

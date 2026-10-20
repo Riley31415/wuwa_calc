@@ -31,16 +31,16 @@ import {
   applyCurrent,
   addGain,
 } from "../../engine/context.js";
-import { Action, Rotation, NOINTRO, ECHO, ActionField, ActionGroup, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
+import { Action, Rotation, SWAPIN, ActionField, ActionGroup, DODGE } from "../../engine/rotation.js";
 import { HEALS, heal } from "../../shared/status.js";
 import { VARIATION } from "../../weapons/standard.js";
-import { REJUV_5PC } from "../../echoes/jinzhou.js";
+import { REJUV_5PC, ACTION_FALLACY } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
 import { mainstats, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
-import { SPACETREK_EXPLORER, STARRY_RADIANCE_5PC } from "../../echoes/lahairoi.js";
-import { FORMLESS_DEMON, TINGED_YEARNING_5PC } from "../../echoes/mengzhou.js";
+import { SPACETREK_EXPLORER, STARRY_RADIANCE_5PC, ACTION_SPACETREK } from "../../echoes/lahairoi.js";
+import { FORMLESS_DEMON, TINGED_YEARNING_5PC, ACTION_FORMLESS_DEMON } from "../../echoes/mengzhou.js";
 import { JINGRAN_RESONATOR } from "../fusion/jingran.js";
 import { JINHSI_RESONATOR } from "./jinhsi.js";
 import { SUOMING_RESONATOR } from "../electro/suoming.js";
@@ -254,7 +254,6 @@ const VERINA_RESONATOR = new Resonator({
   weapon: WeaponType.Rectifier,
   color: "#cfee7a",
   intro: Intro,
-  outro: Outro,
   // her no-Intro chain opens on Basic 3
   swapIn: BA3,
   swapInAir: MA1,
@@ -274,23 +273,23 @@ const VERINA_RESONATOR = new Resonator({
 const BA345 = new ActionGroup("Basic - Cultivation 345", [BA3, BA4, BA5]);
 
 const VR_LOOP = new Rotation([
-  NOINTRO, BA345.cancel(), Liberation, 
+  SWAPIN, BA345.cancel(), Liberation, 
   Skill.jumpCancel(), ForteMidair1, ForteMidair2,
-  ECHO.instaSwap(), OUTRO,
+  ACTION_FALLACY.instaSwap(), ACTION_SPACETREK.instaSwap(), ACTION_FORMLESS_DEMON.instaSwap(), Outro,
 
-  INTRO, Liberation,
+  Intro, Liberation,
   Skill.jumpCancel(), ForteMidair1, ForteMidair2,
-  ECHO.instaSwap(), OUTRO,
+  ACTION_FALLACY.instaSwap(), ACTION_SPACETREK.instaSwap(), ACTION_FORMLESS_DEMON.instaSwap(), Outro,
 ]);
 
 const VR_S2 = new Rotation([
-  NOINTRO, BA3.instaCancel(), Liberation, 
+  SWAPIN, BA3.instaCancel(), Liberation, 
   Skill.jumpCancel(), ForteMidair1, ForteMidair2,
-  ECHO.instaSwap(), OUTRO,
+  ACTION_FALLACY.instaSwap(), ACTION_SPACETREK.instaSwap(), ACTION_FORMLESS_DEMON.instaSwap(), Outro,
 
-  INTRO, Liberation,
+  Intro, Liberation,
   Skill.jumpCancel(), ForteMidair1, ForteMidair2,
-  ECHO.instaSwap(), OUTRO,
+  ACTION_FALLACY.instaSwap(), ACTION_SPACETREK.instaSwap(), ACTION_FORMLESS_DEMON.instaSwap(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

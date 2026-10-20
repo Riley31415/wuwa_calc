@@ -28,16 +28,16 @@ import {
   addStat,
   asSource,
 } from "../../engine/context.js";
-import { Action, Rotation, NOINTRO, ECHO, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
+import { Action, Rotation, SWAPIN, DODGE } from "../../engine/rotation.js";
 import { AERO_EROSION, SPECTRO_FRAZZLE, HAVOC_BANE, FUSION_BURST, GLACIO_CHAFE, ELECTRO_FLARE, HEALS, heal } from "../../shared/status.js";
 import { BLOODPACTS_PLEDGE, BLOODPACT_AERO_AMP } from "../../weapons/standard.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
-import { REJUV_5PC, HERON, MOONLIT_CLOUDS_5PC, BELL_BORNE_GEOCHELONE } from "../../echoes/jinzhou.js";
+import { REJUV_5PC, HERON, MOONLIT_CLOUDS_5PC, BELL_BORNE_GEOCHELONE, ACTION_FALLACY, ACTION_BELL_BORNE, ACTION_HERON } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
-import { FLEURDELYS, WINDWARD_5PC } from "../../echoes/rinascita.js";
+import { FLEURDELYS, WINDWARD_5PC, ACTION_FLEURDELYS } from "../../echoes/rinascita.js";
 import { tuneBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -304,7 +304,6 @@ export const ROVER_AERO_RESONATOR = new Resonator({
   tuneBreak: tuneBreak(90, [0, 91], [0, 70], SWORD_BREAK),
   color: "#6fd6b0",
   intro: Intro,
-  outro: Outro,
   swapIn: BA1,
   swapInAir: MA,
   maxEnergy: 15000,
@@ -329,12 +328,12 @@ export const ROVER_AERO_RESONATOR = new Resonator({
 // never the team's own lead, so this covers opener and loop both.
 
 const AR_ROTATION = new Rotation([
-  NOINTRO, BA1.instaCancel(), Skill,
-  INTRO, Cloudburst1, Cloudburst2, SkyfallSeverance,  MA, BA4,
-  ECHO.instaDodge(),
+  SWAPIN, BA1.instaCancel(), Skill,
+  Intro, Cloudburst1, Cloudburst2, SkyfallSeverance,  MA, BA4,
+  ACTION_FALLACY.instaCancel(), ACTION_BELL_BORNE.instaCancel(), ACTION_HERON.instaDodge(), ACTION_FLEURDELYS.instaCancel(),
   Liberation,
   Skill, Cloudburst1, Cloudburst2, MA, BA4,
-  UnboundFlow1, UnboundFlow2.instaSwap(), OUTRO,
+  UnboundFlow1, UnboundFlow2.instaSwap(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

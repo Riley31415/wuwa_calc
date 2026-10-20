@@ -24,13 +24,13 @@ import {
   addEnemyStat,
   queue,
 } from "../../engine/context.js";
-import { Action, Rotation, NOINTRO, ECHO, ActionGroup, INTRO, OUTRO, Cooldown, DODGE } from "../../engine/rotation.js";
+import { Action, Rotation, SWAPIN, ActionGroup, Cooldown, DODGE } from "../../engine/rotation.js";
 import { tuneBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
 import { SPECTRO_FRAZZLE, SHIMMER, HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { BLAZING_BRILLIANCE, RED_SPRING } from "../../weapons/sword.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
-import { REJUV_5PC, HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
+import { REJUV_5PC, HERON, MOONLIT_CLOUDS_5PC, ACTION_FALLACY, ACTION_HERON } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
@@ -230,7 +230,6 @@ const ROVER_SPECTRO_RESONATOR = new Resonator({
   weapon: WeaponType.Sword,
   color: "#e8d98f",
   intro: Intro,
-  outro: Outro,
   swapIn: BA1,
   swapInAir: MA,
   tuneBreak: tuneBreak(91, [0, 91], [0, 70], SWORD_BREAK),
@@ -245,13 +244,13 @@ const ROVER_SPECTRO_RESONATOR = new Resonator({
  *  team costs him only the Intro's own 50 Diminutive Sound — the first Heavy chain banks the 50
  *  that Resonating Spin needs either way. */
 const SPR_ROTATION = new Rotation([
-  NOINTRO, BA1, HA123, FSkill1, Liberation, 
+  SWAPIN, BA1, HA123, FSkill1, Liberation, 
   HA123, HA123, FSkill1,
-  ECHO.instaSwap(), OUTRO,
+  ACTION_FALLACY.instaSwap(), ACTION_HERON.instaSwap(), Outro,
 
-  INTRO, FSkill1, FBA.cancel(), Liberation, 
+  Intro, FSkill1, FBA.cancel(), Liberation, 
   HA123, HA123, FSkill1,
-  ECHO.instaSwap(), OUTRO,
+  ACTION_FALLACY.instaSwap(), ACTION_HERON.instaSwap(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

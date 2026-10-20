@@ -50,15 +50,15 @@ import {
   saveChain,
   addStatAs,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, NOINTRO, ECHO, ActionTag, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, SWAPIN, ActionTag, DODGE } from "../../engine/rotation.js";
 import { WILDFIRE_MARK } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { AUTUMNTRACE, AUREATE_ZENITH } from "../../weapons/battlepass.js";
-import { LIONESS_OF_GLORY, CLAWPRINT_5PC } from "../../echoes/septimont.js";
+import { LIONESS_OF_GLORY, CLAWPRINT_5PC, ACTION_LIONESS } from "../../echoes/septimont.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
-import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
+import { HERON, MOONLIT_CLOUDS_5PC, ACTION_HERON } from "../../echoes/jinzhou.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -161,24 +161,24 @@ const HA = lupaAction("Heavy - Flaming Star", { maxForte1: 499999, animFrames: 5
   ]});
 /** Firestrike, at Wolflame 50+. Counts as Heavy Attack DMG. */
 // it replaces Mid-air Attack Stage 3, so it follows what Stage 3 does
-const EMA3 = lupaAction("Mid-air - Firestrike", { chains: () => [MA2, Intro], castPosition: Position.Midair, minForte1: 500000, animFrames: 71, animPriority: { 0: 6, 46: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
+const EMA3 = lupaAction("Mid-air - Firestrike", { chains: () => [MA2, Intro], castPosition: Position.Midair, endPosition: Position.Grounded, minForte1: 500000, animFrames: 71, animPriority: { 0: 6, 46: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
     { hitFrame: 32, mv: 2848, energy: 43, concerto: 500, offtune: 1348 },
-    { hitFrame: 50, mv: 2848, energy: 43, concerto: 500, offtune: 1348, forte2: 1 },
-  ], castForte1: -500000});
+    { hitFrame: 50, mv: 2848, energy: 43, concerto: 500, offtune: 1348 },
+  ], castForte1: -500000, castForte2: 1});
 /** Wolf's Gnawing, at Wolflame 50+. */
 const EHA3 = lupaAction("Heavy - Wolf's Gnawing", { minForte1: 500000, animFrames: 50, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 26, mv: 5611, energy: 83, concerto: 500, offtune: 2656 },
-    { hitFrame: 40, mv: 5611, energy: 83, concerto: 500, offtune: 2656, forte2: 1 },
-  ], castForte1: -500000});
+    { hitFrame: 40, mv: 5611, energy: 83, concerto: 500, offtune: 2656 },
+  ], castForte1: -500000, castForte2: 1});
 /** Wolf's Claw, at Wolflame 50+ and Wolfaith 1+. */
-const EHA4 = lupaAction("Heavy - Wolf's Claw", { minForte1: 500000, minForte2: 1, animFrames: 96, animPriority: { 2: 4, 82: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+const EHA4 = lupaAction("Heavy - Wolf's Claw", { castPosition: Position.Grounded, minForte1: 500000, minForte2: 1, animFrames: 96, animPriority: { 2: 4, 82: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 24, mv: 7215, energy: 107, concerto: 300, offtune: 3415 },
     { hitFrame: 41, mv: 1804, energy: 27, concerto: 75, offtune: 854 },
     { hitFrame: 46, commitFrame: 41, mv: 1804, energy: 27, concerto: 75, offtune: 854 },
     { hitFrame: 50, commitFrame: 41, mv: 1804, energy: 27, concerto: 75, offtune: 854 },
     { hitFrame: 54, commitFrame: 41, mv: 1804, energy: 27, concerto: 75, offtune: 854 },
-    { hitFrame: 75, mv: 9619, energy: 143, concerto: 400, offtune: 4554, forte2: 1 },
-  ], castForte1: -500000});
+    { hitFrame: 75, mv: 9619, energy: 143, concerto: 400, offtune: 4554 },
+  ], castForte1: -500000, castForte2: 1});
 
 // Shewolf's Hunt and its Feral Fang follow-up, each restoring 15 Wolflame
 const Skill1 = lupaAction("Skill - Shewolf's Hunt", {
@@ -207,7 +207,7 @@ const USkill = lupaAction("Skill - Foebreaker", {
 
 // tops Wolflame to 100, spends every point of Wolfaith, opens Pack Hunt/Glory
 const Liberation = lupaAction("Liberation - Fire-Kissed Glory", {
-  animFrames: 220, animPriority: { 200: 4, 210: 2 }, castPriority: 10, timestop: [0, 220], motionStop: [13, 220], cooldown: 60 * 20,
+  endPosition: Position.Grounded, animFrames: 220, animPriority: { 200: 4, 210: 2 }, castPriority: 10, timestop: [0, 220], motionStop: [13, 220], cooldown: 60 * 20,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 168, mv: 82044, offtune: 48000 }], castConcerto: 2000, castForte1: 1500000, castEnergy: -12500,
   // "Restores 100 points of Wolflame" is a hard top-off, not additive on top of whatever was
   // already held, and every point of Wolfaith goes: both reset ahead of the declared +100
@@ -466,7 +466,6 @@ const LUPA_RESONATOR = new Resonator({
   color: "#e8483a",
   // resolved when its row is reached: whichever Intro the kit's state calls for there
   intro: () => (stacksOfTeam(WILD_HUNT) ? EIntro : Intro),
-  outro: Outro,
   swapIn: BA1,
   swapInAir: MA1,
   maxEnergy: 12500,
@@ -496,9 +495,10 @@ const LUPA_RESONATOR = new Resonator({
 const MA12 = new ActionGroup("Mid-air - Flaming Star 12", [MA1, MA2]);
 
 const LP_LOOP = new Rotation([
-  NOINTRO, BA1.instaCancel(), Skill1.cancel(), 
-  INTRO, ECHO.instaDodge(), Liberation, 
-  USkill, MA12, EMA3, EHA4.mashCancel(), UFSkill.swapCancel(), OUTRO,
+  SWAPIN, BA1.instaCancel(), Skill1.cancel(), 
+  
+  EIntro.mashCancel(), ACTION_HERON.instaDodge(), Intro.mashCancel(), Liberation, ACTION_LIONESS, 
+  USkill, MA12, EMA3, EHA4.mashCancel(), UFSkill.swapCancel(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

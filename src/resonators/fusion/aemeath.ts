@@ -63,13 +63,13 @@ import {
   addGain,
   addStatAs,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, ECHO, INTRO, OUTRO, START, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, START, DODGE } from "../../engine/rotation.js";
 import { TUNE_RUPTURE_SHIFTING, TUNE_SHIFTABLE, TUNE_BREAK, applyRupture, tuneRuptureResponse, tuneBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
 import { FUSION_BURST, FUSION_BURST_ACTIONS, queueOnApplier } from "../../shared/status.js";
 import { EVERBRIGHT_POLESTAR } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
-import { SIGILLUM, TRAILBLAZING_STAR_5PC } from "../../echoes/lahairoi.js";
+import { SIGILLUM, TRAILBLAZING_STAR_5PC, ACTION_SIGILLUM } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -417,7 +417,6 @@ export const AEMEATH_RESONATOR = new Resonator({
   color: "#ff4680",
   // resolved when its row is reached: whichever Intro the kit's state calls for there
   intro: () => (stacksOf(MECH_FORM) ? EIntro : Intro),
-  outro: Outro,
   swapIn: () => (stacksOf(MECH_FORM) ? MBA1 : ABA1),
   // Mid-air Attack - Mech (a plunge) isn't modelled; Basic Attack - Mech "can be cast in mid-air close to the ground"
   swapInAir: () => (stacksOf(MECH_FORM) ? MBA1 : AMA),
@@ -628,11 +627,11 @@ const MBA234 = new ActionGroup("Basic - Mech 234", [MBA2, MBA3, MBA4]);
 const ABA34 = new ActionGroup("Basic - Aemeath 34", [ABA3, ABA4]);
 
 const AE_ROTATION = new Rotation([
-  INTRO, ABA34.cancel(), Lib1,
+  Intro, ABA34.cancel(), Lib1,
   MBA234.cancel(), Duet,
   ABA234.cancel(), Duet,
-  MHA2.cancel(), Lib2, ECHO.instaSwap(),
-  OUTRO,
+  MHA2.cancel(), Lib2, ACTION_SIGILLUM.instaSwap(),
+  Outro,
 ]);
 
 // S1: Brilliance stands at the opening, so the Charged II ahead of Overdrive is amplified and
@@ -640,11 +639,11 @@ const AE_ROTATION = new Rotation([
 const AE_ROTATION_S1 = new Rotation([
   START, ABA1.instaCancel(), AHA2.instaSwap(),
 
-  INTRO, ABA34.cancel(), Lib1,
+  Intro, ABA34.cancel(), Lib1,
   MBA234.cancel(), Duet,
   ABA234.cancel(), Duet,
-  MHA2.cancel(), Lib2, ECHO.instaSwap(),
-  OUTRO,
+  MHA2.cancel(), Lib2, ACTION_SIGILLUM.instaSwap(),
+  Outro,
 ]);
 
 export const AEMEATH_RUPTURE = new Loadout({

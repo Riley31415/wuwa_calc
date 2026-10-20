@@ -63,17 +63,17 @@ import {
   addGain,
   saveChain,
 } from "../../engine/context.js";
-import { Action, ActionField, ActionGroup, Rotation, ECHO, NOINTRO, ActionTag, INTRO, OUTRO, DOUBLE_INTRO, DODGE } from "../../engine/rotation.js";
+import { Action, ActionField, ActionGroup, Rotation, SWAPIN, ActionTag, DODGE } from "../../engine/rotation.js";
 import { tuneBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
 import { NINE_SHADOWS, UNISON, UNISON_BOON, BOON_REACTOR, grantBoon, takeBoon, respondToUnison, unisonIntro, unisonOutro, unisonResponse } from "../../shared/unison.js";
 import { RED_SPRING, UNSPOKEN_RUE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
-import { STAY_TUNED, STAY_TUNED_3C, SWORN_VIGIL_5PC } from "../../echoes/mengzhou.js";
+import { STAY_TUNED, STAY_TUNED_3C, SWORN_VIGIL_5PC, ACTION_STAY_TUNED, ACTION_STAY_TUNED_3C } from "../../echoes/mengzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
-import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
+import { HERON, MOONLIT_CLOUDS_5PC, ACTION_HERON } from "../../echoes/jinzhou.js";
 
 /* ----------------------------------------------------------------------------------- states */
 
@@ -519,7 +519,6 @@ export const SUOMING_RESONATOR = new Resonator({
   // queue, since the handoff is adopted only once the Intro row itself is evaluated
   color: "#ea5d64",
   // resolved when its row is reached: whichever Intro the kit's state calls for there
-  outro: () => (isHeld(UNISON) ? OutroUnison : Outro),
   intro: () => (isHeld(DEEP_MIND)
       ? (unisonIntro() ? IntroWhirlingThunder : IntroThunderRending)
       : (unisonIntro() ? IntroSealedDelusion : IntroFlashRift)),
@@ -562,11 +561,11 @@ const UBA123 = new ActionGroup("Basic - Unfurled Canopy 123", [UBA1, UBA2, UBA3]
  *  kit's state calls for there. */
 
 const SM_ROTATION = new Rotation([
-  NOINTRO, BA123, BA123.cancel(), SealedDelusion,
-  DOUBLE_INTRO, Liberation, OUTRO,
+  SWAPIN, BA123, BA123.cancel(), SealedDelusion,
+  IntroFlashRift.doubleIntro(), IntroSealedDelusion.doubleIntro(), IntroThunderRending.doubleIntro(), IntroWhirlingThunder.doubleIntro(), Liberation, OutroUnison,
 
-  INTRO, UHA2.dodgeCancel(), UBA12.cancel(),
-  UnforsakenMind, EngravedHeart.mashCancel(), ECHO.instaSwap(), OUTRO,
+  IntroFlashRift, IntroSealedDelusion, IntroThunderRending, IntroWhirlingThunder, UHA2.dodgeCancel(), UBA12.cancel(),
+  UnforsakenMind, EngravedHeart.mashCancel(), ACTION_HERON.instaSwap(), ACTION_STAY_TUNED.instaSwap(), ACTION_STAY_TUNED_3C.instaSwap(), Outro,
 ]);
 
 /** The Seal Master main-DPS loop, the kit's other way to spend a Unison. Her Intro drops her into
@@ -578,32 +577,32 @@ const SM_ROTATION = new Rotation([
  *  loop's Flash Rift is written for. */
 const SM_ROTATION_MDPS = new Rotation([
 
-  INTRO.mashCancel(), 
+  IntroFlashRift.mashCancel(), IntroSealedDelusion.mashCancel(), IntroThunderRending.mashCancel(), IntroWhirlingThunder.mashCancel(), 
   Liberation, 
   RiftCleaver.instaDodge(),
   UBA12UHA12.dodgeCancel(),
   UBA12UHA12.cancel(),
-  UnforsakenMind, EngravedHeart.mashCancel(), ECHO.instaSwap(),
-  OUTRO,
+  UnforsakenMind, EngravedHeart.mashCancel(), ACTION_HERON.instaSwap(), ACTION_STAY_TUNED.instaSwap(), ACTION_STAY_TUNED_3C.instaSwap(),
+  Outro,
 ]);
 const SM_ROTATION_MDPS_SIMPLE = new Rotation([
 
-  INTRO.mashCancel(), 
+  IntroFlashRift.mashCancel(), IntroSealedDelusion.mashCancel(), IntroThunderRending.mashCancel(), IntroWhirlingThunder.mashCancel(), 
   Liberation, 
   RiftCleaver, UBA3, UBA4, UBA2, UBA3, UBA4,
-  UnforsakenMind, EngravedHeart.mashCancel(), ECHO.instaSwap(),
-  OUTRO,
+  UnforsakenMind, EngravedHeart.mashCancel(), ACTION_HERON.instaSwap(), ACTION_STAY_TUNED.instaSwap(), ACTION_STAY_TUNED_3C.instaSwap(),
+  Outro,
 ]);
 const SM_ROTATION_MDPS_DOUBLE = new Rotation([
-  DOUBLE_INTRO, UBA1.instaSwap(),
+  IntroFlashRift.doubleIntro(), IntroSealedDelusion.doubleIntro(), IntroThunderRending.doubleIntro(), IntroWhirlingThunder.doubleIntro(), UBA1.instaSwap(),
 
-  INTRO, UHA2.cancel(),
+  IntroFlashRift, IntroSealedDelusion, IntroThunderRending, IntroWhirlingThunder, UHA2.cancel(),
   Liberation,
   RiftCleaver.instaDodge(),
   UBA12UHA12.dodgeCancel(),
   UBA12UHA12.cancel(),
-  UnforsakenMind, EngravedHeart.mashCancel(), ECHO.instaSwap(),
-  OUTRO,
+  UnforsakenMind, EngravedHeart.mashCancel(), ACTION_HERON.instaSwap(), ACTION_STAY_TUNED.instaSwap(), ACTION_STAY_TUNED_3C.instaSwap(),
+  Outro,
 ]);
 
 const SM_ECHOES = [

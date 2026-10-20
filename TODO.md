@@ -3,24 +3,20 @@
 add sigrika heavy spam
 
 #
+find correct input buffers and hold buffer frames
+find tb timeout frames
 currently tb not allowed after mash,hold,
 .tbCancel(), which will take priority for tb use for that section of the rotation (the first one after offtune is full takes the priority)
 
 #
-find correct input buffers and hold buffer frames
-
-#
-galb brant frames
+check echo cast and animation priorities
+psuedo transform 4 or less?
+import formrender frames
 
 #
 create forte bar UI?
 create negative status stack UI?
 
-#
-make echo actions resolvers that play only if their mainslot echo is equipped (create a template one for all echo actions to use)
-mainslot no longer points to echo, the echo action points to the required mainslot
-delete the current ECHO placeholder action and related logic, replace them with every mainslot that character may have.
-fully implement echo frames
 
 #
 add resonator, weapon, sonata, attribute, damage type, images
@@ -34,7 +30,7 @@ rank by best sequence gain
 have it re order teams?
 add costs and max cost filter and ranking
 
-# standard 5 star/4 star
+# resonators to implement
 calcharo
 lingyang
 chixia
@@ -43,7 +39,9 @@ youhu
 baizhi
 luumi
 taoqi
-yangyang
 aalto
-encore (no rotations shown)
-havoc rover (no rotations shown)
+
+# need rotation/team
+yangyang
+encore
+havoc rover

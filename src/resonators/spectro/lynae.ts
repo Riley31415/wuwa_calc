@@ -38,16 +38,16 @@ import {
   isHeld,
   addStatAs,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, ECHO, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, DODGE } from "../../engine/rotation.js";
 import { applyRupture, applyStrain, TUNE_STRAIN_INTERFERED, TUNE_SHIFTABLE, strainPayout, tuneRuptureResponse } from "../../shared/tunebreak.js";
 import { SPECTRUM_BLASTER } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
 import { THUNDERBOLT, SOLAR_FLAME } from "../../weapons/battlepass.js";
-import { HYVATIA, NEONLIGHT_LEAP_5PC, REEL_5PC, VOIDWING_MOTH } from "../../echoes/lahairoi.js";
+import { HYVATIA, NEONLIGHT_LEAP_5PC, REEL_5PC, VOIDWING_MOTH, ACTION_VOIDWING_MOTH, ACTION_HYVATIA } from "../../echoes/lahairoi.js";
 import { AEMEATH_RESONATOR } from "../fusion/aemeath.js";
 import { LUUK_RESONATOR } from "./luuk.js";
 import { QINGXIAO_RESONATOR } from "../aero/qingxiao.js";
-import { HERON, STONEWALL_BRACER, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
+import { HERON, STONEWALL_BRACER, MOONLIT_CLOUDS_5PC, ACTION_HERON, ACTION_STONEWALL_BRACER_1 } from "../../echoes/jinzhou.js";
 import { JINGRAN_RESONATOR } from "../fusion/jingran.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
@@ -378,7 +378,6 @@ const LYNAE_RESONATOR = new Resonator({
   weapon: WeaponType.Pistols,
   color: "#eae477",
   intro: Intro,
-  outro: Outro,
   // Kaleidoscopic Parade replaces the Basic Attack; its own Mid-air Attack has no action here
   swapIn: () => (isHeld(KALEIDOSCOPIC_PARADE) ? KBA1 : BA1),
   swapInAir: MA,
@@ -462,9 +461,9 @@ const LY_SEQUENCES = [LY_S1, LY_S2, LY_S3, LY_S4, LY_S5, LY_S6];
 const PolychromeLeap123 = new ActionGroup("Forte - Polychrome Leap 123", [PolychromeLeap1, PolychromeLeap2, PolychromeLeap3]);
 
 const LY_ROTATION = new Rotation([
-  INTRO.mashCancel(), Skill.cancel(), ECHO.instaDodge(), Liberation, SparkCollision.cancel(),
+  Intro.mashCancel(), Skill.cancel(), ACTION_VOIDWING_MOTH.instaDodge(), ACTION_HYVATIA.instaCancel(), ACTION_HERON.instaDodge(), ACTION_STONEWALL_BRACER_1.instaDodge(), Liberation, SparkCollision.cancel(),
   PolychromeLeap123,
-  VisualImpact.cancel(), OUTRO,
+  VisualImpact.cancel(), Outro,
 ]);
 
 

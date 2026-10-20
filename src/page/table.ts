@@ -411,12 +411,14 @@ function comparisonTable(rows: TeamRow[]): string {
     (_, p) => p[4]!,
     (_, p) => p[1]!,
   ];
+  // pinned rows stand above the rest, grouped and ordered among themselves as the rest are
   const keyed = rows.map((row) => {
     const run = results.get(row.key)!;
+    const pinned = pinnedRows.has(row.key);
     const parts = run.combo.map((c) => c.key.split("."));
-    const keys = [run.teamKey];
+    const keys = [`${pinned ? "pin|" : ""}${run.teamKey}`];
     for (const level of LEVELS) keys.push(`${keys[keys.length - 1]}|${run.combo.map((c, i) => level(c, parts[i]!)).join("-")}`);
-    return { pair: [row.key, run] as const, run, keys };
+    return { pair: [row.key, run] as const, run, keys, pinned };
   });
   const groupBest = new Map<string, TeamRun>();
   for (const { run, keys } of keyed) for (const k of keys) {
@@ -424,6 +426,7 @@ function comparisonTable(rows: TeamRow[]): string {
     if (!held || teamFigure(run) > teamFigure(held)) groupBest.set(k, run);
   }
   const sorted = keyed.sort((a, b) => {
+    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
     for (let i = 0; i < a.keys.length; i++) {
       const [ka, kb] = [a.keys[i]!, b.keys[i]!];
       if (ka === kb) continue;

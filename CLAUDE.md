@@ -47,21 +47,31 @@
   (Hsin's Flare/Unison, Lucilla's Echo/Chafe, Denia's, Aemeath's) — it stands from combat start. a stance
   a cast actually enters is an ordinary Buff that cast grants and the opposite cast revokes (Phoebe's
   Absolution/Confession), so she is in neither until it lands, opening visit included
-- slot 1 of a team leads, so its loadout must declare a `NOINTRO` chain or the team is unplayable; writing
-  `NOINTRO,` immediately before the Intro shares the whole body with no second copy
-- a rotation writes `INTRO` and `OUTRO` (never the kit's Intro or Outro action — that throws):
-  `INTRO, ..., OUTRO`. The Resonator names the Intro INTRO resolves to as `intro:` — the Intro, or
-  for a kit with more than one the function picking it (`intro: () => (isHeld(X) ? EIntro : Intro)`),
-  never a resolver Action — and the Outro OUTRO resolves to as `outro:`, the same way; `dodge:` and
-  `jump:` take an Action or `(after) => ...` alike. A
-  double-Intro section opens on `DOUBLE_INTRO`; `DOUBLE_INTRO` / `INTRO_OPENER` / `INTRO_FIRST` / `INTRO_LAST` cast INTRO on
-  their own, cut by cutting the marker (`INTRO_LAST.cancel()`) or by writing the cut one right after
-  them (`INTRO_LAST, INTRO.cancel()`)
+- slot 1 of a team leads, so its loadout must declare a `SWAPIN` chain or the team is unplayable; writing
+  `SWAPIN,` immediately before the Intro shares the whole body with no second copy. like Intros, a rotation
+  may write one SWAPIN chain per press a swap-in can open on (`SWAPIN, BA23..., Outro, SWAPIN, CurtainCall,
+  ..., Outro`): an arrival with no Intro resolves its `swapIn`/`swapInAir` and plays the chain opening on
+  that press, throwing where none does (a lone chain stands, its first press checked as it is cast)
+- an Intro chain opens on the kit's own Intro, or every Intro it could open on written back to back
+  (`Intro, EIntro, ..., Outro`), each cut alike (`Intro.cancel(), EIntro.cancel()`); an Intro written
+  further in is another place the chain starts — an arrival starts on the Intro `intro:` picks and
+  passes every other one it reaches by. It closes on the one Outro that section really leaves on
+  (`OutroUnison` where the visit lands Unison, else `Outro`): two in a row throws, and an Outro cast
+  outside its condition warns like any press (`unisonOutro()` requires UNISON).
+  The Resonator names the Intro an arrival casts as `intro:` — the Intro, or for a kit with more than
+  one the function picking it (`intro: () => (isHeld(X) ? EIntro : Intro)`), never a resolver
+  Action; it has no `outro:`. `dodge:` and `jump:` take an Action or `(after) => ...` alike. The
+  arrival plays the chain listing the Intro `intro:` picks, and throws where none does: a rotation
+  may give each Intro a chain of its own or list several in one, but never one in two chains of a
+  kind. `.firstIntro()` (the first arrival), `.inFirstSlot()` / `.inLastSlot()` (a team position),
+  `.doubleIntro()` (the pre-visit) and `.firstDoubleIntro()` (the first pre-visit) on an Intro open
+  the special chains, each Intro of a run marked alike (`Intro.inLastSlot().mashCancel()`); a
+  first-arrival or position chain stands in only for the Intros it lists
 - a loadout's `weapons` list its best signature first and its best standard weapon second — with the weapons box closed the solver runs only that one
 
 # chains and positions
 - `chains: [X, ...]` lists the presses an action may directly follow: its owner's last own press this
-  visit, any form of it (cuts, swap forms); DODGE/JUMP/INTRO/ECHO stand for any press of that cast. unset
+  visit, any form of it (cuts, swap forms); DODGE/JUMP stand for any press of that cast. unset
   follows anything (a Basic 1). read them off the kit text: stage n follows n−1, plus whatever the text
   leads into it ("follow up with Basic Attack to start the cycle from Stage 2"); a dodge counter `[DODGE]`.
   a press outside its chains throws; OFF_FIELD presses neither check nor count
@@ -75,7 +85,7 @@
   press. a press cut within 6f (an insta cut, a mash at 6) leaves them where they stood, a jump aside. every Intro declares `endPosition` (GROUNDED unless its text leaves them in the air)
 - 18f (`DESPAWN_TIME`) past its last press a resonator off field despawns. an arrival still standing keeps
   its position; a despawned one takes the outgoing one's (the fight's first actor and START: GROUNDED). the Resonator's `swapIn`/
-  `swapInAir` name the press an arrival with no Intro (NOINTRO, START) must open on, skipping its own chains
+  `swapInAir` name the press an arrival with no Intro (SWAPIN, START) must open on, skipping its own chains
   (Basic 1 and the mid-air Basic 1 or plunge for most, Phrolova Basic 2): `BA1.instaCancel()` where needed
 
 # cast and hit
@@ -93,7 +103,7 @@ every motion value is a bullet's
   the mash swap). a swap form goes last in its chain or section, or right before an Outro with no
   animation frames — before one with any it throws: write the plain cut (`.cancel()`, which keeps
   every hit an insta swap did); a plain cut into an Outro with none throws: write a swap form. where no Outro follows, the scheduler plays `SWAP` after it — no frames, no
-  cast, a dimmed row; the swap form's own delay is the handoff, which a plain `SWAP` or an Outro
+  cast, a dimmed row, read as `Swap - Grounded` / `Swap - Mid-air` for where the one swapped in will stand; the swap form's own delay is the handoff, which a plain `SWAP` or an Outro
   otherwise pays as `SWAP_DELAY` (12). a rotation may write `SWAP` itself after a press it plays out
   (`MA4, SWAP`): it adds no delay and closes its chain or section like a swap form; never right
   before an Outro. the cast of a `SWAP` or of an Outro is the only thing that takes
@@ -117,11 +127,20 @@ every motion value is a bullet's
   frame the window opens, a mash `MASH_DELAY` after it, and throws where it lets go no earlier than
   the press would end. an OFF_FIELD hit and an Outro with no animation carry no priority; an Outro with
   animation frames is cut into like any press
-- echo casts: a summon casts at 12; a transform ("Transform into ...") at 5, holding 13; a
-  pseudo-transform (Bell-Borne Geochelone, Chisa's Threnodian - Leviathan, Cartethyia's
-  Fleurdelys) at 5. an echo's cast is a `SummonEcho` (8 frames), `TransformEcho` (60) or
-  `PseudoTransformEcho` (8) from `src/echoes/casts.ts`, which fills in its cast, frames and
-  priorities; its def only overrides what differs
+- echo casts: a summon casts at 10, holding 0 (a Liberation cuts it); a transform ("Transform into ...") at 5, holding 13; a
+  pseudo-transform (wuwalab's `semi_transform`: Bell-Borne Geochelone, Mech Abomination, Chisa's
+  Threnodian - Leviathan, Thousand-Puppet Pavilion) at 5, holding 4; the class follows wuwalab's `type`. an echo's cast is a `SummonEcho` (8 frames), `TransformEcho` (60) or
+  `PseudoTransformEcho` (8) from `src/echoes/echo.ts`, which fills in its cast, frames and
+  priorities; its def only overrides what differs. it names its `mainslot:` (the Mainslot names no
+  action) and is a resolver: it plays only while that mainslot is worn, skipped with its cut and dash
+  otherwise. there is no ECHO marker — a rotation writes one cast per mainslot the character may wear,
+  side by side, each cut its own way (`ACTION_HERON.instaSwap(), ACTION_FALLACY.instaSwap(), Outro`); a run
+  of them all swaps out or none does. echo frames are wuwalab's (`/api/app/echoes/<slug>`); a transform's
+  hits commit at wuwalab's `commit_frame - 14` (floored at 0), the transform staying on field to finish its attack —
+  `TransformEcho` does the subtraction, so its def lists wuwalab's own `commitFrame` (left out where it is the hit's).
+  wuwalab's `airCastable: false` = `castPosition: Position.Grounded`. a multi-stage echo (wuwalab's
+  "X 1", "X 2", ...) is an action a stage, all on one mainslot, each chaining off the last (`chains:
+  [X_1.press]`), the cooldown on the first; a rotation writes as many stages as it presses.
   an insta cut keeps the bullets committed by `INSTA_DELAY`; `.cancelOnHit()` (CANCEL ON HIT),
   `.dodgeOnHit()` and `.jumpOnHit()` cut `CANCEL_DELAY` after the first bullet hits, keeping the
   bullets committed by the end of that delay — bullets keep firing until the next press truly starts; each throws on a press whose bullets hit on one frame
@@ -140,7 +159,9 @@ every motion value is a bullet's
   (`{ hitFrame: 0, element: null, type: null, subtype: null, updateDebuffs }`)
 - what a hook adds to a gauge beyond the press's declared `castX`/bullet gains goes through
   `addGain({ energy, concerto, forteN, offtune, directOfftune })` — from a cast hook it banks with the
-  cast, from a hit's own hooks ahead of its damage (`updateDebuffs`, `hitGlobal`) with that hit. there is
+  cast, from a hit's own hooks ahead of its damage (`updateDebuffs`, `hitGlobal`) with that hit, and
+  from anywhere else (a buff's `tick`, `afterAction`) straight onto the bars where it is made — flat,
+  in no row's hover ("4 Energy a second for 5s" is a 60f tick calling `addGain`). there is
   no gauge stat: a stat hook never adds to a gauge (the engine throws)
 - what `addGain()` adds is flat — not scaled by ER or the Energy Regen Multiplier and not shared with
   the team; only a bullet's own energy is both. its `offtune` is built like a hit's own (Off-Tune
@@ -176,9 +197,11 @@ every motion value is a bullet's
   stop freezes the game timer from its start for its whole length, what outlasts the animation
   included (banked: the presses after it play inside it), and a new time stop cuts off whatever of
   an earlier one is still to run. never subtract time stop by hand — `gameOf()`/`realOf()` convert
-- off-field time: a press's motion stop holds every inactive resonator's queued hits and clocks
-  (a `coordinatedBuff`'s owner's, a member's own gear's, `skipMotionStop` always) on the real timer,
-  for as long as it lasts, a new motion stop cutting off the rest of the old the same way. a cooldown's wait runs on the game timer; an animation hold (Hecate) on the
+- off-field time: a press's motion stop holds only what animates off field — every inactive
+  resonator's queued hits, a swapped-out press playing on, and a field's clock (a Gear with `field`,
+  `skipMotionStop` always) — on the real timer, for as long as it lasts, a new motion stop cutting off
+  the rest of the old the same way. a buff's own clock (a regen, a drain, a status, a stack timer)
+  never pauses: it runs on the game timer like its duration. a cooldown's wait runs on the game timer; an animation hold (Hecate) on the
   real one. a queued event (`queueEvent()`, the auto Tune Break) waits for the press playing to end, and
   the Tune Break is never set off while a time stop stands or is still to come (Xiangli Yao's banked
   Liberation stop): the first press ending past it fires it

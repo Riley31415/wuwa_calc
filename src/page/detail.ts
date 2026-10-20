@@ -13,7 +13,7 @@ import type { TeamRun } from "../solve/teamrun.js";
 import { hitsOf, erRollsFor } from "../solve/teamrun.js";
 import { ER_TOLERANCE } from "../shared/substats.js";
 import { results, detailFor, FALLBACK_HUE } from "./model.js";
-import { esc, lazyPop, rect, zoom, clearPops, popover, hitsPopover, infoPopover, buffsPopover, framesPopover, equippedGear, dprTable, loadoutTable, wireDistribution, drivePanel, dropPanel, holdPanels, copyBlock } from "./panels.js";
+import { esc, lazyPop, rect, zoom, clearPops, popover, hitsPopover, infoPopover, buffsPopover, framesPopover, equippedGear, dprTable, loadoutTable, wireDistribution, drivePanel, dropPanel, holdPanels, panelOpenOn, copyBlock } from "./panels.js";
 import { HOLD, watchTouch, swallowClick, grabDot, makeDot } from "./cellpick.js";
 import { rememberTableScroll } from "./table.js";
 import { canPick } from "./pickmenu.js";
@@ -133,6 +133,8 @@ function stepRow(
       pop = buffsPopover(snap.member, gear, snap.heldLocal, snap.heldGlobal, snap.heldEnemy, slotHue);
     } else if (col.key === "avg") {
       pop = text ? hitsPopover(row.hits) : "";
+    } else if (col.key === "position") {
+      pop = "";
     } else if (text) {
       // a running counter's panel foots to what this action moved it by, not the balance
       pop = popover(col, sources, row.raw[`moved:${col.key}`] ?? v, slotHue, suffix, String(row.raw[`empty:${col.key}`] ?? ""));
@@ -789,6 +791,20 @@ addEventListener("click", (e) => {
   if (target?.closest?.(".gridwrap .grid .chain > label.r") && !target.closest(".c.action")) e.preventDefault();
 }, true);
 
+/** A group's toggle keeps focus only when Tab walked to it: one a click focused would light its
+ *  ring (`.tgl:focus-visible`) on the next key pressed — a Ctrl+C or a screenshot's shortcut. */
+let tabbed = false;
+addEventListener("keydown", (e) => {
+  if (e.key === "Tab") tabbed = true;
+}, true);
+addEventListener("pointerdown", () => {
+  tabbed = false;
+}, true);
+addEventListener("focusin", (e) => {
+  const t = e.target as Element | null;
+  if (!tabbed && t instanceof HTMLInputElement && t.matches(".gridwrap .tgl")) t.blur();
+}, true);
+
 /** A cell's text as copied: a cut's tag, drawn ahead of the action's name, follows it. */
 function copyText(c: HTMLElement): string {
   const tag = c.querySelector(".ctag");
@@ -815,6 +831,8 @@ function wireCellSelect(root: HTMLElement): void {
   if (!grid) return;
   /** When the mouse's press went down: a click or a hold. */
   let pressedAt = 0;
+  /** The press went down on the cell whose panel stood: its click only closes it. */
+  let closing = false;
 
   /** The log's rows and columns as a press finds them (a group may have opened), and its cell among them. */
   const measure = (cell: HTMLElement): CellAt | null => {
@@ -854,6 +872,7 @@ function wireCellSelect(root: HTMLElement): void {
     // a quick press that stayed on its cell was a click: it opens the cell's panel
     if (one && performance.now() - pressedAt < HOLD) {
       dropPanel();
+      if (closing) swallowClick();
       return;
     }
     // a hold or a drag: its click would open a panel over the sum, or the group it set out from
@@ -869,8 +888,14 @@ function wireCellSelect(root: HTMLElement): void {
     if (e.button !== 0 || holding || !cell || target.closest(".ctag, .celldot")) return;
     const at = measure(cell);
     if (!at) return;
+    closing = panelOpenOn(cell);
     if (e.pointerType === "touch") {
-      watchTouch(e, cell, () => pick(at, true), () => pick(at, true));
+      const tap = (): void => {
+        pick(at, true);
+        // a tap's click comes after the finger lifts, so it is waited for as a long press's is
+        if (closing) swallowClick(600);
+      };
+      watchTouch(e, cell, tap, () => pick(at, true));
       return;
     }
     e.preventDefault();

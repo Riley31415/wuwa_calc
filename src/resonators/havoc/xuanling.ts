@@ -76,12 +76,12 @@ import {
   saveChain,
   previousPress,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, ECHO, START_LAST, INTRO_LAST, ActionTag, OUTRO, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, START_LAST, ActionTag, DODGE } from "../../engine/rotation.js";
 import { HAVOC_BANE, anyNegativeStatusInflicted } from "../../shared/status.js";
 import { AZURE_OATH, EMERALD_SENTENCE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
-import { THOUSAND_PUPPET_PAVILION, FEATHERED_TRACE_5PC } from "../../echoes/mengzhou.js";
+import { THOUSAND_PUPPET_PAVILION, FEATHERED_TRACE_5PC, ACTION_THOUSAND_PUPPET_PAVILION } from "../../echoes/mengzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -579,7 +579,6 @@ export const XUANLING_RESONATOR = new Resonator({
   color: "#6140e5",
   // resolved when its row is reached: the Skybound Feather of the stance she left in
   intro: () => (isHeld(FEATHER_STANCE) ? IntroFeather : IntroAzure),
-  outro: Outro,
   // the stance's Basic, Havoc in Bloom under Hark the Wind; airborne at full Azure Plume, Feather Fall
   swapIn: () => (isHeld(AZURE_STANCE) ? BA_A1 : isHeld(HARK_THE_WIND) ? HiB1 : BA_F1),
   swapInAir: () => (isHeld(AZURE_STANCE) ? MA_A : forte2() >= 2 ? FeatherFall : MA_F),
@@ -631,17 +630,17 @@ const HiB123 = new ActionGroup("Forte Basic: Havoc in Bloom 123", [HiB1, HiB2, H
 const XUANLING_ROTATION = new Rotation([
   START_LAST, BA_A1.instaCancel(), SwitchFeather.instaSwap(), // start in feather stance, so the first cast is a switch to Azure
 
-  INTRO_LAST, BA_F1234.cancel(), FlowAzure.holdCancel(), HeavyAzure.cancel(),
-  Lib, FlowFeather.cancel(), ECHO, HeavyFeather, FeatherFall, HiB123.swapCancel(),
-  OUTRO,
+  IntroFeather.inLastSlot(), BA_F1234.cancel(), FlowAzure.holdCancel(), HeavyAzure.cancel(),
+  Lib, FlowFeather.cancel(), ACTION_THOUSAND_PUPPET_PAVILION, HeavyFeather, FeatherFall, HiB123.swapCancel(),
+  Outro,
 ]);
 
-const XUANLING_ROTATION_S1 = new Rotation([
+const XUANLING_ROTATION_S2 = new Rotation([
   START_LAST, BA_A1.instaCancel(), HeavyAzure, BA_A1.instaCancel(), SwitchFeather.instaSwap(), // start in feather stance, so the first cast is a switch to Azure
 
-  INTRO_LAST, BA_F1234.cancel(), FlowAzure.holdCancel(), HeavyAzure.cancel(),
-  Lib, FlowFeather.cancel(), ECHO, HeavyFeather, FeatherFall, HiB123.swapCancel(),
-  OUTRO,
+  IntroFeather.inLastSlot(), BA_F1234.cancel(), FlowAzure.holdCancel(), HeavyAzure.cancel(),
+  Lib, FlowFeather.cancel(), ACTION_THOUSAND_PUPPET_PAVILION, HeavyFeather, FeatherFall, HiB123.swapCancel(),
+  Outro,
 ]);
 
 const XUANLING_ECHOES = [
@@ -658,6 +657,6 @@ export const XUANLING = new Loadout({
     substats: substats(Substat.CritDmg, Substat.CritRate, Substat.Heavy, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
     highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Heavy, Substat.AtkPct, Substat.FlatAtk, Substat.Basic, Substat.Liberation),
   }),
-  rotation: { 0: XUANLING_ROTATION, 1: XUANLING_ROTATION_S1 },
+  rotation: { 0: XUANLING_ROTATION, 2: XUANLING_ROTATION_S2 },
   sequences: XL_SEQUENCES,
 });

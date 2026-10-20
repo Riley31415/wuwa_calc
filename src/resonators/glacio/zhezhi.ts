@@ -38,15 +38,15 @@ import {
   saveChain,
   previousPress,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, ActionField, NOINTRO, ECHO, INTRO, OUTRO, DODGE, JUMP } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, ActionField, SWAPIN, DODGE, JUMP } from "../../engine/rotation.js";
 import { RIME_DRAPED_SPROUTS, STRINGMASTER, LETHEAN_ELEGY, WHISPERS_OF_SIRENS } from "../../weapons/rectifier.js";
 import { VARIATION, NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { AUGMENT, RADIANT_DAWN } from "../../weapons/battlepass.js";
-import { EMPYREAN_ANTHEM_5PC, NM_LAMPY } from "../../echoes/rinascita.js";
+import { EMPYREAN_ANTHEM_5PC, NM_LAMPY, ACTION_NM_LAMPY } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
-import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
+import { HERON, MOONLIT_CLOUDS_5PC, ACTION_HERON } from "../../echoes/jinzhou.js";
 
 /* ----------------------------------------------------------------------------------- states */
 
@@ -252,7 +252,6 @@ const ZHEZHI_RESONATOR = new Resonator({
   weapon: WeaponType.Rectifier,
   color: "#8fd3e8",
   intro: Intro,
-  outro: Outro,
   swapIn: BA1,
   swapInAir: MA,
   maxEnergy: 12500,
@@ -271,12 +270,12 @@ const ZHEZHI_RESONATOR = new Resonator({
 const BA123 = new ActionGroup("Basic - Dimming Brush 123", [BA1, BA2, BA3]);
 
 const ZZ_ROTATION = new Rotation([
-  NOINTRO, BA123,
+  SWAPIN, BA123,
 
-  INTRO,
-  BA123.cancel(), ECHO.instaDodge(), Liberation,
+  Intro,
+  BA123.cancel(), ACTION_NM_LAMPY.instaCancel(), ACTION_HERON.instaDodge(), Liberation,
   Skill, FHA.cancel(), FSkill.jumpCancel(), FSkill.jumpCancel(), FSkill3.instaSwap(),
-  OUTRO,
+  Outro,
 ]);
 
 /* --------------------------------------------------------------------------------- sequences */

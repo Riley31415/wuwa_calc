@@ -8,6 +8,7 @@ import type { StatKey, Position } from "./stats.js";
 import type { Action, ActionField, Cooldown } from "./rotation.js";
 import type { Result, HoldWatch } from "./evaluate.js";
 import { ctx, dryLog, undoDry, noteMutation, recordApplied, MEMBERS } from "./runtime.js";
+import type { GainAdd } from "./runtime.js";
 import { Gear, Buff, Resonator, Mainslot, PHASE_COUNT } from "./gear.js";
 import type { GlobalHook } from "./gear.js";
 
@@ -307,15 +308,16 @@ class Pool {
     const at = this.expires[i]!;
     return at === 0 ? 0 : at - ctx.state!.frame;
   }
-  /** Every live Gear whose duration has run out by frame `now`, in order — null when none has.
-   *  Recomputes `nextExpiry` over what stays, so the next pass is a number compare again. */
-  expired(now: number): Gear[] | null {
-    if (this.nextExpiry > now) return null;
+  /** Every live Gear whose duration has run out by frame `now`, in order — null when none has;
+   *  `onIt` false leaves one running out on `now` itself. Recomputes `nextExpiry` over what stays,
+   *  so the next pass is a number compare again. */
+  expired(now: number, onIt = true): Gear[] | null {
+    if (onIt ? this.nextExpiry > now : this.nextExpiry >= now) return null;
     let out: Gear[] | null = null, next = Infinity;
     for (let i = 0; i < this.list.length; i++) {
       const at = this.expires[i]!;
       if (at === 0 || this.pos(this.list[i]!) !== i) continue;
-      if (at <= now) (out ??= []).push(this.list[i]!);
+      if (at < now || (onIt && at === now)) (out ??= []).push(this.list[i]!);
       else if (at < next) next = at;
     }
     this.nextExpiry = next;
@@ -524,9 +526,12 @@ export class TeamMember {
    *  each member's own Resonator. */
   resonator: Resonator | null = null;
   /** Whichever Mainslot echo is equipped here — cached by `equip()` rather than re-found by
-   *  scanning this member's whole held set every time an ECHO_* marker comes up (see
-   *  `run()`). Set once at team setup, like `resonator` above. */
+   *  scanning this member's whole held set every time an echo's cast resolves. Set once at team
+   *  setup, like `resonator` above. */
   mainslot: Mainslot | null = null;
+  /** Gauges moved outside any row of this member's (a tick, a teammate's energy share), carried to
+   *  their next one. Trace-only. */
+  background: GainAdd[] = [];
   /** The resonator's own Base ATK/HP/DEF and the weapon's, kept apart for the panel base
    *  (`floor(character) + weapon`) every constant % is floored off. Set by `equip()`. */
   charBase: [number, number, number] = [0, 0, 0];
@@ -962,6 +967,8 @@ export class State {
   /** Inside the fight's start-of-combat sections (`runRotations()`): an arrival there opens on its ground
    *  swap-in, and a despawned one comes in on the ground. */
   inStart = false;
+  /** The last of those sections is playing: its swap hands to the leader's first chain, past them. */
+  toOpener = false;
   /** The visit a handoff into slot `to` opens, timed off its presses (rotation.ts's `chainGates`),
    *  for a handoff with no visit learned yet — set by `runRotations()`, null outside one. */
   plannedGates: ((to: number, visit: object | null) => VisitGate[] | null) | null = null;
@@ -1275,17 +1282,19 @@ export class State {
 
   /** Drop every buff whose duration has run out by the clock — every member's own, the team's and
    *  the enemy's — through the same revoke paths a kit uses, so hook rosters follow. Run by
-   *  `evaluate()` ahead of every action, so nothing expired is ever visited by a phase. */
-  expireBuffs(): void {
-    const now = this.frame;
-    if (this.nextExpiry > now) return;
+   *  `evaluate()` ahead of every action, so nothing expired is ever visited by a phase, and by
+   *  `runTicks()` ahead of each tick at that tick's own frame (`now`). `onIt` false keeps the ones
+   *  running out on `now` itself: a hit or an end landing on that frame still has them, and the
+   *  next press cast on it is the first that doesn't. */
+  expireBuffs(now = this.frame, onIt = true): void {
+    if (onIt ? this.nextExpiry > now : this.nextExpiry >= now) return;
     for (const s of this.slots) {
-      const gone = s.stacks.expired(now);
+      const gone = s.stacks.expired(now, onIt);
       if (gone) for (const g of gone) s.revoke(g);
     }
-    let gone = this.globalStacks.expired(now);
+    let gone = this.globalStacks.expired(now, onIt);
     if (gone) for (const g of gone) this.revokeGlobal(g);
-    gone = this.enemyStacks.expired(now);
+    gone = this.enemyStacks.expired(now, onIt);
     if (gone) for (const g of gone) this.revokeEnemy(g);
     this.nextExpiry = this.earliestExpiry();
   }
@@ -1310,10 +1319,14 @@ export class State {
     this.collectTicks(this.globalStacks, acting, null, a, b, motionStop, presser, TICKS_DUE);
     this.collectTicks(this.enemyStacks, acting, null, a, b, motionStop, presser, TICKS_DUE);
     if (TICKS_DUE.length) {
-      // a fire never collects more, so the list is walked as it stands and emptied after
+      // a fire never collects more, so the list is walked as it stands and emptied after — in
+      // time order, each tick finding gone whatever ran out before its frame (one on its own
+      // last frame still fires)
+      if (TICKS_DUE.length > 1) TICKS_DUE.sort(byTickFrame);
       try {
         for (let i = 0; i < TICKS_DUE.length; i++) {
           const { gear, n, at, slot } = TICKS_DUE[i]!;
+          this.expireBuffs(at - 1);
           ctx.slot = slot;
           ctx.buff = gear;
           ctx.stacks = -1;
@@ -1340,11 +1353,14 @@ export class State {
 
 /** The ticks one `State.runTicks()` pass collected, run once the pass is over. */
 const TICKS_DUE: { gear: Gear; n: number; at: number; slot: TeamMember }[] = [];
+const byTickFrame = (x: { at: number }, y: { at: number }): number => x.at - y.at;
 
-/** Whether `gear`'s clock runs off field this press — its owner (`holder`, or the window's own owner)
- *  not the one pressing — and so loses the press's motion stop. */
+/** Whether `gear`'s clock loses the press's motion stop: only a field's (`Gear.field`) — an animation
+ *  playing off field — while its owner (`holder`, or the window's own owner) is not the one pressing.
+ *  A buff's own clock (a regen, a drain, a status, a stack timer) never pauses. */
 function offFieldClock(gear: Gear, state: State, holder: TeamMember | null, presser: TeamMember | undefined): boolean {
   if (gear.tickSkipsMotionStop) return true;
+  if (!gear.field) return false;
   const owner = gear.tickOwner ? state.memberOf(gear.tickOwner()) : holder;
   return !!owner && !!presser && owner !== presser;
 }

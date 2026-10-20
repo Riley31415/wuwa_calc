@@ -62,7 +62,7 @@ import {
   saveChain,
   addStatAs,
 } from "../../engine/context.js";
-import { Action, Rotation, ECHO, ActionGroup, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
+import { Action, Rotation, ActionGroup, DODGE } from "../../engine/rotation.js";
 import { tuneBreak } from "../../shared/tunebreak.js";
 import {
   HELIACAL_EMBER, HELIACAL_EMBER_ACTIONS, SPECTRO_FRAZZLE, negativeStatusRung, queueOnApplier,
@@ -70,7 +70,7 @@ import {
 import { BLAZING_JUSTICE, TRAGICOMEDY } from "../../weapons/gauntlet.js";
 import { ABYSS_SURGES, NEW_STD_GAUNTLET } from "../../weapons/standard.js";
 import { STONARD, AETHER_STRIKE } from "../../weapons/battlepass.js";
-import { CAPITANEUS, NM_MOURNING_AIX, ETERNAL_RADIANCE_5PC } from "../../echoes/rinascita.js";
+import { CAPITANEUS, NM_MOURNING_AIX, ETERNAL_RADIANCE_5PC, ACTION_CAPITANEUS, ACTION_NM_MOURNING_AIX } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -442,7 +442,6 @@ const ZANI_RESONATOR = new Resonator({
   weapon: WeaponType.Gauntlets,
   color: "#b8a897",
   intro: Intro,
-  outro: Outro,
   // "When Blaze is no less than 30, Basic Attack is replaced with Heavy Slash - Daybreak" in Inferno Mode
   swapIn: () => (isHeld(INFERNO_MODE) && forte2() >= 30 ? Daybreak : BA1),
   swapInAir: MA,
@@ -487,16 +486,16 @@ const ZANI_RESONATOR = new Resonator({
  *  No start-of-combat section: the opening scramble finds her with no Resonance Energy, no
  *  Redundant Energy and no Blaze, so there is nothing of hers worth spending in it. */
 const ZANI_ROTATION = new Rotation([
-  INTRO, Skill, BA3Follow, TargetedAction,
+  Intro, Skill, BA3Follow, TargetedAction,
   Lib1,
   UBA123, UBA123.cancel(),
-  Lib2, ECHO.instaSwap(), OUTRO,
+  Lib2, ACTION_CAPITANEUS.instaSwap(), ACTION_NM_MOURNING_AIX.instaSwap(), Outro,
 ]);
 const ZANI_ROTATION_S6 = new Rotation([
-  INTRO, Skill, BA3Follow, TargetedAction,
+  Intro, Skill, BA3Follow, TargetedAction,
   Lib1,
   UBA123, UBA123, UBA123.cancel(),
-  Lib2, ECHO.instaSwap(), OUTRO,
+  Lib2, ACTION_CAPITANEUS.instaSwap(), ACTION_NM_MOURNING_AIX.instaSwap(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

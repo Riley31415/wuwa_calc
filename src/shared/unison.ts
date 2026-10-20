@@ -62,7 +62,7 @@ export const UNISON = new Buff({
  *  its `outro` fn picks it while Unison is held (`isHeld(UNISON)`), the way an Intro fn picks its
  *  Unison form off `unisonIntro()`. */
 export const unisonOutro = (outro: Action): Action => {
-  const out = outro.variant(`${outro.name} (Unison)`, { castConcerto: 0, minConcerto: undefined });
+  const out = outro.variant(`${outro.name} (Unison)`, { castConcerto: 0, minConcerto: undefined, requireBuff: UNISON });
   out.formOf = outro;
   return out;
 };

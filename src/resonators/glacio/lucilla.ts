@@ -65,18 +65,18 @@ import {
   isActive,
   reduceCooldown,
 } from "../../engine/context.js";
-import { ActionGroup, Action, ActionField, Cooldown, Rotation, ECHO, START_LAST, INTRO_LAST, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, ActionField, Cooldown, Rotation, START_LAST, DODGE, SWAP } from "../../engine/rotation.js";
 import { GLACIO_CHAFE, GLACIO_CHAFE_ACTIONS, OWN_CHAFE_RUNGS } from "../../shared/status.js";
 import { FREEZE_FRAME, STRINGMASTER, LETHEAN_ELEGY } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { AUGMENT, RADIANT_DAWN } from "../../weapons/battlepass.js";
-import { BELL_BORNE_GEOCHELONE, HERON, MOONLIT_CLOUDS_2PC, MOONLIT_CLOUDS_5PC, REJUV_2PC } from "../../echoes/jinzhou.js";
+import { BELL_BORNE_GEOCHELONE, HERON, MOONLIT_CLOUDS_2PC, MOONLIT_CLOUDS_5PC, REJUV_2PC, ACTION_BELL_BORNE, ACTION_HERON, ACTION_FALLACY } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
 import { DREAM_OF_THE_LOST_3PC, LAW_OF_HARMONY_3PC } from "../../echoes/septimont.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
-import { GLOMMOTH, QUIET_SNOWFALL_2PC, QUIET_SNOWFALL_5PC } from "../../echoes/lahairoi.js";
+import { GLOMMOTH, QUIET_SNOWFALL_2PC, QUIET_SNOWFALL_5PC, ACTION_GLOMMOTH } from "../../echoes/lahairoi.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -99,7 +99,8 @@ const CHAFE_RUNGS: (Action | null)[] = GLACIO_CHAFE_ACTIONS.map((a) => a?.varian
  *  Letting It Go and Clip It: Hard Cut are cast from. */
 const REMINISCENCE = new Buff({ name: "Lucilla: Reminiscence" });
 const Intro = lucillaAction("Intro - Clip It", {
-  endPosition: Position.Grounded, animFrames: 81, noSwapFrames: 82, animPriority: { 42: 4 }, castPriority: 11, motionStop: [6, 79], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 38, mv: 9742, energy: 1175, concerto: 413, offtune: 5600, forte1: 100, ...CHAFES }], castConcerto: 1000,
+  endPosition: Position.Grounded, animFrames: 81, noSwapFrames: 82, animPriority: { 42: 4 }, castPriority: 11, motionStop: [6, 79],
+   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 38, mv: 9742, energy: 1175, concerto: 413, offtune: 5600, forte1: 100, ...CHAFES }], castConcerto: 1000,
   updateBuffs: () => applyCurrent(CHAFE_WINDOW, 1),
 });
 /** Clip It's Reminiscence form: its own hit and Chafe stack, no Trace (only Clip It restores any). */
@@ -341,7 +342,6 @@ const LUCILLA_RESONATOR = new Resonator({
   weapon: WeaponType.Rectifier,
   color: "#4f74c2",
   intro: () => (isHeld(REMINISCENCE) ? HardCut : Intro),
-  outro: Outro,
   // Reminiscence replaces her Basic Attack; its own plunge has no action, so the plain one
   swapIn: () => (isHeld(REMINISCENCE) ? UBA1 : BA1),
   swapInAir: MA,
@@ -356,19 +356,6 @@ OWN_CHAFE_RUNGS.set(LUCILLA_RESONATOR, CHAFE_RUNGS);
 // Reminiscence, the Tracing Forms combo (Stage 3 auto-queues its own Oblivion/Letting It Go
 // hits) closes it out. The mode held decides the typing (and which Oblivion Stage 3 queues), not
 // the rotation. She's never the team's own lead, so this covers both opener and loop.
-
-const UBA123 = new ActionGroup("Basic - Tracing Forms 123", [UBA1, UBA2, UBA3]);
-
-const LC_ROTATION = new Rotation([
-  INTRO.mashCancel(), Spotlight, Liberation,
-  UBA123, LettingGo, ECHO.instaSwap(), OUTRO,
-
-  START_LAST, BA1.instaCancel(), Spotlight, BA1.instaSwap(),
-
-  INTRO_LAST.mashCancel(), Liberation, UBA123, LettingGo.cancel(), ECHO.instaDodge(),
-  Spotlight, 
-  OUTRO,
-]);
 
 /* --------------------------------------------------------------------------------- sequences */
 
@@ -449,6 +436,21 @@ const LC_S6 = new Sequence({
 });
 
 const LC_SEQUENCES = [LC_S1, LC_S2, LC_S3, LC_S4, LC_S5, LC_S6];
+
+const UBA123 = new ActionGroup("Basic - Tracing Forms 123", [UBA1, UBA2, UBA3]);
+
+const LC_ROTATION = new Rotation([
+  Intro.mashCancel(), Spotlight, Liberation,
+  UBA123, LettingGo, ACTION_BELL_BORNE.instaSwap(), ACTION_HERON.instaSwap(), ACTION_FALLACY.instaSwap(), ACTION_GLOMMOTH.instaSwap(), Outro,
+
+  START_LAST, BA1.instaCancel(), Spotlight, SWAP,
+
+  Intro.inLastSlot().mashCancel(), 
+  ACTION_BELL_BORNE.instaCancel(), ACTION_HERON.instaDodge(), ACTION_FALLACY.instaCancel(), ACTION_GLOMMOTH.instaCancel(),
+  Liberation, UBA123, LettingGo.cancel(),
+  Spotlight, 
+  Outro,
+]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 

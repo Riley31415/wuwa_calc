@@ -25,9 +25,8 @@
  * retag ride the BREAKDOWN_FORM buff (evaluate.ts's typeOverride) rather than a second set of actions
  * — nanoka's enhanced rows are the plain ones at x1.5 MV with identical energy/concerto/off-tune.
  * Only Dark Cores are read back (Banish Stage 2's multiplier). An Entropy Shift's own time-based
- * regen — 1 Void Particle a second, a Dark Core every 12s — is banked on her Outro instead, over
- * the stretch she spends off field, taken as 20 of the engine's seconds; the Dark Core each Final
- * Act stands for is the one that interval yields while she is on it.
+ * regen — 1 Void Particle a second in Stagecraft, a Dark Core every 12s in either — runs on its own
+ * clocks (ENTROPY_STAGECRAFT, DARK_CORE_REGEN), on field or off.
  *
  * Fusion Burst DMG is the status's own ladder (status.ts): it calculates at the target's cap and
  * clears — or, beside Aemeath's Fusion Burst mode, past 5 stacks at the cap's rung (aemeath.ts) —
@@ -56,7 +55,6 @@ import {
   stacksOfEnemy,
   applyCurrent,
   applyTeam,
-  casting,
   currentCast, currentHit,
   runningAction,
   isHeld,
@@ -73,7 +71,7 @@ import {
   addGain,
   runningBullet,
 } from "../../engine/context.js";
-import { Action, Cooldown, Rotation, NOINTRO, ECHO, ActionGroup, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
+import { Action, Cooldown, Rotation, SWAPIN, ActionGroup, DODGE } from "../../engine/rotation.js";
 import type { BulletDef } from "../../engine/rotation.js";
 import { applied, applyEnemy, lastHit } from "../../engine/context.js";
 import { FUSION_BURST, FUSION_BURST_ACTIONS, queueOnApplier } from "../../shared/status.js";
@@ -88,11 +86,12 @@ import {
   NEONLIGHT_LEAP_5PC,
   TRAILBLAZING_STAR_5PC,
   SIGILLUM,
+  ACTION_TRICKSTER, ACTION_SIGILLUM, ACTION_VOIDWING_MOTH, ACTION_HYVATIA,
 } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
-import { CLAWPRINT_5PC, LIONESS_OF_GLORY } from "../../echoes/septimont.js";
+import { CLAWPRINT_5PC, LIONESS_OF_GLORY, ACTION_LIONESS } from "../../echoes/septimont.js";
 import { AEMEATH_RESONATOR } from "./aemeath.js";
 import { LUUK_RESONATOR } from "../spectro/luuk.js";
 import { QINGXIAO_RESONATOR } from "../aero/qingxiao.js";
@@ -416,20 +415,26 @@ const ENTROPY_BREAKDOWN = new Buff({
 });
 
 /** Entropy Shift: Stagecraft Form — 30s from Final Act - Breakdown, so it bridges to the next
- *  loop. Its 1 Void Particle/s and its Dark Core are both banked on her outro: the time she is off
- *  field, taken as 20 of the engine's seconds. */
+ *  loop. Grants 1 Void Particle a second, on field or off; S3 makes it 4. */
 const ENTROPY_STAGECRAFT = new Buff({
   name: "Entropy Shift: Stagecraft Form",
   duration: 60 * 30,
-  // S3 takes its regen to 4 Void Particle a second, so the same off-field window banks four times as much
-  // the shift's own Dark Core keeps coming while she is off field too: one across that window at
-  // the kit's 12s, three at S3's 6s
-  updateBuffs: () => {
-    if (!casting(Cast.Outro)) return;
-    applyCurrent(DARK_CORE, isHeld(DN_S3) ? 4 : 2);
-    addGain({ forte1: 20 });
-    // S3 takes the regen to 4 a second, so the same off-field window banks 60 more
-    if (isHeld(DN_S3)) asSource(DN_S3, () => addGain({ forte1: 60 }));
+  tick: {
+    every: 60,
+    fire: () => {
+      addGain({ forte1: 1 });
+      if (isHeld(DN_S3)) asSource(DN_S3, () => addGain({ forte1: 3 }));
+    },
+  },
+});
+
+/** "While in the Entropy Shift states, Denia obtains 1 Dark Core every 12s" (6s at S3), up to her
+ *  cap: one clock across both shifts, standing still while she is in neither. */
+const DARK_CORE_REGEN = new Buff({
+  name: "Denia: Dark Core (regen)",
+  tick: {
+    every: () => (isHeld(ENTROPY_BREAKDOWN) || isHeld(ENTROPY_STAGECRAFT) ? (isHeld(DN_S3) ? 60 * 6 : 60 * 12) : 0),
+    fire: () => { if (stacksOf(DARK_CORE) < (isHeld(DN_S3) ? 5 : 3)) applyCurrent(DARK_CORE, 1); },
   },
 });
 
@@ -640,14 +645,16 @@ const DENIA_RESONATOR = new Resonator({
   color: "#ecabe3",
   // resolved when its row is reached: whichever Intro the kit's state calls for there
   intro: () => stacksOf(BREAKDOWN_FORM) ? EIntro : Intro,
-  outro: Outro,
   // Stagecraft's mid-air attack is its plunge; Breakdown has a mid-air string
   swapIn: () => (stacksOf(BREAKDOWN_FORM) ? UBA1 : BA1),
   swapInAir: () => (stacksOf(BREAKDOWN_FORM) ? UMBA1 : MA),
   maxEnergy: 12500,
   maxForte1: 100,
   maxForte2: 100,
-  combatStart: () => applyCurrent(STAGECRAFT_FORM, 1),
+  combatStart: () => {
+    applyCurrent(STAGECRAFT_FORM, 1);
+    applyCurrent(DARK_CORE_REGEN, 1);
+  },
 
   stats: [
     [Stat.BaseHp, 11025], [Stat.BaseAtk, 425], [Stat.BaseDef, 1148.8868],
@@ -671,23 +678,23 @@ const UMBA12 = new ActionGroup("Mid-air - Breakdown Form 12", [UMBA1, UMBA2]);
 const USkill12 = new ActionGroup("Skill - Banish 12", [Banish1, Banish2]);
 
 const DN_ROTATION_BURST = new Rotation([
-  NOINTRO, BA1.instaCancel(), Skill.instaCancel(), Lib1,
+  SWAPIN, BA1.instaCancel(), Skill.instaCancel(), Lib1,
   UBA12.jumpCancel(), UMBA1234.cancel(), 
   USkill12.mashCancel(), Lib2, 
-  ECHO.instaSwap(), OUTRO,
+  ACTION_TRICKSTER.instaSwap(), ACTION_LIONESS.instaSwap(), ACTION_SIGILLUM.instaSwap(), ACTION_VOIDWING_MOTH.instaSwap(), ACTION_HYVATIA.instaSwap(), Outro,
 
-  INTRO, BA4.instaCancel(), Skill.instaCancel(), Lib1,
+  Intro, BA4.instaCancel(), Skill.instaCancel(), Lib1,
   UBA1234.cancel(), 
   USkill12.mashCancel(), Lib2, 
-  ECHO.instaSwap(), OUTRO,
+  ACTION_TRICKSTER.instaSwap(), ACTION_LIONESS.instaSwap(), ACTION_SIGILLUM.instaSwap(), ACTION_VOIDWING_MOTH.instaSwap(), ACTION_HYVATIA.instaSwap(), Outro,
 ]);
 
 const DN_ROTATION_BURST_S3 = new Rotation([
-  NOINTRO, BA1.instaCancel(),
-  INTRO, Lib1,
+  SWAPIN, BA1.instaCancel(),
+  Intro, Lib1,
   UBA1234.cancel(), 
   USkill12.mashCancel(), Lib2,
-  ECHO.instaSwap(), OUTRO,
+  ACTION_TRICKSTER.instaSwap(), ACTION_LIONESS.instaSwap(), ACTION_SIGILLUM.instaSwap(), ACTION_VOIDWING_MOTH.instaSwap(), ACTION_HYVATIA.instaSwap(), Outro,
 ]);
 
 /** One loadout per Resonance Mode, each with the echo set built for it: Trickster + Chromatic Foam
@@ -713,23 +720,23 @@ export const DENIA_BURST = new Loadout({
 });
 
 const DN_ROTATION_STRAIN = new Rotation([
-  NOINTRO, BA1.instaCancel(), Skill.instaCancel(), Lib1,
+  SWAPIN, BA1.instaCancel(), Skill.instaCancel(), Lib1,
   UBA12.dodgeCancel(), UBA12.jumpCancel(), UMBA12.cancel(),
   USkill12.mashCancel(), Lib2,
-  ECHO.instaSwap(), OUTRO,
+  ACTION_TRICKSTER.instaSwap(), ACTION_LIONESS.instaSwap(), ACTION_SIGILLUM.instaSwap(), ACTION_VOIDWING_MOTH.instaSwap(), ACTION_HYVATIA.instaSwap(), Outro,
 
-  INTRO, BA4.instaCancel(), Skill.instaCancel(), Lib1,
+  Intro, BA4.instaCancel(), Skill.instaCancel(), Lib1,
   UBA12.jumpCancel(), UMBA12.cancel(),
   USkill12.mashCancel(), Lib2,
-  ECHO.instaSwap(), OUTRO,
+  ACTION_TRICKSTER.instaSwap(), ACTION_LIONESS.instaSwap(), ACTION_SIGILLUM.instaSwap(), ACTION_VOIDWING_MOTH.instaSwap(), ACTION_HYVATIA.instaSwap(), Outro,
 ]);
 
 const DN_ROTATION_STRAIN_S3 = new Rotation([
-  NOINTRO, BA1.instaCancel(),
-  INTRO, Lib1,
+  SWAPIN, BA1.instaCancel(),
+  Intro, Lib1,
   UBA12.jumpCancel(), UMBA12.cancel(),
   USkill12.mashCancel(), Lib2,
-  ECHO.instaSwap(), OUTRO,
+  ACTION_TRICKSTER.instaSwap(), ACTION_LIONESS.instaSwap(), ACTION_SIGILLUM.instaSwap(), ACTION_VOIDWING_MOTH.instaSwap(), ACTION_HYVATIA.instaSwap(), Outro,
 ]);
 
 export const DENIA_STRAIN = new Loadout({

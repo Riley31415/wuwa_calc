@@ -23,6 +23,7 @@ import { hitsOf } from "../solve/teamrun.js";
 import type { TeamRun } from "../solve/teamrun.js";
 import { results, FALLBACK_HUE } from "./model.js";
 import { ActionTag } from "../engine/rotation.js";
+import type { Action } from "../engine/rotation.js";
 
 export const esc = (s: unknown): string => String(s)
   .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -392,8 +393,8 @@ function buffStats(run: TeamRun, keep: (root: Gear, e: StatEntry, slot: string) 
   const grantedBy = run.state?.grantedBy;
   if (!grantedBy || !run.rotationLines) return [];
   // a piece that pays out of its own applyStats() — Starfield Calibrator's Skill Concerto — is
-  // its own source, so it stands in for the root nothing granted it
-  const rootOf = (g: Gear): Gear => grantedBy.get(g) ?? g;
+  // its own source, so it stands in for the root nothing granted it; an echo's cast is its mainslot's
+  const rootOf = (g: Gear): Gear => grantedBy.get(g) ?? (g as Partial<Action>).mainslot ?? g;
   // per buff, per stat, the entry that gave the most — Map order is first-seen, so the rows come
   // out in the order the fight put the buffs up
   const peak = new Map<Gear, Map<StatKey, StatEntry>>();
@@ -654,7 +655,7 @@ export function dprTable(run: TeamRun, lines?: ChainGroup[][]): string {
 /** The one panel the page drives itself rather than leaving to the click: the action log's
  *  avg-cell sum, shown while a block of them is dragged over (detail.ts's `wireCellSelect`).
  *  Installed by `wireSourcePanels`, which owns the placing and the single open panel. */
-let driver: { show: (cell: Element, html: string) => void; hide: () => void; hold: (on: boolean) => void } | null = null;
+let driver: { show: (cell: Element, html: string) => void; hide: () => void; hold: (on: boolean) => void; pinnedOn: (cell: Element) => boolean } | null = null;
 
 /** Show `html` over `cell` in place of whatever that cell carries, until `dropPanel()` or the next
  *  click anywhere. Safe to call on every pointer move: it rebuilds and re-places, which is how the
@@ -664,6 +665,8 @@ export const dropPanel = (): void => driver?.hide();
 /** Shut the panels for as long as a press is down — nothing the pointer crosses mid-drag opens one
  *  (detail.ts's `wireCellSelect`), and a driven panel is still free to stand. */
 export const holdPanels = (on: boolean): void => driver?.hold(on);
+/** Does a clicked-open panel stand on `cell` (or a part of it) right now? */
+export const panelOpenOn = (cell: Element): boolean => driver?.pinnedOn(cell) ?? false;
 
 /**
  * Open a cell's panel on hover. A closed panel is detached and kept in `built` (only the open one
@@ -765,6 +768,7 @@ export function wireSourcePanels(root: HTMLElement): void {
       held = on;
       if (on) close();
     },
+    pinnedOn: (cell) => pinned && !!openHome && cell.contains(openHome),
   };
 
   /** Cells whose panel waits for a click and then stays put. The whole action log reads this way:

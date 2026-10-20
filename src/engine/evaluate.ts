@@ -4,9 +4,9 @@
  */
 import { Stat, EnemyStat, Type, Cast, ActionTag, Scaling, INSTA_DELAY, SWAP_DELAY, MASH_DELAY, DESPAWN_TIME, Position, POSITION_NAME, splitStop } from "./stats.js";
 import type { Action, ActionGroup, ActionField, CancelledStep, DashMarker, Bullet, Cooldown } from "./rotation.js";
-import { SWAP, SKIP, EveryOther, INTRO, DEFAULT_DODGE, ECHO_DODGE, bank } from "./rotation.js";
+import { SWAP, SKIP, EveryOther, ANY_INTRO, DEFAULT_DODGE, ECHO_DODGE, bank, isSwap } from "./rotation.js";
 import type { GainAdd } from "./runtime.js";
-import { ctx, pendingQueue, tagWordOf, RESOURCE_STATS, replay, readAny, READ_APPLY, READ_CONVERT, READ_AFTER, applied as appliedRecord, resolving, hookReads, moved } from "./runtime.js";
+import { ctx, pendingQueue, tagWordOf, RESOURCE_STATS, replay, readAny, READ_APPLY, READ_CONVERT, READ_AFTER, applied as appliedRecord, resolving, hookReads, moved, noteBackground } from "./runtime.js";
 import { Gear, PHASE_COUNT, NO_CAPS } from "./gear.js";
 import type { Resonator } from "./gear.js";
 import type { VariantAt, VariantBases, VariantMemo, PieceSwap, Timed, StatRow } from "./state.js";
@@ -15,6 +15,7 @@ import {
   EMPTY_HELD, EMPTY_FORTE, EMPTY_FIELDS, enemyDef, enemyRes, sortByDue, insertByDue, timedEntry,
 } from "./state.js";
 import { casting, isCast, asSource } from "./context.js";
+import type { Gain } from "./context.js";
 import { damageFactors, damageFactorsInto, avgFromFactors, foldStat, FACTOR_COUNT } from "./damage.js";
 import { ER_TOLERANCE } from "../shared/substats.js";
 
@@ -88,6 +89,8 @@ export interface Result {
   hitAt?: number;
   /** The `SWAP_DELAY` a new resonator coming in costs, charged to the row that handed the field over. */
   swapFrames?: number;
+  /** Where its member stood as the press was cast — trace-only, for the report. */
+  position?: Position | null;
   /** The game timer as this press was cast (`State.frame`) — a landed hit's, its own. */
   starts: number;
   /** What hooks added to the press (`addGain()`), every part of it summed: energy, concerto, forte
@@ -258,6 +261,7 @@ export function evaluate(state: State, action: Action, triggered = false, source
   const slot = state.slot;
   ctx.state = state;
   ctx.slot = slot;
+  ctx.rowSlot = slot;
   ctx.act = action;
   // each part of a split press runs its own side, and a whole press all — a hit's hooks on a hit
   // alone: a press with no bullet has its cast and nothing else
@@ -278,7 +282,8 @@ export function evaluate(state: State, action: Action, triggered = false, source
   const castUnmet = castSide && (action.castMin || action.castMax) ? action.castUnmet(barsOf(slot)) : null;
   const buffUnmet = castSide ? action.buffsUnmet(state, slot) : null;
   const buffForbidden = castSide ? action.buffsForbidden(state, slot) : null;
-  if ((castUnmet || buffUnmet || buffForbidden) && !triggered) warnUnmet(state, slot, action, castUnmet, buffUnmet, buffForbidden);
+  // an Outro is a handoff, but one written outside its condition is a rotation's mistake all the same
+  if ((castUnmet || buffUnmet || buffForbidden) && (!triggered || action.cast === Cast.Outro)) warnUnmet(state, slot, action, castUnmet, buffUnmet, buffForbidden);
   const buffSources = ctx.tracing && castSide && (action.requireBuffs || action.forbidBuffs) ? buffSourcesOf(state, slot, action) : null;
   const realStart = state.real;
   // its owner's hits already on the clock (an earlier press's committed bullets) bank while it holds;
@@ -302,8 +307,9 @@ export function evaluate(state: State, action: Action, triggered = false, source
   ctx.overrideType = null; ctx.overrideSubtype = null; ctx.droppedCast = null;
   // what this action grants and spends is recorded under this stamp (see runtime.ts's `applied`)
   ctx.actionStamp++;
-  // whatever ran out by now goes first of all, so no phase below ever visits it
-  state.expireBuffs();
+  // whatever ran out by now goes first of all, so no phase below ever visits it — a buff running
+  // out on this very frame still standing for a hit landing on it, gone for a press cast on it
+  state.expireBuffs(state.frame, action.half !== "hit");
   const frameStart = state.frame;
   // Replaced rather than cleared/copied: the snapshot below keeps whichever array this action built,
   // so handing it a fresh one here is what makes that snapshot immutable at zero copying cost (the
@@ -320,8 +326,23 @@ export function evaluate(state: State, action: Action, triggered = false, source
   // have set one by the time the declared deltas bank. Trace-only, same as `forte` below.
   const forteBefore: [number, number, number, number, number] = ctx.tracing ? [...slot.forte] : EMPTY_FORTE;
   // and the same for the three running totals, for the same reason
-  const energyBefore = slot.shownEr >= 0 ? slot.shownEnergy : slot.energy, concertoBefore = slot.concerto, offtuneBefore = state.offtune;
+  let energyBefore = slot.shownEr >= 0 ? slot.shownEnergy : slot.energy, concertoBefore = slot.concerto;
+  const offtuneBefore = state.offtune;
   if (ctx.tracing) { slot.entries = []; slot.totals = new Map(); }
+  // a press of this member's own (their Outro too; a hit landing joins its press's, and a follow-up or
+  // a Tune Break is nobody's) carries what moved their bars outside any row since: its before is the
+  // bars ahead of that
+  const ownPress = !triggered || action.cast === Cast.Outro;
+  const carried = ctx.tracing && ownPress && action.half !== "hit" && action.cast !== Cast.TuneBreak && slot.background.length ? slot.background.splice(0) : null;
+  // ...and a row ahead of that press reads its bars without them, before and after alike
+  const lag = ctx.tracing && (carried ?? slot.background).length ? [0, 0, 0, 0, 0, 0, 0] : null;
+  if (lag) {
+    for (const c of carried ?? slot.background) for (let i = 0; i < 7; i++) lag[i] = lag[i]! + c.gains[i]!;
+    energyBefore -= lag[0]!;
+    concertoBefore -= lag[1]!;
+    for (let i = 0; i < 5; i++) forteBefore[i] = forteBefore[i]! - lag[2 + i]!;
+  }
+  const behind = lag && !carried ? lag : null;
 
   if (castSide && casting(Cast.Intro)) adoptHandoff(state, slot, action);
 
@@ -561,8 +582,10 @@ export function evaluate(state: State, action: Action, triggered = false, source
   if (baseEnergy !== 0) {
     for (const other of state.slots) {
       if (other === slot) continue;
+      const was = other.shownEr >= 0 ? other.shownEnergy : other.energy;
       other.energy = bank(other.energy, baseEnergy / 2 * other.constEr / 100, other.resonator?.maxEnergy ?? 0);
       if (other.shownEr >= 0) other.shownEnergy = bank(other.shownEnergy, baseEnergy / 2 * other.shownEr / 100, other.resonator?.maxEnergy ?? 0);
+      if (ctx.tracing) noteBackground(other, [(other.shownEr >= 0 ? other.shownEnergy : other.energy) - was, 0, 0, 0, 0, 0, 0], action.name, slot.name, "shared");
       other.erA += baseEnergy / 2;
       other.erGot[slot.index] = (other.erGot[slot.index] ?? 0) + baseEnergy / 2;
     }
@@ -652,12 +675,12 @@ export function evaluate(state: State, action: Action, triggered = false, source
     enemyRes: enemyRes(),
     enemyDef: enemyDef(),
     entries: slot.entries,
-    adds: ctx.adds,
-    forte: [...slot.forte],
+    adds: carried ? [...carried, ...ctx.adds] : ctx.adds,
+    forte: behind ? slot.forte.map((v, i) => v - behind[2 + i]!) as [number, number, number, number, number] : [...slot.forte],
     forteBefore,
     maxForte: slot.resonator?.maxForte ?? EMPTY_FORTE,
     forteScale: slot.resonator?.forteScale ?? UNIT_FORTE,
-    energy: slot.shownEr >= 0 ? slot.shownEnergy : slot.energy, concerto: slot.concerto, offtune: state.offtune,
+    energy: (slot.shownEr >= 0 ? slot.shownEnergy : slot.energy) - (behind?.[0] ?? 0), concerto: slot.concerto - (behind?.[1] ?? 0), offtune: state.offtune,
     energyBefore, concertoBefore, offtuneBefore,
     seq: ++traceSeq,
     castUnmet,
@@ -675,6 +698,7 @@ export function evaluate(state: State, action: Action, triggered = false, source
     state.active = (state.active + state.outroDir + n) % n;
   }
   ctx.hit = null;
+  ctx.rowSlot = null;
   return snapshot ?? result;
 }
 
@@ -888,7 +912,8 @@ function closePress(state: State, action: Action, triggered: boolean, cut: strin
   ctx.tagWord = tagWordOf(action);
   ctx.overrideType = null; ctx.overrideSubtype = null; ctx.droppedCast = null;
   ctx.actionStamp++;
-  state.expireBuffs();
+  // a press ending on the frame a buff runs out still has it
+  state.expireBuffs(state.frame, false);
   capture(slot, state);
   ctx.mutHash = 0;
   actionHook(action.afterActionFn, 5);
@@ -918,6 +943,25 @@ class StepQueue {
   take(): Step { return this.front.length ? this.front.pop()! : this.list[this.at++]!; }
   /** `steps` next, in order, ahead of everything left. */
   unshift(steps: Step[]): void { for (let k = steps.length - 1; k >= 0; k--) this.front.push(steps[k]!); }
+  /** The next step to play, past the echoes written for mainslots `state`'s acting member doesn't
+   *  wear (and the rest of their groups) — the press that really comes next. */
+  ahead(state: State): Step | undefined {
+    let skipping: ActionGroup | null = null;
+    for (const step of this.upcoming()) {
+      if (skipping && step.group === skipping) continue;
+      skipping = null;
+      if (step.queued || step.slot >= 0 || !step.action.mainslot) return step;
+      ctx.state = state;
+      ctx.slot = state.slot;
+      if (resolving(step.action.resolveFn!) !== SKIP) return step;
+      skipping = step.group;
+    }
+    return undefined;
+  }
+  private *upcoming(): Generator<Step> {
+    for (let k = this.front.length - 1; k >= 0; k--) yield this.front[k]!;
+    for (let k = this.at; k < this.list.length; k++) yield this.list[k]!;
+  }
   /** The steps the rotation wrote still to come, past anything queued in front of them. */
   *written(): Generator<Step> {
     for (let k = this.front.length - 1; k >= 0; k--) if (this.front[k]!.slot < 0 && !this.front[k]!.queued) yield this.front[k]!;
@@ -1070,7 +1114,7 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
     if (step.slot < 0 && isCast(action, Cast.Outro) && outroWaits(state, steps, step)) continue;
     // a SWAP is the swap itself and costs nothing: after a swap form, the form's own delay is the
     // handoff; written after a press played out, the next resonator comes in with none
-    if (step.slot < 0 && action === SWAP) state.swapPaid = true;
+    if (step.slot < 0 && isSwap(action)) state.swapPaid = true;
     // a rotation entry with no charge left waits it out on a row of its own, spliced in ahead of
     // it so whatever the wait queues runs first, and then comes round again
     if (step.slot < 0 && action.cooldown && cooldownWaits(state, steps, step, action, action.cooldown)) continue;
@@ -1085,23 +1129,21 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
     // Handed to evaluate() rather than stamped on the result after: gear reacting mid-action
     // needs it too (tunebreak.ts's own watcher won't auto-fire off one) — see triggeredAction().
     // A summon echo is a press of its wearer like any other, its own 8 frames.
-    const ms = step.cut ? state.slot.mainslot?.cast() : undefined;
-    const uncut = !!ms && action === ms.onfield && !action.cutPays(step.cut!);
     const by = step.by;
     // an OFF_FIELD press, an Outro (a handoff), or anything with a source to name, is nobody's press
     const triggered = action.tag === ActionTag.OffField || action.cast === Cast.Outro || by !== null;
     // a dash the next press out-prioritises is cut short by it, an insta cancel that keeps its hit:
     // its cast priority above the dash's own where an insta cut hands over
-    const dash = (step.action as unknown as DashMarker).after !== undefined && dashOutranked(steps, action);
-    // an echo whose cut frees its wearer no sooner plays whole (`Action.cutPays`)
-    let cut = uncut ? null : dash ? ActionTag.InstaCancel : step.cut;
+    const dash = (step.action as unknown as DashMarker).after !== undefined && dashOutranked(state, steps, action);
+    let cut = dash ? ActionTag.InstaCancel : step.cut;
     const pressed = action;
     if (cut && !dash) [action, cut] = action.cutAs(cut);
     const kind = cut ?? action.tag;
     const checked = !dash && action.half === null;
     if (checked && LENGTH_CHECKED.has(kind)) checkCutLength(pressed.cancelOf ?? pressed, kind);
-    // a marker resolving to presses of either kind can't be written insta for the hitless one alone
-    const slow = checked && !step.action.resolveFn && SLOW_CUTS.has(kind), cutAt = !slow ? 0 : action.cutFrame;
+    // a marker resolving to presses of either kind can't be written insta for the hitless one alone;
+    // an echo's stands for its one press
+    const slow = checked && (!step.action.resolveFn || !!step.action.mainslot) && SLOW_CUTS.has(kind), cutAt = !slow ? 0 : action.cutFrame;
     if (slow && cutAt <= INSTA_DELAY) {
       throw new Error(`${action.name}: cuts at frame ${cutAt}, inside an insta cut's ${INSTA_DELAY} — write it as ${INSTA_OF[kind as ActionTag]} instead of ${kind}`);
     }
@@ -1120,11 +1162,11 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
     if (step.slot < 0 && !step.queued && PRIORITY_CUTS.has(kind)) {
       ctx.state = state;
       ctx.slot = state.slot;
-      const ahead = steps.peek();
+      const ahead = steps.ahead(state);
       const after = !ahead || ahead.queued || ahead.slot >= 0 ? null : ahead.action.resolveFn ? resolving(ahead.action.resolveFn) : ahead.action;
       checkPriority(action, cut, after);
     }
-    if (step.slot < 0 && !step.queued && checked) checkSwap(state, action, kind, steps.peek());
+    if (step.slot < 0 && !step.queued && checked) checkSwap(state, action, kind, steps.ahead(state));
     // a press that takes time casts now and queues each hit on the time-ordered queue at its own
     // frame, and its end where it runs out
     const whole = action;
@@ -1152,7 +1194,7 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
     ctx.pressStart = step.into?.realStarts ?? state.real;
     // a hold cancel holds into the next press, read as it stands now
     if (cut === ActionTag.HoldCancel || cut === ActionTag.MashCancel) {
-      const after = steps.peek()?.action ?? ctx.holdBeyond;
+      const after = steps.ahead(state)?.action ?? ctx.holdBeyond;
       ctx.holdNext = after?.resolveFn ? resolving(after.resolveFn) : after;
     }
     ctx.hitsLeft = step.into?.pending ?? 1;
@@ -1160,7 +1202,7 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
     if (step.into?.pending) step.into.pending--;
     ctx.hitsLeft = 1;
     // SWAP takes its owner off the field, as an Outro does: whoever presses next takes it
-    if (action === SWAP) state.onField = -1;
+    if (isSwap(action)) state.onField = -1;
     ctx.holdNext = null;
     if (state.holdWatch?.result === null) state.holdWatch.result = result;
     if (unswappable) state.drainUntil = until = Math.max(until, state.playsTo);
@@ -1182,6 +1224,10 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
     // each hit carries its press's length, and the end (afterAction) is where the press stops: a cut
     // one at its cut and delay, ahead of any committed hit still to land, else past its last hit
     if (split) splitEnd = queueEnd(state, whole, split, castAt, cut, kind, away, triggered, step.holdShift ?? 0);
+    // where its member stood as it was cast — one off field this long past their last press has
+    // despawned (null), as an arrival would find them
+    const stander = mover ?? breaker ?? state.slot;
+    if (ctx.tracing) result.position = stander !== mover && state.real - stander.endsAt >= DESPAWN_TIME ? null : stander.position;
     // a Tune Break is nobody's press, but it moves who casts it
     if (breaker && pressed.endPosition !== null) breaker.position = pressed.endPosition;
     if (mover) {
@@ -1190,7 +1236,9 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
       // cut within an insta cut's frames, a press never gets where it goes; a jump always lifts
       const short = kind !== ActionTag.Default && ctx.actReal <= INSTA_DELAY && pressed.cast !== Cast.Jump;
       if (pressed.endPosition !== null && !short) mover.position = pressed.endPosition;
-      mover.endsAt = splitEnd ? splitEnd.due : castAt + ctx.actReal;
+      // where the press itself stops — a swap form plays on to its animation's end, a cut at its cut —
+      // whatever of its hits lands after: past that they are no longer standing there
+      mover.endsAt = castAt + (SWAP_FORMS.has(kind) ? whole.animFrames : ctx.actReal) + (step.holdShift ?? 0);
     }
     if (step.at !== undefined) {
       state.setReal(Math.max(now, state.real));
@@ -1408,8 +1456,8 @@ function outroWaits(state: State, steps: StepQueue, step: Step): boolean {
   const into = to >= 0 ? state.slots[to]!.resonator : null;
   ctx.state = state;
   ctx.slot = state.slot;
-  // asked with the INTRO the arrival will cast, read only once reached
-  const hold = into?.holdFn && into.intro ? into.holdFn(INTRO) : null;
+  // asked with an Intro, the one the arrival will cast read only once reached
+  const hold = into?.holdFn && into.intro ? into.holdFn(ANY_INTRO) : null;
   // read at where the Outro would be cast: a hit landing mid-wait stops the clock short of it,
   // and the swap delay still to pay comes first
   const castAt = Math.max(state.real, state.playsTo) + (state.swapPaid ? 0 : SWAP_DELAY), gameAt = state.gameOf(castAt);
@@ -1457,8 +1505,8 @@ function cooldownWaits(state: State, steps: StepQueue, step: Step, action: Actio
 
 /** Does the next written press out-prioritise `dash`: then the dash is cut short by it, an insta cancel
  *  that keeps its hit — its cast priority above the dash's own where an insta cut hands over. */
-function dashOutranked(steps: StepQueue, dash: Action): boolean {
-  const ahead = steps.peek();
+function dashOutranked(state: State, steps: StepQueue, dash: Action): boolean {
+  const ahead = steps.ahead(state);
   const next = !ahead || ahead.queued || ahead.slot >= 0 ? null : ahead.action.resolveFn ? resolving(ahead.action.resolveFn) : ahead.action;
   const c = dash.cost(ActionTag.InstaCancel);
   return !!next && next !== SKIP && next.cutIn !== null && next.cutIn > dash.priorityAt(c.action + c.global);
@@ -1709,7 +1757,7 @@ function checkCutLength(base: Action, kind: ActionTag): void {
  *  and gauge readings are the last one's — what the bars held once its last bullet was in. */
 const CAST_KEEPS = new Set(["action", "member", "slot", "triggered", "group", "groupEnd", "groupSpill", "source", "queued",
   "frame", "realStarts", "frames", "tag", "active", "timestopBanked", "holdPaid", "holdCut", "endsLoop", "castUnmet", "buffUnmet", "buffForbidden", "buffSources",
-  "energyBefore", "concertoBefore", "offtuneBefore", "forteBefore", "gain", "adds", "seq", "gaugeLog"]);
+  "energyBefore", "concertoBefore", "offtuneBefore", "forteBefore", "gain", "adds", "seq", "gaugeLog", "position"]);
 
 /** One hit's damage: on average, on a crit, and on none. */
 export interface HitDamage { avg: number; crit: number; noCrit: number }
@@ -1860,7 +1908,8 @@ function walk(state: State, steps: StepQueue, spillGroup: ActionGroup | null): b
     ctx.slot = state.slot;
     state.runTicks(gameFrom, state.gameOf(to), stop, thaw);
     state.setReal(to);
-    state.expireBuffs();
+    // what runs out on `to` itself stays for the hits and ends landing there
+    state.expireBuffs(state.frame, false);
     settleHold(state);
     if (pendingQueue.length) takeQueued(steps, spillGroup, undefined);
     if (to < state.playsTo) return true;
@@ -1977,6 +2026,37 @@ function erWindow(slot: TeamMember, a: number, buffed: number, flat: number): vo
   }
   closeErWindow(slot, a, b, flat);
 }
+
+/** A gain made outside any press — a buff's tick, a timed `applyOn()`, a press's end — banked onto
+ *  `slot`'s bars where it is made, the way `evaluate()` banks a press's flat gains: no stat runs, so
+ *  none of it is scaled by ER or shared, and no row lists it. */
+export function bankLoose(state: State, slot: TeamMember, gain: Gain): void {
+  const cap = slot.resonator?.caps ?? NO_CAPS;
+  const bars = (): number[] => [slot.shownEr >= 0 ? slot.shownEnergy : slot.energy, slot.concerto, ...slot.forte];
+  const was = ctx.tracing ? bars() : null;
+  const energy = gain.energy ?? 0;
+  if (energy) {
+    slot.energy = bank(slot.energy, energy, cap[0]!);
+    if (slot.shownEr >= 0) slot.shownEnergy = bank(slot.shownEnergy, energy, cap[0]!);
+    erWindow(slot, 0, 0, energy);
+  }
+  if (gain.concerto) slot.concerto = bank(slot.concerto, gain.concerto, cap[1]!);
+  const forte = [gain.forte1, gain.forte2, gain.forte3, gain.forte4, gain.forte5];
+  for (let i = 0; i < 5; i++) {
+    if (forte[i]) slot.forte[i] = bank(slot.forte[i]!, forte[i]!, cap[2 + i]!);
+  }
+  if (gain.directOfftune) state.offtune = bank(state.offtune, gain.directOfftune, state.enemy.resonator?.maxOfftune ?? 0);
+  if (!was) return;
+  const moved = bars().map((v, i) => v - was[i]!);
+  // inside a row of this member's (a tick landing mid-press) the row's own bars already show it: it
+  // only needs its source on the row
+  if (slot !== ctx.rowSlot) noteBackground(slot, moved);
+  else if (moved.some((v) => v !== 0)) {
+    const by = ctx.buff;
+    ctx.adds.push({ source: by?.toString() ?? "", owner: (by && state.sourceOf.get(by)) ?? slot.name, gains: [...moved, 0, 0], onCast: false });
+  }
+}
+ctx.bankLoose = bankLoose;
 
 /** `erWindow()`'s spending step: the window closes, and the requirement is solved again over every one. */
 function closeErWindow(slot: TeamMember, a: number, b: number, flat: number): void {

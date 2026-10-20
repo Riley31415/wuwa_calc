@@ -1,5 +1,5 @@
 /** Mainslot echoes and sonatas from Rinascita (versions 2.0-2.4). */
-import { Stat, Attribute, Type, Subtype, Cast, Scaling, BuffTarget } from "../engine/stats.js";
+import { Stat, Attribute, Type, Subtype, Cast, Scaling, BuffTarget, Position } from "../engine/stats.js";
 import { Buff, Sonata, Sonata2pc, Mainslot } from "../engine/gear.js";
 import { NM_TEMPEST_MEPHIS } from "./jinzhou.js";
 import {
@@ -13,17 +13,17 @@ import { PseudoTransformEcho, SummonEcho, TransformEcho } from "./echo.js";
 /* ----------------------------------------------------------------------------- Carlotta, 2.0 */
 
 /** Sentry Construct, Carlotta's own mainslot echo — flat Glacio/Resonance Skill DMG Bonus, no trigger. */
-export const ACTION_SENTRY_CONSTRUCT = new TransformEcho("Echo - Sentry Construct", {
-  bullets: [{ hitFrame: 46, mv: 40500, energy: 562 }],
-  cooldown: 60 * 25,
-  element: Attribute.Glacio, scaling: Scaling.Atk, type: Type.Echo,
-});
 export const SENTRY_CONSTRUCT = new Mainslot({
   id: 6000083,
   name: "Sentry Construct",
   cost: 4,
-  action: ACTION_SENTRY_CONSTRUCT,
   stats: [[Stat.DmgBonus, 12, Attribute.Glacio], [Stat.DmgBonus, 12, Type.Skill]],
+});
+export const ACTION_SENTRY_CONSTRUCT = new TransformEcho("Echo - Sentry Construct", {
+  mainslot: SENTRY_CONSTRUCT, endPosition: Position.Grounded, animFrames: 82,
+  bullets: [{ hitFrame: 50, mv: 40500, energy: 562 }],
+  cooldown: 60 * 25,
+  element: Attribute.Glacio, scaling: Scaling.Atk, type: Type.Echo,
 });
 
 /** Frosty Resolve, Carlotta's own sonata (also carried by Empyrean Anthem's Overlord-class
@@ -54,33 +54,33 @@ export const FROSTY_RESOLVE_5PC = new Sonata({
 
 /** Nightmare: Impermanence Heron, Roccia's own mainslot echo — flat Havoc/Heavy Attack DMG
  *  Bonus, no trigger. */
-export const ACTION_NM_HERON = new TransformEcho("Echo - Nightmare: Impermanence Heron", {
-  bullets: [{ hitFrame: 46, mv: 40500, energy: 560 }],
-  cooldown: 60 * 25,
-  element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo,
-});
 export const NM_HERON = new Mainslot({
   id: 6000087,
   name: "Nightmare: Impermanence Heron",
   cost: 4,
-  action: ACTION_NM_HERON,
   stats: [[Stat.DmgBonus, 12, Attribute.Havoc], [Stat.DmgBonus, 12, Type.Heavy]],
+});
+export const ACTION_NM_HERON = new TransformEcho("Echo - Nightmare: Impermanence Heron", {
+  mainslot: NM_HERON, castPosition: Position.Grounded, endPosition: Position.Grounded, animFrames: 122,
+  bullets: [11, 17, 23, 29, 35, 41, 47, 53, 59, 65].map((f) => ({ hitFrame: f, mv: 4050, energy: 56 })),
+  cooldown: 60 * 25,
+  element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo,
 });
 
 /* ---------------------------------------------------------------------------- Cantarella, 2.2 */
 
 /** Lorelei, Cantarella's own mainslot echo — flat Havoc/Basic DMG Bonus, no trigger. */
-export const ACTION_LORELEI = new TransformEcho("Echo - Lorelei", {
-  bullets: [{ hitFrame: 46, mv: 40500, energy: 562 }],
-  cooldown: 60 * 25,
-  element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo,
-});
 export const LORELEI = new Mainslot({
   id: 6000082,
   name: "Lorelei",
   cost: 4,
-  action: ACTION_LORELEI,
   stats: [[Stat.DmgBonus, 12, Attribute.Havoc], [Stat.DmgBonus, 12, Type.Basic]],
+});
+export const ACTION_LORELEI = new TransformEcho("Echo - Lorelei", {
+  mainslot: LORELEI, endPosition: Position.Grounded, animFrames: 140,
+  bullets: [{ hitFrame: 49, mv: 40500, energy: 562 }],
+  cooldown: 60 * 25,
+  element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo,
 });
 
 /** Midnight Veil, Cantarella's own sonata — also reused by Roccia and Phrolova. 2pc: +10% Havoc
@@ -106,19 +106,19 @@ export const MIDNIGHT_VEIL_5PC = new Sonata({
 
 /* ---------------------------------------------------------------------------------- Brant, 2.1 */
 
-// TODO check how many hits for real
 /** Dragon of Dirge, Brant's own mainslot echo — flat Fusion/Basic Attack DMG Bonus, no trigger. */
-export const ACTION_DRAGON_OF_DIRGE = new TransformEcho("Echo - Dragon of Dirge", {
-  bullets: [{ hitFrame: 46, mv: 3681 * 8, energy: 51 * 8 }],
-  cooldown: 60 * 25,
-  element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo,
-});
 export const DRAGON_OF_DIRGE = new Mainslot({
   id: 6000084,
   name: "Dragon of Dirge",
   cost: 4,
-  action: ACTION_DRAGON_OF_DIRGE,
   stats: [[Stat.DmgBonus, 12, Attribute.Fusion], [Stat.DmgBonus, 12, Type.Basic]],
+});
+export const ACTION_DRAGON_OF_DIRGE = new TransformEcho("Echo - Dragon of Dirge", {
+  mainslot: DRAGON_OF_DIRGE, endPosition: Position.Midair, animFrames: 108,
+  // the rift's eleven ticks (wuwalab's), all committed with the first
+  bullets: [46, 76, 106, 137, 167, 197, 226, 256, 287, 317, 346].map((f) => ({ hitFrame: f, commitFrame: 46, mv: 3681, energy: 51 })),
+  cooldown: 60 * 25,
+  element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo,
 });
 
 export const TIDEBREAKING_2PC = new Sonata2pc({ id: 14, name: "Tidebreaking Courage 2pc", echoes: [DRAGON_OF_DIRGE], stats: [[Stat.ER, 10]] });
@@ -136,44 +136,43 @@ export const TIDEBREAKING_5PC = new Sonata({
 /* --------------------------------------------------------------------------------- Phrolova */
 
 /** Nightmare: Hecate, Phrolova's own mainslot echo — flat Havoc/Echo Skill DMG Bonus, no trigger. */
-export const ACTION_NM_HECATE = new TransformEcho("Echo - Nightmare: Hecate", { animFrames: 50, bullets: [{ hitFrame: 36, mv: 45717, energy: 315 }], cooldown: 60 * 25,
-  element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo,
-});
 export const NM_HECATE = new Mainslot({
   id: 6000115,
   name: "Nightmare: Hecate",
   cost: 4,
-  action: ACTION_NM_HECATE,
   stats: [[Stat.DmgBonus, 12, Attribute.Havoc], [Stat.DmgBonus, 20, Type.Echo]],
+});
+export const ACTION_NM_HECATE = new TransformEcho("Echo - Nightmare: Hecate", {
+  mainslot: NM_HECATE, castPosition: Position.Grounded, endPosition: Position.Grounded, animFrames: 50, cooldown: 60 * 25,
+  bullets: [7, 35, 40].map((f) => ({ hitFrame: f, mv: 15239, energy: 105 })),
+  element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo,
 });
 
 /* ------------------------------------------------------------------------------------ Zhezhi */
 
 /** Nightmare: Lampylumen Myriad, Zhezhi's own mainslot echo — the only glacio Coordinated
  *  Attack character. Flat Glacio/Coordinated Attack DMG Bonus, no trigger. */
-export const ACTION_NM_LAMPY = new SummonEcho("Echo - Nightmare: Lampylumen Myriad", {
-  cooldown: 60 * 20,
-  element: Attribute.Glacio, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 27360, energy: 380 }],
-});
 export const NM_LAMPY = new Mainslot({
   id: 6000105,
   name: "Nightmare: Lampylumen Myriad",
   cost: 4,
-  action: ACTION_NM_LAMPY,
   stats: [[Stat.DmgBonus, 12, Attribute.Glacio], [Stat.DmgBonus, 30, Subtype.Coordinated]],
 });
-
-
-export const ACTION_HECATE = new SummonEcho("Echo - Hecate", { // TODO unsure on hits
-  cooldown: 60 * 20,
-  element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 4559*6, energy: 63*6 }],
+export const ACTION_NM_LAMPY = new SummonEcho("Echo - Nightmare: Lampylumen Myriad", {
+  mainslot: NM_LAMPY, cooldown: 60 * 20,
+  element: Attribute.Glacio, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 68, commitFrame: 0, mv: 27360, energy: 380 }],
 });
+
 export const HECATE = new Mainslot({
   id: 6000085,
   name: "Hecate",
   cost: 4,
-  action: ACTION_HECATE,
   stats: [[Stat.DmgBonus, 40, Subtype.Coordinated]],
+});
+// the three Crescent Servants' blades, three rounds of them (wuwalab's nine)
+export const ACTION_HECATE = new SummonEcho("Echo - Hecate", {
+  mainslot: HECATE, cooldown: 60 * 20,
+  element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo, bullets: [0, 0, 0, 30, 30, 30, 60, 60, 60].map((f) => ({ hitFrame: f, commitFrame: 0, mv: 4559, energy: 63 })),
 });
 
 /** Empyrean Anthem, Zhezhi's own sonata. 2pc: +10% ER flat. 5pc: +80% Coordinated Attack DMG
@@ -198,21 +197,21 @@ export const EMPYREAN_ANTHEM_TEAM = new Buff({
 /** Nightmare: Kelpie, Ciaccona's own mainslot echo — flat Glacio/Aero DMG Bonus for whoever wears
  *  it. The Echo Skill itself is Glacio; switching the wearer out with an Outro summons Kelpie once
  *  more for the same multiplier as Aero DMG, which is what ACTION_NM_KELPIE_OUTRO below is. */
+export const NM_KELPIE = new Mainslot({
+  id: 6000113,
+  name: "Nightmare: Kelpie",
+  cost: 4,
+  stats: [[Stat.DmgBonus, 12, Attribute.Glacio], [Stat.DmgBonus, 12, Attribute.Aero]],
+  updateBuffs: () => { if (casting(Cast.Outro)) queue(ACTION_NM_KELPIE_OUTRO); },
+});
 export const ACTION_NM_KELPIE = new TransformEcho("Echo - Nightmare: Kelpie", {
-  bullets: [{ hitFrame: 46, mv: 40500, energy: 281 }],
+  mainslot: NM_KELPIE, castPosition: Position.Grounded, endPosition: Position.Grounded, animFrames: 138,
+  bullets: [{ hitFrame: 91, mv: 40500, energy: 281 }],
   cooldown: 60 * 25,
   element: Attribute.Glacio, scaling: Scaling.Atk, type: Type.Echo,
 });
 export const ACTION_NM_KELPIE_OUTRO = new Action("Echo - Nightmare: Kelpie (Outro)", {
   element: Attribute.Aero, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 40500, energy: 281 }], 
-});
-export const NM_KELPIE = new Mainslot({
-  id: 6000113,
-  name: "Nightmare: Kelpie",
-  cost: 4,
-  action: ACTION_NM_KELPIE,
-  stats: [[Stat.DmgBonus, 12, Attribute.Glacio], [Stat.DmgBonus, 12, Attribute.Aero]],
-  updateBuffs: () => { if (casting(Cast.Outro)) queue(ACTION_NM_KELPIE_OUTRO); },
 });
 
 /* ----------------------------------------------------------------------------- Ciaccona, 2.3 */
@@ -249,21 +248,20 @@ export const GUSTS_OF_WELKIN_5PC = new Sonata({
  *  Cartethyia. Both are checked by name: importing either module here would close the cycle their
  *  own loadouts already open by equipping this echo, and the loser of that race is whichever file
  *  the loader reaches second. */
-export const ACTION_FLEURDELYS = new SummonEcho("Echo - Reminiscence: Fleurdelys", {
-  cooldown: 60 * 20,
-  element: Attribute.Aero, scaling: Scaling.Atk, type: Type.Echo,
-  bullets: [{ hitFrame: 0, mv: 2736 * 8 + 13680, energy: 38 * 8 + 190 }], 
-});
 export const FLEURDELYS = new Mainslot({
   id: 6000106,
   name: "Reminiscence: Fleurdelys",
   cost: 4,
-  action: ACTION_FLEURDELYS,
   constantStats: () => {
     addStat(Stat.DmgBonus, 10, Attribute.Aero);
     const worn = currentMember().resonator?.name;
     if (worn === "Aero Rover" || worn === "Cartethyia") addStat(Stat.DmgBonus, 10, Attribute.Aero);
   },
+});
+export const ACTION_FLEURDELYS = new SummonEcho("Echo - Reminiscence: Fleurdelys", {
+  mainslot: FLEURDELYS, cooldown: 60 * 20,
+  element: Attribute.Aero, scaling: Scaling.Atk, type: Type.Echo,
+  bullets: [...[24, 33, 42, 51, 60, 69, 78, 87].map((f) => ({ hitFrame: f, commitFrame: 0, mv: 2736, energy: 38 })), { hitFrame: 108, commitFrame: 0, mv: 13680, energy: 190 }],
 });
 
 /** Windward Pilgrimage, the other Aero Erosion sonata. 2pc: +10% Aero DMG Bonus flat. 5pc:
@@ -296,17 +294,16 @@ export const WINDWARD_BUFF = new Buff({
  *  action that applied it — while this one's Heavy Attack bonus pays on every Heavy Slash, which
  *  is most of what she does. `Type.Heavy` reaches them because a scoped stat resolves against
  *  damage type, never `cast`: the Heavy Slashes are pressed on Basic Attack but deal Heavy. */
-export const ACTION_CAPITANEUS = new SummonEcho("Echo - Capitaneus", {
-  cooldown: 60 * 20,
-  element: Attribute.Spectro, scaling: Scaling.Atk, type: Type.Echo,
-  bullets: [{ hitFrame: 0, mv: 11880 + 5940 * 4, energy: 165 + 82 * 4 }], 
-});
 export const CAPITANEUS = new Mainslot({
   id: 6000104,
   name: "Capitaneus",
   cost: 3,
-  action: ACTION_CAPITANEUS,
   stats: [[Stat.DmgBonus, 12, Attribute.Spectro], [Stat.DmgBonus, 12, Type.Heavy]],
+});
+export const ACTION_CAPITANEUS = new SummonEcho("Echo - Capitaneus", {
+  mainslot: CAPITANEUS, castPosition: Position.Grounded, endPosition: Position.Grounded, cooldown: 60 * 20,
+  element: Attribute.Spectro, scaling: Scaling.Atk, type: Type.Echo,
+  bullets: [{ hitFrame: 41, commitFrame: 0, mv: 11880, energy: 165 }, ...[0, 1, 2, 3].map(() => ({ hitFrame: 43, commitFrame: 0, mv: 5940, energy: 82 }))],
 });
 
 /** Nightmare: Mourning Aix, the Eternal Radiance set's only Overlord-class echo and so the only
@@ -316,17 +313,16 @@ export const CAPITANEUS = new Mainslot({
  *  `SPECTRO_FRAZZLE` only, not Heliacal Ember: Zani's kit extends the count to Embers for the
  *  sonata effect below and for nothing else, so in her team the summon lands on an already
  *  converted target and pays the plain figure. */
-export const ACTION_NM_MOURNING_AIX = new SummonEcho("Echo - Nightmare: Mourning Aix", {
-  cooldown: 60 * 20,
-  element: Attribute.Spectro, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 27360, energy: 380 }],
-  applyStats: () => { if (stacksOfEnemy(SPECTRO_FRAZZLE) > 0) addStat(Stat.TotalDmg, 100); },
-});
 export const NM_MOURNING_AIX = new Mainslot({
   id: 6000092,
   name: "Nightmare: Mourning Aix",
   cost: 4,
-  action: ACTION_NM_MOURNING_AIX,
   stats: [[Stat.DmgBonus, 12, Attribute.Spectro]],
+});
+export const ACTION_NM_MOURNING_AIX = new SummonEcho("Echo - Nightmare: Mourning Aix", {
+  mainslot: NM_MOURNING_AIX, cooldown: 60 * 20,
+  element: Attribute.Spectro, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 80, commitFrame: 0, mv: 27360, energy: 380 }],
+  applyStats: () => { if (stacksOfEnemy(SPECTRO_FRAZZLE) > 0) addStat(Stat.TotalDmg, 100); },
 });
 
 /** Eternal Radiance, the Spectro Frazzle sonata. 2pc: +10% Spectro DMG Bonus flat. 5pc:

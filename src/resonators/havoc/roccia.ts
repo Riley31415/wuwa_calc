@@ -32,12 +32,12 @@ import {
   isHeld,
   revokeCurrent,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, NOINTRO, ECHO, INTRO, OUTRO, DODGE, JUMP } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, SWAPIN, DODGE, JUMP } from "../../engine/rotation.js";
 import { TRAGICOMEDY } from "../../weapons/gauntlet.js";
 import { NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
 import { STONARD, AETHER_STRIKE } from "../../weapons/battlepass.js";
-import { NM_HERON, MIDNIGHT_VEIL_5PC } from "../../echoes/rinascita.js";
-import { MOONLIT_CLOUDS_5PC, HERON, BELL_BORNE_GEOCHELONE, HAVOC_ECLIPSE_5PC, NM_CROWNLESS } from "../../echoes/jinzhou.js";
+import { NM_HERON, MIDNIGHT_VEIL_5PC, ACTION_NM_HERON } from "../../echoes/rinascita.js";
+import { MOONLIT_CLOUDS_5PC, HERON, BELL_BORNE_GEOCHELONE, HAVOC_ECLIPSE_5PC, NM_CROWNLESS, ACTION_HERON, ACTION_BELL_BORNE, ACTION_NM_CROWNLESS } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -230,7 +230,6 @@ const ROCCIA_RESONATOR = new Resonator({
   weapon: WeaponType.Gauntlets,
   color: "#9634b2",
   intro: Intro,
-  outro: Outro,
   swapIn: BA1,
   swapInAir: MA,
   maxEnergy: 12500,
@@ -323,42 +322,42 @@ const FBA123 = new ActionGroup("Forte Basic - Real Fantasy 123", [FBA1, FBA2, FB
 const FBA123Success = new ActionGroup("Forte Basic - Real Fantasy 123 (Success)", [FBA1, FBA2, FBA3Success]);
 
 const RC_ROTATION = new Rotation([
-  NOINTRO,
+  SWAPIN,
   BA1234.cancel(), 
   Liberation, 
   Skill.instaDodge(), JUMP, FBA123,
-  ECHO.instaSwap(), 
-  OUTRO,
+  ACTION_NM_HERON.instaSwap(), ACTION_HERON.instaSwap(), ACTION_BELL_BORNE.instaSwap(), ACTION_NM_CROWNLESS.instaSwap(), 
+  Outro,
 
-  INTRO, BA4.cancel(), 
+  Intro, BA4.cancel(), 
   Liberation, 
   Skill.instaDodge(), JUMP, FBA123,
-  ECHO.instaSwap(), 
-  OUTRO,
+  ACTION_NM_HERON.instaSwap(), ACTION_HERON.instaSwap(), ACTION_BELL_BORNE.instaSwap(), ACTION_NM_CROWNLESS.instaSwap(), 
+  Outro,
 ]);
 
 const RC_ROTATION_S1 = new Rotation([
-  NOINTRO,
+  SWAPIN,
   BA123,
   Skill.instaDodge(), JUMP, FBA123,
-  Liberation, ECHO.instaSwap(), 
-  OUTRO,
+  Liberation, ACTION_NM_HERON.instaSwap(), ACTION_HERON.instaSwap(), ACTION_BELL_BORNE.instaSwap(), ACTION_NM_CROWNLESS.instaSwap(), 
+  Outro,
 
-  INTRO,
+  Intro,
   Skill.instaDodge(), JUMP, FBA123,
-  Liberation, ECHO.instaSwap(), 
-  OUTRO,
+  Liberation, ACTION_NM_HERON.instaSwap(), ACTION_HERON.instaSwap(), ACTION_BELL_BORNE.instaSwap(), ACTION_NM_CROWNLESS.instaSwap(), 
+  Outro,
 ]);
 
 // S6: six Reality Recreations land inside the Liberation's 12s after the Skill and the chain; the
 // seventh is cast in it but lands after, so it relaunches nothing and ends the loop
 const RC_ROTATION_S6_MDPS = new Rotation([
-  INTRO, BA4.cancel(), Liberation,
+  Intro, BA4.cancel(), Liberation,
   Skill.instaDodge(), JUMP, FBA123Success,
   RealityRecreation, RealityRecreation, RealityRecreation,
   RealityRecreation, RealityRecreation, RealityRecreation,
   RealityRecreationFail,
-  OUTRO,
+  Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

@@ -23,7 +23,7 @@ import {
   
   queueQTE,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, START_LAST, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, START_LAST, DODGE } from "../../engine/rotation.js";
 import { BLAZING_BRILLIANCE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
@@ -276,7 +276,6 @@ const CHANGLI_RESONATOR = new Resonator({
   weapon: WeaponType.Sword,
   color: "#f38b68",
   intro: Intro,
-  outro: Outro,
   // True Sight turns the Basic Attack into Conquest on the ground, Charge in mid-air
   swapIn: () => (isHeld(TRUE_SIGHT) ? SBA : BA1),
   swapInAir: () => (isHeld(TRUE_SIGHT) ? SMA : MA1),
@@ -297,13 +296,13 @@ const BA34 = new ActionGroup("Basic - Blazing Enlightenment 34", [BA3, BA4]);
 const CH_ROTATION = new Rotation([
   START_LAST, BA1.instaCancel(), Skill.hitCancel(), Liberation, FlamingSacrifice.instaSwap(),
 
-  INTRO, SMA, 
+  Intro, SMA, 
   MHA, BA34.dodgeCancel(), SBA,
   Skill, SBA,
   Skill, SBA, // cance?
   FlamingSacrifice.cancel(),
   Liberation, FlamingSacrifice.swapCancel(),
-  OUTRO,
+  Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

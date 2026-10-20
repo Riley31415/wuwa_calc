@@ -79,7 +79,7 @@ import {
   currentFrame,
   runningBullet,
 } from "../../engine/context.js";
-import { Action, ActionGroup, Rotation, NOINTRO, ECHO, ActionTag, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
+import { Action, ActionGroup, Rotation, SWAPIN, ActionTag, DODGE } from "../../engine/rotation.js";
 import {
   HEALS, HAVOC_BANE, GLACIO_CHAFE, ELECTRO_FLARE, FUSION_BURST, AERO_EROSION, SPECTRO_FRAZZLE, ELECTRO_RAGE,
   inflictedNegativeStatusBy, gainShield,
@@ -87,8 +87,8 @@ import {
 import { KUMOKIRI, WILDFIRE_MARK } from "../../weapons/broadblade.js";
 import { DISCORD, LUSTROUS_RAZOR, NEW_STD_BRAUDBLADE } from "../../weapons/standard.js";
 import { AUTUMNTRACE, AUREATE_ZENITH } from "../../weapons/battlepass.js";
-import { THRENODIAN_LEVIATHAN, THREAD_OF_SEVERED_FATE_3PC } from "../../echoes/septimont.js";
-import { BELL_BORNE_GEOCHELONE, FALLACY, HAVOC_ECLIPSE_2PC, HERON, MOONLIT_CLOUDS_2PC, MOONLIT_CLOUDS_5PC, REJUV_2PC, REJUV_5PC } from "../../echoes/jinzhou.js";
+import { THRENODIAN_LEVIATHAN, THREAD_OF_SEVERED_FATE_3PC, ACTION_THRENODIAN_LEVIATHAN } from "../../echoes/septimont.js";
+import { BELL_BORNE_GEOCHELONE, FALLACY, HAVOC_ECLIPSE_2PC, HERON, MOONLIT_CLOUDS_2PC, MOONLIT_CLOUDS_5PC, REJUV_2PC, REJUV_5PC, ACTION_FALLACY, ACTION_HERON, ACTION_BELL_BORNE } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -666,7 +666,6 @@ const CHISA_RESONATOR = new Resonator({
   weapon: WeaponType.Broadblade,
   color: "#8a3b47",
   intro: Intro,
-  outro: Outro,
   swapIn: () => (isHeld(CHAINSAW_MODE) ? Blitz1 : BA1),
   swapInAir: ReignOfSilenceMidAir,
   maxEnergy: 12500,
@@ -686,13 +685,15 @@ const CHISA_RESONATOR = new Resonator({
  *  here models the timing that earns them, so the chain reads as the plain taps it is. */
 
 const CS_ROTATION = new Rotation([
-  NOINTRO, BA1, BA2.cancel(), Skill, RendingLunge, DeathSnipSpread, ThreadWithdrawn.instaCancel(), ECHO.instaDodge(), Liberation,
+  SWAPIN, BA1, BA2.cancel(), Skill, RendingLunge, DeathSnipSpread, ThreadWithdrawn.instaCancel(), 
+  ACTION_THRENODIAN_LEVIATHAN.instaCancel(), ACTION_FALLACY.instaCancel(), ACTION_HERON.instaDodge(), ACTION_BELL_BORNE.instaCancel(), Liberation,
   SerratedLoop, Blitz2Hold, Blitz3Hold, Eradication.instaSwap(),
-  OUTRO,
+  Outro,
 
-  INTRO, Skill, RendingLunge, DeathSnipSpread, ECHO.instaDodge(), Liberation,
+  Intro, Skill, RendingLunge, DeathSnipSpread, 
+  ACTION_THRENODIAN_LEVIATHAN.instaCancel(), ACTION_FALLACY.instaCancel(), ACTION_HERON.instaDodge(), ACTION_BELL_BORNE.instaCancel(), Liberation,
   SerratedLoop, Blitz2Hold, Blitz3Hold, Eradication.instaSwap(),
-  OUTRO,
+  Outro,
 ]);
 
 const CS_ECHOES = [

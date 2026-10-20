@@ -40,12 +40,12 @@ import {
   triggeredAction,
   runningBullet,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, NOINTRO, ECHO, ActionTag, INTRO, OUTRO, waitFor } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, SWAPIN, ActionTag, waitFor, DEFAULT_DODGE } from "../../engine/rotation.js";
 import { LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";
 import { COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { AUGMENT, RADIANT_DAWN } from "../../weapons/battlepass.js";
 import { DREAM_OF_THE_LOST_3PC } from "../../echoes/septimont.js";
-import { NM_HECATE } from "../../echoes/rinascita.js";
+import { NM_HECATE, ACTION_NM_HECATE } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -93,7 +93,7 @@ const BA1 = phroAction("Basic - Movement of Life and Death 1", { animFrames: 44,
   ]});
 const BA2 = phroAction("Basic - Movement of Life and Death 2", { chains: [BA1], animFrames: 36, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 12, mv: 9543, energy: 150, concerto: 300, offtune: 4800 }]});
 // "When performing Basic Attack Stage 3, enter Reincarnate state"; either Intro leads into it too
-const BA3 = phroAction("Basic - Movement of Life and Death 3", { chains: [BA2, INTRO], animFrames: 81, animPriority: { 0: 4, 81: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic,
+const BA3 = phroAction("Basic - Movement of Life and Death 3", { chains: () => [BA2, Intro, EIntro], animFrames: 81, animPriority: { 0: 4, 81: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic,
   updateBuffs: () => applyCurrent(REINCARNATE, 1), bullets: [
     { hitFrame: 30, mv: 3269, energy: 52, concerto: 103, offtune: 1644, forte1: 1,
       updateDebuffs: () => gainNote(1) },
@@ -227,6 +227,8 @@ const HBA2 = HECATE_2.variant(HECATE_2.name, { chains: [HBA1], cast: Cast.Basic,
 const COMMANDS = NOTE_MOVES.map((move) => move.variant(`${move.name} (Command)`, {
   cast: Cast.Basic, tag: ActionTag.Default, requireBuff: MAESTRO, updateBuffs: () => startEnhanced(),
 }));
+/** Her dash while she commands Hecate in Maestro: the plain one under Hecate's name, ending nothing. */
+const HecateDodge = DEFAULT_DODGE.variant("Dodge - Hecate", {});
 /** The leftmost note's attack, commanded — resolved when reached. */
 const EnhancedHecate = new Action("Enhanced Hecate Resolver", {
   resolve: () => {
@@ -291,12 +293,12 @@ function offField(): boolean {
   return team.slot === her() && currentCast().swapOut;
 }
 
-/** Would casting `a` end Maestro: any cast of hers but Hecate's, the Waltz that opens it and the
- *  Outro that hands it over. */
+/** Would casting `a` end Maestro: any cast of hers but Hecate's (her dash included), the Waltz
+ *  that opens it and the Outro that hands it over. */
 function endsMaestro(a: Readonly<Action>): boolean {
   if (a.cast === null) return false;
   for (let x: Readonly<Action> | null = a; x; x = x.cancelOf ?? x.formOf) {
-    if (HECATE_ACTIONS.has(x as Action) || x === Liberation || x === Outro) return false;
+    if (HECATE_ACTIONS.has(x as Action) || x === HecateDodge || x === Liberation || x === Outro) return false;
   }
   return true;
 }
@@ -579,10 +581,11 @@ export const PHROLOVA_RESONATOR = new Resonator({
   color: "#a62c57",
   // resolved when its row is reached: whichever Intro the kit's state calls for there
   intro: () => (stacksOf(MAESTRO) ? EIntro : Intro),
-  outro: Outro,
   // switching to her in Maestro without an Intro casts Curtain Call; no Plunging Attack is modelled
   swapIn: () => (stacksOf(MAESTRO) || stacksOf(CURTAIN_CALL_READY) ? CurtainCall : BA2),
   // Maestro still open means Suite of Immortality (EIntro) instead of plain Intro
+  // in Maestro her dash is Hecate's, which keeps it standing
+  dodge: () => (stacksOf(MAESTRO) ? HecateDodge : null),
   maxEnergy: 0,
   maxForte1: 6,
   holdBefore: (next) => hecateHold(next),
@@ -606,62 +609,83 @@ export const PHROLOVA_RESONATOR = new Resonator({
 });
 
 // INTRO resolves to plain Intro or EIntro on its own (see her own intro() above)
-// NOINTRO ROTATIONS DO NOT HAVE AN INTRO
+// SWAPIN ROTATIONS DO NOT HAVE AN INTRO
 
 const BA123 = new ActionGroup("Basic - Movement of Life and Death 123", [BA1, BA2, BA3]);
 const BA23 = new ActionGroup("Basic - Movement of Life and Death 23", [BA2, BA3]);
 const HBA12 = new ActionGroup("Basic - Hecate 12", [HBA1, HBA2]);
 
-const PHRO_FAST = new Rotation([
-  NOINTRO, BA23.hitCancel(), ECHO, FBA.instaDodge(),
+const PHRO_3FBA_MANUAL = new Rotation([
+  SWAPIN, BA23.hitCancel(), ACTION_NM_HECATE, FBA.instaDodge(),
   BA123.hitDodge(), FBA.instaCancel(), Skill, FBA.holdCancel(),
-  ScarletCoda.mashCancel(), Liberation, OUTRO,
+  ScarletCoda.mashCancel(), Liberation, Outro,
   
-  INTRO, BA3.hitDodge(), FBA.instaCancel(), ECHO, 
+  Intro, EIntro, BA3.hitDodge(), FBA.instaCancel(), ACTION_NM_HECATE, 
   BA123.hitDodge(), FBA.instaCancel(), Skill, FBA.holdCancel(),
-  ScarletCoda.mashCancel(), Liberation, OUTRO,
+  ScarletCoda.mashCancel(), Liberation, HBA12.instaDodge(), EnhancedHecate.instaSwap(), Outro,
 ]);
 
-const PHRO_MANUAL = new Rotation([
-  NOINTRO, BA23.hitCancel(), ECHO, FBA.instaDodge(),
+const PHRO_3FBA = new Rotation([
+  SWAPIN, BA23.hitCancel(), ACTION_NM_HECATE, FBA.instaDodge(),
   BA123.hitDodge(), FBA.instaCancel(), Skill, FBA.holdCancel(),
-  ScarletCoda.mashCancel(), Liberation, OUTRO,
+  ScarletCoda.mashCancel(), Liberation, Outro,
   
-  INTRO, BA3.hitDodge(), FBA.instaCancel(), ECHO, 
+  Intro, EIntro, BA3.hitDodge(), FBA.instaCancel(), ACTION_NM_HECATE, 
   BA123.hitDodge(), FBA.instaCancel(), Skill, FBA.holdCancel(),
-  ScarletCoda.mashCancel(), Liberation, HBA12.instaDodge(), EnhancedHecate.instaSwap(), OUTRO,
+  ScarletCoda.mashCancel(), Liberation, Outro,
+]);
+const PHRO_3FBA_S2 = new Rotation([
+  SWAPIN, BA23.instaCancel(), ACTION_NM_HECATE, FBA.instaDodge(), 
+  BA123.instaDodge(), FBA.instaCancel(), Skill, FBA.holdCancel(),
+  ScarletCoda.mashCancel(), Liberation, Outro,
+  
+  Intro, EIntro, BA3.hitDodge(), FBA.instaCancel(), ACTION_NM_HECATE,
+  BA123.hitDodge(), FBA.instaCancel(), Skill, FBA.holdCancel(),
+  ScarletCoda.mashCancel(), Liberation, Outro,
+]);
+
+const PHRO_4FBA = new Rotation([
+  SWAPIN, BA23.hitCancel(), ACTION_NM_HECATE, FBA.instaDodge(),
+  BA123.hitDodge(), FBA.instaCancel(), Skill, FBA.holdCancel(),
+  ScarletCoda.mashCancel(), Liberation, Outro,
+
+  Intro, EIntro, BA3.hitDodge(), FBA.instaDodge(),
+  BA123.instaDodge(), FBA.instaCancel(),  ACTION_NM_HECATE,
+  BA123.instaDodge(), FBA.instaCancel(), Skill, FBA.holdCancel(),
+  ScarletCoda.mashCancel(), Liberation, Outro,
+]);
+const PHRO_4FBA_S2 = new Rotation([
+  SWAPIN, BA23.instaCancel(), ACTION_NM_HECATE, FBA.instaDodge(), 
+  BA123.instaDodge(), FBA.instaCancel(), Skill, FBA.holdCancel(),
+  ScarletCoda.mashCancel(), Liberation, Outro,
+
+  Intro, EIntro, BA3.hitDodge(), FBA.instaDodge(),
+  BA123.instaDodge(), FBA.instaCancel(), ACTION_NM_HECATE, 
+  BA123.instaDodge(), FBA.instaCancel(), Skill, FBA.holdCancel(),
+  ScarletCoda.mashCancel(), Liberation, Outro,
 ]);
 
 const PHRO_5FBA = new Rotation([
-  NOINTRO, BA23.hitCancel(), ECHO, FBA.instaDodge(),
+  SWAPIN, BA23.hitCancel(), ACTION_NM_HECATE, FBA.instaDodge(),
   BA123.hitDodge(), FBA.instaCancel(), Skill, FBA.holdCancel(),
-  ScarletCoda.mashCancel(), Liberation, OUTRO,
+  ScarletCoda.mashCancel(), Liberation, Outro,
 
-  INTRO, BA3.instaDodge(), FBA.instaDodge(),
+  Intro, EIntro, BA3.instaDodge(), FBA.instaDodge(),
   BA123.instaDodge(), FBA.instaDodge(),
-  BA123.instaDodge(), FBA.instaCancel(),  ECHO,
+  BA123.instaDodge(), FBA.instaCancel(),  ACTION_NM_HECATE,
   BA123.instaDodge(), FBA.instaCancel(), Skill, FBA.holdCancel(),
-  ScarletCoda.mashCancel(), Liberation, OUTRO,
-]);
-
-const PHRO_FAST_S2 = new Rotation([
-  NOINTRO, BA23.hitCancel(), ECHO, FBA.instaCancel(), Skill, FBA.holdCancel(),
-  ScarletCoda.mashCancel(), Liberation, OUTRO,
-  
-  INTRO, BA3.hitDodge(), FBA.instaDodge(),
-  BA123.hitCancel(), ECHO, FBA.instaCancel(), Skill, FBA.holdCancel(),
-  ScarletCoda.mashCancel(), Liberation, OUTRO,
+  ScarletCoda.mashCancel(), Liberation, Outro,
 ]);
 const PHRO_5FBA_S2 = new Rotation([
-  NOINTRO, BA23.hitCancel(), ECHO, FBA.instaCancel(), Skill, FBA.holdCancel(),
-  ScarletCoda.mashCancel(), Liberation, OUTRO,
+  SWAPIN, BA23.instaCancel(), ACTION_NM_HECATE, FBA.instaDodge(), 
+  BA123.instaDodge(), FBA.instaCancel(), Skill, FBA.holdCancel(),
+  ScarletCoda.mashCancel(), Liberation, Outro,
 
-  INTRO,
-  BA3.instaDodge(), FBA.instaDodge(),
+  Intro, EIntro, BA3.instaDodge(), FBA.instaDodge(),
   BA123.instaDodge(), FBA.instaDodge(),
-  BA123.instaDodge(), FBA.instaDodge(),
-  BA123.instaCancel(), ECHO, FBA.instaCancel(), Skill, FBA.holdCancel(),
-  ScarletCoda.mashCancel(), Liberation, OUTRO,
+  BA123.instaDodge(), FBA.instaCancel(), ACTION_NM_HECATE, 
+  BA123.instaDodge(), FBA.instaCancel(), Skill, FBA.holdCancel(),
+  ScarletCoda.mashCancel(), Liberation, Outro,
 ]);
 
 export const PHRO_12s = new Loadout({
@@ -674,11 +698,32 @@ export const PHRO_12s = new Loadout({
     substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Basic),
     highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Basic, Substat.Liberation),
   }),
-    rotation: { 0: PHRO_5FBA, 2: PHRO_5FBA_S2 },
+    rotation: { 0: PHRO_5FBA, 2: PHRO_5FBA_S2 
+      
+    },
   sequences: [PH_S1, PH_S2, PH_S3, PH_S4, PH_S5, PH_S6],
 });
 
-export const PHRO_10s = new Loadout({
+export const PHRO_11s = new Loadout({
+  id: 16083,
+  resonator: PHROLOVA_RESONATOR,
+  weapons: [LETHEAN_ELEGY, COSMIC_RIPPLES, STRINGMASTER, AUGMENT, RADIANT_DAWN],
+  echoes: new Echoes({
+    sets: [
+    new EchoLoadout(NM_HECATE, DREAM_OF_THE_LOST_3PC, HAVOC_ECLIPSE_2PC),
+  ],
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Basic),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Basic, Substat.Liberation),
+  }),
+    rotation: { 0: PHRO_4FBA, 2: PHRO_4FBA_S2 
+
+    },
+  sequences: [PH_S1, PH_S2, PH_S3, PH_S4, PH_S5, PH_S6],
+});
+
+
+export const PHRO_9s = new Loadout({
   id: 16082,
   resonator: PHROLOVA_RESONATOR,
   weapons: [LETHEAN_ELEGY, COSMIC_RIPPLES, STRINGMASTER, AUGMENT, RADIANT_DAWN],
@@ -690,6 +735,8 @@ export const PHRO_10s = new Loadout({
     substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Basic),
     highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Basic, Substat.Liberation),
   }),
-    rotation: { 0: PHRO_FAST, 2: PHRO_FAST_S2 },
+    rotation: { 0: PHRO_3FBA, 2: PHRO_3FBA_S2 
+
+    },
   sequences: [PH_S1, PH_S2, PH_S3, PH_S4, PH_S5, PH_S6],
 });

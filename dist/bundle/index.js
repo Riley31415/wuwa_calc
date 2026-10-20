@@ -14,6 +14,7 @@ import {
   MV_UNIT,
   NODE_NAME,
   OWN_DEF,
+  POSITION_NAME,
   PRIMARY_TEAM,
   RESONATOR_LEVEL,
   RESOURCE_NAME,
@@ -73,7 +74,7 @@ import {
   teamAt,
   teamKey,
   weaponBase
-} from "./chunk-LC74GU26.js";
+} from "./chunk-TR2QGI5W.js";
 
 // dist/src/page/display.js
 var shown = (s, i) => s.shownAfter?.[i] ?? [s.energy, s.concerto, s.offtune, ...s.forte][i];
@@ -369,6 +370,8 @@ var actionInfo = (snap) => {
   let press = action;
   while (press.cancelOf ?? press.formOf)
     press = press.cancelOf ?? press.formOf;
+  push("Cast Position", press.castPosition === null ? null : POSITION_NAME[press.castPosition]);
+  push("End Position", press.endPosition === null ? null : POSITION_NAME[press.endPosition]);
   push("Animation", `${press.animFrames}f`);
   push("Cast Priority", press.castPriority === null ? null : String(press.castPriority));
   push("Anim Priority", press.animPriority.length ? press.animPriority.map(([f, t]) => `${f}f: ${t}`).join(", ") : null);
@@ -484,6 +487,7 @@ var OFFTUNE_MULT = "Offtune Multiplier";
 var HIT_ENERGY_MULT = "Hit Energy Multiplier";
 var CAST_ENERGY = "Cast Energy";
 var HIT_ENERGY = "Energy";
+var BETWEEN = "Between Actions";
 var RATE_SECTIONS = /* @__PURE__ */ new Set([OFFTUNE_RATE, OFFTUNE_MULT, HIT_ENERGY_MULT]);
 var ENERGY_REGEN = "Energy Regen";
 var MV_MULTIPLIER = "MV Multiplier";
@@ -606,7 +610,13 @@ function rowValues(snap, { mv, avg }, members = []) {
     ];
   }
   const CAST_SHARE = { energy: snap.action.castEnergy, concerto: snap.action.castConcerto, offtune: snap.action.castOfftune };
-  const added2 = (i) => (snap.adds ?? []).filter((c) => c.gains[i] !== 0).map((c) => ({ source: c.source, value: c.gains[i], owner: c.owner ?? void 0, ...c.onCast ? { label: "on cast" } : {} }));
+  const added2 = (i) => (snap.adds ?? []).filter((c) => c.gains[i] !== 0).map((c) => ({
+    source: c.source,
+    value: c.gains[i],
+    owner: c.owner ?? void 0,
+    // what moved the bar since this member's last row, carried here
+    ...c.background ? { label: c.label ?? "between actions", section: BETWEEN } : c.onCast ? { label: "on cast" } : {}
+  }));
   const ADDED = { energy: 0, concerto: 1, offtune: 7 };
   for (const key of ["energy", "concerto", "offtune"]) {
     let traced = added2(ADDED[key]).map((r) => ({ ...r, value: r.value / RESOURCE_SCALE[key] }));
@@ -619,7 +629,8 @@ function rowValues(snap, { mv, avg }, members = []) {
         ...cast ? [{ source: snap.action.name, value: cast, owner: snap.member, section: CAST_ENERGY }] : [],
         ...hit ? [{ source: snap.action.name, value: hit, owner: snap.member, section: HIT_ENERGY }] : []
       ];
-      traced = [...traced.filter(onCast).map(at(CAST_ENERGY)), ...traced.filter((r) => !onCast(r)).map(at(HIT_ENERGY))];
+      const between = (r) => r.section === BETWEEN;
+      traced = [...traced.filter(onCast).map(at(CAST_ENERGY)), ...traced.filter((r) => !onCast(r) && !between(r)).map(at(HIT_ENERGY)), ...traced.filter(between)];
     }
     const rows = [...own, ...traced];
     const folded = [...own, ...foldDuplicates(traced)];
@@ -815,6 +826,13 @@ function rowValues(snap, { mv, avg }, members = []) {
     raw["before:energy"] = shownBefore(members[0], 0) / RESOURCE_SCALE.energy;
     raw["before:concerto"] = shownBefore(members[0], 1) / RESOURCE_SCALE.concerto;
     raw["before:offtune"] = shownBefore(members[0], 2) / RESOURCE_SCALE.offtune;
+    const own = members.filter((m) => m.member === snap.member), end = own[own.length - 1] ?? snap;
+    raw.energy = shown(end, 0) / RESOURCE_SCALE.energy;
+    raw.concerto = shown(end, 1) / RESOURCE_SCALE.concerto;
+    raw.offtune = shown(end, 2) / RESOURCE_SCALE.offtune;
+    FORTE_GAUGES.forEach((key, i) => {
+      raw[`gauge:${RESOURCE_NAME[key]}`] = shown(end, 3 + i) * end.forteScale[i];
+    });
   }
   const hits = dealsDamage ? (members.length ? members : [snap]).flatMap((m) => (m.hitLog ?? (landedMv(m) ? [hitDamage(m)] : [])).map((h, k) => ({ ...h, n: k + 1 }))) : [];
   if (dealsDamage)
@@ -860,10 +878,13 @@ function buildReport(lines) {
       digits: 2,
       hideIfZero: true,
       full: RESOURCE_NAME[key]
-    }))
+    })),
+    // where the row's member stood as its press was cast
+    { key: "position", label: "position", noTotal: true, full: "Position" }
   ];
   const isShort = (snap) => snap.triggered && !(snap.action.cast === 8 && snap.action.castOfftune < 0);
   const isShortLine = (line) => line.members?.length ? line.members.every(isShort) : isShort(line.snap);
+  const positionOf = (s) => s.position == null ? "Despawned" : s.position === 0 ? "Grounded" : "Mid-air";
   const endOf = (s) => s.action.cast === 6 ? s.frame + s.action.animFrames : s.triggered && s.hitAt !== void 0 ? s.hitAt : s.frame + s.frames + (s.swapFrames ?? 0);
   const partOf = (snap, avg, shown3) => {
     const part = rowValues(snap, { mv: landedMv(snap), avg });
@@ -873,6 +894,7 @@ function buildReport(lines) {
     const end = endOf(snap);
     part.raw.time = clockAt(end);
     part.raw["end:time"] = end;
+    part.raw.position = positionOf(snap);
     return {
       ...part,
       info: actionInfo(snap),
@@ -892,6 +914,8 @@ function buildReport(lines) {
     const end = Math.max(...(line.members?.length ? line.members : [snap]).map(endOf));
     raw.time = clockAt(end);
     raw["end:time"] = end;
+    const own = (line.members ?? []).filter((m) => m.member === snap.member);
+    raw.position = positionOf(own[0] ?? snap);
     return {
       line,
       raw,
@@ -2154,7 +2178,7 @@ function buffStats(run, keep) {
   const grantedBy = run.state?.grantedBy;
   if (!grantedBy || !run.rotationLines)
     return [];
-  const rootOf = (g) => grantedBy.get(g) ?? g;
+  const rootOf = (g) => grantedBy.get(g) ?? g.mainslot ?? g;
   const peak = /* @__PURE__ */ new Map();
   for (const section of run.rotationLines) {
     for (const line of section) {
@@ -2303,6 +2327,7 @@ var driver = null;
 var drivePanel = (cell2, html) => driver?.show(cell2, html);
 var dropPanel = () => driver?.hide();
 var holdPanels = (on) => driver?.hold(on);
+var panelOpenOn = (cell2) => driver?.pinnedOn(cell2) ?? false;
 function wireSourcePanels(root) {
   const GAP = 4, EDGE2 = 6;
   let open = null;
@@ -2390,7 +2415,8 @@ function wireSourcePanels(root) {
       held = on;
       if (on)
         close();
-    }
+    },
+    pinnedOn: (cell2) => pinned && !!openHome && cell2.contains(openHome)
   };
   const clickOpen = (cell2) => !!cell2.closest(".grid") || cell2.classList.contains("teamdpr");
   document.addEventListener("mouseover", (e) => {
@@ -3517,11 +3543,12 @@ function comparisonTable(rows) {
   ];
   const keyed = rows.map((row) => {
     const run = results.get(row.key);
+    const pinned = pinnedRows.has(row.key);
     const parts = run.combo.map((c) => c.key.split("."));
-    const keys = [run.teamKey];
+    const keys = [`${pinned ? "pin|" : ""}${run.teamKey}`];
     for (const level of LEVELS)
       keys.push(`${keys[keys.length - 1]}|${run.combo.map((c, i) => level(c, parts[i])).join("-")}`);
-    return { pair: [row.key, run], run, keys };
+    return { pair: [row.key, run], run, keys, pinned };
   });
   const groupBest = /* @__PURE__ */ new Map();
   for (const { run, keys } of keyed)
@@ -3531,6 +3558,8 @@ function comparisonTable(rows) {
         groupBest.set(k, run);
     }
   const sorted = keyed.sort((a, b) => {
+    if (a.pinned !== b.pinned)
+      return a.pinned ? -1 : 1;
     for (let i = 0; i < a.keys.length; i++) {
       const [ka, kb] = [a.keys[i], b.keys[i]];
       if (ka === kb)
@@ -4991,6 +5020,8 @@ function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = tr
       pop = buffsPopover(snap.member, gear, snap.heldLocal, snap.heldGlobal, snap.heldEnemy, slotHue);
     } else if (col.key === "avg") {
       pop = text ? hitsPopover(row.hits) : "";
+    } else if (col.key === "position") {
+      pop = "";
     } else if (text) {
       pop = popover(col, sources, row.raw[`moved:${col.key}`] ?? v, slotHue, suffix, String(row.raw[`empty:${col.key}`] ?? ""));
     }
@@ -5492,6 +5523,19 @@ addEventListener("click", (e) => {
   if (target?.closest?.(".gridwrap .grid .chain > label.r") && !target.closest(".c.action"))
     e.preventDefault();
 }, true);
+var tabbed = false;
+addEventListener("keydown", (e) => {
+  if (e.key === "Tab")
+    tabbed = true;
+}, true);
+addEventListener("pointerdown", () => {
+  tabbed = false;
+}, true);
+addEventListener("focusin", (e) => {
+  const t = e.target;
+  if (!tabbed && t instanceof HTMLInputElement && t.matches(".gridwrap .tgl"))
+    t.blur();
+}, true);
 function copyText(c) {
   const tag = c.querySelector(".ctag");
   const name = [...c.childNodes].filter((n) => n !== tag).map((n) => n.textContent ?? "").join("").replace("\u25B8", "").trim();
@@ -5513,6 +5557,7 @@ function wireCellSelect(root) {
   if (!grid)
     return;
   let pressedAt = 0;
+  let closing = false;
   const measure = (cell2) => {
     const g = rect(grid);
     const cols = [...grid.querySelectorAll(":scope > .r.head > .c[data-col]")].map((h, nth) => {
@@ -5544,6 +5589,8 @@ function wireCellSelect(root) {
     const one = sel.r0 === sel.r1 && sel.c0 === sel.c1;
     if (one && performance.now() - pressedAt < HOLD) {
       dropPanel();
+      if (closing)
+        swallowClick();
       return;
     }
     if (one)
@@ -5558,8 +5605,14 @@ function wireCellSelect(root) {
     const at = measure(cell2);
     if (!at)
       return;
+    closing = panelOpenOn(cell2);
     if (e.pointerType === "touch") {
-      watchTouch(e, cell2, () => pick(at, true), () => pick(at, true));
+      const tap = () => {
+        pick(at, true);
+        if (closing)
+          swallowClick(600);
+      };
+      watchTouch(e, cell2, tap, () => pick(at, true));
       return;
     }
     e.preventDefault();

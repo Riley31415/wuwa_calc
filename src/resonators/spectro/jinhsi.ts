@@ -62,16 +62,16 @@ import {
   previousPress,
   saveChain,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, START_LAST, ECHO, NOINTRO, INTRO, OUTRO, DOUBLE_INTRO, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, START_LAST, SWAPIN, DODGE } from "../../engine/rotation.js";
 import { AGES_OF_HARVEST } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { AUTUMNTRACE, AUREATE_ZENITH } from "../../weapons/battlepass.js";
-import { JUE, CELESTIAL_LIGHT_5PC } from "../../echoes/jinzhou.js";
+import { JUE, CELESTIAL_LIGHT_5PC, ACTION_JUE } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { UNISON, unisonOutro } from "../../shared/unison.js";
-import { STAY_TUNED, SWORN_VIGIL_5PC } from "../../echoes/mengzhou.js";
+import { STAY_TUNED, SWORN_VIGIL_5PC, ACTION_STAY_TUNED } from "../../echoes/mengzhou.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -422,7 +422,6 @@ export const JINHSI_RESONATOR = new Resonator({
   weapon: WeaponType.Broadblade,
   color: "#c2ecfb",
   intro: Intro,
-  outro: () => (isHeld(UNISON) ? OutroUnison : Outro),
   // Incarnation and Ordination Glow each replace the Basic Attack, mid-air too
   swapIn: () => (isHeld(ORDINATION_GLOW) ? IncHeavy : isHeld(INCARNATION) ? IncBA1 : BA1),
   swapInAir: () => (isHeld(ORDINATION_GLOW) ? IncHeavy : isHeld(INCARNATION) ? IncBA1 : MA),
@@ -467,13 +466,13 @@ const IncBA123 = new ActionGroup("Basic - Incarnation 123", [IncBA1, IncBA2, Inc
 const JX_ROTATION_FULL = new Rotation([
   START_LAST, BA1.instaCancel(), Liberation, Skill.instaSwap(),
 
-  DOUBLE_INTRO, Skill2, 
+  Intro.doubleIntro(), Skill2, 
   IncBA12.cancel(), Skill3, IncBA34.instaCancel(),
-  ECHO, Skill4_Unison, OUTRO,
+  ACTION_JUE, ACTION_STAY_TUNED, Skill4_Unison, OutroUnison,
 
-  INTRO, Skill2,
+  Intro, Skill2,
   IncBA12.cancel(), Skill3, IncBA34.instaCancel(),
-  Skill4, Liberation, OUTRO,
+  Skill4, Liberation, Outro,
 ]);
 
 // her support rotation lists a Liberation every visit and the bar only fills for half of them, so
@@ -484,29 +483,29 @@ const JX_ROTATION_FULL = new Rotation([
 const JX_ROTATION_EVERY_OTHER = new Rotation([
   START_LAST, BA1.instaCancel(), Liberation.everyOther(), Skill.instaSwap(),
 
-  NOINTRO, BA1234.instaCancel(), Skill2.instaCancel(), ECHO, Liberation.everyOther(),
+  SWAPIN, BA1234.instaCancel(), Skill2.instaCancel(), ACTION_JUE, ACTION_STAY_TUNED, Liberation.everyOther(),
   IncBA1, IncBA2.instaJump(), IncBA3.instaJump(), IncBA4.instaCancel(), 
-  Skill4_Unison, OUTRO,
+  Skill4_Unison, OutroUnison,
 
-  DOUBLE_INTRO, Skill2.instaDodge(), 
+  Intro.doubleIntro(), Skill2.instaDodge(), 
   IncBA12.cancel(), Skill3, IncBA34.instaCancel(),
-  ECHO, Skill4_Unison, Liberation.everyOther(), OUTRO,
+  ACTION_JUE, ACTION_STAY_TUNED, Skill4_Unison, Liberation.everyOther(), OutroUnison,
 
-  INTRO, Skill2.instaDodge(),
+  Intro, Skill2.instaDodge(),
   IncBA12.cancel(), Skill3, IncBA34.instaCancel(),
-  Skill4, OUTRO,
+  Skill4, Outro,
 ]);
 
 const JX_ROTATION_SUPPORT = new Rotation([
   START_LAST, BA1.instaCancel(), Liberation.everyOther(), Skill.instaSwap(),
 
-  NOINTRO, BA1234.instaCancel(), Skill2.instaCancel(), ECHO, Liberation.everyOther(), 
+  SWAPIN, BA1234.instaCancel(), Skill2.instaCancel(), ACTION_JUE, ACTION_STAY_TUNED, Liberation.everyOther(), 
   IncBA1, IncBA2.instaJump(), IncBA3.instaJump(), IncBA4.instaCancel(), 
-  Skill4_Unison, OUTRO,
+  Skill4_Unison, OutroUnison,
 
-  INTRO, Skill2.instaDodge(), ECHO, 
+  Intro, Skill2.instaDodge(), ACTION_JUE, ACTION_STAY_TUNED, 
   IncBA12.cancel(), Skill3, IncBA34.instaCancel(),
-  Skill4_Unison, Liberation.everyOther(), OUTRO,
+  Skill4_Unison, Liberation.everyOther(), OutroUnison,
 ]);
 
 const JX_ECHOES = [

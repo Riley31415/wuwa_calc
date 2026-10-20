@@ -30,11 +30,11 @@ import {
   elapsed,
   addGain,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, ECHO, ActionField, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, ActionField, DODGE } from "../../engine/rotation.js";
 import { STATIC_MIST, CADENZA, NEW_STD_PISTOL } from "../../weapons/standard.js";
-import { HERON, STONEWALL_BRACER, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
+import { HERON, STONEWALL_BRACER, MOONLIT_CLOUDS_5PC, ACTION_HERON, ACTION_STONEWALL_BRACER_1 } from "../../echoes/jinzhou.js";
 import { JINGRAN_RESONATOR } from "./jingran.js";
-import { EMPYREAN_ANTHEM_5PC, HECATE } from "../../echoes/rinascita.js";
+import { EMPYREAN_ANTHEM_5PC, HECATE, ACTION_HECATE } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -275,7 +275,6 @@ const MORTEFI_RESONATOR = new Resonator({
   weapon: WeaponType.Pistols,
   color: "#d7370f",
   intro: Intro,
-  outro: Outro,
   swapIn: BA1,
   swapInAir: MA1,
   maxEnergy: 12500,
@@ -292,11 +291,11 @@ const MORTEFI_RESONATOR = new Resonator({
 const BA1234 = new ActionGroup("Basic - Impromptu Show 1234", [BA1, BA2, BA3, BA4]);
 
 const MO_ROTATION = new Rotation([
-  INTRO, Skill, FSkill,
+  Intro, Skill, FSkill,
   BA1234.cancel(),
   FSkill.cancel(),
   Liberation,
-  ECHO.instaSwap(), OUTRO,
+  ACTION_HERON.instaSwap(), ACTION_STONEWALL_BRACER_1.instaSwap(), ACTION_HECATE.instaSwap(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

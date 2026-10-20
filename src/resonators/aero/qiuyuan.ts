@@ -34,13 +34,13 @@ import {
   saveChain,
   addStatAs,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, START_LAST, NOINTRO, ECHO, INTRO, OUTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, START_LAST, SWAPIN } from "../../engine/rotation.js";
 import { EMERALD_SENTENCE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
-import { REJUV_2PC, HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC, SIERRA_GALE_2PC, BELL_BORNE_GEOCHELONE } from "../../echoes/jinzhou.js";
+import { REJUV_2PC, HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC, SIERRA_GALE_2PC, BELL_BORNE_GEOCHELONE, ACTION_HERON, ACTION_BELL_BORNE, ACTION_FALLACY } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
-import { LAW_OF_HARMONY_3PC, FENRICO } from "../../echoes/septimont.js";
+import { LAW_OF_HARMONY_3PC, FENRICO, ACTION_FENRICO } from "../../echoes/septimont.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -308,7 +308,6 @@ const QIUYUAN_RESONATOR = new Resonator({
   weapon: WeaponType.Sword,
   color: "#4fae6b",
   intro: Intro,
-  outro: () => (isHeld(STRAW_CAPE) ? OutroS3 : Outro),
   // "When Qiuyuan reaches 200 points of Swordster's Soliloquy, his Basic Attack is replaced"
   swapIn: () => (forte1() >= 200 ? EBA1 : BA1),
   maxEnergy: 12500,
@@ -375,16 +374,16 @@ const EBA34 = new ActionGroup("Basic - Thus Spoke the Blade: Inkwash 34", [EBA3,
 
 const QY_ROTATION = new Rotation([
 
-  NOINTRO, BA1.instaCancel(),
-  HA, EBA4.instaCancel(), ECHO.instaDodge(), Liberation, HA, EBA4.instaDodge(), 
+  SWAPIN, BA1.instaCancel(),
+  HA, EBA4.instaCancel(), ACTION_FENRICO.instaCancel(), ACTION_HERON.instaDodge(), ACTION_BELL_BORNE.instaCancel(), ACTION_FALLACY.instaCancel(), Liberation, HA, EBA4.instaDodge(), 
   EBA12.instaDodge(), EBA12.holdCancel(), 
   FHA123.cancel(), 
-  OUTRO,
+  Outro,
 
-  INTRO, SkillHold.instaCancel(), ECHO.instaDodge(), Liberation,
+  Intro, SkillHold.instaCancel(), ACTION_FENRICO.instaCancel(), ACTION_HERON.instaDodge(), ACTION_BELL_BORNE.instaCancel(), ACTION_FALLACY.instaCancel(), Liberation,
   EBA12.holdCancel(),
   FHA123.cancel(), 
-  OUTRO,
+  Outro,
 ]);
 
 /** From S3 on: the bar is full once the Liberation lands, so Straw Cape goes there — its 400
@@ -392,20 +391,20 @@ const QY_ROTATION = new Rotation([
  *  Outro that follows is Sheath Fallen. The opener has no full bar before its first Outro, so it
  *  stays as it is. */
 const QY_ROTATION_MDPS = new Rotation([
-  INTRO, EBA34.holdCancel(), ECHO, SkillHold.holdCancel(),
+  Intro, EBA34.holdCancel(), ACTION_FENRICO, ACTION_HERON, ACTION_BELL_BORNE, ACTION_FALLACY, SkillHold.holdCancel(),
   FHA123, 
   HA, EBA4.holdCancel(), Liberation, HA, EBA4.instaDodge(), 
   EBA12.instaDodge(), EBA12.holdCancel(), 
   FHA123.cancel(),
-  OUTRO,
+  Outro,
 ]);
 
 const QY_ROTATION_MDPS_S3 = new Rotation([
-  INTRO, EBA34.holdCancel(), ECHO, SkillHold.holdCancel(),
+  Intro, EBA34.holdCancel(), ACTION_FENRICO, ACTION_HERON, ACTION_BELL_BORNE, ACTION_FALLACY, SkillHold.holdCancel(),
   FHA123.cancel(), Liberation,
   StrawCape, EBA34.holdCancel(), 
   FHA123.cancel(), 
-  OUTRO,
+  OutroS3,
 ]);
 
 /* ---------------------------------------------------------------------------------- loadout */

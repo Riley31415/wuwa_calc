@@ -27,17 +27,17 @@ import {
   handoffPending,
   applyOn,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, START_LAST, NOINTRO, ECHO, INTRO, OUTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, START_LAST, SWAPIN } from "../../engine/rotation.js";
 import { HEALS, heal } from "../../shared/status.js";
 import { SK_SIG } from "../../weapons/rectifier.js";
 import { VARIATION } from "../../weapons/standard.js";
-import { REJUV_5PC } from "../../echoes/jinzhou.js";
+import { REJUV_5PC, ACTION_FALLACY } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
 import { mainstats, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
-import { SPACETREK_EXPLORER, STARRY_RADIANCE_5PC } from "../../echoes/lahairoi.js";
-import { FORMLESS_DEMON, TINGED_YEARNING_5PC } from "../../echoes/mengzhou.js";
+import { SPACETREK_EXPLORER, STARRY_RADIANCE_5PC, ACTION_SPACETREK } from "../../echoes/lahairoi.js";
+import { FORMLESS_DEMON, TINGED_YEARNING_5PC, ACTION_FORMLESS_DEMON } from "../../echoes/mengzhou.js";
 import { JINGRAN_RESONATOR } from "../fusion/jingran.js";
 import { JINHSI_RESONATOR } from "./jinhsi.js";
 import { SUOMING_RESONATOR } from "../electro/suoming.js";
@@ -282,7 +282,6 @@ const SHOREKEEPER_RESONATOR = new Resonator({
   // resolved when its row is reached: whichever Intro the kit's state calls for there
   // planned ahead of the handoff's Outro, the realm reads a stage on from where it stands
   intro: () => (realmStage() + (handoffPending() && realmStage() ? 1 : 0) >= 3 ? EIntro : Intro),
-  outro: Outro,
   swapIn: BA1,
   // no mid-air string: her Mid-air Attack is the Plunging Attack
   swapInAir: MA,
@@ -300,7 +299,7 @@ const SHOREKEEPER_RESONATOR = new Resonator({
 
 // INTRO resolves to plain Intro or Discernment on its own — same marker for opener and loop.
 // The loop is shorter than the opener; it generates just over the 100 concerto the outro spends.
-// NOINTRO ROTATIONS DO NOT HAVE AN INTRO
+// SWAPIN ROTATIONS DO NOT HAVE AN INTRO
 
 const BA123 = new ActionGroup("Basic - Origin Calculus 123", [BA1, BA2, BA3]);
 
@@ -308,30 +307,30 @@ const BA23 = new ActionGroup("Basic - Origin Calculus 23", [BA2, BA3]);
 const BA12 = new ActionGroup("Basic - Origin Calculus 12", [BA1, BA2]);
 
 const SK_LOOP = new Rotation([
-  START_LAST, BA1.instaCancel(), Skill.cancel(), Liberation, ECHO.instaSwap(),
+  START_LAST, BA1.instaCancel(), Skill.cancel(), Liberation, ACTION_FALLACY.instaSwap(), ACTION_SPACETREK.instaSwap(), ACTION_FORMLESS_DEMON.instaSwap(),
 
-  NOINTRO, 
+  SWAPIN, 
   BA123.jumpCancel(), MA, FHA.instaCancel(),
   Skill, BA23.dodgeCancel(),
   BA12.holdCancel(), FHA.instaCancel(), 
-  Liberation, ECHO.instaSwap(), OUTRO,
+  Liberation, ACTION_FALLACY.instaSwap(), ACTION_SPACETREK.instaSwap(), ACTION_FORMLESS_DEMON.instaSwap(), Outro,
 
-  INTRO, 
+  Intro, EIntro, 
   BA123.jumpCancel(), MA, FHA.instaCancel(), Skill.cancel(),
-  Liberation, ECHO.instaSwap(), OUTRO,
+  Liberation, ACTION_FALLACY.instaSwap(), ACTION_SPACETREK.instaSwap(), ACTION_FORMLESS_DEMON.instaSwap(), Outro,
 ]);
 
 const SK_LOOP_S3 = new Rotation([
-  START_LAST, BA1.instaCancel(), Skill.cancel(), Liberation, ECHO.instaSwap(),
+  START_LAST, BA1.instaCancel(), Skill.cancel(), Liberation, ACTION_FALLACY.instaSwap(), ACTION_SPACETREK.instaSwap(), ACTION_FORMLESS_DEMON.instaSwap(),
 
-  NOINTRO, 
+  SWAPIN, 
   BA123.jumpCancel(), MA, FHA.instaCancel(),
   Skill.cancel(),
-  Liberation, ECHO.instaSwap(), OUTRO,
+  Liberation, ACTION_FALLACY.instaSwap(), ACTION_SPACETREK.instaSwap(), ACTION_FORMLESS_DEMON.instaSwap(), Outro,
 
-  INTRO, BA1,
+  Intro, EIntro, BA1,
   Skill,
-  Liberation, ECHO.instaSwap(), OUTRO,
+  Liberation, ACTION_FALLACY.instaSwap(), ACTION_SPACETREK.instaSwap(), ACTION_FORMLESS_DEMON.instaSwap(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

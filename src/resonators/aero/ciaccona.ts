@@ -34,18 +34,18 @@ import {
   saveChain,
   addStatAs,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, NOINTRO, ECHO, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, SWAPIN, DODGE } from "../../engine/rotation.js";
 import { tuneBreak } from "../../shared/tunebreak.js";
 import { AERO_EROSION, SPECTRO_FRAZZLE, gainShield } from "../../shared/status.js";
 import { WOODLAND_ARIA } from "../../weapons/pistol.js";
-import { NM_KELPIE } from "../../echoes/rinascita.js";
+import { NM_KELPIE, ACTION_NM_KELPIE } from "../../echoes/rinascita.js";
 import { GUSTS_OF_WELKIN_5PC } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
 import { THUNDERBOLT, SOLAR_FLAME } from "../../weapons/battlepass.js";
-import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
+import { HERON, MOONLIT_CLOUDS_5PC, ACTION_HERON } from "../../echoes/jinzhou.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -100,7 +100,7 @@ const MA1 = ciacconaAction("Mid-air - Attack 1", { castPosition: Position.Midair
     { hitFrame: 10, mv: 5543, energy: 85, concerto: 272, offtune: 2720 },
     { hitFrame: 26, mv: 5543, energy: 85, concerto: 272, offtune: 2720 },
   ] });
-const MA2 = ciacconaAction("Mid-air - Attack 2", { chains: [MA1], castPosition: Position.Midair, animFrames: 43, animPriority: { 3: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MA2 = ciacconaAction("Mid-air - Attack 2", { chains: [MA1], castPosition: Position.Midair, endPosition: Position.Grounded, animFrames: 43, animPriority: { 3: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 36, mv: 2446, energy: 38, concerto: 120, offtune: 1200 },
     { hitFrame: 41, commitFrame: 36, mv: 2446, energy: 38, concerto: 120, offtune: 1200 },
     { hitFrame: 48, commitFrame: 36, mv: 2446, energy: 38, concerto: 120, offtune: 1200 },
@@ -258,7 +258,6 @@ export const CIACCONA_RESONATOR = new Resonator({
   weapon: WeaponType.Pistols,
   color: "#5ac46b",
   intro: Intro,
-  outro: Outro,
   swapIn: BA1,
   swapInAir: MA1,
   tuneBreak: tuneBreak(97, [0, 97], [0, 70], [[72, 160000]], { 0: 11, 97: 3 }),
@@ -343,35 +342,35 @@ const BA34 = new ActionGroup("Basic - Quadruple Time Steps 34", [BA3, BA4]);
 const BA234 = new ActionGroup("Basic - Quadruple Time Steps 234", [BA2, BA3, BA4]);
 
 const CI_ROTATION = new Rotation([
-  NOINTRO, BA1.instaCancel(),
+  SWAPIN, BA1.instaCancel(),
   Skill, BA234.instaJump(), MA12, BA4.instaJump(), MA12, BA4.holdCancel(), 
-  Downbeat.cancel(), ECHO.instaDodge(), Liberation.swapCancel(), OUTRO,
+  Downbeat.cancel(), ACTION_NM_KELPIE.instaDodge(), ACTION_HERON.instaDodge(), Liberation.swapCancel(), Outro,
 
-  INTRO, BA34.instaJump(),
+  Intro, BA34.instaJump(),
   MA12, BA4.instaCancel(),
-  Skill, Downbeat.cancel(), ECHO.instaDodge(), Liberation.swapCancel(), OUTRO,
+  Skill, Downbeat.cancel(), ACTION_NM_KELPIE.instaDodge(), ACTION_HERON.instaDodge(), Liberation.swapCancel(), Outro,
 ]);
 
 /** The same loop with the yellow Tonic picked, for a Spectro Frazzle team. */
 const CI_ROTATION_YELLOW = new Rotation([
-  NOINTRO, BA1.instaCancel(),
+  SWAPIN, BA1.instaCancel(),
   Skill, BA234.instaJump(), MA12, BA4.instaJump(), MA12, BA4.holdCancel(),
-  Downbeat.cancel(), ECHO.instaDodge(), LiberationYellow.swapCancel(), OUTRO,
+  Downbeat.cancel(), ACTION_NM_KELPIE.instaDodge(), ACTION_HERON.instaDodge(), LiberationYellow.swapCancel(), Outro,
 
-  INTRO, BA34.instaJump(),
+  Intro, BA34.instaJump(),
   MA12, BA4.instaCancel(),
-  Skill, Downbeat.cancel(), ECHO.instaDodge(), LiberationYellow.swapCancel(), OUTRO,
+  Skill, Downbeat.cancel(), ACTION_NM_KELPIE.instaDodge(), ACTION_HERON.instaDodge(), LiberationYellow.swapCancel(), Outro,
 ]);
 
 /** From S3 on Harmonic Allegro has two charges, so both go before the Downbeat; the second
  *  segment Stage 4 banks changes nothing here, the Downbeat spends the capped three either way. */
 const CI_ROTATION_S3 = new Rotation([
-  NOINTRO, BA1.instaCancel(),
+  SWAPIN, BA1.instaCancel(),
   Skill, BA234.instaJump(), MA12, BA4.instaCancel(), 
-  Skill, Downbeat.cancel(), ECHO.instaDodge(), Liberation.swapCancel(), OUTRO,
+  Skill, Downbeat.cancel(), ACTION_NM_KELPIE.instaDodge(), ACTION_HERON.instaDodge(), Liberation.swapCancel(), Outro,
 
-  INTRO, BA34.instaCancel(),
-  Skill, Downbeat.cancel(), Skill, ECHO.instaDodge(), Liberation.swapCancel(), OUTRO,
+  Intro, BA34.instaCancel(),
+  Skill, Downbeat.cancel(), Skill, ACTION_NM_KELPIE.instaDodge(), ACTION_HERON.instaDodge(), Liberation.swapCancel(), Outro,
 ]);
 /* ----------------------------------------------------------------------------------- loadout */
 
@@ -382,7 +381,7 @@ const CIACCONA_BUILD = {
   weapons: [WOODLAND_ARIA, NEW_STD_PISTOL, STATIC_MIST, THUNDERBOLT, SOLAR_FLAME],
   echoes: new Echoes({
     sets: [new EchoLoadout(NM_KELPIE, GUSTS_OF_WELKIN_5PC), new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC)],
-    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.ER3, Mainstat.Aero3, Mainstat.ATK1),
     substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Heavy),
     highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Basic, Substat.Heavy),
   }),

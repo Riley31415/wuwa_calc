@@ -44,15 +44,15 @@ import {
   onCast,
   addGain,
 } from "../../engine/context.js";
-import { Action, Cooldown, Rotation, START_LAST, ECHO, ActionField, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
+import { Action, Cooldown, Rotation, START_LAST, ActionField, DODGE } from "../../engine/rotation.js";
 import { VERDANT_SUMMIT } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { AUTUMNTRACE, AUREATE_ZENITH } from "../../weapons/battlepass.js";
-import { NM_FEILIAN_BERINGAL, SIERRA_GALE_5PC } from "../../echoes/jinzhou.js";
+import { NM_FEILIAN_BERINGAL, SIERRA_GALE_5PC, ACTION_NM_FEILIAN_BERINGAL } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
-import { NM_KELPIE, WINDWARD_5PC } from "../../echoes/rinascita.js";
+import { NM_KELPIE, WINDWARD_5PC, ACTION_NM_KELPIE } from "../../echoes/rinascita.js";
 import { CARTETHYIA_RESONATOR } from "./cartethyia.js";
 import { CIACCONA_RESONATOR } from "./ciaccona.js";
 import { ROVER_AERO_RESONATOR } from "./rover_aero.js";
@@ -270,7 +270,6 @@ const JIYAN_RESONATOR = new Resonator({
   weapon: WeaponType.Broadblade,
   color: "#4fc98f",
   intro: Intro,
-  outro: Outro,
   // Qingloong Mode replaces his Basic Attack with Lance of Qingloong
   swapIn: () => (isHeld(QINGLOONG_MODE) ? Lance1 : BA1),
   swapInAir: MA,
@@ -364,7 +363,7 @@ const JY_SEQUENCES = [JY_S1, JY_S2, JY_S3, JY_S4, JY_S5, JY_S6];
 const JY_ROTATION = new Rotation([
   START_LAST, BA1.instaCancel(), Skill.instaSwap(),
 
-  INTRO, 
+  Intro, 
   Liberation,
   Lance1.cancel(), Skill,
   Lance1.dodgeCancel(),
@@ -373,13 +372,13 @@ const JY_ROTATION = new Rotation([
   Lance1.dodgeCancel(),
   Lance1.dodgeCancel(),
   Lance1.dodgeCancel(),
-   ECHO,Skill.instaSwap(), OUTRO,
+   ACTION_NM_FEILIAN_BERINGAL, Skill.instaSwap(), Outro,
 ]);
 
 const JY_ROTATION_S6 = new Rotation([
   START_LAST, BA1.instaCancel(), Skill.instaSwap(),
 
-  INTRO, 
+  Intro, 
   Liberation,
   Lance1.cancel(), Skill, 
   Lance1.dodgeCancel(),
@@ -388,7 +387,7 @@ const JY_ROTATION_S6 = new Rotation([
   Lance1.dodgeCancel(),
   Lance1.dodgeCancel(),
   Lance1.dodgeCancel(),
-  ECHO,Skill.instaSwap(), OUTRO,
+  ACTION_NM_FEILIAN_BERINGAL, Skill.instaSwap(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

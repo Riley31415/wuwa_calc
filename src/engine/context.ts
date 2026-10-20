@@ -7,7 +7,7 @@ import { Stat, EnemyStat, Attribute, Type, Subtype, Cast, scopedStat, splitStat,
 import type { Tag, StatKey } from "./stats.js";
 import { foldStat } from "./damage.js";
 import type { Action, Bullet, Cooldown } from "./rotation.js";
-import { ctx, noteMutation, recordConsumed, pendingQueue, tagWord, recordWrite, recordRead, moved, applied as appliedRecord, consumed as consumedRecord } from "./runtime.js";
+import { ctx, noteMutation, recordConsumed, pendingQueue, tagWord, recordWrite, recordRead, moved, applied as appliedRecord, consumed as consumedRecord, noteBackground } from "./runtime.js";
 import { Gear, Buff, Debuff, Resonator, Mainslot, Weapon } from "./gear.js";
 import type { Trigger, StatLine } from "./gear.js";
 import { State, TeamMember, StatEntry, HeldBuff, insertByDue, sortByDue, timedEntry, SUBTYPE_AMP_INDEX, SUBTYPE_CRIT_RATE_INDEX, SUBTYPE_CRIT_DMG_INDEX, SUBTYPE_TOTAL_DMG_INDEX, SUBTYPE_DAMAGE_TAKEN_INDEX, BASIC_DMG_BONUS_INDEX, PANEL_INDEX } from "./state.js";
@@ -650,8 +650,20 @@ export function maxEnergy(): number { return ctx.slot!.resonator?.maxEnergy ?? 0
 function forteGauge(i: 0 | 1 | 2 | 3 | 4) {
   return {
     get: (): number => ctx.slot!.forte[i],
-    set: (value: number): number => { noteMutation(-1 - i, value); return (ctx.slot!.forte[i] = value); },
-    add: (delta: number): number => { noteMutation(-1 - i, delta); return (ctx.slot!.forte[i] = Math.max(delta > 0 ? 0 : -Infinity, ctx.slot!.forte[i]) + delta); },
+    set: (value: number): number => {
+      noteMutation(-1 - i, value);
+      const was = ctx.slot!.forte[i]!;
+      ctx.slot!.forte[i] = value;
+      noteLoose(2 + i, value - was);
+      return value;
+    },
+    add: (delta: number): number => {
+      noteMutation(-1 - i, delta);
+      const was = ctx.slot!.forte[i]!;
+      ctx.slot!.forte[i] = Math.max(delta > 0 ? 0 : -Infinity, was) + delta;
+      noteLoose(2 + i, ctx.slot!.forte[i]! - was);
+      return ctx.slot!.forte[i]!;
+    },
   };
 }
 export const { get: forte1, set: setForte1, add: addForte1 } = forteGauge(0);
@@ -689,15 +701,23 @@ export function concerto(): number { return ctx.slot!.concerto; }
  *  cast hook, "+30 Substance when it hits" from a hit's — banked with that part's own gains. Flat:
  *  none of it is scaled by ER or shared with the team, bar `offtune`, which is built like a hit's
  *  own (Off-Tune Buildup Rate and its multiplier) and so a hit's alone; `directOfftune` lands on
- *  the bar as it is. Only a cast hook (updateGlobal, updateBuffs, a cast grant) or a hit's own ahead
- *  of its damage (updateDebuffs, hitGlobal, an infliction's grant) may add; a stat hook never does. */
+ *  the bar as it is. A cast hook (updateGlobal, updateBuffs, a cast grant) or a hit's own ahead of
+ *  its damage (updateDebuffs, hitGlobal, an infliction's grant) banks with that part; anywhere else
+ *  (a buff's tick, afterAction) banks onto the bars as it is made, unlisted (`bankLoose()`), and
+ *  builds no `offtune`. A stat hook never adds. */
 export interface Gain {
   energy?: number; concerto?: number; forte1?: number; forte2?: number; forte3?: number; forte4?: number; forte5?: number;
   offtune?: number; directOfftune?: number;
 }
 const GAIN_KEYS = ["energy", "concerto", "forte1", "forte2", "forte3", "forte4", "forte5", "offtune", "directOfftune"] as const;
 export function addGain(gain: Gain): void {
-  if (!ctx.inCast && !ctx.inHit) throw new Error(`${ctx.buff?.name ?? "?"}: addGain() outside a cast hook or a hit's own (${ctx.act?.name ?? "?"})`);
+  if (ctx.inConst) throw new Error(`${ctx.buff?.name ?? "?"}: addGain() from a stat hook (${ctx.act?.name ?? "?"})`);
+  if (!ctx.inCast && !ctx.inHit) {
+    if (gain.offtune) throw new Error(`${ctx.buff?.name ?? "?"}: addGain({ offtune }) outside a hit — nothing runs a stat to build it, use directOfftune (${ctx.act?.name ?? "?"})`);
+    noteMutation(-11, gain.energy ?? 0);
+    if (!ctx.dryRun) ctx.bankLoose(ctx.state!, ctx.slot!, gain);
+    return;
+  }
   if (ctx.inCast && gain.offtune) throw new Error(`${ctx.buff?.name ?? "?"}: addGain({ offtune }) from a cast hook — a cast runs no stat to build it, use directOfftune (${ctx.act?.name ?? "?"})`);
   // `GAIN_KEYS`' order, field by field: a keyed walk over the literal would read each key generically
   const g = ctx.gain;
@@ -721,7 +741,18 @@ function traceGain(gain: Gain): void {
 export function gained(key: keyof Gain): number { return ctx.gain[GAIN_KEYS.indexOf(key)]!; }
 export function setConcerto(value: number): number {
   noteMutation(-10, value);
-  return (ctx.slot!.concerto = value);
+  const was = ctx.slot!.concerto;
+  ctx.slot!.concerto = value;
+  noteLoose(1, value - was);
+  return value;
+}
+/** A bar (energy, concerto, forte 1-5) set or added on a member outside any row of theirs: their
+ *  next row carries it (`noteBackground`). */
+function noteLoose(bar: number, delta: number): void {
+  if (!ctx.tracing || ctx.dryRun || !delta || ctx.slot === ctx.rowSlot) return;
+  const moved = [0, 0, 0, 0, 0, 0, 0];
+  moved[bar] = delta;
+  noteBackground(ctx.slot!, moved);
 }
 
 /** Record whose kit this Gear came from (see `State.sourceOf`). Called by every grant, so a buff
@@ -749,7 +780,9 @@ function inheritPiece(gear: Gear): void {
   // would credit the echo's payout to whoever it was handed to.
   const state = ctx.state!;
   if (!state.grantedOn.has(gear)) state.grantedOn.set(gear, ctx.slot!.name);
-  if (!state.grantedBy.has(gear)) state.grantedBy.set(gear, state.grantedBy.get(ctx.buff) ?? ctx.buff);
+  // an echo's cast is its mainslot's: what it grants (Voidwing Moth's outro handoff) came off that piece
+  const piece = (ctx.buff as Partial<Action>).mainslot ?? ctx.buff;
+  if (!state.grantedBy.has(gear)) state.grantedBy.set(gear, state.grantedBy.get(ctx.buff) ?? piece);
 }
 
 export function applyCurrent(buff: Buff, n = 1): number {
@@ -767,12 +800,7 @@ export function equip(gear: Gear, n = 1): number {
   const result = ctx.slot!.addStack(gear, n);
   ctx.slot!.equipped.add(gear);
   noteBase(ctx.slot!, gear);
-  if (gear instanceof Mainslot) {
-    ctx.slot!.mainslot = gear;
-    // the echo's own casts are the echo's: what one of them grants (Voidwing Moth's outro handoff)
-    // came off the piece equipped here, not off a source of its own (see `State.grantedBy`)
-    if (ctx.tracing) for (const a of gear.cast().forms) ctx.state!.grantedBy.set(a, gear);
-  }
+  if (gear instanceof Mainslot) ctx.slot!.mainslot = gear;
   // as `ctx.buff` for the call, same as every other hook: what combatStart() grants inherits
   // this gear's own source, and maxStackIncrease() can name it
   const prevBuff = ctx.buff;

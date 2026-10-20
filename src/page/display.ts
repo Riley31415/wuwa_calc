@@ -6,7 +6,7 @@ import {
   Stat, EnemyStat, Resource, Scaling,
   scopedStat, splitStat, statLabel, tagKind,
   TAG_NAME, CAST_NAME, NODE_NAME, SCALING_NAME, RESOURCE_NAME,
-  ActionTag, Cast,
+  ActionTag, Cast, POSITION_NAME, Position,
   statDisplayScale, ENERGY_UNIT, CONCERTO_UNIT, MV_UNIT,
 } from "../engine/stats.js";
 import type { Type, Subtype, StatKey, Tag } from "../engine/stats.js";
@@ -225,6 +225,8 @@ const actionInfo = (snap: ResolvedSnapshot): InfoEntry[] => {
   // the frames are the whole press's, however it was cut or swapped out of
   let press = action;
   while (press.cancelOf ?? press.formOf) press = (press.cancelOf ?? press.formOf)!;
+  push("Cast Position", press.castPosition === null ? null : POSITION_NAME[press.castPosition]);
+  push("End Position", press.endPosition === null ? null : POSITION_NAME[press.endPosition]);
   push("Animation", `${press.animFrames}f`);
   push("Cast Priority", press.castPriority === null ? null : String(press.castPriority));
   // its own windows only: the cast priority holding until the first is the row above
@@ -369,6 +371,8 @@ export const HIT_ENERGY_MULT = "Hit Energy Multiplier";
 /** Energy's two banked sections: what the cast banks, then what its hits do. */
 export const CAST_ENERGY = "Cast Energy";
 export const HIT_ENERGY = "Energy";
+/** What moved a bar between this member's rows (a tick, a teammate's energy share), carried to the next. */
+export const BETWEEN = "Between Actions";
 /** The sections a group row reads off one member rather than summing. */
 export const RATE_SECTIONS = new Set([OFFTUNE_RATE, OFFTUNE_MULT, HIT_ENERGY_MULT]);
 /** Energy's Energy Regen section, below its Total: what the press's own energy was scaled by. */
@@ -498,7 +502,11 @@ function rowValues(
   // off-tune, direct off-tune
   const added = (i: number): TraceEntry[] => (snap.adds ?? [])
     .filter((c) => c.gains[i] !== 0)
-    .map((c) => ({ source: c.source, value: c.gains[i]!, owner: c.owner ?? undefined, ...(c.onCast ? { label: "on cast" } : {}) }));
+    .map((c) => ({
+      source: c.source, value: c.gains[i]!, owner: c.owner ?? undefined,
+      // what moved the bar since this member's last row, carried here
+      ...(c.background ? { label: c.label ?? "between actions", section: BETWEEN } : c.onCast ? { label: "on cast" } : {}),
+    }));
   const ADDED = { energy: 0, concerto: 1, offtune: 7 } as const;
   for (const key of ["energy", "concerto", "offtune"] as const) {
     let traced = added(ADDED[key]).map((r) => ({ ...r, value: r.value / RESOURCE_SCALE[key] }));
@@ -512,7 +520,8 @@ function rowValues(
         ...(cast ? [{ source: snap.action.name, value: cast, owner: snap.member, section: CAST_ENERGY }] : []),
         ...(hit ? [{ source: snap.action.name, value: hit, owner: snap.member, section: HIT_ENERGY }] : []),
       ];
-      traced = [...traced.filter(onCast).map(at(CAST_ENERGY)), ...traced.filter((r) => !onCast(r)).map(at(HIT_ENERGY))];
+      const between = (r: TraceEntry): boolean => r.section === BETWEEN;
+      traced = [...traced.filter(onCast).map(at(CAST_ENERGY)), ...traced.filter((r) => !onCast(r) && !between(r)).map(at(HIT_ENERGY)), ...traced.filter(between)];
     }
     const rows: TraceEntry[] = [...own, ...traced];
     // the action's own shares stay two rows, however alike they read; the buffs fold
@@ -691,6 +700,12 @@ function rowValues(
     raw["before:energy"] = shownBefore(members[0]!, 0) / RESOURCE_SCALE.energy;
     raw["before:concerto"] = shownBefore(members[0]!, 1) / RESOURCE_SCALE.concerto;
     raw["before:offtune"] = shownBefore(members[0]!, 2) / RESOURCE_SCALE.offtune;
+    // ...and leaves them where the group's last press of its member does: a trailing dash's own too
+    const own = members.filter((m) => m.member === snap.member), end = own[own.length - 1] ?? snap;
+    raw.energy = shown(end, 0) / RESOURCE_SCALE.energy;
+    raw.concerto = shown(end, 1) / RESOURCE_SCALE.concerto;
+    raw.offtune = shown(end, 2) / RESOURCE_SCALE.offtune;
+    FORTE_GAUGES.forEach((key, i) => { raw[`gauge:${RESOURCE_NAME[key]}`] = shown(end, 3 + i) * end.forteScale[i]!; });
   }
 
   // avg: every damaging hit the row landed, its members' in turn, each press counted from 1 — the
@@ -788,6 +803,8 @@ export function buildReport(lines: ChainGroup[]): Report {
       key: `gauge:${RESOURCE_NAME[key]}`, label: RESOURCE_NAME[key], digits: 2, hideIfZero: true,
       full: RESOURCE_NAME[key],
     })),
+    // where the row's member stood as its press was cast
+    { key: "position", label: "position", noTotal: true, full: "Position" },
   ];
 
   // a short row is one the engine queued rather than a rotation beat — the Tune Break itself excepted
@@ -797,6 +814,7 @@ export function buildReport(lines: ChainGroup[]): Report {
 
   // a press ends where its animation ran out, or was cut or swapped out of (the swap delay a swap out
   // charges it included); an Outro where its animation does; a triggered one, a field's, where its last hit landed
+  const positionOf = (s: ResolvedSnapshot): string => (s.position == null ? "Despawned" : s.position === Position.Grounded ? "Grounded" : "Mid-air");
   const endOf = (s: ResolvedSnapshot): number => (s.action.cast === Cast.Outro ? s.frame + s.action.animFrames
     : s.triggered && s.hitAt !== undefined ? s.hitAt : s.frame + s.frames + (s.swapFrames ?? 0));
   const partOf = (snap: ResolvedSnapshot, avg: number, shown: ResolvedSnapshot): ReportPart => {
@@ -806,6 +824,7 @@ export function buildReport(lines: ChainGroup[]): Report {
     const end = endOf(snap);
     part.raw.time = clockAt(end);
     part.raw["end:time"] = end;
+    part.raw.position = positionOf(snap);
     return {
       ...part,
       info: actionInfo(snap),
@@ -823,6 +842,9 @@ export function buildReport(lines: ChainGroup[]): Report {
     const end = Math.max(...(line.members?.length ? line.members : [snap]).map(endOf));
     raw.time = clockAt(end);
     raw["end:time"] = end;
+    // a group stood where its member's first press of it was cast
+    const own = (line.members ?? []).filter((m) => m.member === snap.member);
+    raw.position = positionOf(own[0] ?? snap);
     return {
       line, raw, sources, buffed, hits,
       // `snap.type`, not `action.type`: the type it was actually evaluated as (typeOverride)

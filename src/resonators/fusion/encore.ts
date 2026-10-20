@@ -35,11 +35,11 @@ import {
   addStat,
   onCast,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, ECHO, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, DODGE } from "../../engine/rotation.js";
 import { LETHEAN_ELEGY, RIME_DRAPED_SPROUTS, STRINGMASTER, WHISPERS_OF_SIRENS } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { AUGMENT, RADIANT_DAWN } from "../../weapons/battlepass.js";
-import { INFERNO_RIDER, MOLTEN_RIFT_5PC } from "../../echoes/jinzhou.js";
+import { INFERNO_RIDER, MOLTEN_RIFT_5PC, ACTION_INFERNO_RIDER_1, ACTION_INFERNO_RIDER_2, ACTION_INFERNO_RIDER_3 } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -238,7 +238,6 @@ const ENCORE_RESONATOR = new Resonator({
   weapon: WeaponType.Rectifier,
   color: "#e56b9a",
   intro: Intro,
-  outro: Outro,
   // Cosmos Rave replaces the Basic Attack; her only mid-air press is the plunge
   swapIn: () => (isHeld(COSMOS_RAVE) ? UBA1 : BA1),
   swapInAir: MA,
@@ -256,7 +255,7 @@ const ENCORE_RESONATOR = new Resonator({
 const UBA1234 = new ActionGroup("Basic - Cosmos: Frolicking 1234", [UBA1, UBA2, UBA3, UBA4]);
 
 const EN_ROTATION = new Rotation([
-  INTRO, ECHO,  // would be swapped
+  Intro, ACTION_INFERNO_RIDER_1, ACTION_INFERNO_RIDER_2, ACTION_INFERNO_RIDER_3,  // would be swapped
   Skill1, // would be swapped
   Liberation,
   USkill,
@@ -264,7 +263,7 @@ const EN_ROTATION = new Rotation([
   USkill,
   UBA1234.cancel(),
   USkill.cancel(),
-  FHA.instaSwap(), OUTRO,
+  FHA.instaSwap(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

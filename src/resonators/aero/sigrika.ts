@@ -40,11 +40,11 @@ import {
   lostOnSwap,
   saveChain,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, ECHO, INTRO, OUTRO, ActionTag, START_LAST, INTRO_LAST, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, ActionTag, START_LAST, DODGE } from "../../engine/rotation.js";
 import { SOLSWORN_CIPHERS } from "../../weapons/gauntlet.js";
 import { NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
 import { STONARD, AETHER_STRIKE } from "../../weapons/battlepass.js";
-import { NAMELESS_EXPLORER, SOUND_OF_TRUE_NAME_5PC } from "../../echoes/lahairoi.js";
+import { NAMELESS_EXPLORER, SOUND_OF_TRUE_NAME_5PC, ACTION_NAMELESS_EXPLORER } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -431,7 +431,6 @@ const SIGRIKA_RESONATOR = new Resonator({
   weapon: WeaponType.Gauntlets,
   color: "#e0aa7e",
   intro: Intro,
-  outro: Outro,
   swapIn: () => (forte2() >= 50 ? BA2 : BA1),
   swapInAir: MA,
   maxEnergy: 12500,
@@ -506,31 +505,31 @@ const BA234 = new ActionGroup("Basic - One, Two, Three 234", [BA2, BA3, BA4]);
 const BA34 = new ActionGroup("Basic - One, Two, Three 34", [BA3, BA4]);
 
 const SR_ROTATION = new Rotation([
-  INTRO, ECHO, 
+  Intro, ACTION_NAMELESS_EXPLORER, 
   BA234, EBASIC.cancel(), FHA.cancel(), Liberation,
   BA234, EBASIC.cancel(), FHA.holdCancel(), FSkill,
   Skill, BA34, EBASIC.cancel(),
-  OUTRO,
+  Outro,
 ]);
 
 const SR_ROTATION_DOUBLE = new Rotation([
   START_LAST, Liberation, 
   Skill, BA34, EBASIC.instaSwap(),
 
-  INTRO_LAST, ECHO, FHA.dodgeCancel(),
+  Intro.inLastSlot(), ACTION_NAMELESS_EXPLORER, FHA.dodgeCancel(),
   BA234, ESKILL, BA234, EBASIC.cancel(),
   FHA.holdCancel(), FSkill, Liberation, 
   Skill, BA34, EBASIC.cancel(),
-  OUTRO,
+  Outro,
 ]);
 
 // TODO s2+ rotation
 
 const SR_ROTATION_FAST = new Rotation([
-  INTRO, ECHO, 
+  Intro, ACTION_NAMELESS_EXPLORER, 
   BA234, EBASIC.cancel(), FHA.cancel(), Liberation,
   BA234, EBASIC.cancel(), FHA.holdCancel(), FSkill,
-  OUTRO,
+  Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

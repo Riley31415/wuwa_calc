@@ -47,7 +47,7 @@ import {
   runningAnyOf,
   saveChain,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, START_LAST, INTRO, OUTRO, DODGE, SWAP } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, START_LAST, DODGE, SWAP } from "../../engine/rotation.js";
 import { applied } from "../../engine/context.js";
 import { TUNE_STRAIN_SHIFTING, tuneBreak, midairBreak } from "../../shared/tunebreak.js";
 import { applyStrain, TUNE_BREAK, TUNE_STRAIN_INTERFERED, TUNE_SHIFTABLE, strainPayout } from "../../shared/tunebreak.js";
@@ -408,7 +408,6 @@ export const LUUK_RESONATOR = new Resonator({
   weapon: WeaponType.Gauntlets,
   color: "#ddb246",
   intro: Intro,
-  outro: Outro,
   swapIn: BA1,
   swapInAir: MA1,
   // his break leaves him in mid-air
@@ -542,17 +541,17 @@ const Jump23 = new ActionGroup("Mid-air - Scythe: Resection 23", [MA2R, MA3R]);
 
 const LK_ROTATION = new Rotation([
   // start lib costs too much ER
-  INTRO, Jump23.cancel(), Ring, GoldenImpale,
+  Intro, Jump23.cancel(), Ring, GoldenImpale,
   Jump123.cancel(), Breach, GoldenImpale,
   Jump123.cancel(), Glare.mashCancel(), Gavel.cancel(),
-  Liberation, Skill.instaSwap(), OUTRO,
+  Liberation, Skill.instaSwap(), Outro,
 ]);
 
 const LK_ROTATION_16s = new Rotation([
-  INTRO, Jump23.cancel(), Ring, GoldenImpale,
+  Intro, Jump23.cancel(), Ring, GoldenImpale,
   Jump123.cancel(), Breach, GoldenImpale,
   Jump123.cancel(), Glare.mashCancel(), Gavel.cancel(),
-  Liberation, Jump123.cancel(), Ring.instaSwap(), OUTRO,
+  Liberation, Jump123.cancel(), Ring.instaSwap(), Outro,
 ]);
 
 export const LUUK = new Loadout({

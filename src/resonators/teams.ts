@@ -15,6 +15,7 @@ import { JIYAN } from "./aero/jiyan.js";
 import { QINGXIAO } from "./aero/qingxiao.js";
 import { QIUYUAN, QIUYUAN_MDPS } from "./aero/qiuyuan.js";
 import { ROVER_AERO } from "./aero/rover_aero.js";
+import { YANGYANG } from "./aero/yangyang.js";
 import { SIGRIKA_DOUBLE, SIGRIKA_EBA, SIGRIKA_FAST } from "./aero/sigrika.js";
 import { AUGUSTA } from "./electro/augusta.js";
 import { BULING } from "./electro/buling.js";
@@ -44,7 +45,7 @@ import { CAMELLYA_123_ALWAYS_OUTRO as CAMELLYA_123_ALWAYS, CAMELLYA_DOUBLE_123S6
 import { CANTARELLA, CANTARELLA_MDPS } from "./havoc/cantarella.js";
 import { CHISA } from "./havoc/chisa.js";
 import { DANJIN } from "./havoc/danjin.js";
-import { PHRO_12s, PHRO_10s } from "./havoc/phrolova.js";
+import { PHRO_12s, PHRO_11s, PHRO_9s } from "./havoc/phrolova.js";
 import { ROCCIA, ROCCIA_MDPS } from "./havoc/roccia.js";
 import { XUANLING,  } from "./havoc/xuanling.js";
 import { JINHSI, JINHSI_FULL, JINHSI_SUPPORT } from "./spectro/jinhsi.js";
@@ -111,16 +112,16 @@ const TEAMS: Slot[][] = [
 
   // xuanling: havoc heavy attack on Havoc Bane — Chisa's +3 to every Negative Status cap is what
   // takes Unbroken Vow off its 3-stack 30% tier onto the 4-6 stack 36% one
-  [[SUISUI, CHISA, VERINA, SHOREKEEPER], [MORTEFI, REBECCA, IUNO, PHRO_10s, CHISA], XUANLING],
+  [[SUISUI, CHISA, VERINA, SHOREKEEPER], [MORTEFI, REBECCA, IUNO, PHRO_9s, CHISA], XUANLING],
 
   // lucy: spectro heavy on tune hack, with rebecca feeding her the outro
   [[MORNYE, SHOREKEEPER, VERINA], [REBECCA, LYNAE_RUPTURE, MORTEFI], LUCY],
 
   // hiyuki: glacio chafe/bite — every stack the team lands calculates at the target's own limit,
   // which is why Chisa (+3 to it) and Lucilla's Chafe build stand behind her
-  [[SUISUI], PHRO_10s, HIYUKI],
+  [[SUISUI], PHRO_9s, HIYUKI],
   [[SUISUI], CARLOTTA_FAST, HIYUKI],
-  [PHRO_10s, [LUCILLA], HIYUKI],
+  [PHRO_9s, [LUCILLA], HIYUKI],
   [HIYUKI, CARLOTTA_FAST, [LUCILLA_CHAFE]],
   [[SUISUI, CHISA, MORNYE, VERINA, SHOREKEEPER], [LUCILLA_CHAFE, LYNAE_RUPTURE, CHISA, JIANXIN, ROVER_ELECTRO], HIYUKI],
 
@@ -129,7 +130,7 @@ const TEAMS: Slot[][] = [
   [[QIUYUAN], [LUCILLA], SIGRIKA_FAST],
   //[[SHOREKEEPER], [QIUYUAN], SIGRIKA_DOUBLE],
 
-  [[PHRO_10s], [QIUYUAN, LUCILLA], SIGRIKA_FAST],
+  [[PHRO_9s], [QIUYUAN, LUCILLA], SIGRIKA_FAST],
   [[MORNYE, SHOREKEEPER, VERINA], [LYNAE_RUPTURE], SIGRIKA_FAST],
   [[CIACCONA], [QIUYUAN, LUCILLA], SIGRIKA_FAST],
   [[SHOREKEEPER, VERINA, MORNYE], [LUCILLA, ROVER_AERO], SIGRIKA_FAST],
@@ -159,7 +160,7 @@ const TEAMS: Slot[][] = [
   // qiuyuan: aero heavy echo
   [[SHOREKEEPER, VERINA, CIACCONA, MORNYE, SUISUI], [MORTEFI, IUNO, CIACCONA, LUCILLA], QIUYUAN_MDPS],
   [[MORNYE, SHOREKEEPER, VERINA, CIACCONA, SUISUI], [REBECCA,LYNAE_RUPTURE], QIUYUAN_MDPS],
-  [[SHOREKEEPER, VERINA], PHRO_10s, QIUYUAN_MDPS],
+  [[SHOREKEEPER, VERINA], PHRO_9s, QIUYUAN_MDPS],
 
   // galbrena: fusion echo and heavy
   [[SHOREKEEPER, VERINA, MORNYE, SUISUI, LUPA], [MORTEFI, IUNO, QIUYUAN, LUCILLA], GALBRENA],
@@ -179,14 +180,29 @@ const TEAMS: Slot[][] = [
   [[MORNYE], [LYNAE_RUPTURE], AUGUSTA],
 
   // phrolova: havoc, echo, skill
+  // each team on the loadout that beats the other two at both S0 and S2: 3 Forte Basics (PHRO_9s),
+  // 4 (PHRO_11s) or 5 (PHRO_12s)
   [PHRO_12s, [JINHSI_SUPPORT], [CANTARELLA]],
-  [PHRO_10s, [QIUYUAN, LUCILLA, DANJIN], [LYNAE_RUPTURE, QIUYUAN, LUCILLA]],
-  [PHRO_10s, [LYNAE_RUPTURE, DANJIN], [LUCILLA, QIUYUAN, CANTARELLA]],
+  [PHRO_9s, [LUCILLA], [QIUYUAN]],
+  [PHRO_9s, [DANJIN], [LYNAE_RUPTURE, LUCILLA]],
+  [PHRO_11s, [QIUYUAN], [LUCILLA]],
+  [PHRO_12s, [QIUYUAN], [LYNAE_RUPTURE]],
+  [PHRO_11s, [LUCILLA], [LYNAE_RUPTURE]],
+  [PHRO_11s, [DANJIN], [QIUYUAN, CANTARELLA]],
+  [PHRO_11s, [LYNAE_RUPTURE], [LUCILLA, QIUYUAN, CANTARELLA]],
 
-  [PHRO_12s, [QIUYUAN, ROCCIA], [QIUYUAN, CANTARELLA]],
+  [PHRO_12s, [QIUYUAN, ROCCIA], [CANTARELLA]],
+  [PHRO_11s, [ROCCIA], [QIUYUAN]],
 
-  [PHRO_12s, [SHOREKEEPER, BULING, MORNYE, SUISUI, VERINA], [QIUYUAN, DANJIN, LUCILLA, CANTARELLA, ROCCIA]],
-  [PHRO_12s, [QIUYUAN, ROCCIA, DANJIN], [SHOREKEEPER, SUISUI, MORNYE, VERINA]],
+  [PHRO_12s, [SHOREKEEPER, BULING, MORNYE, SUISUI, VERINA], [QIUYUAN, CANTARELLA, ROCCIA]],
+  [PHRO_12s, [SHOREKEEPER, BULING, SUISUI], [DANJIN]],
+  [PHRO_12s, [SHOREKEEPER, MORNYE, VERINA], [LUCILLA]],
+  [PHRO_11s, [BULING, SUISUI], [LUCILLA]],
+  [PHRO_11s, [MORNYE, VERINA], [DANJIN]],
+  [PHRO_12s, [QIUYUAN, ROCCIA], [SHOREKEEPER, SUISUI, MORNYE, VERINA]],
+  [PHRO_12s, [DANJIN], [MORNYE]],
+  [PHRO_11s, [DANJIN], [SHOREKEEPER, VERINA]],
+  [PHRO_9s, [DANJIN], [SUISUI]],
 
   [PHRO_12s, [MORNYE], [LYNAE_RUPTURE]],
 
@@ -247,7 +263,7 @@ const TEAMS: Slot[][] = [
 
   // jiyan: aero heavy
   [[CIACCONA], [IUNO], JIYAN],
-  [[SHOREKEEPER, VERINA, CIACCONA, MORNYE, SUISUI], [MORTEFI, IUNO, CIACCONA, PHRO_10s], JIYAN],
+  [[SHOREKEEPER, VERINA, CIACCONA, MORNYE, SUISUI], [MORTEFI, IUNO, CIACCONA, PHRO_9s], JIYAN],
   [[MORNYE, SHOREKEEPER, VERINA, CIACCONA, SUISUI], [REBECCA], JIYAN],
   [[MORNYE], [LYNAE_RUPTURE], JIYAN],
 

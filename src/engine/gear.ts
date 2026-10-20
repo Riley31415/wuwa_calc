@@ -4,7 +4,7 @@
  * `Weapon`/`Resonator`), plus `EchoLoadout` and `Loadout`. Definitions only — what a piece
  * *does* is the hooks it declares, which `evaluate.ts` runs.
  */
-import { Stat, EnemyStat, Attribute, WeaponType, Tier, Cast, BuffTarget, ActionTag, INSTA_DELAY, FULL_CONCERTO } from "./stats.js";
+import { Stat, EnemyStat, Attribute, WeaponType, Tier, Cast, BuffTarget, ActionTag, FULL_CONCERTO } from "./stats.js";
 import type { Tag } from "./stats.js";
 import type { Rotation, Action, ActionField } from "./rotation.js";
 import { ctx } from "./runtime.js";
@@ -684,7 +684,7 @@ export class Loadout {
     }
     // a bare Rotation carries an Intro chain; a level map never does. A level takes the nearest
     // declared rotation below it, and the levels under the lowest declared one have none
-    const declared: Partial<Record<SequenceLevel, Rotation>> = "intro" in def.rotation ? { 0: def.rotation as Rotation } : def.rotation as Partial<Record<SequenceLevel, Rotation>>;
+    const declared: Partial<Record<SequenceLevel, Rotation>> = "mains" in def.rotation ? { 0: def.rotation as Rotation } : def.rotation as Partial<Record<SequenceLevel, Rotation>>;
     this.rotationByLevel = [];
     for (let n = 0; n <= 6; n++) this.rotationByLevel[n] = declared[n as SequenceLevel] ?? this.rotationByLevel[n - 1] ?? null;
     this.minSequence = this.rotationByLevel.findIndex(Boolean);
@@ -786,11 +786,9 @@ export interface ResonatorDef extends GearDef {
    *  team in index.ts. */
   color: string;
   /** The Intro this resonator casts — the kit's Intro, or where it has more than one, which comes
-   *  out as it is reached (`() => (isHeld(X) ? IntroB : Intro)`). What INTRO casts, and an
-   *  INTRO_OPENER / INTRO_FIRST / INTRO_LAST marker when no Intro is written after it. */
+   *  out as it is reached (`() => (isHeld(X) ? IntroB : Intro)`): what picks the Intro chain an
+   *  arrival plays, and the one that chain's entry casts. */
   intro?: Action | (() => Action);
-  /** The Outro this resonator casts, the same way (a Unison form, a sequence's). What OUTRO casts. */
-  outro?: Action | (() => Action);
   /** The press a swap-in (arriving with no Intro) must open on, coming in grounded / in mid-air —
    *  as `intro`, a function where it depends on state. */
   swapIn?: Action | (() => Action);
@@ -858,9 +856,8 @@ export class Resonator extends Gear {
   maxOfftune: number;
   forteScale: [number, number, number, number, number];
   color: string;
-  /** `ResonatorDef.intro`/`outro`, each read as it is reached. */
+  /** `ResonatorDef.intro`, read as it is reached. */
   intro?: () => Action;
-  outro?: () => Action;
   /** `ResonatorDef.swapIn`/`swapInAir`, read as a swap-in reaches them. */
   swapIn?: () => Action;
   swapInAir?: () => Action;
@@ -917,9 +914,8 @@ export class Resonator extends Gear {
     const scale = def.forteScale ?? 1;
     this.forteScale = Array.isArray(scale) ? scale : [scale, scale, scale, scale, scale];
     this.color = def.color;
-    const { intro, outro, dodge, jump, swapIn, swapInAir } = def;
+    const { intro, dodge, jump, swapIn, swapInAir } = def;
     this.intro = typeof intro === "function" ? intro : intro && (() => intro);
-    this.outro = typeof outro === "function" ? outro : outro && (() => outro);
     this.swapIn = typeof swapIn === "function" ? swapIn : swapIn && (() => swapIn);
     this.swapInAir = typeof swapInAir === "function" ? swapInAir : swapInAir && (() => swapInAir);
     this.tuneBreak = def.tuneBreak;
@@ -933,58 +929,18 @@ export class Resonator extends Gear {
   }
 }
 
-/** How a mainslot echo's skill plays out: a press of its wearer's own, a summon's 8 frames or a
- *  transform's whole cast. Any cut of it is taken only where it frees them sooner than pressing it
- *  whole (`Action.cutPays`), so a summon's short press is never dashed out of. */
-
 export interface MainslotDef extends GearDef {
   /** The game's own echo id (nanoka's links, encore's `Id`), the base 6000xxx one. */
   id: number;
-  /** The cast this echo performs — what rotation.ts's ECHO_* markers place, in the form each
-   *  calls for (see `EchoCast`). Where it depends on the wearer, the function picking it, read as
-   *  a marker reaches it (`() => (wears("Hsin") ? HsinCast : Cast)`). */
-  action: Action | (() => Action);
   /** The echo's cost: which of the build's echoes it is, and so which main stat it wears. */
   cost: 4 | 3;
 }
 
-/** One echo cast in every form the ECHO_* markers place. A rotation doesn't name the echo — it holds
- *  one of the markers, and `run()` swaps in the cast of whichever Mainslot the acting slot has
- *  equipped (`Mainslot.cast()`), in the form that marker asks for:
- *
- *  - `onfield`: the cast as declared.
- *  - `outro`: what `ECHO.swap()` lands, right where it stands: the swap cancel at its last hit, or
- *    the insta swap where that hit commits inside the insta window — the same name under a SWAP
- *    tag, finishing off field.
- *  - `cancel`: the echo dash-cancelled the moment it is pressed — `Action.instaDodge()`'s form:
- *    the cast's own effects with only the hits committed inside the insta window. One under 18
- *    frames needs no dash: an insta cancel instead.
- *  - `instaOut`: what `ECHO.instaSwap()` lands — `Action.instaSwap()`'s form, its hit landing off
- *    field after the swap. */
-export class EchoCast {
-  onfield: Action;
-  outro: Action;
-  cancel: Action;
-  instaOut: Action;
-  constructor(a: Action) {
-    this.onfield = a;
-    // a swap cut inside the insta window is the insta swap, which keeps every hit committed that early
-    this.outro = a.cutFrame > INSTA_DELAY ? a.swapCancel() : a.instaSwap();
-    // an echo under 18 frames cancels without a dodge at all
-    this.cancel = a.instaForm(a.animFrames < 18 ? ActionTag.InstaCancel : ActionTag.InstaDodge);
-    this.instaOut = a.instaSwap();
-  }
-  /** Every form, for whoever files them under the echo. */
-  get forms(): Action[] { return [this.onfield, this.outro, this.cancel, this.instaOut]; }
-}
-
-/** A mainslot echo: gear that also carries its own cast, resolved per wearer where a kit unlocks its
- *  own (`MainslotDef.action`). Every build equips exactly one. */
+/** A mainslot echo: the piece held by whoever equips it. Every build equips exactly one. Its cast is
+ *  an Action of its own that names it (`ActionDef.mainslot`, echoes/echo.ts), playing only while
+ *  it is worn. */
 export class Mainslot extends Gear {
   cost: 4 | 3;
-  private readonly actionFn: () => Action;
-  /** Each cast's forms, made the first time it is reached. */
-  private readonly casts = new Map<Action, EchoCast>();
   /** Its constant stats, run by the build's echo it is (shared/echoes.ts) so they join that echo's
    *  panel entry; the mainslot itself carries none. */
   echoStatsFn?: () => void;
@@ -994,15 +950,6 @@ export class Mainslot extends Gear {
     this.echoStatsFn = this.constantStatsFn;
     this.constantStatsFn = undefined;
     this.wire();
-    const action = def.action;
-    this.actionFn = typeof action === "function" ? action : () => action;
-  }
-  /** The cast the acting resonator makes, in every form. */
-  cast(): EchoCast {
-    const a = this.actionFn();
-    let cast = this.casts.get(a);
-    if (!cast) this.casts.set(a, (cast = new EchoCast(a)));
-    return cast;
   }
 }
 

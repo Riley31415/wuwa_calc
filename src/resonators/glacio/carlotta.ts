@@ -49,11 +49,11 @@ import {
   addGain,
   runningBullet,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, ECHO, INTRO, OUTRO, START, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, START, DODGE } from "../../engine/rotation.js";
 import { THE_LAST_DANCE } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
 import { THUNDERBOLT, SOLAR_FLAME } from "../../weapons/battlepass.js";
-import { FROSTY_RESOLVE_5PC, SENTRY_CONSTRUCT } from "../../echoes/rinascita.js";
+import { FROSTY_RESOLVE_5PC, SENTRY_CONSTRUCT, ACTION_SENTRY_CONSTRUCT } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -367,7 +367,6 @@ const CARLOTTA_RESONATOR = new Resonator({
   weapon: WeaponType.Pistols,
   color: "#8fb3d9",
   intro: Intro,
-  outro: Outro,
   // Necessary Measures replaces her Basic Attack while she holds Moldable Crystals
   swapIn: () => (forte1() > 0 ? NM1 : BA1),
   swapInAir: MA1,
@@ -393,15 +392,15 @@ const NM123 = new ActionGroup("Silent Execution: Necessary Measures 123", [NM1, 
 
 const CL_ROTATION = new Rotation([
   START, BA1.instaCancel(), Skill12.instaSwap(),
-  INTRO, Skill12, MA1.holdCancel(), FHA.cancel(),
+  Intro, Skill12, MA1.holdCancel(), FHA.cancel(),
   Lib1, DeathKnellx4, FatalFinaleResolver,
-  Skill12.mashCancel(), ECHO.instaSwap(), OUTRO,
+  Skill12.mashCancel(), ACTION_SENTRY_CONSTRUCT.instaSwap(), Outro,
 ]);
 const CL_ROTATION_FAST = new Rotation([
   START, BA1.instaCancel(), Skill12.instaSwap(),
-  INTRO, Skill12, MA1.holdCancel(), FHA.cancel(),
+  Intro, Skill12, MA1.holdCancel(), FHA.cancel(),
   Lib1, DeathKnellx4, FatalFinaleResolver,
-  Skill12.instaSwap(), OUTRO,
+  Skill12.instaSwap(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

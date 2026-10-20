@@ -472,7 +472,11 @@ var ctx = {
   cutReplaced: "",
   holdNext: null,
   nextPresses: () => [],
+  bankLoose: () => {
+    throw new Error("bankLoose() before evaluate.ts loaded");
+  },
   holdBeyond: null,
+  rowSlot: null,
   holdCut: -1,
   offFieldShift: 0,
   offFieldFrom: 0,
@@ -631,6 +635,19 @@ var recordConsumed = (gear, n) => {
   consumed.add(gear, n, ctx.slot.index);
 };
 var pendingQueue = [];
+function noteBackground(slot, moved2, source, owner, label2) {
+  if (!moved2.some((v) => v !== 0))
+    return;
+  const by = ctx.buff;
+  slot.background.push({
+    source: source ?? by?.toString() ?? "",
+    owner: owner !== void 0 ? owner : (by && ctx.state.sourceOf.get(by)) ?? slot.name,
+    gains: [...moved2, 0, 0],
+    onCast: false,
+    background: true,
+    label: label2
+  });
+}
 function resolving(f) {
   const was = ctx.inResolve;
   ctx.inResolve = true;
@@ -877,17 +894,18 @@ var Pool = class {
     const at = this.expires[i];
     return at === 0 ? 0 : at - ctx.state.frame;
   }
-  /** Every live Gear whose duration has run out by frame `now`, in order — null when none has.
-   *  Recomputes `nextExpiry` over what stays, so the next pass is a number compare again. */
-  expired(now) {
-    if (this.nextExpiry > now)
+  /** Every live Gear whose duration has run out by frame `now`, in order — null when none has;
+   *  `onIt` false leaves one running out on `now` itself. Recomputes `nextExpiry` over what stays,
+   *  so the next pass is a number compare again. */
+  expired(now, onIt = true) {
+    if (onIt ? this.nextExpiry > now : this.nextExpiry >= now)
       return null;
     let out = null, next = Infinity;
     for (let i = 0; i < this.list.length; i++) {
       const at = this.expires[i];
       if (at === 0 || this.pos(this.list[i]) !== i)
         continue;
-      if (at <= now)
+      if (at < now || onIt && at === now)
         (out ??= []).push(this.list[i]);
       else if (at < next)
         next = at;
@@ -1122,9 +1140,12 @@ var TeamMember = class {
    *  each member's own Resonator. */
   resonator = null;
   /** Whichever Mainslot echo is equipped here — cached by `equip()` rather than re-found by
-   *  scanning this member's whole held set every time an ECHO_* marker comes up (see
-   *  `run()`). Set once at team setup, like `resonator` above. */
+   *  scanning this member's whole held set every time an echo's cast resolves. Set once at team
+   *  setup, like `resonator` above. */
   mainslot = null;
+  /** Gauges moved outside any row of this member's (a tick, a teammate's energy share), carried to
+   *  their next one. Trace-only. */
+  background = [];
   /** The resonator's own Base ATK/HP/DEF and the weapon's, kept apart for the panel base
    *  (`floor(character) + weapon`) every constant % is floored off. Set by `equip()`. */
   charBase = [0, 0, 0];
@@ -1560,6 +1581,8 @@ var State = class {
   /** Inside the fight's start-of-combat sections (`runRotations()`): an arrival there opens on its ground
    *  swap-in, and a despawned one comes in on the ground. */
   inStart = false;
+  /** The last of those sections is playing: its swap hands to the leader's first chain, past them. */
+  toOpener = false;
   /** The visit a handoff into slot `to` opens, timed off its presses (rotation.ts's `chainGates`),
    *  for a handoff with no visit learned yet — set by `runRotations()`, null outside one. */
   plannedGates = null;
@@ -1926,22 +1949,24 @@ var State = class {
   }
   /** Drop every buff whose duration has run out by the clock — every member's own, the team's and
    *  the enemy's — through the same revoke paths a kit uses, so hook rosters follow. Run by
-   *  `evaluate()` ahead of every action, so nothing expired is ever visited by a phase. */
-  expireBuffs() {
-    const now = this.frame;
-    if (this.nextExpiry > now)
+   *  `evaluate()` ahead of every action, so nothing expired is ever visited by a phase, and by
+   *  `runTicks()` ahead of each tick at that tick's own frame (`now`). `onIt` false keeps the ones
+   *  running out on `now` itself: a hit or an end landing on that frame still has them, and the
+   *  next press cast on it is the first that doesn't. */
+  expireBuffs(now = this.frame, onIt = true) {
+    if (onIt ? this.nextExpiry > now : this.nextExpiry >= now)
       return;
     for (const s of this.slots) {
-      const gone2 = s.stacks.expired(now);
+      const gone2 = s.stacks.expired(now, onIt);
       if (gone2)
         for (const g of gone2)
           s.revoke(g);
     }
-    let gone = this.globalStacks.expired(now);
+    let gone = this.globalStacks.expired(now, onIt);
     if (gone)
       for (const g of gone)
         this.revokeGlobal(g);
-    gone = this.enemyStacks.expired(now);
+    gone = this.enemyStacks.expired(now, onIt);
     if (gone)
       for (const g of gone)
         this.revokeEnemy(g);
@@ -1968,9 +1993,12 @@ var State = class {
     this.collectTicks(this.globalStacks, acting, null, a, b, motionStop, presser, TICKS_DUE);
     this.collectTicks(this.enemyStacks, acting, null, a, b, motionStop, presser, TICKS_DUE);
     if (TICKS_DUE.length) {
+      if (TICKS_DUE.length > 1)
+        TICKS_DUE.sort(byTickFrame);
       try {
         for (let i = 0; i < TICKS_DUE.length; i++) {
           const { gear, n, at, slot } = TICKS_DUE[i];
+          this.expireBuffs(at - 1);
           ctx.slot = slot;
           ctx.buff = gear;
           ctx.stacks = -1;
@@ -1997,9 +2025,12 @@ var State = class {
   }
 };
 var TICKS_DUE = [];
+var byTickFrame = (x, y) => x.at - y.at;
 function offFieldClock(gear, state, holder, presser) {
   if (gear.tickSkipsMotionStop)
     return true;
+  if (!gear.field)
+    return false;
   const owner = gear.tickOwner ? state.memberOf(gear.tickOwner()) : holder;
   return !!owner && !!presser && owner !== presser;
 }
@@ -2674,11 +2705,17 @@ function forteGauge(i) {
     get: () => ctx.slot.forte[i],
     set: (value) => {
       noteMutation(-1 - i, value);
-      return ctx.slot.forte[i] = value;
+      const was = ctx.slot.forte[i];
+      ctx.slot.forte[i] = value;
+      noteLoose(2 + i, value - was);
+      return value;
     },
     add: (delta) => {
       noteMutation(-1 - i, delta);
-      return ctx.slot.forte[i] = Math.max(delta > 0 ? 0 : -Infinity, ctx.slot.forte[i]) + delta;
+      const was = ctx.slot.forte[i];
+      ctx.slot.forte[i] = Math.max(delta > 0 ? 0 : -Infinity, was) + delta;
+      noteLoose(2 + i, ctx.slot.forte[i] - was);
+      return ctx.slot.forte[i];
     }
   };
 }
@@ -2710,8 +2747,16 @@ function concerto() {
 }
 var GAIN_KEYS = ["energy", "concerto", "forte1", "forte2", "forte3", "forte4", "forte5", "offtune", "directOfftune"];
 function addGain(gain) {
-  if (!ctx.inCast && !ctx.inHit)
-    throw new Error(`${ctx.buff?.name ?? "?"}: addGain() outside a cast hook or a hit's own (${ctx.act?.name ?? "?"})`);
+  if (ctx.inConst)
+    throw new Error(`${ctx.buff?.name ?? "?"}: addGain() from a stat hook (${ctx.act?.name ?? "?"})`);
+  if (!ctx.inCast && !ctx.inHit) {
+    if (gain.offtune)
+      throw new Error(`${ctx.buff?.name ?? "?"}: addGain({ offtune }) outside a hit \u2014 nothing runs a stat to build it, use directOfftune (${ctx.act?.name ?? "?"})`);
+    noteMutation(-11, gain.energy ?? 0);
+    if (!ctx.dryRun)
+      ctx.bankLoose(ctx.state, ctx.slot, gain);
+    return;
+  }
   if (ctx.inCast && gain.offtune)
     throw new Error(`${ctx.buff?.name ?? "?"}: addGain({ offtune }) from a cast hook \u2014 a cast runs no stat to build it, use directOfftune (${ctx.act?.name ?? "?"})`);
   const g = ctx.gain;
@@ -2736,7 +2781,17 @@ function gained(key) {
 }
 function setConcerto(value) {
   noteMutation(-10, value);
-  return ctx.slot.concerto = value;
+  const was = ctx.slot.concerto;
+  ctx.slot.concerto = value;
+  noteLoose(1, value - was);
+  return value;
+}
+function noteLoose(bar, delta) {
+  if (!ctx.tracing || ctx.dryRun || !delta || ctx.slot === ctx.rowSlot)
+    return;
+  const moved2 = [0, 0, 0, 0, 0, 0, 0];
+  moved2[bar] = delta;
+  noteBackground(ctx.slot, moved2);
 }
 function attribute(gear) {
   const inherited = ctx.buff ? ctx.state.sourceOf.get(ctx.buff) : void 0;
@@ -2749,8 +2804,9 @@ function inheritPiece(gear) {
   const state = ctx.state;
   if (!state.grantedOn.has(gear))
     state.grantedOn.set(gear, ctx.slot.name);
+  const piece = ctx.buff.mainslot ?? ctx.buff;
   if (!state.grantedBy.has(gear))
-    state.grantedBy.set(gear, state.grantedBy.get(ctx.buff) ?? ctx.buff);
+    state.grantedBy.set(gear, state.grantedBy.get(ctx.buff) ?? piece);
 }
 function applyCurrent(buff, n = 1) {
   attribute(buff);
@@ -2761,12 +2817,8 @@ function equip(gear, n = 1) {
   const result = ctx.slot.addStack(gear, n);
   ctx.slot.equipped.add(gear);
   noteBase(ctx.slot, gear);
-  if (gear instanceof Mainslot) {
+  if (gear instanceof Mainslot)
     ctx.slot.mainslot = gear;
-    if (ctx.tracing)
-      for (const a of gear.cast().forms)
-        ctx.state.grantedBy.set(a, gear);
-  }
   const prevBuff = ctx.buff;
   ctx.buff = gear;
   try {
@@ -3475,7 +3527,7 @@ var Loadout = class {
       if (!this.mainstats.some((m) => this.echoes.fits(e, m)))
         throw new Error(`${def2.resonator.name}: no main-stat build fits ${e.sets.map((s) => s.name).join(" + ")} on ${e.mainslot.name}`);
     }
-    const declared = "intro" in def2.rotation ? { 0: def2.rotation } : def2.rotation;
+    const declared = "mains" in def2.rotation ? { 0: def2.rotation } : def2.rotation;
     this.rotationByLevel = [];
     for (let n = 0; n <= 6; n++)
       this.rotationByLevel[n] = declared[n] ?? this.rotationByLevel[n - 1] ?? null;
@@ -3573,9 +3625,8 @@ var Resonator = class extends Gear {
   maxOfftune;
   forteScale;
   color;
-  /** `ResonatorDef.intro`/`outro`, each read as it is reached. */
+  /** `ResonatorDef.intro`, read as it is reached. */
   intro;
-  outro;
   /** `ResonatorDef.swapIn`/`swapInAir`, read as a swap-in reaches them. */
   swapIn;
   swapInAir;
@@ -3630,9 +3681,8 @@ var Resonator = class extends Gear {
     const scale = def2.forteScale ?? 1;
     this.forteScale = Array.isArray(scale) ? scale : [scale, scale, scale, scale, scale];
     this.color = def2.color;
-    const { intro, outro, dodge, jump, swapIn, swapInAir } = def2;
+    const { intro, dodge, jump, swapIn, swapInAir } = def2;
     this.intro = typeof intro === "function" ? intro : intro && (() => intro);
-    this.outro = typeof outro === "function" ? outro : outro && (() => outro);
     this.swapIn = typeof swapIn === "function" ? swapIn : swapIn && (() => swapIn);
     this.swapInAir = typeof swapInAir === "function" ? swapInAir : swapInAir && (() => swapInAir);
     this.tuneBreak = def2.tuneBreak;
@@ -3645,27 +3695,8 @@ var Resonator = class extends Gear {
     this.tier = def2.tier ?? 0;
   }
 };
-var EchoCast = class {
-  onfield;
-  outro;
-  cancel;
-  instaOut;
-  constructor(a) {
-    this.onfield = a;
-    this.outro = a.cutFrame > INSTA_DELAY ? a.swapCancel() : a.instaSwap();
-    this.cancel = a.instaForm(a.animFrames < 18 ? ActionTag.InstaCancel : ActionTag.InstaDodge);
-    this.instaOut = a.instaSwap();
-  }
-  /** Every form, for whoever files them under the echo. */
-  get forms() {
-    return [this.onfield, this.outro, this.cancel, this.instaOut];
-  }
-};
 var Mainslot = class extends Gear {
   cost;
-  actionFn;
-  /** Each cast's forms, made the first time it is reached. */
-  casts = /* @__PURE__ */ new Map();
   /** Its constant stats, run by the build's echo it is (shared/echoes.ts) so they join that echo's
    *  panel entry; the mainslot itself carries none. */
   echoStatsFn;
@@ -3675,16 +3706,6 @@ var Mainslot = class extends Gear {
     this.echoStatsFn = this.constantStatsFn;
     this.constantStatsFn = void 0;
     this.wire();
-    const action = def2.action;
-    this.actionFn = typeof action === "function" ? action : () => action;
-  }
-  /** The cast the acting resonator makes, in every form. */
-  cast() {
-    const a = this.actionFn();
-    let cast = this.casts.get(a);
-    if (!cast)
-      this.casts.set(a, cast = new EchoCast(a));
-    return cast;
   }
 };
 function refinements(build3) {
@@ -3801,6 +3822,8 @@ var Action = class _Action extends Gear {
   gainFrom;
   gainBy;
   resolveFn;
+  /** `ActionDef.mainslot`, null on every press that is no echo's. */
+  mainslot;
   animFrames;
   /** `ActionDef.animPriority` as [frame, tier] windows, in frame order; empty where it has none. */
   animPriority;
@@ -3930,6 +3953,7 @@ var Action = class _Action extends Gear {
       gainBy.push(by);
     }
     this.resolveFn = def2.resolve;
+    this.mainslot = def2.mainslot ?? null;
     if (typeof def2.timestop === "number" || typeof def2.motionStop === "number")
       throw new Error(`${name}: timestop/motionStop are [start, end) ranges`);
     const [ts0, ts1] = def2.timestop ?? [0, 0], [ms0, ms1] = def2.motionStop ?? [0, 0];
@@ -4025,14 +4049,6 @@ var Action = class _Action extends Gear {
   }
   costNull;
   costDefault;
-  /** Does cutting this echo by `kind` — its dash after included, for a dash cut — free its wearer
-   *  sooner than pressing it whole? Where it doesn't, the echo plays whole and drops the dash. */
-  cutPays(kind) {
-    const c = this.cost(kind);
-    const jump = kind === ActionTag.JumpCancel || kind === ActionTag.InstaJump || kind === ActionTag.JumpOnHit;
-    const dashes = jump || kind === ActionTag.DodgeCancel || kind === ActionTag.InstaDodge || kind === ActionTag.DodgeOnHit;
-    return c.action + c.global + (dashes ? dashFor(jump, this).animFrames : 0) < this.animFrames;
-  }
   /** `cost()` by cut, made once: an action's frames never change once built. */
   costs;
   /** What the clock charges this press let go at animation frame `frame` by a hold cancel. */
@@ -4117,7 +4133,15 @@ var Action = class _Action extends Gear {
    *  whatever held it or nothing. Its press's end where `next` never can — a cut the engine then
    *  refuses (`checkHoldCut()`). */
   letGo(paid, mash = false, next = null) {
-    const at = mash ? this.freeForNext(next, paid, true) + MASH_DELAY : this.freeForNext(next, Math.max(HOLD_DELAY, paid));
+    if (!mash)
+      return Math.min(this.freeForNext(next, Math.max(HOLD_DELAY, paid)), this.animFrames);
+    let at = this.freeForNext(next, paid, true) + MASH_DELAY;
+    while (at < this.animFrames) {
+      const free = this.freeForNext(next, at, true);
+      if (free === at)
+        break;
+      at = free + MASH_DELAY;
+    }
     return Math.min(at, this.animFrames);
   }
   /** `letGo()` of `holdPaid()`: where a hold (or `mash`) cancel of this press lets go. */
@@ -4128,7 +4152,7 @@ var Action = class _Action extends Gear {
    *  marker after a swap form, never the swap form itself. An OFF_FIELD press (a summon, a
    *  coordinated hit) lands beside the fight but moves nobody. */
   get swapOut() {
-    return this.cast === 6 || this === SWAP;
+    return this.cast === 6 || isSwap(this);
   }
   /** The same cast again under `overrides` — every hook and number shared, but a new Action, so
    *  the two are told apart by identity wherever it matters (a Mainslot's off-field copy of its
@@ -4162,6 +4186,27 @@ var Action = class _Action extends Gear {
   /** The same, cut by a jump. */
   jumpCancel() {
     return dashed(this, ActionTag.JumpCancel);
+  }
+  /** This Intro, cut or not, opening the chain played on the resonator's first arrival instead of
+   *  every visit's (`IntroEntry`). */
+  firstIntro() {
+    return markIntro(this, "opener");
+  }
+  /** ...opening the chain played while they stand first in the team (`slotPosition()`). */
+  inFirstSlot() {
+    return markIntro(this, "first");
+  }
+  /** ...opening the chain played while they stand last. */
+  inLastSlot() {
+    return markIntro(this, "last");
+  }
+  /** ...opening the double-Intro pre-visit: a second Intro needed before the real one. */
+  doubleIntro() {
+    return markIntro(this, "double");
+  }
+  /** ...opening the double-Intro pre-visit played on the resonator's first arrival instead. */
+  firstDoubleIntro() {
+    return markIntro(this, "firstDouble");
   }
   /** This cast cancelled the moment it is pressed — its own effects (the hooks, the cast tags) with
    *  none of its hit: no motion value, element, types, scaling, or energy/concerto/off-tune/forte. */
@@ -4399,10 +4444,11 @@ var Action = class _Action extends Gear {
     const marker = new _Action(this.name, {
       // a swap form's tag, so the compiler reads it as leaving the field (`leavesField()`)
       tag,
+      mainslot: this.def.mainslot,
       resolve: () => {
         const a = resolve();
-        if (!a)
-          return null;
+        if (!a || a === SKIP)
+          return a;
         let out = made.get(a);
         if (!out)
           made.set(a, out = swap(a));
@@ -4415,9 +4461,6 @@ var Action = class _Action extends Gear {
   }
 };
 var ActionGroup = class _ActionGroup extends Action {
-  dodgeOnHit() {
-    throw new Error("Method not implemented.");
-  }
   actions;
   /** How many members after the one the folded row reads — a dash group's own trailing dash, so
    *  its row shows the press that was cut. */
@@ -4512,7 +4555,7 @@ var lastPress = () => {
   let a = last && last.member === currentMember().name ? last.action : null;
   while (a && (a.cancelOf ?? a.formOf))
     a = a.cancelOf ?? a.formOf;
-  return a ?? currentMember().resonator?.intro?.() ?? INTRO;
+  return a ?? currentMember().resonator?.intro?.() ?? ANY_INTRO;
 };
 var DODGE = new Action("Dodge Marker", { resolve: () => dashFor(false, lastPress()) });
 var JUMP = new Action("Jump Marker", { resolve: () => dashFor(true, lastPress()) });
@@ -4522,11 +4565,9 @@ var DashMarker = class extends Action {
   constructor(isJump, after, kind) {
     super(isJump ? "Jump Placeholder" : "Dodge Placeholder", {
       resolve: () => {
-        const echo = currentMember().mainslot?.cast();
-        const undashed = kind === ActionTag.InstaDodge && echo?.cancel.tag === ActionTag.InstaCancel;
-        if (after === ECHO && echo && (undashed || !echo.onfield.cutPays(kind)))
-          return null;
-        return dashFor(isJump, after === INTRO ? currentMember().resonator?.intro?.() ?? after : after === ECHO ? echo?.onfield ?? after : after);
+        if (after.mainslot && after.resolveFn() === SKIP)
+          return SKIP;
+        return dashFor(isJump, after instanceof IntroEntry ? resolvedIntro() : after);
       }
     });
     this.after = after;
@@ -4620,68 +4661,131 @@ var START_LAST = new Action("Start of Combat (Last)");
 var START = new Action("Start of Combat");
 var STARTS = [START_FIRST, START_LAST, START];
 var startPosition = (action) => STARTS.indexOf(action);
-var NOINTRO = new Action("No Intro");
+var SWAPIN = new Action("Swap In");
 var INTRO_ENTRY = new Action("Intro");
-var INTRO = new Action("Intro Placeholder", {
+var ANY_INTRO = new Action("Intro", {
   cast: 5,
-  resolve: () => {
-    const intro = currentMember().resonator?.intro?.();
-    if (!intro)
-      throw new Error(`${currentMember().name} casts INTRO but their Resonator declares no intro`);
-    return intro.resolveFn ? intro.resolveFn() : intro;
-  }
+  endPosition: 0
+  /* Position.Grounded */
 });
-var OUTRO = new Action("Outro Placeholder", {
-  cast: 6,
-  resolve: () => {
-    const outro = currentMember().resonator?.outro?.();
-    if (!outro)
-      throw new Error(`${currentMember().name} casts OUTRO but their Resonator declares no outro`);
-    return outro.resolveFn ? outro.resolveFn() : outro;
+function resolvedIntro() {
+  const intro = currentMember().resonator?.intro?.();
+  if (!intro)
+    throw new Error(`${currentMember().name} arrives on an Intro but their Resonator declares no intro`);
+  const out = intro.resolveFn ? intro.resolveFn() : intro;
+  if (!out)
+    throw new Error(`${currentMember().name}: ${intro.name} resolves to no Intro`);
+  return out;
+}
+var INTRO_HELPER = { main: "", opener: ".firstIntro()", first: ".inFirstSlot()", last: ".inLastSlot()", double: ".doubleIntro()", firstDouble: ".firstDoubleIntro()" };
+var IntroEntry = class extends Action {
+  kind;
+  intros;
+  constructor(kind, intros) {
+    super(intros.map((a) => a.name).join(" / "), {
+      cast: 5,
+      resolve: () => {
+        const want = resolvedIntro();
+        if (!intros.includes(want)) {
+          throw new Error(`${currentMember().name} casts ${want.name}, but the chain opens only on ${intros.map((a) => a.name).join(", ")} \u2014 list it there`);
+        }
+        return want;
+      }
+    });
+    this.kind = kind;
+    this.intros = intros;
   }
-});
-var INTRO_FIRST = new Action("Intro (First)");
-var INTRO_LAST = new Action("Intro (Last)");
-var INTROS = [INTRO_FIRST, INTRO_LAST];
-var introPosition = (action) => INTROS.indexOf(action);
+  // a cut on its first hit is its resolved Intro's own, which no marker can make
+  hitCancel() {
+    throw new Error(`${this.name}: an Intro opening a chain can't be cut on hit`);
+  }
+  hitDodge() {
+    throw new Error(`${this.name}: an Intro opening a chain can't be cut on hit`);
+  }
+  jumpOnHit() {
+    throw new Error(`${this.name}: an Intro opening a chain can't be cut on hit`);
+  }
+};
+var DASH_OF = {
+  [ActionTag.DodgeCancel]: (a) => a.dodgeCancel(),
+  [ActionTag.JumpCancel]: (a) => a.jumpCancel(),
+  [ActionTag.InstaDodge]: (a) => a.instaDodge(),
+  [ActionTag.InstaJump]: (a) => a.instaJump()
+};
+var FORM_OF = {
+  [ActionTag.InstaCancel]: (a) => a.instaCancel(),
+  [ActionTag.SwapCancel]: (a) => a.swapCancel(),
+  [ActionTag.InstaSwap]: (a) => a.instaSwap(),
+  [ActionTag.MashSwap]: (a) => a.mashSwap()
+};
+function introForm(a) {
+  const core = (x) => !x ? null : x instanceof IntroEntry ? { kind: x.kind, intros: x.intros } : x.cast === 5 && !x.resolveFn && x.tag === ActionTag.Default ? { kind: "main", intros: [x] } : null;
+  const form = (x, cut, apply) => {
+    const c = core(x);
+    return c && { ...c, cut, apply };
+  };
+  if (a instanceof CancelledStep)
+    return form(a.of, a.kind, (e) => new CancelledStep(e, a.kind));
+  if (a instanceof ActionGroup) {
+    const dash = a.actions[1];
+    if (a.actions.length !== 2 || !(dash instanceof DashMarker) || !DASH_OF[dash.kind])
+      return null;
+    return form(dash.after, dash.kind, DASH_OF[dash.kind]);
+  }
+  const base = a.cancelOf ?? a.formOf;
+  if (base && FORM_OF[a.tag])
+    return form(base, a.tag, FORM_OF[a.tag]);
+  return form(a, "", (e) => e);
+}
+function markIntro(a, kind) {
+  const f = introForm(a);
+  if (!f)
+    throw new Error(`${a.name}${INTRO_HELPER[kind]}: only an Intro opens a chain`);
+  if (f.kind !== "main")
+    throw new Error(`${a.name}${INTRO_HELPER[kind]}: already ${INTRO_HELPER[f.kind]}`);
+  return f.apply(new IntroEntry(kind, f.intros));
+}
+var bareOutro = (a) => a.cast === 6 && !a.resolveFn && !(a instanceof CancelledStep);
+function mergeIntros(written) {
+  const out = [];
+  for (let k = 0; k < written.length; ) {
+    if (bareOutro(written[k]) && written[k + 1] && bareOutro(written[k + 1])) {
+      throw new Error(`rotation: ${written[k].name}, ${written[k + 1].name} \u2014 write only the Outro this chain leaves on`);
+    }
+    const f = introForm(written[k]);
+    if (!f) {
+      out.push(written[k++]);
+      continue;
+    }
+    const run2 = [];
+    const intros = [];
+    for (let g; k < written.length && (g = introForm(written[k])); k++) {
+      run2.push(written[k]);
+      if (g.kind !== f.kind || g.cut !== f.cut)
+        throw new Error(`rotation: ${run2.map((a) => a.name).join(", ")} \u2014 Intros written together are cut alike and open the same chain`);
+      for (const a of g.intros) {
+        if (intros.includes(a))
+          throw new Error(`rotation: ${a.name} written twice in one run of Intros`);
+        intros.push(a);
+      }
+    }
+    out.push(f.apply(new IntroEntry(f.kind, intros)));
+  }
+  return out;
+}
+function entryOf(a) {
+  const first = unstep(a instanceof ActionGroup ? a.actions[0] : a)[0];
+  const x = first.formOf ?? first.cancelOf ?? first;
+  return first instanceof IntroEntry ? first : x instanceof IntroEntry ? x : null;
+}
 function slotPosition(rotations, i) {
   const last = rotations.length - 1;
   if (i === 0)
     return 0;
   if (i !== last)
     return -1;
-  return !rotations[0].doubleIntro || rotations[last].doubleIntro ? 1 : -1;
+  return !rotations[0].doubles.length || rotations[last].doubles.length ? 1 : -1;
 }
-var echoForm = (name, written, pick) => new Action(name, {
-  resolve: () => {
-    const echo = currentMember().mainslot?.cast();
-    if (!echo)
-      throw new Error(`${currentMember().name} casts ${written} but has no Mainslot equipped`);
-    return pick(echo);
-  }
-});
-var ECHO_SWAP_FORM = echoForm("Echo Placeholder (swap)", "ECHO.swap()", (m) => m.outro);
-var ECHO_INSTA_FORM = echoForm("Echo Placeholder (insta dash)", "ECHO.instaDodge()", (m) => m.cancel.tag === ActionTag.InstaCancel || m.onfield.cutPays(ActionTag.InstaDodge) ? m.cancel : m.onfield);
-var ECHO_INSTA_SWAP_FORM = echoForm("Echo Placeholder (insta swap)", "ECHO.instaSwap()", (m) => m.instaOut);
-var EchoMarker = class extends Action {
-  swapCancel() {
-    return ECHO_SWAP_FORM;
-  }
-  instaSwap() {
-    return ECHO_INSTA_SWAP_FORM;
-  }
-  instaDodge() {
-    return new ActionGroup("", [ECHO_INSTA_FORM, new DashMarker(false, this, ActionTag.InstaDodge)], 1);
-  }
-};
-var ECHO = new EchoMarker("Echo Placeholder (on field)", {
-  resolve: () => {
-    const echo = currentMember().mainslot?.cast();
-    if (!echo)
-      throw new Error(`${currentMember().name} casts ECHO but has no Mainslot equipped`);
-    return echo.onfield;
-  }
-});
 var CAST_MARKERS = null;
 var castMarkers = () => CAST_MARKERS ??= /* @__PURE__ */ new Map([[
   DODGE,
@@ -4691,29 +4795,28 @@ var castMarkers = () => CAST_MARKERS ??= /* @__PURE__ */ new Map([[
   JUMP,
   10
   /* Cast.Jump */
-], [
-  INTRO,
-  5
-  /* Cast.Intro */
-], [
-  ECHO,
-  7
-  /* Cast.Echo */
 ]]);
 var DOUBLE_ENTRY = new Action("Double Intro");
-var DOUBLE_INTRO = new Action("Double Intro Marker");
-var INTRO_OPENER = new Action("Intro (Opener)");
-var NOINTRO_OPENER = new Action("No Intro (Opener)");
+var SWAPIN_OPENER = new Action("Swap In (Opener)");
 var SWAP_EXIT = new Action("Swap Exit");
-var SWAP = new Action("Swap", { tag: ActionTag.OffField });
-function chainGates(chain, intro, resolve, bars, cap) {
+var SWAP_GROUNDED = new Action("Swap - Grounded", { tag: ActionTag.OffField });
+var SWAP_MIDAIR = new Action("Swap - Mid-air", { tag: ActionTag.OffField });
+var SWAP = new Action("Swap", {
+  tag: ActionTag.OffField,
+  resolve: () => {
+    const s = ctx.state;
+    return (!s.inStart || s.toOpener) && currentMember().position === 1 ? SWAP_MIDAIR : SWAP_GROUNDED;
+  }
+});
+var isSwap = (a) => a === SWAP || a === SWAP_GROUNDED || a === SWAP_MIDAIR;
+function chainGates(chain, hasIntro, resolve, bars, cap) {
   const presses = [];
   const { members, lastMarker } = chainMembers(chain);
   const seen = [...bars];
   let gated = false;
   for (let n = 0; n < members.length; n++) {
     const m = members[n];
-    if (m === chain.cast && !intro)
+    if (m === chain.cast && !hasIntro)
       break;
     const stepped = m instanceof CancelledStep, marked = stepped ? m.of : m;
     const pressed = marked.resolveFn ? resolve(marked, seen) : marked;
@@ -4780,21 +4883,24 @@ var Rotation = class {
   /** What each start-of-combat section holds, by the team position it is for (START_FIRST/LAST,
    *  then START's for any) — body only, closing cast included. `null` where none is declared. */
   startCombat = [null, null, null];
-  opener = null;
-  intro;
-  /** The DOUBLE_INTRO section: `exit` is SWAP_EXIT for the swap-back form (its last cast's
-   *  `.swap()`, running into the Intro) or its outro for the outro-back form. */
-  doubleIntro = null;
-  /** The DOUBLE_INTRO section's first-arrival form: an INTRO_OPENER written part-way through it
-   *  has the first pre-visit play only the tail after it. */
-  firstDoubleIntro = null;
-  /** The INTRO_OPENER chain, played in place of `intro` on this resonator's first arrival. */
-  firstIntro = null;
-  /** The NOINTRO_OPENER chain, played in place of `opener` on that same first arrival. */
-  firstOpener = null;
-  /** The INTRO_FIRST/LAST chains, each played in place of `intro` while this resonator stands in
-   *  that position (`slotPosition()`). */
-  intros = [null, null];
+  /** The SWAPIN chains, one per press a swap-in may open on (`ResonatorDef.swapIn`/`swapInAir`). */
+  openers = [];
+  /** The every-visit Intro chains. */
+  mains = [];
+  /** The double-Intro pre-visits: each `exit` SWAP_EXIT for the swap-back form (its last cast's
+   *  `.swap()`, running into the Intro) or its outro for the outro-back form, all alike. */
+  doubles = [];
+  /** The pre-visits' first-arrival forms (`.firstDoubleIntro()`), played in place of one on this
+   *  resonator's first arrival. */
+  firstDoubles = [];
+  /** The first-arrival chains (`.firstIntro()`), played in place of an every-visit one on this
+   *  resonator's first arrival. */
+  firstIntros = [];
+  /** The SWAPIN_OPENER chains, played in place of `openers` on that same first arrival. */
+  firstOpeners = [];
+  /** The chains played in place of an every-visit one while this resonator stands first or last
+   *  (`.inFirstSlot()` / `.inLastSlot()`, `slotPosition()`). */
+  slotIntros = [[], []];
   /** What compiling the written list threw: the loadout naming this rotation throws it under its
    *  resonator's name (`Loadout`), which the list itself doesn't know. */
   error = null;
@@ -4805,84 +4911,50 @@ var Rotation = class {
       this.error = e instanceof Error ? e : new Error(String(e));
     }
   }
-  compile(actions) {
-    let phase = "none";
-    const prefix = [], loop = [], dbl = [], first = [], firstPre = [];
-    const loops = [[], []];
+  compile(written) {
     let inStart = [];
     const starts = [null, null, null];
-    const body = () => phase === "opener" ? prefix : phase === "intro" ? loop : phase === "double" ? dbl : phase === "first" ? first : phase === "firstOpener" ? firstPre : phase.startsWith("intro@") ? loops[Number(phase.slice(6))] : null;
-    let shared = false;
-    let sharedDouble = false;
-    let sharedFirst = false;
-    let openerExit = null, introExit = null, doubleExit = null;
-    let firstExit = null, firstOpenerExit = null;
-    let firstFrom = null;
-    const introExits = [null, null];
-    const close = (action) => {
-      if (phase === "opener") {
-        openerExit = action;
-        phase = "none";
-      } else if (phase === "intro") {
-        introExit = action;
-        phase = "none";
-      } else if (phase === "double") {
-        doubleExit = action;
-        phase = "none";
-      } else if (phase === "first") {
-        firstExit = action;
-        phase = "none";
-      } else if (phase === "firstOpener") {
-        firstOpenerExit = action;
-        phase = "none";
-      } else if (phase.startsWith("intro@")) {
-        introExits[Number(phase.slice(6))] = action;
-        phase = "none";
-      } else
-        throw new Error(`rotation: ${action.name} closes a chain that was never opened`);
+    const built = [];
+    let open = null;
+    const begin = (kind) => {
+      const b = { kind, body: [], exit: null, into: null };
+      built.push(b);
+      open = b;
+      return b;
     };
-    const cuts = /* @__PURE__ */ new Map();
-    let castFor = null;
+    const close = (exit) => {
+      if (!open)
+        throw new Error(`rotation: ${exit.name} closes a chain that was never opened`);
+      open.exit = exit;
+      open = null;
+    };
     const leftOnSwap = () => {
-      const into = body();
-      return !!into && !inStart.length && into.length > 0 && leavesField(into[into.length - 1]);
+      const b = open;
+      return !!b && !inStart.length && b.body.length > 0 && leavesField(b.body[b.body.length - 1]);
     };
-    const entries = [...actions];
+    const entries = mergeIntros(written);
+    checkEchoRuns(entries);
     while (entries.length) {
-      const written = entries.shift();
-      const [bare, step] = unstep(written);
-      if (written === SWAP && !inStart.length) {
+      const action = entries.shift();
+      const [bare, step] = unstep(action);
+      const entry = entryOf(action);
+      const now = open;
+      if (action === SWAP && !inStart.length) {
         if (entries[0] && isOutro(unstep(entries[0])[0]))
-          throw new Error("rotation: SWAP right before OUTRO \u2014 the Outro is the swap: write one or the other");
-        if (phase === "none" || !body()?.length)
+          throw new Error("rotation: SWAP right before an Outro \u2014 the Outro is the swap: write one or the other");
+        if (!now || !now.body.length)
           throw new Error("rotation: SWAP with no press before it in its chain");
         close(SWAP_EXIT);
         continue;
       }
-      if (step && (bare === INTRO_OPENER || bare === DOUBLE_INTRO || introPosition(bare) >= 0)) {
-        entries.unshift(bare, new CancelledStep(INTRO, step.kind));
-        continue;
-      }
-      const action = written;
-      if (isIntro(written) && introOf(written) !== INTRO)
-        throw new Error(`rotation: write INTRO, not ${introOf(written).name}`);
-      if (isOutro(bare) && bare !== OUTRO)
-        throw new Error(`rotation: write OUTRO, not ${bare.name}`);
-      if (castFor) {
-        const own = !isIntro(written);
-        cuts.set(castFor, own ? INTRO : written);
-        castFor = null;
-        if (!own)
-          continue;
-      }
-      if (step && (isOutro(bare) || bare === NOINTRO || startPosition(bare) >= 0)) {
+      if (step && (isOutro(bare) || bare === SWAPIN || bare === SWAPIN_OPENER || startPosition(bare) >= 0)) {
         throw new Error(`rotation: ${bare.name} can't be cut short`);
       }
       if (startPosition(action) >= 0) {
         const at = startPosition(action);
         if (starts[at])
           throw new Error(`rotation: only one ${action.name} section`);
-        if (phase !== "none")
+        if (now)
           throw new Error(`rotation: ${action.name} opens its section inside a chain; it goes ahead of them`);
         starts[at] = [];
         inStart.push(at);
@@ -4892,123 +4964,111 @@ var Rotation = class {
         }
         for (const at of inStart)
           starts[at].push(action);
-        if (leavesField(action))
+        if (leavesField(action) && !besideEcho(action, entries[0]))
           inStart = [];
       } else if (opensChain(action) && leftOnSwap()) {
         close(SWAP_EXIT);
-        entries.unshift(written);
-      } else if (action === NOINTRO) {
-        if (openerExit || prefix.length || shared || sharedDouble)
-          throw new Error("rotation: only one NOINTRO chain");
-        if (phase !== "none")
-          throw new Error("rotation: NOINTRO opens a chain while one is still open");
-        phase = "opener";
-      } else if (action === DOUBLE_INTRO) {
-        if (doubleExit || dbl.length)
-          throw new Error("rotation: only one DOUBLE_INTRO section");
-        castFor = "double";
-        if (phase === "opener")
-          sharedDouble = true;
-        else if (phase !== "none")
-          throw new Error("rotation: DOUBLE_INTRO opens a chain while one is still open");
-        phase = "double";
-      } else if (action === INTRO_OPENER && (phase === "intro" || phase === "double")) {
-        if (firstExit || first.length || firstFrom)
-          throw new Error("rotation: only one INTRO_OPENER chain");
-        firstFrom = { phase, at: body().length };
-      } else if (action === INTRO_OPENER) {
-        if (firstExit || first.length || firstFrom)
-          throw new Error("rotation: only one INTRO_OPENER chain");
-        castFor = "first";
-        if (phase === "firstOpener")
-          sharedFirst = true;
-        else if (phase !== "none")
-          throw new Error("rotation: INTRO_OPENER opens a chain while one is still open");
-        phase = "first";
-      } else if (action === NOINTRO_OPENER) {
-        if (firstOpenerExit || firstPre.length || sharedFirst)
-          throw new Error("rotation: only one NOINTRO_OPENER chain");
-        if (phase !== "none")
-          throw new Error("rotation: NOINTRO_OPENER opens a chain while one is still open");
-        phase = "firstOpener";
-      } else if (introPosition(action) >= 0) {
-        const n = introPosition(action);
-        castFor = `intro@${n}`;
-        if (introExits[n] || loops[n].length)
-          throw new Error(`rotation: only one ${action.name} chain`);
-        if (phase !== "none")
+        entries.unshift(action);
+      } else if (action === SWAPIN || action === SWAPIN_OPENER) {
+        const kind = action === SWAPIN ? "noIntro" : "noIntroOpener";
+        if (now)
           throw new Error(`rotation: ${action.name} opens a chain while one is still open`);
-        phase = `intro@${n}`;
-      } else if (isIntro(action)) {
-        if (phase === "intro" || phase === "first") {
-          body().push(written);
+        begin(kind);
+      } else if (entry) {
+        const kind = entry.kind, pre2 = kind === "double" || kind === "firstDouble";
+        if (now && (now.kind === "intro" || now.kind === "preVisit")) {
+          if (now.kind === "preVisit" !== pre2) {
+            throw new Error(pre2 ? `rotation: ${entry.name}${INTRO_HELPER[kind]} opens a pre-visit inside an every-visit chain` : "rotation: a double-Intro pre-visit runs into the Intro without leaving on a cast's .swap()");
+          }
+          now.body.push(action);
           continue;
         }
-        if (phase.startsWith("intro@")) {
-          loops[Number(phase.slice(6))].push(written);
-          continue;
-        }
-        if (introExit)
-          throw new Error("rotation: only one Intro chain");
-        cuts.set("intro", written);
-        if (phase === "opener")
-          shared = true;
-        if (phase === "double")
-          throw new Error("rotation: a DOUBLE_INTRO section runs into the Intro without leaving on a cast's .swap()");
-        phase = "intro";
+        const walks = now && (now.kind === "noIntro" && (kind === "main" || kind === "double") || now.kind === "noIntroOpener" && kind === "opener");
+        if (now && !walks)
+          throw new Error(`rotation: ${entry.name}${INTRO_HELPER[kind]} opens a chain while one is still open`);
+        const b = begin(pre2 ? "preVisit" : "intro");
+        b.body.push(action);
+        if (now)
+          now.into = b;
       } else if (isOutro(action)) {
         close(action);
       } else {
-        const into = body();
-        if (!into)
+        if (!now)
           throw new Error(`rotation: ${action.name} sits outside any action chain`);
-        into.push(action);
+        now.body.push(action);
       }
     }
     if (inStart.length)
       throw new Error(`rotation: the ${inStart.map((at) => STARTS[at].name).join(" / ")} section is never closed by a cast's .swap()`);
-    if (phase !== "none" && leftOnSwap())
+    if (open && leftOnSwap())
       close(SWAP_EXIT);
-    if (phase !== "none")
+    if (open)
       throw new Error("rotation: a chain is left open with neither an outro nor a .swap() to close it");
-    const stand = introExits.findIndex(Boolean);
-    if (!introExit && stand < 0)
-      throw new Error("rotation: every rotation needs an Intro chain closed by an outro");
-    if (!introExit) {
-      introExit = introExits[stand];
-      loop.push(...loops[stand]);
-    }
     this.startCombat = starts.map((cast) => cast && cast.length ? cast : null);
-    if (sharedDouble) {
-      if (!doubleExit || doubleExit === SWAP_EXIT)
-        throw new Error("rotation: a NOINTRO chain shared with a DOUBLE_INTRO section needs that section closed by an outro, not run into the Intro");
-      this.opener = { entry: NOINTRO, body: [...prefix, ...dbl], exit: doubleExit };
-    } else if (openerExit || shared) {
-      this.opener = { entry: NOINTRO, body: shared ? [...prefix, ...loop] : prefix, exit: openerExit ?? introExit };
-    } else if (prefix.length) {
-      throw new Error("rotation: the NOINTRO chain is closed by neither an outro nor an Intro");
+    const tail = (b, k) => b.body.slice(k + 1).filter((a) => !entryOf(a));
+    for (const b of built) {
+      if (b.kind !== "intro" && b.kind !== "preVisit")
+        continue;
+      b.body.forEach((cast, k) => {
+        const at = entryOf(cast);
+        if (!at)
+          return;
+        const chain = { entry: b.kind === "preVisit" ? DOUBLE_ENTRY : INTRO_ENTRY, cast, intros: at.intros, body: tail(b, k), exit: b.exit };
+        const into = { main: this.mains, opener: this.firstIntros, first: this.slotIntros[0], last: this.slotIntros[1], double: this.doubles, firstDouble: this.firstDoubles }[at.kind];
+        into.push(chain);
+      });
     }
-    if (doubleExit)
-      this.doubleIntro = { entry: DOUBLE_ENTRY, cast: cuts.get("double"), body: dbl, exit: doubleExit };
-    if (firstFrom?.phase === "double" && this.doubleIntro)
-      this.firstDoubleIntro = { ...this.doubleIntro, body: dbl.slice(firstFrom.at) };
-    if (firstExit)
-      this.firstIntro = { entry: INTRO_ENTRY, cast: cuts.get("first"), body: first, exit: firstExit };
-    if (firstOpenerExit || sharedFirst) {
-      this.firstOpener = { entry: NOINTRO, body: sharedFirst ? [...firstPre, ...first] : firstPre, exit: firstOpenerExit ?? firstExit };
-    } else if (firstPre.length) {
-      throw new Error("rotation: the NOINTRO_OPENER chain is closed by neither an outro nor an INTRO_OPENER");
+    if (!this.mains.length)
+      this.mains = [...this.slotIntros.find((c) => c.length) ?? []];
+    if (!this.mains.length)
+      throw new Error("rotation: every rotation needs an Intro chain closed by an outro");
+    if (this.firstDoubles.length && !this.doubles.length)
+      throw new Error("rotation: a .firstDoubleIntro() pre-visit stands in for a .doubleIntro() one, and there is none");
+    const pre = [...this.doubles, ...this.firstDoubles];
+    if (pre.some((c) => c.exit === SWAP_EXIT !== (pre[0].exit === SWAP_EXIT))) {
+      throw new Error("rotation: every double-Intro pre-visit leaves the same way \u2014 all on a cast's .swap(), or all on an outro");
     }
-    this.intro = { entry: INTRO_ENTRY, cast: cuts.get("intro") ?? cuts.get(`intro@${stand}`), body: loop, exit: introExit };
-    if (firstFrom?.phase === "intro")
-      this.firstIntro = { ...this.intro, body: loop.slice(firstFrom.at) };
-    for (const n of [0, 1]) {
-      const exit = introExits[n];
-      if (exit)
-        this.intros[n] = { entry: INTRO_ENTRY, cast: cuts.get(`intro@${n}`), body: loops[n], exit };
+    for (const [what, chains] of [
+      ["Intro", this.mains],
+      ["first-arrival", this.firstIntros],
+      ["first-slot", this.slotIntros[0]],
+      ["last-slot", this.slotIntros[1]],
+      ["double-Intro", this.doubles],
+      ["first double-Intro", this.firstDoubles]
+    ]) {
+      const seen = /* @__PURE__ */ new Set();
+      for (const c of chains) {
+        for (const a of c.intros) {
+          if (seen.has(a))
+            throw new Error(`rotation: two ${what} chains both open on ${a.name}`);
+          seen.add(a);
+        }
+      }
+    }
+    for (const b of built) {
+      if (b.kind !== "noIntro" && b.kind !== "noIntroOpener")
+        continue;
+      const into = b.into;
+      if (into?.kind === "preVisit" && (!into.exit || into.exit === SWAP_EXIT)) {
+        throw new Error("rotation: a SWAPIN chain shared with a double-Intro pre-visit needs that pre-visit closed by an outro, not run into the Intro");
+      }
+      const body = into ? [...b.body, ...tail(into, 0)] : b.body;
+      if (!body.length)
+        throw new Error("rotation: a SWAPIN chain with no press to open on");
+      const chain = { entry: SWAPIN, swapIn: pressOf(body[0]), body, exit: b.exit ?? into.exit };
+      const list = b.kind === "noIntro" ? this.openers : this.firstOpeners;
+      if (list.some((c) => c.swapIn === chain.swapIn))
+        throw new Error(`rotation: two ${b.kind === "noIntro" ? "SWAPIN" : "SWAPIN_OPENER"} chains both open on ${chain.swapIn.name}`);
+      list.push(chain);
     }
   }
 };
+function pressOf(a) {
+  let x = unstep(a instanceof ActionGroup ? a.actions[0] : a)[0];
+  while (x.cancelOf ?? x.formOf)
+    x = x.cancelOf ?? x.formOf;
+  return x;
+}
 function introOf(a) {
   const first = a instanceof ActionGroup ? a.actions[0] : a;
   const bare = unstep(first)[0];
@@ -5016,17 +5076,50 @@ function introOf(a) {
 }
 var isIntro = (a) => introOf(a).cast === 5;
 var isOutro = (a) => a.cast === 6;
-var opensChain = (a) => isIntro(a) || [NOINTRO, NOINTRO_OPENER, INTRO_OPENER, DOUBLE_INTRO, ...INTROS].includes(a);
+var opensChain = (a) => isIntro(a) || [SWAPIN, SWAPIN_OPENER].includes(a);
 var unstep = (a) => a instanceof CancelledStep ? [a.of, a] : [a, null];
 function leavesField(a) {
   const last = a instanceof ActionGroup ? a.actions[a.actions.length - 1] : a;
-  if (last === SWAP || last === ECHO_SWAP_FORM || last === ECHO_INSTA_SWAP_FORM)
+  if (last === SWAP)
     return true;
   return (last.tag === ActionTag.SwapCancel || last.tag === ActionTag.InstaSwap || last.tag === ActionTag.MashSwap) && (last.formOf ?? last.cancelOf) !== null;
 }
+function echoOf(a) {
+  const first = a instanceof ActionGroup ? a.actions[0] : a;
+  return unstep(first)[0].mainslot;
+}
+function besideEcho(a, b) {
+  const own = echoOf(a), other = b ? echoOf(b) : null;
+  return own !== null && other !== null && own !== other;
+}
+function trailingRun(list) {
+  let k = list.length - 1;
+  while (k > 0 && echoOf(list[k]) && echoOf(list[k - 1]))
+    k--;
+  return k;
+}
+function checkEchoRuns(list) {
+  let lead = null;
+  for (let k = 0; k < list.length; k++) {
+    const a = list[k], next = list[k + 1], own = echoOf(a);
+    if (!own) {
+      lead = null;
+      continue;
+    }
+    if (next && echoOf(next) === own)
+      continue;
+    if (lead && leavesField(lead) !== leavesField(a)) {
+      throw new Error(`rotation: ${lead.name} and ${a.name} stand in for each other, but only one of them swaps out \u2014 write both as swap forms, or neither`);
+    }
+    lead ??= a;
+  }
+}
 function checkSwapOuts(who, list) {
   list.forEach((a, k) => {
-    const next = list[k + 1];
+    let n = k + 1;
+    while (besideEcho(a, list[n]))
+      n++;
+    const next = list[n];
     const inner = a instanceof ActionGroup && a.actions.slice(0, -1).some(leavesField);
     if (!inner && !(leavesField(a) && next && !isOutro(next)))
       return;
@@ -5036,26 +5129,29 @@ function checkSwapOuts(who, list) {
 function staysOnField(a) {
   if (a instanceof ActionGroup)
     return new ActionGroup(a.name, [...a.actions.slice(0, -1), staysOnField(a.actions[a.actions.length - 1])]);
-  return a === ECHO_SWAP_FORM || a === ECHO_INSTA_SWAP_FORM ? ECHO : a.formOf ?? a.cancelOf ?? a;
+  return a.formOf ?? a.cancelOf ?? a;
 }
 function teamPlayable(rotations, names) {
-  const openerChain = (i) => rotations[i].opener ?? rotations[i].firstOpener;
+  const openerChain = (i) => rotations[i].openers[0] ?? rotations[i].firstOpeners[0] ?? null;
   if (!openerChain(0))
-    return `${names[0]} leads the team but declares no NOINTRO chain`;
+    return `${names[0]} leads the team but declares no SWAPIN chain`;
   for (let i = 0; i < rotations.length; i++) {
     const r = rotations[i], nxt = (i + 1) % rotations.length;
-    if ([r.intros[slotPosition(rotations, i)] ?? r.intro, r.firstIntro, r.firstOpener, openerChain(i)].some((c) => c?.exit === SWAP_EXIT) && !openerChain(nxt)) {
-      return `${names[nxt]} follows ${names[i]}'s swap-out but declares no NOINTRO chain`;
+    const at = slotPosition(rotations, i);
+    const visits = [...at >= 0 ? r.slotIntros[at] : [], ...r.mains, ...r.firstIntros, ...r.firstOpeners, ...r.openers];
+    if (visits.some((c) => c?.exit === SWAP_EXIT) && !openerChain(nxt)) {
+      return `${names[nxt]} follows ${names[i]}'s swap-out but declares no SWAPIN chain`;
     }
-    const d = r.doubleIntro;
+    const d = r.doubles[0];
     if (!d)
       continue;
     const prev = (i + rotations.length - 1) % rotations.length;
     if (d.exit === SWAP_EXIT && !openerChain(prev))
-      return `${names[prev]} plays during ${names[i]}'s double Intro but declares no NOINTRO chain`;
-    if (d.exit === SWAP_EXIT && rotations[0].doubleIntro)
+      return `${names[prev]} plays during ${names[i]}'s double Intro but declares no SWAPIN chain`;
+    if (d.exit === SWAP_EXIT && rotations[0].doubles.length)
       return `${names[i]}: a swap-form double Intro can't play in a team whose leader has a double Intro`;
-    if (d.exit !== SWAP_EXIT && i === 1 && !rotations[0].doubleIntro && !(rotations[2]?.doubleIntro && rotations[2].doubleIntro.exit !== SWAP_EXIT)) {
+    const third = rotations[2]?.doubles[0];
+    if (d.exit !== SWAP_EXIT && i === 1 && !rotations[0].doubles.length && !(third && third.exit !== SWAP_EXIT)) {
       return `${names[i]}'s double Intro has nobody to hand back to: ${names[0]} has already played, and ${names[2]} declares no double Intro to pair with`;
     }
   }
@@ -5075,13 +5171,69 @@ function runRotations(state, rotations, count) {
   if (why)
     throw new Error(why);
   const visited = /* @__PURE__ */ new Set();
+  const arrivingSwapIn = (i) => {
+    const slot = state.slots[i], from = state.lastActor;
+    let at = from !== i && state.real - slot.endsAt >= DESPAWN_TIME ? null : slot.position;
+    if (at === null)
+      at = (from >= 0 && !state.inStart ? state.slots[from].position : null) ?? 0;
+    const pick = at === 1 && !state.inStart ? slot.resonator?.swapInAir : slot.resonator?.swapIn;
+    if (!pick)
+      return null;
+    const was = ctx.slot;
+    ctx.state = state;
+    ctx.slot = slot;
+    try {
+      const want = resolving(pick);
+      return pressOf(want.resolveFn ? resolving(want.resolveFn) ?? want : want);
+    } finally {
+      ctx.slot = was;
+    }
+  };
   const openerChain = (i) => {
     const r = rotations[i];
-    return !visited.has(i) && r.firstOpener ? r.firstOpener : r.opener ?? r.firstOpener;
+    const lists = [!visited.has(i) ? r.firstOpeners : [], r.openers.length ? r.openers : r.firstOpeners];
+    if (!lists.some((l) => l.length))
+      return null;
+    const want = arrivingSwapIn(i);
+    for (const list of lists)
+      for (const c of list)
+        if (c.swapIn === want)
+          return c;
+    const only = lists.find((l) => l.length);
+    if (only.length === 1)
+      return only[0];
+    const listed = [...new Set(lists.flat().map((c) => c.swapIn.name))];
+    throw new Error(`${state.slots[i].name} swaps in on ${want?.name ?? "nothing"}, but their rotation has no SWAPIN chain opening on it (only ${listed.join(", ")}) \u2014 write one`);
+  };
+  const arrivingIntro = (i, pending) => {
+    const was = ctx.slot, wasPending = ctx.handoffPending;
+    ctx.state = state;
+    ctx.slot = state.slots[i];
+    ctx.handoffPending = pending;
+    try {
+      return resolving(resolvedIntro);
+    } finally {
+      ctx.slot = was;
+      ctx.handoffPending = wasPending;
+    }
+  };
+  const chainFor = (i, pending, lists) => {
+    const intro = arrivingIntro(i, pending);
+    for (const list of lists)
+      for (const c of list)
+        if (c.intros.includes(intro))
+          return c;
+    const only = lists.find((l) => l.length);
+    if (only?.length === 1)
+      return only[0];
+    const listed = [...new Set(lists.flat().flatMap((c) => c.intros.map((a) => a.name)))];
+    throw new Error(`${state.slots[i].name} arrives on ${intro.name}, but their rotation has no chain opening on it here (only ${listed.join(", ")}) \u2014 list it`);
   };
   const doubleChain = (i) => {
     const r = rotations[i];
-    return !visited.has(i) && r.firstDoubleIntro || r.doubleIntro || void 0;
+    if (!r.doubles.length)
+      return void 0;
+    return chainFor(i, false, [!visited.has(i) ? r.firstDoubles : [], r.doubles]);
   };
   const last = state.slots.length - 1;
   let closer = last;
@@ -5190,10 +5342,9 @@ function runRotations(state, rotations, count) {
     }
     out[section].push(...snaps);
   };
-  const introChain = (i) => {
-    const r = rotations[i];
-    const main = r.intros[slotPosition(rotations, i)] ?? r.intro;
-    return !visited.has(i) && r.firstIntro ? r.firstIntro : main;
+  const introChain = (i, pending = false) => {
+    const r = rotations[i], at = slotPosition(rotations, i);
+    return chainFor(i, pending, [!visited.has(i) ? r.firstIntros : [], at >= 0 ? r.slotIntros[at] : [], r.mains]);
   };
   let swapped2 = false;
   const arrival = (i) => {
@@ -5202,11 +5353,11 @@ function runRotations(state, rotations, count) {
     swapped2 = false;
     const c = openerChain(i);
     if (!c)
-      throw new Error(`${state.slots[i].name} is swapped into but declares no NOINTRO chain`);
+      throw new Error(`${state.slots[i].name} is swapped into but declares no SWAPIN chain`);
     return c;
   };
   const planned = (to, swap, visit2 = null) => {
-    const chain = visit2 ?? (swap ? openerChain(to) : introChain(to));
+    const chain = visit2 ?? (swap ? openerChain(to) : introChain(to, true));
     if (!chain)
       return null;
     const into = state.slots[to];
@@ -5230,11 +5381,11 @@ function runRotations(state, rotations, count) {
         ctx.handoffPending = false;
       }
     };
-    return chainGates(chain, into.resonator?.intro ? INTRO : null, resolve, [into.energy, into.concerto, ...into.forte], into.resonator?.caps ?? NO_CAPS);
+    return chainGates(chain, !!into.resonator?.intro, resolve, [into.energy, into.concerto, ...into.forte], into.resonator?.caps ?? NO_CAPS);
   };
   state.plannedGates = (to, visit2) => planned(to, false, visit2);
   state.handoffWaits = true;
-  if (rotations.some((r) => r.doubleIntro)) {
+  if (rotations.some((r) => r.doubles.length)) {
     const key = rotationsKey(rotations);
     let known = SUCCESSORS.get(key);
     if (!known)
@@ -5359,16 +5510,19 @@ function runRotations(state, rotations, count) {
     const i = starters[k];
     const next = starters[k + 1] ?? 0;
     state.active = i;
+    state.toOpener = k === starters.length - 1;
     const opening = startOf(i);
     const last2 = opening[opening.length - 1];
     checkSwapOuts(state.slots[i].name, opening);
     const stays = next === i && leavesField(last2);
-    const kept = last2 === SWAP ? [] : [staysOnField(last2)];
-    const chain = stays ? [...opening.slice(0, -1), ...kept] : leavesField(last2) && last2 !== SWAP ? [...opening, SWAP] : opening;
+    const tail = trailingRun(opening);
+    const kept = last2 === SWAP ? [] : opening.slice(tail).map(staysOnField);
+    const chain = stays ? [...opening.slice(0, tail), ...kept] : leavesField(last2) && last2 !== SWAP ? [...opening, SWAP] : opening;
     out[section].push(...run(state, chain));
     state.active = next;
   }
   state.inStart = false;
+  state.toOpener = false;
   const opener = openerChain(0);
   runChain(0, opener);
   let handedBack = null;
@@ -5384,7 +5538,7 @@ function runRotations(state, rotations, count) {
       mained.clear();
     }
     let giver = from ?? (i + rotations.length - 1) % rotations.length;
-    const preVisitDue = (at) => !mained.has(at) && !doubled2.has(at) && !!rotations[at].doubleIntro && rotations[at].doubleIntro.exit !== SWAP_EXIT;
+    const preVisitDue = (at) => !mained.has(at) && !doubled2.has(at) && !!rotations[at].doubles.length && rotations[at].doubles[0].exit !== SWAP_EXIT;
     const paired = !!mained.size && preVisitDue(i) && preVisitDue(nxt);
     const d = mained.size && !mained.has(nxt) && !paired ? doubleChain(nxt) : void 0;
     if (d && !doubled2.has(nxt)) {
@@ -5435,8 +5589,8 @@ function runRotations(state, rotations, count) {
     if (pendingAt >= 0)
       opensAt = pendingOpens;
   }
-  if (rotations[0].doubleIntro) {
-    closer = rotations.reduce((at, r, i) => r.doubleIntro ? i : at, 0);
+  if (rotations[0].doubles.length) {
+    closer = rotations.reduce((at, r, i) => r.doubles.length ? i : at, 0);
     let first = true, trips = 0;
     while (going()) {
       if (++trips > 1e3)
@@ -5445,7 +5599,7 @@ function runRotations(state, rotations, count) {
         runChain(i, doubleChain(i) ?? arrival(i));
       first = false;
       for (let i = 0; i < rotations.length && going(); i++) {
-        if (rotations[i].doubleIntro)
+        if (rotations[i].doubles.length)
           runChain(i, arrival(i));
       }
     }
@@ -5623,6 +5777,7 @@ function evaluate(state, action, triggered = false, source = null, cut = null) {
   const slot = state.slot;
   ctx.state = state;
   ctx.slot = slot;
+  ctx.rowSlot = slot;
   ctx.act = action;
   const half = action.half;
   const castSide = half === null || half === "cast", hitSide = (half === null || half === "hit") && action.bullets.length > 0;
@@ -5637,7 +5792,7 @@ function evaluate(state, action, triggered = false, source = null, cut = null) {
   const castUnmet = castSide && (action.castMin || action.castMax) ? action.castUnmet(barsOf(slot)) : null;
   const buffUnmet = castSide ? action.buffsUnmet(state, slot) : null;
   const buffForbidden = castSide ? action.buffsForbidden(state, slot) : null;
-  if ((castUnmet || buffUnmet || buffForbidden) && !triggered)
+  if ((castUnmet || buffUnmet || buffForbidden) && (!triggered || action.cast === 6))
     warnUnmet(state, slot, action, castUnmet, buffUnmet, buffForbidden);
   const buffSources = ctx.tracing && castSide && (action.requireBuffs || action.forbidBuffs) ? buffSourcesOf(state, slot, action) : null;
   const realStart = state.real;
@@ -5657,7 +5812,7 @@ function evaluate(state, action, triggered = false, source = null, cut = null) {
   ctx.overrideSubtype = null;
   ctx.droppedCast = null;
   ctx.actionStamp++;
-  state.expireBuffs();
+  state.expireBuffs(state.frame, action.half !== "hit");
   const frameStart = state.frame;
   if (ctx.tracing)
     slot.effective = statRow();
@@ -5665,11 +5820,25 @@ function evaluate(state, action, triggered = false, source = null, cut = null) {
     slot.effective.set(ZERO_STATS);
   ctx.wrote = 0;
   const forteBefore = ctx.tracing ? [...slot.forte] : EMPTY_FORTE;
-  const energyBefore = slot.shownEr >= 0 ? slot.shownEnergy : slot.energy, concertoBefore = slot.concerto, offtuneBefore = state.offtune;
+  let energyBefore = slot.shownEr >= 0 ? slot.shownEnergy : slot.energy, concertoBefore = slot.concerto;
+  const offtuneBefore = state.offtune;
   if (ctx.tracing) {
     slot.entries = [];
     slot.totals = /* @__PURE__ */ new Map();
   }
+  const ownPress = !triggered || action.cast === 6;
+  const carried = ctx.tracing && ownPress && action.half !== "hit" && action.cast !== 8 && slot.background.length ? slot.background.splice(0) : null;
+  const lag = ctx.tracing && (carried ?? slot.background).length ? [0, 0, 0, 0, 0, 0, 0] : null;
+  if (lag) {
+    for (const c of carried ?? slot.background)
+      for (let i = 0; i < 7; i++)
+        lag[i] = lag[i] + c.gains[i];
+    energyBefore -= lag[0];
+    concertoBefore -= lag[1];
+    for (let i = 0; i < 5; i++)
+      forteBefore[i] = forteBefore[i] - lag[2 + i];
+  }
+  const behind = lag && !carried ? lag : null;
   if (castSide && casting(
     5
     /* Cast.Intro */
@@ -5830,9 +5999,12 @@ function evaluate(state, action, triggered = false, source = null, cut = null) {
     for (const other of state.slots) {
       if (other === slot)
         continue;
+      const was = other.shownEr >= 0 ? other.shownEnergy : other.energy;
       other.energy = bank(other.energy, baseEnergy / 2 * other.constEr / 100, other.resonator?.maxEnergy ?? 0);
       if (other.shownEr >= 0)
         other.shownEnergy = bank(other.shownEnergy, baseEnergy / 2 * other.shownEr / 100, other.resonator?.maxEnergy ?? 0);
+      if (ctx.tracing)
+        noteBackground(other, [(other.shownEr >= 0 ? other.shownEnergy : other.energy) - was, 0, 0, 0, 0, 0, 0], action.name, slot.name, "shared");
       other.erA += baseEnergy / 2;
       other.erGot[slot.index] = (other.erGot[slot.index] ?? 0) + baseEnergy / 2;
     }
@@ -5949,13 +6121,13 @@ function evaluate(state, action, triggered = false, source = null, cut = null) {
     enemyRes: enemyRes(),
     enemyDef: enemyDef(),
     entries: slot.entries,
-    adds: ctx.adds,
-    forte: [...slot.forte],
+    adds: carried ? [...carried, ...ctx.adds] : ctx.adds,
+    forte: behind ? slot.forte.map((v, i) => v - behind[2 + i]) : [...slot.forte],
     forteBefore,
     maxForte: slot.resonator?.maxForte ?? EMPTY_FORTE,
     forteScale: slot.resonator?.forteScale ?? UNIT_FORTE,
-    energy: slot.shownEr >= 0 ? slot.shownEnergy : slot.energy,
-    concerto: slot.concerto,
+    energy: (slot.shownEr >= 0 ? slot.shownEnergy : slot.energy) - (behind?.[0] ?? 0),
+    concerto: slot.concerto - (behind?.[1] ?? 0),
     offtune: state.offtune,
     energyBefore,
     concertoBefore,
@@ -5986,6 +6158,7 @@ function evaluate(state, action, triggered = false, source = null, cut = null) {
     state.active = (state.active + state.outroDir + n) % n;
   }
   ctx.hit = null;
+  ctx.rowSlot = null;
   return snapshot ?? result;
 }
 function dryVariants(slot, action, pre, post2, replay2, applyMoved) {
@@ -6195,7 +6368,7 @@ function closePress(state, action, triggered, cut) {
   ctx.overrideSubtype = null;
   ctx.droppedCast = null;
   ctx.actionStamp++;
-  state.expireBuffs();
+  state.expireBuffs(state.frame, false);
   capture(slot, state);
   ctx.mutHash = 0;
   actionHook(action.afterActionFn, 5);
@@ -6223,6 +6396,30 @@ var StepQueue = class {
   unshift(steps) {
     for (let k = steps.length - 1; k >= 0; k--)
       this.front.push(steps[k]);
+  }
+  /** The next step to play, past the echoes written for mainslots `state`'s acting member doesn't
+   *  wear (and the rest of their groups) — the press that really comes next. */
+  ahead(state) {
+    let skipping = null;
+    for (const step of this.upcoming()) {
+      if (skipping && step.group === skipping)
+        continue;
+      skipping = null;
+      if (step.queued || step.slot >= 0 || !step.action.mainslot)
+        return step;
+      ctx.state = state;
+      ctx.slot = state.slot;
+      if (resolving(step.action.resolveFn) !== SKIP)
+        return step;
+      skipping = step.group;
+    }
+    return void 0;
+  }
+  *upcoming() {
+    for (let k = this.front.length - 1; k >= 0; k--)
+      yield this.front[k];
+    for (let k = this.at; k < this.list.length; k++)
+      yield this.list[k];
   }
   /** The steps the rotation wrote still to come, past anything queued in front of them. */
   *written() {
@@ -6343,18 +6540,16 @@ function run(state, rotation, flush = false, until = Infinity) {
       /* Cast.Outro */
     ) && outroWaits(state, steps, step))
       continue;
-    if (step.slot < 0 && action === SWAP)
+    if (step.slot < 0 && isSwap(action))
       state.swapPaid = true;
     if (step.slot < 0 && action.cooldown && cooldownWaits(state, steps, step, action, action.cooldown))
       continue;
     if (pendingQueue.length)
       pendingQueue.length = 0;
-    const ms = step.cut ? state.slot.mainslot?.cast() : void 0;
-    const uncut = !!ms && action === ms.onfield && !action.cutPays(step.cut);
     const by = step.by;
     const triggered = action.tag === ActionTag.OffField || action.cast === 6 || by !== null;
-    const dash = step.action.after !== void 0 && dashOutranked(steps, action);
-    let cut = uncut ? null : dash ? ActionTag.InstaCancel : step.cut;
+    const dash = step.action.after !== void 0 && dashOutranked(state, steps, action);
+    let cut = dash ? ActionTag.InstaCancel : step.cut;
     const pressed = action;
     if (cut && !dash)
       [action, cut] = action.cutAs(cut);
@@ -6362,7 +6557,7 @@ function run(state, rotation, flush = false, until = Infinity) {
     const checked = !dash && action.half === null;
     if (checked && LENGTH_CHECKED.has(kind))
       checkCutLength(pressed.cancelOf ?? pressed, kind);
-    const slow = checked && !step.action.resolveFn && SLOW_CUTS.has(kind), cutAt = !slow ? 0 : action.cutFrame;
+    const slow = checked && (!step.action.resolveFn || !!step.action.mainslot) && SLOW_CUTS.has(kind), cutAt = !slow ? 0 : action.cutFrame;
     if (slow && cutAt <= INSTA_DELAY) {
       throw new Error(`${action.name}: cuts at frame ${cutAt}, inside an insta cut's ${INSTA_DELAY} \u2014 write it as ${INSTA_OF[kind]} instead of ${kind}`);
     }
@@ -6376,12 +6571,12 @@ function run(state, rotation, flush = false, until = Infinity) {
     if (step.slot < 0 && !step.queued && PRIORITY_CUTS.has(kind)) {
       ctx.state = state;
       ctx.slot = state.slot;
-      const ahead2 = steps.peek();
+      const ahead2 = steps.ahead(state);
       const after = !ahead2 || ahead2.queued || ahead2.slot >= 0 ? null : ahead2.action.resolveFn ? resolving(ahead2.action.resolveFn) : ahead2.action;
       checkPriority(action, cut, after);
     }
     if (step.slot < 0 && !step.queued && checked)
-      checkSwap(state, action, kind, steps.peek());
+      checkSwap(state, action, kind, steps.ahead(state));
     const whole = action;
     const splits = whole.splitsHit(cut);
     const castAt = step.at ?? state.real, away = splits && whole.hitsAway(cut);
@@ -6409,7 +6604,7 @@ function run(state, rotation, flush = false, until = Infinity) {
     ctx.pressFrames = step.frames ?? 0;
     ctx.pressStart = step.into?.realStarts ?? state.real;
     if (cut === ActionTag.HoldCancel || cut === ActionTag.MashCancel) {
-      const after = steps.peek()?.action ?? ctx.holdBeyond;
+      const after = steps.ahead(state)?.action ?? ctx.holdBeyond;
       ctx.holdNext = after?.resolveFn ? resolving(after.resolveFn) : after;
     }
     ctx.hitsLeft = step.into?.pending ?? 1;
@@ -6417,7 +6612,7 @@ function run(state, rotation, flush = false, until = Infinity) {
     if (step.into?.pending)
       step.into.pending--;
     ctx.hitsLeft = 1;
-    if (action === SWAP)
+    if (isSwap(action))
       state.onField = -1;
     ctx.holdNext = null;
     if (state.holdWatch?.result === null)
@@ -6441,6 +6636,9 @@ function run(state, rotation, flush = false, until = Infinity) {
       shiftOffField(state, ctx.offFieldShift, Math.max(now, ctx.offFieldFrom));
     if (split)
       splitEnd = queueEnd(state, whole, split, castAt, cut, kind, away, triggered, step.holdShift ?? 0);
+    const stander = mover ?? breaker ?? state.slot;
+    if (ctx.tracing)
+      result.position = stander !== mover && state.real - stander.endsAt >= DESPAWN_TIME ? null : stander.position;
     if (breaker && pressed.endPosition !== null)
       breaker.position = pressed.endPosition;
     if (mover) {
@@ -6450,7 +6648,7 @@ function run(state, rotation, flush = false, until = Infinity) {
       const short = kind !== ActionTag.Default && ctx.actReal <= INSTA_DELAY && pressed.cast !== 10;
       if (pressed.endPosition !== null && !short)
         mover.position = pressed.endPosition;
-      mover.endsAt = splitEnd ? splitEnd.due : castAt + ctx.actReal;
+      mover.endsAt = castAt + (SWAP_FORMS.has(kind) ? whole.animFrames : ctx.actReal) + (step.holdShift ?? 0);
     }
     if (step.at !== void 0) {
       state.setReal(Math.max(now, state.real));
@@ -6633,7 +6831,7 @@ function outroWaits(state, steps, step) {
   const into = to >= 0 ? state.slots[to].resonator : null;
   ctx.state = state;
   ctx.slot = state.slot;
-  const hold = into?.holdFn && into.intro ? into.holdFn(INTRO) : null;
+  const hold = into?.holdFn && into.intro ? into.holdFn(ANY_INTRO) : null;
   const castAt = Math.max(state.real, state.playsTo) + (state.swapPaid ? 0 : SWAP_DELAY), gameAt = state.gameOf(castAt);
   const bank2 = state.frozenAhead(castAt);
   const gated = to >= 0 && !step.waited;
@@ -6667,8 +6865,8 @@ function cooldownWaits(state, steps, step, action, cd) {
   state.slot.spendCooldown(cd, state.frame, action.cooldownFrames || void 0);
   return false;
 }
-function dashOutranked(steps, dash) {
-  const ahead = steps.peek();
+function dashOutranked(state, steps, dash) {
+  const ahead = steps.ahead(state);
   const next = !ahead || ahead.queued || ahead.slot >= 0 ? null : ahead.action.resolveFn ? resolving(ahead.action.resolveFn) : ahead.action;
   const c = dash.cost(ActionTag.InstaCancel);
   return !!next && next !== SKIP && next.cutIn !== null && next.cutIn > dash.priorityAt(c.action + c.global);
@@ -6915,7 +7113,8 @@ var CAST_KEEPS = /* @__PURE__ */ new Set([
   "gain",
   "adds",
   "seq",
-  "gaugeLog"
+  "gaugeLog",
+  "position"
 ]);
 var hitDamage = (hit) => {
   const f = damageFactors(hit);
@@ -7043,7 +7242,7 @@ function walk(state, steps, spillGroup) {
     ctx.slot = state.slot;
     state.runTicks(gameFrom, state.gameOf(to), stop, thaw);
     state.setReal(to);
-    state.expireBuffs();
+    state.expireBuffs(state.frame, false);
     settleHold(state);
     if (pendingQueue.length)
       takeQueued(steps, spillGroup, void 0);
@@ -7143,6 +7342,37 @@ function erWindow(slot, a, buffed, flat) {
   }
   closeErWindow(slot, a, b, flat);
 }
+function bankLoose(state, slot, gain) {
+  const cap = slot.resonator?.caps ?? NO_CAPS;
+  const bars = () => [slot.shownEr >= 0 ? slot.shownEnergy : slot.energy, slot.concerto, ...slot.forte];
+  const was = ctx.tracing ? bars() : null;
+  const energy = gain.energy ?? 0;
+  if (energy) {
+    slot.energy = bank(slot.energy, energy, cap[0]);
+    if (slot.shownEr >= 0)
+      slot.shownEnergy = bank(slot.shownEnergy, energy, cap[0]);
+    erWindow(slot, 0, 0, energy);
+  }
+  if (gain.concerto)
+    slot.concerto = bank(slot.concerto, gain.concerto, cap[1]);
+  const forte = [gain.forte1, gain.forte2, gain.forte3, gain.forte4, gain.forte5];
+  for (let i = 0; i < 5; i++) {
+    if (forte[i])
+      slot.forte[i] = bank(slot.forte[i], forte[i], cap[2 + i]);
+  }
+  if (gain.directOfftune)
+    state.offtune = bank(state.offtune, gain.directOfftune, state.enemy.resonator?.maxOfftune ?? 0);
+  if (!was)
+    return;
+  const moved2 = bars().map((v, i) => v - was[i]);
+  if (slot !== ctx.rowSlot)
+    noteBackground(slot, moved2);
+  else if (moved2.some((v) => v !== 0)) {
+    const by = ctx.buff;
+    ctx.adds.push({ source: by?.toString() ?? "", owner: (by && state.sourceOf.get(by)) ?? slot.name, gains: [...moved2, 0, 0], onCast: false });
+  }
+}
+ctx.bankLoose = bankLoose;
 function closeErWindow(slot, a, b, flat) {
   const w = slot.erWindows;
   w.push(slot.erA, slot.erB, a, b);
@@ -9132,7 +9362,7 @@ var UNISON = new Buff({
   }
 });
 var unisonOutro = (outro) => {
-  const out = outro.variant(`${outro.name} (Unison)`, { castConcerto: 0, minConcerto: void 0 });
+  const out = outro.variant(`${outro.name} (Unison)`, { castConcerto: 0, minConcerto: void 0, requireBuff: UNISON });
   out.formOf = outro;
   return out;
 };
@@ -10189,73 +10419,104 @@ var RADIANT_DAWN = refinements((r, rank) => {
 });
 
 // dist/src/echoes/echo.js
-var TransformEcho = class extends Action {
+var EchoAction = class extends Action {
+  /** The press itself, as its wearer makes it — what hooks and queues name. */
+  press;
   constructor(name, def2) {
-    super(name, { cast: 7, animFrames: 60, animPriority: { 0: 13 }, castPriority: 5, ...def2 });
+    const press = new Action(name, def2);
+    const { mainslot } = def2;
+    super(name, { cast: 7, mainslot, resolve: () => currentMember().mainslot === mainslot ? press : SKIP });
+    this.press = press;
   }
 };
-var PseudoTransformEcho = class extends Action {
+var TransformEcho = class extends EchoAction {
   constructor(name, def2) {
-    super(name, { cast: 7, animFrames: 8, castPriority: 5, ...def2 });
+    const bullets = def2.bullets?.map((b) => ({ ...b, commitFrame: Math.max(0, (b.commitFrame ?? b.hitFrame) - 14) }));
+    super(name, { cast: 7, animFrames: 60, animPriority: { 0: 13 }, castPriority: 5, ...def2, bullets });
   }
 };
-var SummonEcho = class extends Action {
+var PseudoTransformEcho = class extends EchoAction {
   constructor(name, def2) {
-    super(name, { cast: 7, animFrames: 8, castPriority: 12, keepsChain: true, ...def2 });
+    super(name, { cast: 7, animFrames: 8, animPriority: { 0: 4 }, castPriority: 5, ...def2 });
+  }
+};
+var SummonEcho = class extends EchoAction {
+  constructor(name, def2) {
+    super(name, { cast: 7, animFrames: 8, animPriority: { 0: 0 }, castPriority: 10, keepsChain: true, ...def2 });
   }
 };
 
 // dist/src/echoes/jinzhou.js
-var ACTION_BELL_BORNE = new PseudoTransformEcho("Echo - Bell-Borne Geochelone", {
-  cooldown: 60 * 20,
-  animFrames: 16,
-  element: 256,
-  scaling: 2,
-  type: 28672,
-  bullets: [{ hitFrame: 5, mv: 14592, energy: 455 }],
-  updateBuffs: () => applyTeam(BELL_BORNE_SHIELD)
-});
 var BELL_BORNE_GEOCHELONE = new Mainslot({
   id: 390080005,
   name: "Bell-Borne Geochelone",
-  cost: 4,
-  action: ACTION_BELL_BORNE
+  cost: 4
+});
+var ACTION_BELL_BORNE = new PseudoTransformEcho("Echo - Bell-Borne Geochelone", {
+  mainslot: BELL_BORNE_GEOCHELONE,
+  castPosition: 0,
+  endPosition: 0,
+  cooldown: 60 * 20,
+  animFrames: 32,
+  element: 256,
+  scaling: 2,
+  type: 28672,
+  bullets: [{ hitFrame: 21, commitFrame: 0, mv: 14592, energy: 455 }],
+  updateBuffs: () => applyTeam(BELL_BORNE_SHIELD)
 });
 var BELL_BORNE_SHIELD = new Buff({
   name: "Bell-Borne Geochelone: Bell-Borne Shield",
   duration: 60 * 15,
   stats: [[18, 10]]
 });
+var HERON = new Mainslot({
+  id: 6000052,
+  name: "Impermanence Heron",
+  cost: 4
+});
 var ACTION_HERON = new TransformEcho("Echo - Impermanence Heron", {
+  mainslot: HERON,
+  castPosition: 0,
+  endPosition: 0,
+  animFrames: 120,
   // 4.85 off the hit itself, plus the flat 10 its own skill text hands back ("the current
   // character regains 10 Resonance Energy" once the smack-down lands)
-  bullets: [{ hitFrame: 46, mv: 31056, energy: 485, updateDebuffs: () => addGain({ energy: 1e3 }) }],
+  bullets: [{ hitFrame: 76, mv: 31056, energy: 485, updateDebuffs: () => addGain({ energy: 1e3 }) }],
   cooldown: 60 * 20,
   element: 384,
   scaling: 0,
   type: 28672,
   updateBuffs: () => queueOutro(HERON_HANDOFF)
 });
-var HERON = new Mainslot({
-  id: 6000052,
-  name: "Impermanence Heron",
-  cost: 4,
-  action: ACTION_HERON
-});
 var HERON_HANDOFF = handoff("Impermanence Heron: Outro", () => addStat(18, 12));
-var ACTION_STONEWALL_BRACER = new TransformEcho("Echo - Stonewall Bracer", {
-  bullets: [{ hitFrame: 46, mv: 28160, energy: 440 }],
-  cooldown: 60 * 15,
-  element: 448,
-  scaling: 0,
-  type: 28672,
-  updateDebuffs: () => gainShield()
-});
 var STONEWALL_BRACER = new Mainslot({
   id: 390077021,
   name: "Stonewall Bracer",
-  cost: 3,
-  action: ACTION_STONEWALL_BRACER
+  cost: 3
+});
+var ACTION_STONEWALL_BRACER_1 = new TransformEcho("Echo - Stonewall Bracer 1", {
+  mainslot: STONEWALL_BRACER,
+  castPosition: 0,
+  endPosition: 0,
+  animFrames: 54,
+  // the smash
+  cooldown: 60 * 15,
+  bullets: [{ hitFrame: 32, mv: 16896, energy: 264 }],
+  element: 448,
+  scaling: 0,
+  type: 28672
+});
+var ACTION_STONEWALL_BRACER_2 = new TransformEcho("Echo - Stonewall Bracer 2", {
+  mainslot: STONEWALL_BRACER,
+  castPosition: 0,
+  endPosition: 0,
+  animFrames: 0,
+  chains: [ACTION_STONEWALL_BRACER_1.press],
+  // the charge and the shield: wuwalab gives it no frames of its own
+  bullets: [{ hitFrame: 0, mv: 11264, energy: 176, updateDebuffs: () => gainShield() }],
+  element: 448,
+  scaling: 0,
+  type: 28672
 });
 var MOONLIT_CLOUDS_2PC = new Sonata2pc({ id: 8, name: "Moonlit Clouds 2pc", echoes: [HERON, BELL_BORNE_GEOCHELONE, STONEWALL_BRACER], stats: [[11, 10]] });
 var MOONLIT_CLOUDS_5PC = new Sonata({
@@ -10311,18 +10572,10 @@ var MOLTEN_RIFT_BUFF = new Buff({
     /* Attribute.Fusion */
   ]]
 });
-var ACTION_NM_INFERNO_RIDER = new TransformEcho("Echo - Nightmare: Inferno Rider", {
-  bullets: [{ hitFrame: 46, mv: 40500, energy: 562 }],
-  cooldown: 60 * 25,
-  element: 192,
-  scaling: 0,
-  type: 28672
-});
 var NM_INFERNO_RIDER = new Mainslot({
   id: 6000091,
   name: "Nightmare: Inferno Rider",
   cost: 4,
-  action: ACTION_NM_INFERNO_RIDER,
   stats: [[
     18,
     12,
@@ -10335,10 +10588,50 @@ var NM_INFERNO_RIDER = new Mainslot({
     /* Type.Skill */
   ]]
 });
-var ACTION_INFERNO_RIDER = new TransformEcho("Echo - Inferno Rider", {
-  bullets: [{ hitFrame: 46, mv: 24240 + 28280 * 2, energy: 378 + 441 * 2 }],
+var ACTION_NM_INFERNO_RIDER = new TransformEcho("Echo - Nightmare: Inferno Rider", {
+  mainslot: NM_INFERNO_RIDER,
+  endPosition: 0,
+  animFrames: 119,
+  bullets: [{ hitFrame: 64, mv: 40500, energy: 562 }],
+  cooldown: 60 * 25,
+  element: 192,
+  scaling: 0,
+  type: 28672
+});
+var INFERNO_RIDER = new Mainslot({
+  id: 390080007,
+  name: "Inferno Rider",
+  cost: 4
+});
+var ACTION_INFERNO_RIDER_1 = new TransformEcho("Echo - Inferno Rider 1", {
+  mainslot: INFERNO_RIDER,
+  castPosition: 0,
+  endPosition: 0,
+  animFrames: 20,
   cooldown: 60 * 20,
-  // the three slashes of the chain, 242.40% / 282.80% / 282.80%
+  bullets: [{ hitFrame: 15, mv: 24240, energy: 378 }],
+  element: 192,
+  scaling: 0,
+  type: 28672
+});
+var ACTION_INFERNO_RIDER_2 = new TransformEcho("Echo - Inferno Rider 2", {
+  mainslot: INFERNO_RIDER,
+  castPosition: 0,
+  endPosition: 0,
+  animFrames: 39,
+  chains: [ACTION_INFERNO_RIDER_1.press],
+  bullets: [{ hitFrame: 24, mv: 28280, energy: 441 }],
+  element: 192,
+  scaling: 0,
+  type: 28672
+});
+var ACTION_INFERNO_RIDER_3 = new TransformEcho("Echo - Inferno Rider 3", {
+  mainslot: INFERNO_RIDER,
+  castPosition: 0,
+  endPosition: 0,
+  animFrames: 116,
+  chains: [ACTION_INFERNO_RIDER_2.press],
+  bullets: [{ hitFrame: 59, mv: 28280, energy: 441 }],
   element: 192,
   scaling: 0,
   type: 28672,
@@ -10359,41 +10652,35 @@ var INFERNO_RIDER_WINDOW = new Buff({
     /* Type.Basic */
   ]]
 });
-var INFERNO_RIDER = new Mainslot({
-  id: 390080007,
-  name: "Inferno Rider",
-  cost: 4,
-  action: ACTION_INFERNO_RIDER
-});
-var ACTION_DREAMLESS = new TransformEcho("Echo - Dreamless", {
-  cooldown: 60 * 20,
-  element: 384,
-  scaling: 0,
-  type: 28672,
-  // 54.08%*5+270.40%
-  bullets: [...Array.from({ length: 5 }, () => ({ hitFrame: 60, mv: 5408, energy: 84 })), { hitFrame: 60, mv: 27040, energy: 422 }],
-  updateBuffs: () => {
-    throw new Error("Dreamless: not implemented");
-  }
-});
+var DREAMLESS_ABYSS = new Buff({ name: "Dreamless (Deadening Abyss)", duration: 60 * 5 });
 var DREAMLESS = new Mainslot({
   id: 6000053,
   name: "Dreamless",
   cost: 4,
-  action: ACTION_DREAMLESS
+  grants: [{ on: both(onCast(
+    4
+    /* Cast.Liberation */
+  ), () => currentMember().resonator?.name === "Havoc Rover"), buff: DREAMLESS_ABYSS }]
 });
-var ACTION_NM_CROWNLESS = new TransformEcho("Echo - Nightmare: Crownless", {
-  bullets: [{ hitFrame: 46, mv: 26460, energy: 367 }],
-  cooldown: new Cooldown({ frames: 60 * 12, charges: 3 }),
+var ACTION_DREAMLESS = new TransformEcho("Echo - Dreamless", {
+  mainslot: DREAMLESS,
+  endPosition: 0,
+  cooldown: 60 * 20,
+  animFrames: 143,
   element: 384,
   scaling: 0,
-  type: 28672
+  type: 28672,
+  // 54.08%*5+270.40%
+  bullets: [...[31, 39, 48, 54, 62].map((f) => ({ hitFrame: f, mv: 5408, energy: 84 })), { hitFrame: 129, mv: 27040, energy: 422 }],
+  applyStats: () => {
+    if (isHeld(DREAMLESS_ABYSS))
+      addStat(20, 50);
+  }
 });
 var NM_CROWNLESS = new Mainslot({
   id: 6000090,
   name: "Nightmare: Crownless",
   cost: 4,
-  action: ACTION_NM_CROWNLESS,
   stats: [[
     18,
     12,
@@ -10406,13 +10693,66 @@ var NM_CROWNLESS = new Mainslot({
     /* Type.Basic */
   ]]
 });
-var ACTION_CROWNLESS = new TransformEcho("Echo - Crownless", {
-  bullets: [{ hitFrame: 46, mv: 13408, energy: 209 }],
+var ACTION_NM_CROWNLESS = new TransformEcho("Echo - Nightmare: Crownless", {
+  mainslot: NM_CROWNLESS,
+  endPosition: 0,
+  animFrames: 41,
+  // wuwalab's commit is 0 already, so the transform's - 14 leaves it there
+  bullets: [{ hitFrame: 11, commitFrame: 0, mv: 26460, energy: 367 }],
+  cooldown: new Cooldown({ frames: 60 * 12, charges: 3 }),
+  element: 384,
+  scaling: 0,
+  type: 28672
+});
+var CROWNLESS = new Mainslot({
+  id: 6000042,
+  name: "Crownless",
+  cost: 4
+});
+var ACTION_CROWNLESS_1 = new TransformEcho("Echo - Crownless 1", {
+  mainslot: CROWNLESS,
+  castPosition: 0,
+  endPosition: 0,
+  animFrames: 35,
   cooldown: 60 * 20,
+  bullets: [{ hitFrame: 10, mv: 13408, energy: 209 }],
   element: 384,
   scaling: 0,
   type: 28672,
   updateBuffs: () => applyCurrent(CROWNLESS_WINDOW, 1)
+});
+var ACTION_CROWNLESS_2 = new TransformEcho("Echo - Crownless 2", {
+  mainslot: CROWNLESS,
+  castPosition: 0,
+  endPosition: 0,
+  animFrames: 37,
+  chains: [ACTION_CROWNLESS_1.press],
+  bullets: [{ hitFrame: 21, mv: 13408, energy: 209 }],
+  element: 384,
+  scaling: 0,
+  type: 28672
+});
+var ACTION_CROWNLESS_3 = new TransformEcho("Echo - Crownless 3", {
+  mainslot: CROWNLESS,
+  castPosition: 0,
+  endPosition: 0,
+  animFrames: 30,
+  chains: [ACTION_CROWNLESS_2.press],
+  bullets: [{ hitFrame: 8, mv: 10056, energy: 157 }, { hitFrame: 20, mv: 10056, energy: 157 }],
+  element: 384,
+  scaling: 0,
+  type: 28672
+});
+var ACTION_CROWNLESS_4 = new TransformEcho("Echo - Crownless 4", {
+  mainslot: CROWNLESS,
+  castPosition: 0,
+  endPosition: 0,
+  animFrames: 112,
+  chains: [ACTION_CROWNLESS_3.press],
+  bullets: [42, 49, 73].map((f) => ({ hitFrame: f, mv: 6704, energy: 104 })),
+  element: 384,
+  scaling: 0,
+  type: 28672
 });
 var CROWNLESS_WINDOW = new Buff({
   name: "Crownless",
@@ -10428,12 +10768,6 @@ var CROWNLESS_WINDOW = new Buff({
     12288
     /* Type.Skill */
   ]]
-});
-var CROWNLESS = new Mainslot({
-  id: 6000042,
-  name: "Crownless",
-  cost: 4,
-  action: ACTION_CROWNLESS
 });
 var HAVOC_ECLIPSE_2PC = new Sonata2pc({ id: 6, name: "Havoc Eclipse 2pc", echoes: [CROWNLESS, DREAMLESS, NM_CROWNLESS], stats: [[
   18,
@@ -10463,14 +10797,49 @@ var HAVOC_ECLIPSE_STACKS = new Buff({
   ]],
   perStack: true
 });
-var ACTION_LAMPYLUMEN_MYRIAD = new TransformEcho("Echo - Lampylumen Myriad", {
-  bullets: [{ hitFrame: 46, mv: 66720, energy: 312 * 2 + 417 }],
+var LAMPYLUMEN_MYRIAD = new Mainslot({
+  id: 6000044,
+  name: "Lampylumen Myriad",
+  cost: 4
+});
+var ACTION_LAMPYLUMEN_MYRIAD_1 = new TransformEcho("Echo - Lampylumen Myriad 1", {
+  mainslot: LAMPYLUMEN_MYRIAD,
+  castPosition: 0,
+  endPosition: 0,
+  animFrames: 40,
   cooldown: 60 * 20,
+  bullets: [{ hitFrame: 32, mv: 20016, energy: 312 }],
   element: 256,
   scaling: 0,
   type: 28672,
-  // 200.16%+200.16%+266.88%
-  updateDebuffs: () => applyCurrent(LAMPYLUMEN_MYRIAD_STACKS, 3)
+  // a stack a shock
+  updateDebuffs: () => applyCurrent(LAMPYLUMEN_MYRIAD_STACKS, 1)
+});
+var ACTION_LAMPYLUMEN_MYRIAD_2 = new TransformEcho("Echo - Lampylumen Myriad 2", {
+  mainslot: LAMPYLUMEN_MYRIAD,
+  castPosition: 0,
+  endPosition: 0,
+  animFrames: 54,
+  chains: [ACTION_LAMPYLUMEN_MYRIAD_1.press],
+  bullets: [{ hitFrame: 46, mv: 20016, energy: 312 }],
+  element: 256,
+  scaling: 0,
+  type: 28672,
+  // a stack a shock
+  updateDebuffs: () => applyCurrent(LAMPYLUMEN_MYRIAD_STACKS, 1)
+});
+var ACTION_LAMPYLUMEN_MYRIAD_3 = new TransformEcho("Echo - Lampylumen Myriad 3", {
+  mainslot: LAMPYLUMEN_MYRIAD,
+  castPosition: 0,
+  endPosition: 0,
+  animFrames: 92,
+  chains: [ACTION_LAMPYLUMEN_MYRIAD_2.press],
+  bullets: [{ hitFrame: 48, mv: 26688, energy: 417 }],
+  element: 256,
+  scaling: 0,
+  type: 28672,
+  // a stack a shock
+  updateDebuffs: () => applyCurrent(LAMPYLUMEN_MYRIAD_STACKS, 1)
 });
 var LAMPYLUMEN_MYRIAD_STACKS = new Buff({
   name: "Lampylumen Myriad",
@@ -10488,12 +10857,6 @@ var LAMPYLUMEN_MYRIAD_STACKS = new Buff({
     /* Type.Skill */
   ]],
   perStack: true
-});
-var LAMPYLUMEN_MYRIAD = new Mainslot({
-  id: 6000044,
-  name: "Lampylumen Myriad",
-  cost: 4,
-  action: ACTION_LAMPYLUMEN_MYRIAD
 });
 var FREEZING_FROST_2PC = new Sonata2pc({ id: 1, name: "Freezing Frost 2pc", echoes: [LAMPYLUMEN_MYRIAD], stats: [[
   18,
@@ -10523,19 +10886,10 @@ var FREEZING_FROST_STACKS = new Buff({
   ]],
   perStack: true
 });
-var ACTION_NM_FEILIAN_BERINGAL = new SummonEcho("Echo - Nightmare: Feilian Beringal", {
-  cooldown: 60 * 20,
-  element: 64,
-  scaling: 0,
-  type: 28672,
-  bullets: [{ hitFrame: 0, mv: 27356, energy: 228 + 30 * 5 }]
-  // 164.16%+21.88%x5
-});
 var NM_FEILIAN_BERINGAL = new Mainslot({
   id: 6000086,
   name: "Nightmare: Feilian Beringal",
   cost: 4,
-  action: ACTION_NM_FEILIAN_BERINGAL,
   stats: [[
     18,
     12,
@@ -10548,17 +10902,42 @@ var NM_FEILIAN_BERINGAL = new Mainslot({
     /* Type.Heavy */
   ]]
 });
-var ACTION_FEILIAN_BERINGAL = new TransformEcho("Echo - Feilian Beringal", {
+var ACTION_NM_FEILIAN_BERINGAL = new SummonEcho("Echo - Nightmare: Feilian Beringal", {
+  mainslot: NM_FEILIAN_BERINGAL,
   cooldown: 60 * 20,
   element: 64,
   scaling: 0,
   type: 28672,
-  // 231.84%+283.36%
-  bullets: [{ hitFrame: 60, mv: 23184, energy: 362 }, { hitFrame: 60, mv: 28336, energy: 442 }],
-  afterHit: () => {
-    if (lastHit())
-      applyCurrent(FEILIAN_BERINGAL_WINDOW, 1);
-  }
+  // 164.16%+21.88%x5
+  bullets: [{ hitFrame: 75, commitFrame: 0, mv: 16416, energy: 228 }, ...[96, 126, 156, 186, 216].map((f) => ({ hitFrame: f, commitFrame: 0, mv: 2188, energy: 30 }))]
+});
+var FEILIAN_BERINGAL = new Mainslot({
+  id: 6000043,
+  name: "Feilian Beringal",
+  cost: 4
+});
+var ACTION_FEILIAN_BERINGAL_1 = new TransformEcho("Echo - Feilian Beringal 1", {
+  mainslot: FEILIAN_BERINGAL,
+  castPosition: 0,
+  endPosition: 0,
+  animFrames: 24,
+  cooldown: 60 * 20,
+  bullets: [{ hitFrame: 24, mv: 23184, energy: 362 }],
+  element: 64,
+  scaling: 0,
+  type: 28672
+});
+var ACTION_FEILIAN_BERINGAL_2 = new TransformEcho("Echo - Feilian Beringal 2", {
+  mainslot: FEILIAN_BERINGAL,
+  castPosition: 0,
+  endPosition: 0,
+  animFrames: 144,
+  chains: [ACTION_FEILIAN_BERINGAL_1.press],
+  bullets: [{ hitFrame: 84, mv: 28336, energy: 442 }],
+  element: 64,
+  scaling: 0,
+  type: 28672,
+  afterHit: () => applyCurrent(FEILIAN_BERINGAL_WINDOW, 1)
 });
 var FEILIAN_BERINGAL_WINDOW = new Buff({
   name: "Feilian Beringal",
@@ -10574,12 +10953,6 @@ var FEILIAN_BERINGAL_WINDOW = new Buff({
     8192
     /* Type.Heavy */
   ]]
-});
-var FEILIAN_BERINGAL = new Mainslot({
-  id: 6000043,
-  name: "Feilian Beringal",
-  cost: 4,
-  action: ACTION_FEILIAN_BERINGAL
 });
 var SIERRA_GALE_2PC = new Sonata2pc({ id: 4, name: "Sierra Gale 2pc", echoes: [FEILIAN_BERINGAL, NM_FEILIAN_BERINGAL], stats: [[
   18,
@@ -10606,13 +10979,24 @@ var SIERRA_GALE_INTRO = new Buff({
     /* Attribute.Aero */
   ]]
 });
+var JUE = new Mainslot({
+  id: 6000059,
+  name: "Ju\xE9",
+  cost: 4
+});
 var ACTION_JUE = new SummonEcho("Echo - Ju\xE9", {
+  mainslot: JUE,
   cooldown: 60 * 20,
   // the soar, five thunderbolts, then the two hits of the spiral down: three 48.64% hits, not two
   element: 320,
   scaling: 0,
   type: 28672,
-  bullets: [{ hitFrame: 0, mv: 4864 * 3 + 1946 * 5, energy: 76 * 3 + 30 * 5 }],
+  bullets: [
+    { hitFrame: 19, commitFrame: 0, mv: 4864, energy: 76 },
+    ...[71, 82, 92, 104, 115].map((f) => ({ hitFrame: f, commitFrame: 0, mv: 1946, energy: 30 })),
+    { hitFrame: 157, commitFrame: 0, mv: 4864, energy: 76 },
+    { hitFrame: 183, commitFrame: 0, mv: 4864, energy: 76 }
+  ],
   updateBuffs: () => {
     applyCurrent(JUE_BLESSING, 1);
     cancelHits(JUE_TICKS);
@@ -10636,19 +11020,22 @@ var JUE_BLESSING = new Buff({
     /* Type.Skill */
   ]]
 });
-var JUE = new Mainslot({
-  id: 6000059,
-  name: "Ju\xE9",
-  cost: 4,
-  action: ACTION_JUE
+var MOURNING_AIX = new Mainslot({
+  id: 6000045,
+  name: "Mourning Aix",
+  cost: 4
 });
 var ACTION_MOURNING_AIX = new TransformEcho("Echo - Mourning Aix", {
+  mainslot: MOURNING_AIX,
+  castPosition: 0,
+  endPosition: 0,
   cooldown: 60 * 20,
+  animFrames: 102,
   element: 320,
   scaling: 0,
   type: 28672,
   // 157.44%+236.16%
-  bullets: [{ hitFrame: 60, mv: 15744, energy: 246 }, { hitFrame: 60, mv: 23616, energy: 369 }],
+  bullets: [{ hitFrame: 23, mv: 15744, energy: 246 }, { hitFrame: 68, mv: 23616, energy: 369 }],
   updateBuffs: () => applyCurrent(MOURNING_AIX_WINDOW, 1)
 });
 var MOURNING_AIX_WINDOW = new Buff({
@@ -10665,12 +11052,6 @@ var MOURNING_AIX_WINDOW = new Buff({
     16384
     /* Type.Liberation */
   ]]
-});
-var MOURNING_AIX = new Mainslot({
-  id: 6000045,
-  name: "Mourning Aix",
-  cost: 4,
-  action: ACTION_MOURNING_AIX
 });
 var CELESTIAL_LIGHT_2PC = new Sonata2pc({ id: 5, name: "Celestial Light 2pc", echoes: [MOURNING_AIX, JUE], stats: [[
   18,
@@ -10697,9 +11078,17 @@ var CELESTIAL_LIGHT_INTRO = new Buff({
     /* Attribute.Spectro */
   ]]
 });
-var ACTION_MECH_ABOMINATION = new SummonEcho("Echo - Mech Abomination", {
-  animFrames: 60,
-  bullets: [{ hitFrame: 46, mv: 4864, energy: 76 }],
+var MECH_ABOMINATION = new Mainslot({
+  id: 6000048,
+  name: "Mech Abomination",
+  cost: 4
+});
+var ACTION_MECH_ABOMINATION = new PseudoTransformEcho("Echo - Mech Abomination", {
+  mainslot: MECH_ABOMINATION,
+  castPosition: 0,
+  endPosition: 0,
+  animFrames: 32,
+  bullets: [{ hitFrame: 0, mv: 4864, energy: 76 }],
   cooldown: 60 * 20,
   element: 128,
   scaling: 0,
@@ -10715,18 +11104,12 @@ var ACTION_MECH_WASTE = new Action("Echo - Mech Abomination: Mech Waste", {
   element: 128,
   scaling: 0,
   type: 24576,
-  bullets: [{ hitFrame: 0, mv: 48e3, energy: 152 }]
+  bullets: [{ hitFrame: 53, mv: 32e3, energy: 152 }, { hitFrame: 121, mv: 16e3 }]
 });
 var MECH_ABOMINATION_ATK = new Buff({
   name: "Mech Abomination",
   duration: 60 * 15,
   stats: [[6, 12]]
-});
-var MECH_ABOMINATION = new Mainslot({
-  id: 6000048,
-  name: "Mech Abomination",
-  cost: 4,
-  action: ACTION_MECH_ABOMINATION
 });
 var LINGERING_TUNES_2PC = new Sonata2pc({ id: 9, name: "Lingering Tunes 2pc", echoes: [MECH_ABOMINATION], stats: [[6, 10]] });
 var LINGERING_TUNES_5PC = new Sonata({
@@ -10755,17 +11138,77 @@ var LINGERING_TUNES_STACKS = new Buff({
   updateBuffs: () => lostOnSwap(),
   display: () => `Lingering Tunes x${frozenStacks()}`
 });
-var ACTION_THUNDERING_MEPHIS = new TransformEcho("Echo - Thundering Mephis", {
+var THUNDERING_MEPHIS = new Mainslot({
+  id: 390080003,
+  name: "Thundering Mephis",
+  cost: 4
+});
+var ACTION_THUNDERING_MEPHIS_1 = new TransformEcho("Echo - Thundering Mephis 1", {
+  mainslot: THUNDERING_MEPHIS,
+  castPosition: 0,
+  endPosition: 0,
+  animFrames: 29,
   cooldown: 60 * 20,
+  bullets: [{ hitFrame: 6, mv: 13261, energy: 207 }],
+  element: 128,
+  scaling: 0,
+  type: 28672
+});
+var ACTION_THUNDERING_MEPHIS_2 = new TransformEcho("Echo - Thundering Mephis 2", {
+  mainslot: THUNDERING_MEPHIS,
+  castPosition: 0,
+  endPosition: 0,
+  animFrames: 29,
+  chains: [ACTION_THUNDERING_MEPHIS_1.press],
+  bullets: [{ hitFrame: 11, mv: 13261, energy: 207 }],
+  element: 128,
+  scaling: 0,
+  type: 28672
+});
+var ACTION_THUNDERING_MEPHIS_3 = new TransformEcho("Echo - Thundering Mephis 3", {
+  mainslot: THUNDERING_MEPHIS,
+  castPosition: 0,
+  endPosition: 0,
+  animFrames: 29,
+  chains: [ACTION_THUNDERING_MEPHIS_2.press],
+  bullets: [{ hitFrame: 8, mv: 13261, energy: 207 }],
+  element: 128,
+  scaling: 0,
+  type: 28672
+});
+var ACTION_THUNDERING_MEPHIS_4 = new TransformEcho("Echo - Thundering Mephis 4", {
+  mainslot: THUNDERING_MEPHIS,
+  castPosition: 0,
+  endPosition: 0,
+  animFrames: 38,
+  chains: [ACTION_THUNDERING_MEPHIS_3.press],
+  bullets: [{ hitFrame: 16, mv: 13261, energy: 207 }],
+  element: 128,
+  scaling: 0,
+  type: 28672
+});
+var ACTION_THUNDERING_MEPHIS_5 = new TransformEcho("Echo - Thundering Mephis 5", {
+  mainslot: THUNDERING_MEPHIS,
+  castPosition: 0,
+  endPosition: 0,
+  animFrames: 29,
+  chains: [ACTION_THUNDERING_MEPHIS_4.press],
+  bullets: [{ hitFrame: 11, mv: 13261, energy: 207 }],
+  element: 128,
+  scaling: 0,
+  type: 28672
+});
+var ACTION_THUNDERING_MEPHIS_6 = new TransformEcho("Echo - Thundering Mephis 6", {
+  mainslot: THUNDERING_MEPHIS,
+  castPosition: 0,
+  endPosition: 0,
+  animFrames: 114,
+  chains: [ACTION_THUNDERING_MEPHIS_5.press],
+  // the final strike, then wuwalab's three thunders
+  bullets: [{ hitFrame: 42, mv: 18944, energy: 296 }, ...[55, 59, 65].map((f) => ({ hitFrame: f, mv: 3156, energy: 49 }))],
   element: 128,
   scaling: 0,
   type: 28672,
-  // 132.61%*5+189.44%+31.57%
-  bullets: [
-    ...Array.from({ length: 5 }, () => ({ hitFrame: 60, mv: 13261, energy: 207 })),
-    { hitFrame: 60, mv: 18944, energy: 296 },
-    { hitFrame: 60, mv: 3157, energy: 49 }
-  ],
   afterHit: () => {
     if (lastHit())
       applyCurrent(THUNDERING_MEPHIS_WINDOW, 1);
@@ -10786,26 +11229,33 @@ var THUNDERING_MEPHIS_WINDOW = new Buff({
     /* Type.Liberation */
   ]]
 });
-var THUNDERING_MEPHIS = new Mainslot({
-  id: 390080003,
-  name: "Thundering Mephis",
-  cost: 4,
-  action: ACTION_THUNDERING_MEPHIS
+var TEMPEST_MEPHIS = new Mainslot({
+  id: 6000039,
+  name: "Tempest Mephis",
+  cost: 4
 });
-var ACTION_TEMPEST_MEPHIS = new TransformEcho("Echo - Tempest Mephis", {
+var ACTION_TEMPEST_MEPHIS_1 = new TransformEcho("Echo - Tempest Mephis 1", {
+  mainslot: TEMPEST_MEPHIS,
+  castPosition: 0,
+  endPosition: 0,
+  animFrames: 63,
   cooldown: 60 * 20,
+  bullets: [44, 64, 83, 102].map((f) => ({ hitFrame: f, mv: 10248, energy: 160 })),
+  element: 128,
+  scaling: 0,
+  type: 28672
+});
+var ACTION_TEMPEST_MEPHIS_2 = new TransformEcho("Echo - Tempest Mephis 2", {
+  mainslot: TEMPEST_MEPHIS,
+  castPosition: 0,
+  endPosition: 0,
+  animFrames: 72,
+  chains: [ACTION_TEMPEST_MEPHIS_1.press],
+  bullets: [{ hitFrame: 28, mv: 17568, energy: 274 }],
   element: 128,
   scaling: 0,
   type: 28672,
-  // 102.48% a strike + 175.68%
-  bullets: [{ hitFrame: 60, mv: 10248, energy: 160 }, { hitFrame: 60, mv: 17568, energy: 274 }],
-  updateBuffs: () => {
-    throw new Error("Tempest Mephis: not implemented");
-  },
-  afterHit: () => {
-    if (lastHit())
-      applyCurrent(TEMPEST_MEPHIS_WINDOW, 1);
-  }
+  afterHit: () => applyCurrent(TEMPEST_MEPHIS_WINDOW, 1)
 });
 var TEMPEST_MEPHIS_WINDOW = new Buff({
   name: "Tempest Mephis",
@@ -10822,24 +11272,10 @@ var TEMPEST_MEPHIS_WINDOW = new Buff({
     /* Type.Heavy */
   ]]
 });
-var TEMPEST_MEPHIS = new Mainslot({
-  id: 6000039,
-  name: "Tempest Mephis",
-  cost: 4,
-  action: ACTION_TEMPEST_MEPHIS
-});
-var ACTION_NM_MEPHIS = new TransformEcho("Echo - Nightmare: Thundering Mephis", {
-  bullets: [{ hitFrame: 46, mv: 40500, energy: 562 }],
-  cooldown: 60 * 25,
-  element: 128,
-  scaling: 0,
-  type: 28672
-});
 var NM_MEPHIS = new Mainslot({
   id: 6000088,
   name: "Nightmare: Thundering Mephis",
   cost: 4,
-  action: ACTION_NM_MEPHIS,
   stats: [[
     18,
     12,
@@ -10852,8 +11288,12 @@ var NM_MEPHIS = new Mainslot({
     /* Type.Liberation */
   ]]
 });
-var ACTION_NM_TEMPEST_MEPHIS = new TransformEcho("Echo - Nightmare: Tempest Mephis", {
-  bullets: [{ hitFrame: 46, mv: 40500, energy: 562 }],
+var ACTION_NM_MEPHIS = new TransformEcho("Echo - Nightmare: Thundering Mephis", {
+  mainslot: NM_MEPHIS,
+  castPosition: 0,
+  endPosition: 0,
+  animFrames: 92,
+  bullets: [{ hitFrame: 59, mv: 40500, energy: 562 }],
   cooldown: 60 * 25,
   element: 128,
   scaling: 0,
@@ -10863,7 +11303,6 @@ var NM_TEMPEST_MEPHIS = new Mainslot({
   id: 6000089,
   name: "Nightmare: Tempest Mephis",
   cost: 4,
-  action: ACTION_NM_TEMPEST_MEPHIS,
   stats: [[
     18,
     12,
@@ -10875,6 +11314,17 @@ var NM_TEMPEST_MEPHIS = new Mainslot({
     12288
     /* Type.Skill */
   ]]
+});
+var ACTION_NM_TEMPEST_MEPHIS = new TransformEcho("Echo - Nightmare: Tempest Mephis", {
+  mainslot: NM_TEMPEST_MEPHIS,
+  castPosition: 0,
+  endPosition: 0,
+  animFrames: 219,
+  bullets: [{ hitFrame: 138, mv: 40500, energy: 562 }],
+  cooldown: 60 * 25,
+  element: 128,
+  scaling: 0,
+  type: 28672
 });
 var VOID_THUNDER_2PC = new Sonata2pc({ id: 3, name: "Void Thunder 2pc", echoes: [TEMPEST_MEPHIS, NM_MEPHIS, NM_TEMPEST_MEPHIS, THUNDERING_MEPHIS], stats: [[
   18,
@@ -10904,20 +11354,10 @@ var VOID_THUNDER_5PC = new Sonata({
     /* Cast.Skill */
   ), buff: VOID_THUNDER_STACKS }]
 });
-var ACTION_FALLACY = new SummonEcho("Echo - Fallacy of No Return", {
-  cooldown: 60 * 20,
-  element: 320,
-  scaling: 1,
-  type: 28672,
-  bullets: [{ hitFrame: 0, mv: 1585, energy: 304 }],
-  updateBuffs: () => applyTeam(FALLACY_TEAM, 1)
-});
-var FALLACY_TEAM = new Buff({ name: "Fallacy of No Return", duration: 60 * 20, stats: [[6, 10]] });
 var FALLACY = new Mainslot({
   id: 6000060,
   name: "Fallacy of No Return",
   cost: 4,
-  action: ACTION_FALLACY,
   updateBuffs: () => {
     if (casting(
       5
@@ -10930,20 +11370,22 @@ var FALLACY = new Mainslot({
       addStat(11, 10);
   }
 });
+var ACTION_FALLACY = new SummonEcho("Echo - Fallacy of No Return", {
+  mainslot: FALLACY,
+  cooldown: 60 * 20,
+  element: 320,
+  scaling: 1,
+  type: 28672,
+  bullets: [{ hitFrame: 42, commitFrame: 0, mv: 1585, energy: 304 }],
+  updateBuffs: () => applyTeam(FALLACY_TEAM, 1)
+});
+var FALLACY_TEAM = new Buff({ name: "Fallacy of No Return", duration: 60 * 20, stats: [[6, 10]] });
 
 // dist/src/echoes/rinascita.js
-var ACTION_SENTRY_CONSTRUCT = new TransformEcho("Echo - Sentry Construct", {
-  bullets: [{ hitFrame: 46, mv: 40500, energy: 562 }],
-  cooldown: 60 * 25,
-  element: 256,
-  scaling: 0,
-  type: 28672
-});
 var SENTRY_CONSTRUCT = new Mainslot({
   id: 6000083,
   name: "Sentry Construct",
   cost: 4,
-  action: ACTION_SENTRY_CONSTRUCT,
   stats: [[
     18,
     12,
@@ -10955,6 +11397,16 @@ var SENTRY_CONSTRUCT = new Mainslot({
     12288
     /* Type.Skill */
   ]]
+});
+var ACTION_SENTRY_CONSTRUCT = new TransformEcho("Echo - Sentry Construct", {
+  mainslot: SENTRY_CONSTRUCT,
+  endPosition: 0,
+  animFrames: 82,
+  bullets: [{ hitFrame: 50, mv: 40500, energy: 562 }],
+  cooldown: 60 * 25,
+  element: 256,
+  scaling: 0,
+  type: 28672
 });
 var FROSTY_RESOLVE_2PC = new Sonata2pc({ id: 10, name: "Frosty Resolve 2pc", echoes: () => [SENTRY_CONSTRUCT, NM_LAMPY], stats: [[
   18,
@@ -10999,18 +11451,10 @@ var FROSTY_RESOLVE_5PC = new Sonata({
     ), buff: FROSTY_RESOLVE_SKILL_DMG }
   ]
 });
-var ACTION_NM_HERON = new TransformEcho("Echo - Nightmare: Impermanence Heron", {
-  bullets: [{ hitFrame: 46, mv: 40500, energy: 560 }],
-  cooldown: 60 * 25,
-  element: 384,
-  scaling: 0,
-  type: 28672
-});
 var NM_HERON = new Mainslot({
   id: 6000087,
   name: "Nightmare: Impermanence Heron",
   cost: 4,
-  action: ACTION_NM_HERON,
   stats: [[
     18,
     12,
@@ -11023,8 +11467,12 @@ var NM_HERON = new Mainslot({
     /* Type.Heavy */
   ]]
 });
-var ACTION_LORELEI = new TransformEcho("Echo - Lorelei", {
-  bullets: [{ hitFrame: 46, mv: 40500, energy: 562 }],
+var ACTION_NM_HERON = new TransformEcho("Echo - Nightmare: Impermanence Heron", {
+  mainslot: NM_HERON,
+  castPosition: 0,
+  endPosition: 0,
+  animFrames: 122,
+  bullets: [11, 17, 23, 29, 35, 41, 47, 53, 59, 65].map((f) => ({ hitFrame: f, mv: 4050, energy: 56 })),
   cooldown: 60 * 25,
   element: 384,
   scaling: 0,
@@ -11034,7 +11482,6 @@ var LORELEI = new Mainslot({
   id: 6000082,
   name: "Lorelei",
   cost: 4,
-  action: ACTION_LORELEI,
   stats: [[
     18,
     12,
@@ -11046,6 +11493,16 @@ var LORELEI = new Mainslot({
     4096
     /* Type.Basic */
   ]]
+});
+var ACTION_LORELEI = new TransformEcho("Echo - Lorelei", {
+  mainslot: LORELEI,
+  endPosition: 0,
+  animFrames: 140,
+  bullets: [{ hitFrame: 49, mv: 40500, energy: 562 }],
+  cooldown: 60 * 25,
+  element: 384,
+  scaling: 0,
+  type: 28672
 });
 var MIDNIGHT_VEIL_2PC = new Sonata2pc({ id: 12, name: "Midnight Veil 2pc", echoes: [LORELEI, NM_HERON], stats: [[
   18,
@@ -11083,18 +11540,10 @@ var MIDNIGHT_VEIL_5PC = new Sonata({
     }
   }
 });
-var ACTION_DRAGON_OF_DIRGE = new TransformEcho("Echo - Dragon of Dirge", {
-  bullets: [{ hitFrame: 46, mv: 3681 * 8, energy: 51 * 8 }],
-  cooldown: 60 * 25,
-  element: 192,
-  scaling: 0,
-  type: 28672
-});
 var DRAGON_OF_DIRGE = new Mainslot({
   id: 6000084,
   name: "Dragon of Dirge",
   cost: 4,
-  action: ACTION_DRAGON_OF_DIRGE,
   stats: [[
     18,
     12,
@@ -11106,6 +11555,17 @@ var DRAGON_OF_DIRGE = new Mainslot({
     4096
     /* Type.Basic */
   ]]
+});
+var ACTION_DRAGON_OF_DIRGE = new TransformEcho("Echo - Dragon of Dirge", {
+  mainslot: DRAGON_OF_DIRGE,
+  endPosition: 1,
+  animFrames: 108,
+  // the rift's eleven ticks (wuwalab's), all committed with the first
+  bullets: [46, 76, 106, 137, 167, 197, 226, 256, 287, 317, 346].map((f) => ({ hitFrame: f, commitFrame: 46, mv: 3681, energy: 51 })),
+  cooldown: 60 * 25,
+  element: 192,
+  scaling: 0,
+  type: 28672
 });
 var TIDEBREAKING_2PC = new Sonata2pc({ id: 14, name: "Tidebreaking Courage 2pc", echoes: [DRAGON_OF_DIRGE], stats: [[11, 10]] });
 var TIDEBREAKING_5PC = new Sonata({
@@ -11121,19 +11581,10 @@ var TIDEBREAKING_5PC = new Sonata({
       addStat(18, 30);
   }
 });
-var ACTION_NM_HECATE = new TransformEcho("Echo - Nightmare: Hecate", {
-  animFrames: 50,
-  bullets: [{ hitFrame: 36, mv: 45717, energy: 315 }],
-  cooldown: 60 * 25,
-  element: 384,
-  scaling: 0,
-  type: 28672
-});
 var NM_HECATE = new Mainslot({
   id: 6000115,
   name: "Nightmare: Hecate",
   cost: 4,
-  action: ACTION_NM_HECATE,
   stats: [[
     18,
     12,
@@ -11146,18 +11597,21 @@ var NM_HECATE = new Mainslot({
     /* Type.Echo */
   ]]
 });
-var ACTION_NM_LAMPY = new SummonEcho("Echo - Nightmare: Lampylumen Myriad", {
-  cooldown: 60 * 20,
-  element: 256,
+var ACTION_NM_HECATE = new TransformEcho("Echo - Nightmare: Hecate", {
+  mainslot: NM_HECATE,
+  castPosition: 0,
+  endPosition: 0,
+  animFrames: 50,
+  cooldown: 60 * 25,
+  bullets: [7, 35, 40].map((f) => ({ hitFrame: f, mv: 15239, energy: 105 })),
+  element: 384,
   scaling: 0,
-  type: 28672,
-  bullets: [{ hitFrame: 0, mv: 27360, energy: 380 }]
+  type: 28672
 });
 var NM_LAMPY = new Mainslot({
   id: 6000105,
   name: "Nightmare: Lampylumen Myriad",
   cost: 4,
-  action: ACTION_NM_LAMPY,
   stats: [[
     18,
     12,
@@ -11170,24 +11624,32 @@ var NM_LAMPY = new Mainslot({
     /* Subtype.Coordinated */
   ]]
 });
-var ACTION_HECATE = new SummonEcho("Echo - Hecate", {
+var ACTION_NM_LAMPY = new SummonEcho("Echo - Nightmare: Lampylumen Myriad", {
+  mainslot: NM_LAMPY,
   cooldown: 60 * 20,
-  element: 384,
+  element: 256,
   scaling: 0,
   type: 28672,
-  bullets: [{ hitFrame: 0, mv: 4559 * 6, energy: 63 * 6 }]
+  bullets: [{ hitFrame: 68, commitFrame: 0, mv: 27360, energy: 380 }]
 });
 var HECATE = new Mainslot({
   id: 6000085,
   name: "Hecate",
   cost: 4,
-  action: ACTION_HECATE,
   stats: [[
     18,
     40,
     262144
     /* Subtype.Coordinated */
   ]]
+});
+var ACTION_HECATE = new SummonEcho("Echo - Hecate", {
+  mainslot: HECATE,
+  cooldown: 60 * 20,
+  element: 384,
+  scaling: 0,
+  type: 28672,
+  bullets: [0, 0, 0, 30, 30, 30, 60, 60, 60].map((f) => ({ hitFrame: f, commitFrame: 0, mv: 4559, energy: 63 }))
 });
 var EMPYREAN_ANTHEM_2PC = new Sonata2pc({ id: 13, name: "Empyrean Anthem 2pc", echoes: [HECATE, NM_TEMPEST_MEPHIS, NM_LAMPY], stats: [[11, 10]] });
 var EMPYREAN_ANTHEM_5PC = new Sonata({
@@ -11211,24 +11673,10 @@ var EMPYREAN_ANTHEM_TEAM = new Buff({
   stats: [[6, 20]],
   when: isActive
 });
-var ACTION_NM_KELPIE = new TransformEcho("Echo - Nightmare: Kelpie", {
-  bullets: [{ hitFrame: 46, mv: 40500, energy: 281 }],
-  cooldown: 60 * 25,
-  element: 256,
-  scaling: 0,
-  type: 28672
-});
-var ACTION_NM_KELPIE_OUTRO = new Action("Echo - Nightmare: Kelpie (Outro)", {
-  element: 64,
-  scaling: 0,
-  type: 28672,
-  bullets: [{ hitFrame: 0, mv: 40500, energy: 281 }]
-});
 var NM_KELPIE = new Mainslot({
   id: 6000113,
   name: "Nightmare: Kelpie",
   cost: 4,
-  action: ACTION_NM_KELPIE,
   stats: [[
     18,
     12,
@@ -11247,6 +11695,23 @@ var NM_KELPIE = new Mainslot({
     ))
       queue(ACTION_NM_KELPIE_OUTRO);
   }
+});
+var ACTION_NM_KELPIE = new TransformEcho("Echo - Nightmare: Kelpie", {
+  mainslot: NM_KELPIE,
+  castPosition: 0,
+  endPosition: 0,
+  animFrames: 138,
+  bullets: [{ hitFrame: 91, mv: 40500, energy: 281 }],
+  cooldown: 60 * 25,
+  element: 256,
+  scaling: 0,
+  type: 28672
+});
+var ACTION_NM_KELPIE_OUTRO = new Action("Echo - Nightmare: Kelpie (Outro)", {
+  element: 64,
+  scaling: 0,
+  type: 28672,
+  bullets: [{ hitFrame: 0, mv: 40500, energy: 281 }]
 });
 var GUSTS_OF_WELKIN_TEAM = new Buff({
   name: "Gusts of Welkin 5pc (team)",
@@ -11288,18 +11753,10 @@ var GUSTS_OF_WELKIN_5PC = new Sonata({
     { on: onInflict(AERO_EROSION), buff: GUSTS_OF_WELKIN_SELF }
   ]
 });
-var ACTION_FLEURDELYS = new SummonEcho("Echo - Reminiscence: Fleurdelys", {
-  cooldown: 60 * 20,
-  element: 64,
-  scaling: 0,
-  type: 28672,
-  bullets: [{ hitFrame: 0, mv: 2736 * 8 + 13680, energy: 38 * 8 + 190 }]
-});
 var FLEURDELYS = new Mainslot({
   id: 6000106,
   name: "Reminiscence: Fleurdelys",
   cost: 4,
-  action: ACTION_FLEURDELYS,
   constantStats: () => {
     addStat(
       18,
@@ -11316,6 +11773,14 @@ var FLEURDELYS = new Mainslot({
         /* Attribute.Aero */
       );
   }
+});
+var ACTION_FLEURDELYS = new SummonEcho("Echo - Reminiscence: Fleurdelys", {
+  mainslot: FLEURDELYS,
+  cooldown: 60 * 20,
+  element: 64,
+  scaling: 0,
+  type: 28672,
+  bullets: [...[24, 33, 42, 51, 60, 69, 78, 87].map((f) => ({ hitFrame: f, commitFrame: 0, mv: 2736, energy: 38 })), { hitFrame: 108, commitFrame: 0, mv: 13680, energy: 190 }]
 });
 var WINDWARD_2PC = new Sonata2pc({ id: 17, name: "Windward Pilgrimage 2pc", echoes: () => [FLEURDELYS, NM_KELPIE, CAPITANEUS], stats: [[
   18,
@@ -11339,18 +11804,10 @@ var WINDWARD_BUFF = new Buff({
     /* Attribute.Aero */
   ]]
 });
-var ACTION_CAPITANEUS = new SummonEcho("Echo - Capitaneus", {
-  cooldown: 60 * 20,
-  element: 320,
-  scaling: 0,
-  type: 28672,
-  bullets: [{ hitFrame: 0, mv: 11880 + 5940 * 4, energy: 165 + 82 * 4 }]
-});
 var CAPITANEUS = new Mainslot({
   id: 6000104,
   name: "Capitaneus",
   cost: 3,
-  action: ACTION_CAPITANEUS,
   stats: [[
     18,
     12,
@@ -11363,28 +11820,38 @@ var CAPITANEUS = new Mainslot({
     /* Type.Heavy */
   ]]
 });
-var ACTION_NM_MOURNING_AIX = new SummonEcho("Echo - Nightmare: Mourning Aix", {
+var ACTION_CAPITANEUS = new SummonEcho("Echo - Capitaneus", {
+  mainslot: CAPITANEUS,
+  castPosition: 0,
+  endPosition: 0,
   cooldown: 60 * 20,
   element: 320,
   scaling: 0,
   type: 28672,
-  bullets: [{ hitFrame: 0, mv: 27360, energy: 380 }],
-  applyStats: () => {
-    if (stacksOfEnemy(SPECTRO_FRAZZLE) > 0)
-      addStat(20, 100);
-  }
+  bullets: [{ hitFrame: 41, commitFrame: 0, mv: 11880, energy: 165 }, ...[0, 1, 2, 3].map(() => ({ hitFrame: 43, commitFrame: 0, mv: 5940, energy: 82 }))]
 });
 var NM_MOURNING_AIX = new Mainslot({
   id: 6000092,
   name: "Nightmare: Mourning Aix",
   cost: 4,
-  action: ACTION_NM_MOURNING_AIX,
   stats: [[
     18,
     12,
     320
     /* Attribute.Spectro */
   ]]
+});
+var ACTION_NM_MOURNING_AIX = new SummonEcho("Echo - Nightmare: Mourning Aix", {
+  mainslot: NM_MOURNING_AIX,
+  cooldown: 60 * 20,
+  element: 320,
+  scaling: 0,
+  type: 28672,
+  bullets: [{ hitFrame: 80, commitFrame: 0, mv: 27360, energy: 380 }],
+  applyStats: () => {
+    if (stacksOfEnemy(SPECTRO_FRAZZLE) > 0)
+      addStat(20, 100);
+  }
 });
 var ETERNAL_RADIANCE_2PC = new Sonata2pc({ id: 11, name: "Eternal Radiance 2pc", echoes: [NM_MOURNING_AIX, CAPITANEUS], stats: [[
   18,
@@ -12283,7 +12750,6 @@ var CARTETHYIA_RESONATOR = new Resonator({
   color: "#3553fb",
   // resolved when its row is reached: whichever Intro the kit's state calls for there
   intro: () => isHeld(MANIFEST) ? FIntro : Intro,
-  outro: Outro,
   swapIn: () => isHeld(MANIFEST) ? FBA1 : BA1,
   // no mid-air string as Cartethyia: her Plunging Attack, in the form the standing shadows make
   swapInAir: () => isHeld(MANIFEST) ? FMA1 : [Plunge, Plunge1, Plunge2, Plunge3][[SWORD_OF_VIRTUE, SWORD_OF_DIVINITY, SWORD_OF_DISCORD].filter((g) => isHeld(g)).length],
@@ -12294,18 +12760,18 @@ var CARTETHYIA_RESONATOR = new Resonator({
   stats: [[1, 14800], [0, 312.5], [2, 611.11]]
 });
 var CT_ROTATION = new Rotation([
-  INTRO,
+  Intro,
   BA234.cancel(),
   Skill,
   PlungeResolver.cancel(),
-  ECHO,
+  ACTION_FLEURDELYS,
   Liberation,
   FBA12345.cancel(),
   FSkill1,
   FSkill2,
   FBA345.cancel(),
   Lib2,
-  OUTRO
+  Outro
 ]);
 var CARTETHYIA = new Loadout({
   id: 14091,
@@ -12612,7 +13078,7 @@ var MA1 = ciacconaAction("Mid-air - Attack 1", { castPosition: 1, animFrames: 33
   { hitFrame: 10, mv: 5543, energy: 85, concerto: 272, offtune: 2720 },
   { hitFrame: 26, mv: 5543, energy: 85, concerto: 272, offtune: 2720 }
 ] });
-var MA2 = ciacconaAction("Mid-air - Attack 2", { chains: [MA1], castPosition: 1, animFrames: 43, animPriority: { 3: 2 }, castPriority: 6, node: 0, cast: 1, type: 4096, bullets: [
+var MA2 = ciacconaAction("Mid-air - Attack 2", { chains: [MA1], castPosition: 1, endPosition: 0, animFrames: 43, animPriority: { 3: 2 }, castPriority: 6, node: 0, cast: 1, type: 4096, bullets: [
   { hitFrame: 36, mv: 2446, energy: 38, concerto: 120, offtune: 1200 },
   { hitFrame: 41, commitFrame: 36, mv: 2446, energy: 38, concerto: 120, offtune: 1200 },
   { hitFrame: 48, commitFrame: 36, mv: 2446, energy: 38, concerto: 120, offtune: 1200 },
@@ -12786,7 +13252,6 @@ var CIACCONA_RESONATOR = new Resonator({
   weapon: 2,
   color: "#5ac46b",
   intro: Intro2,
-  outro: Outro2,
   swapIn: BA12,
   swapInAir: MA1,
   tuneBreak: tuneBreak(97, [0, 97], [0, 70], [[72, 16e4]], { 0: 11, 97: 3 }),
@@ -12862,7 +13327,7 @@ var MA12 = new ActionGroup("Mid-air - Attack 12", [MA1, MA2]);
 var BA34 = new ActionGroup("Basic - Quadruple Time Steps 34", [BA32, BA42]);
 var BA2342 = new ActionGroup("Basic - Quadruple Time Steps 234", [BA22, BA32, BA42]);
 var CI_ROTATION = new Rotation([
-  NOINTRO,
+  SWAPIN,
   BA12.instaCancel(),
   Skill2,
   BA2342.instaJump(),
@@ -12871,21 +13336,23 @@ var CI_ROTATION = new Rotation([
   MA12,
   BA42.holdCancel(),
   Downbeat.cancel(),
-  ECHO.instaDodge(),
+  ACTION_NM_KELPIE.instaDodge(),
+  ACTION_HERON.instaDodge(),
   Liberation2.swapCancel(),
-  OUTRO,
-  INTRO,
+  Outro2,
+  Intro2,
   BA34.instaJump(),
   MA12,
   BA42.instaCancel(),
   Skill2,
   Downbeat.cancel(),
-  ECHO.instaDodge(),
+  ACTION_NM_KELPIE.instaDodge(),
+  ACTION_HERON.instaDodge(),
   Liberation2.swapCancel(),
-  OUTRO
+  Outro2
 ]);
 var CI_ROTATION_YELLOW = new Rotation([
-  NOINTRO,
+  SWAPIN,
   BA12.instaCancel(),
   Skill2,
   BA2342.instaJump(),
@@ -12894,21 +13361,23 @@ var CI_ROTATION_YELLOW = new Rotation([
   MA12,
   BA42.holdCancel(),
   Downbeat.cancel(),
-  ECHO.instaDodge(),
+  ACTION_NM_KELPIE.instaDodge(),
+  ACTION_HERON.instaDodge(),
   LiberationYellow.swapCancel(),
-  OUTRO,
-  INTRO,
+  Outro2,
+  Intro2,
   BA34.instaJump(),
   MA12,
   BA42.instaCancel(),
   Skill2,
   Downbeat.cancel(),
-  ECHO.instaDodge(),
+  ACTION_NM_KELPIE.instaDodge(),
+  ACTION_HERON.instaDodge(),
   LiberationYellow.swapCancel(),
-  OUTRO
+  Outro2
 ]);
 var CI_ROTATION_S3 = new Rotation([
-  NOINTRO,
+  SWAPIN,
   BA12.instaCancel(),
   Skill2,
   BA2342.instaJump(),
@@ -12916,17 +13385,19 @@ var CI_ROTATION_S3 = new Rotation([
   BA42.instaCancel(),
   Skill2,
   Downbeat.cancel(),
-  ECHO.instaDodge(),
+  ACTION_NM_KELPIE.instaDodge(),
+  ACTION_HERON.instaDodge(),
   Liberation2.swapCancel(),
-  OUTRO,
-  INTRO,
+  Outro2,
+  Intro2,
   BA34.instaCancel(),
   Skill2,
   Downbeat.cancel(),
   Skill2,
-  ECHO.instaDodge(),
+  ACTION_NM_KELPIE.instaDodge(),
+  ACTION_HERON.instaDodge(),
   Liberation2.swapCancel(),
-  OUTRO
+  Outro2
 ]);
 var CIACCONA_BUILD = {
   resonator: CIACCONA_RESONATOR,
@@ -12937,6 +13408,7 @@ var CIACCONA_BUILD = {
       0,
       1,
       6,
+      5,
       12,
       15
       /* Mainstat.ATK1 */
@@ -13170,24 +13642,10 @@ var DREAM_OF_THE_LOST_3PC = new Sonata3pc({
     );
   }
 });
-var ACTION_FALSE_SOVEREIGN = new TransformEcho("Echo - False Sovereign", {
-  bullets: [{ hitFrame: 46, mv: 22140, energy: 304 }],
-  cooldown: new Cooldown({ frames: 60 * 8, charges: 2 }),
-  element: 128,
-  scaling: 0,
-  type: 28672
-});
-var ACTION_FALSE_SOVEREIGN_INTRO = new Action("Echo - False Sovereign (Intro)", {
-  element: 128,
-  scaling: 0,
-  type: 28672,
-  bullets: [{ hitFrame: 0, mv: 40500 }]
-});
 var FALSE_SOVEREIGN = new Mainslot({
   id: 6000121,
   name: "False Sovereign",
   cost: 4,
-  action: ACTION_FALSE_SOVEREIGN,
   updateBuffs: () => {
     if (casting(
       5
@@ -13207,6 +13665,23 @@ var FALSE_SOVEREIGN = new Mainslot({
     /* Type.Heavy */
   ]]
 });
+var ACTION_FALSE_SOVEREIGN = new TransformEcho("Echo - False Sovereign", {
+  mainslot: FALSE_SOVEREIGN,
+  castPosition: 0,
+  endPosition: 0,
+  animFrames: 55,
+  bullets: [25, 31, 40, 48].map((f) => ({ hitFrame: f, mv: 5535, energy: 76 })),
+  cooldown: new Cooldown({ frames: 60 * 8, charges: 2 }),
+  element: 128,
+  scaling: 0,
+  type: 28672
+});
+var ACTION_FALSE_SOVEREIGN_INTRO = new Action("Echo - False Sovereign (Intro)", {
+  element: 128,
+  scaling: 0,
+  type: 28672,
+  bullets: [{ hitFrame: 80, commitFrame: 0, mv: 40500 }]
+});
 var CROWN_STACKS = new Buff({
   name: "Crown of Valor",
   maxStacks: 5,
@@ -13220,18 +13695,10 @@ var COV_3PC = new Sonata3pc({
   echoes: () => [FALSE_SOVEREIGN, MYA],
   grants: [{ on: onApplied(SHIELD), buff: CROWN_STACKS, stacks: () => applied2(SHIELD) }]
 });
-var ACTION_MYA = new SummonEcho("Echo - Lady of the Sea", {
-  cooldown: 60 * 20,
-  element: 64,
-  scaling: 0,
-  type: 28672,
-  bullets: [{ hitFrame: 0, mv: 30096, energy: 418 }]
-});
 var MYA = new Mainslot({
   id: 6000160,
   name: "Lady of the Sea",
   cost: 4,
-  action: ACTION_MYA,
   stats: [[
     18,
     12,
@@ -13244,18 +13711,18 @@ var MYA = new Mainslot({
     /* Attribute.Aero */
   ]]
 });
-var ACTION_LIONESS = new SummonEcho("Echo - Lioness of Glory", {
+var ACTION_MYA = new SummonEcho("Echo - Lady of the Sea", {
+  mainslot: MYA,
   cooldown: 60 * 20,
-  element: 192,
+  element: 64,
   scaling: 0,
   type: 28672,
-  bullets: [{ hitFrame: 0, mv: 27360, energy: 380 }]
+  bullets: [...[0, 0, 12, 12, 24, 24, 36, 36, 48, 48].map((f) => ({ hitFrame: f, commitFrame: 0, mv: 1368, energy: 19 })), { hitFrame: 60, commitFrame: 0, mv: 16416, energy: 228 }]
 });
 var LIONESS_OF_GLORY = new Mainslot({
   id: 6000114,
   name: "Lioness of Glory",
   cost: 4,
-  action: ACTION_LIONESS,
   stats: [[
     18,
     12,
@@ -13267,6 +13734,14 @@ var LIONESS_OF_GLORY = new Mainslot({
     192
     /* Attribute.Fusion */
   ]]
+});
+var ACTION_LIONESS = new SummonEcho("Echo - Lioness of Glory", {
+  mainslot: LIONESS_OF_GLORY,
+  cooldown: 60 * 20,
+  element: 192,
+  scaling: 0,
+  type: 28672,
+  bullets: [{ hitFrame: 23, commitFrame: 0, mv: 8208, energy: 114 }, { hitFrame: 110, commitFrame: 0, mv: 19152, energy: 266 }]
 });
 var CLAWPRINT_TEAM = new Buff({ name: "Flaming Clawprint 5pc (team)", duration: 60 * 35, stats: [[
   18,
@@ -13306,18 +13781,10 @@ var CLAWPRINT_5PC = new Sonata({
     ), buff: CLAWPRINT_LIBERATION }
   ]
 });
-var ACTION_CORROSAURUS = new SummonEcho("Echo - Corrosaurus", {
-  cooldown: 60 * 20,
-  element: 192,
-  scaling: 0,
-  type: 28672,
-  bullets: [{ hitFrame: 0, mv: 27360, energy: 380 }]
-});
 var CORROSAURUS = new Mainslot({
   id: 6000120,
   name: "Corrosaurus",
   cost: 3,
-  action: ACTION_CORROSAURUS,
   stats: [[
     18,
     12,
@@ -13329,6 +13796,14 @@ var CORROSAURUS = new Mainslot({
     28672
     /* Type.Echo */
   ]]
+});
+var ACTION_CORROSAURUS = new SummonEcho("Echo - Corrosaurus", {
+  mainslot: CORROSAURUS,
+  cooldown: 60 * 20,
+  element: 192,
+  scaling: 0,
+  type: 28672,
+  bullets: [{ hitFrame: 22, commitFrame: 0, mv: 27360, energy: 380 }]
 });
 var FLAMEWING_SHADOW_ECHO = new Buff({
   name: "Flamewing's Shadow 3pc (echo)",
@@ -13374,18 +13849,10 @@ var FLAMEWING_SHADOW_3PC = new Sonata3pc({
       );
   }
 });
-var ACTION_FENRICO = new SummonEcho("Echo - Reminiscence: Fenrico", {
-  cooldown: 60 * 20,
-  element: 64,
-  scaling: 0,
-  type: 28672,
-  bullets: [{ hitFrame: 0, mv: 27360, energy: 380 }]
-});
 var FENRICO = new Mainslot({
   id: 6000116,
   name: "Reminiscence: Fenrico",
   cost: 4,
-  action: ACTION_FENRICO,
   stats: [[
     18,
     12,
@@ -13397,6 +13864,16 @@ var FENRICO = new Mainslot({
     8192
     /* Type.Heavy */
   ]]
+});
+var ACTION_FENRICO = new SummonEcho("Echo - Reminiscence: Fenrico", {
+  mainslot: FENRICO,
+  castPosition: 0,
+  endPosition: 0,
+  cooldown: 60 * 20,
+  element: 64,
+  scaling: 0,
+  type: 28672,
+  bullets: [{ hitFrame: 22, commitFrame: 0, mv: 27360, energy: 380 }]
 });
 var LAW_OF_HARMONY_SELF = new Buff({
   name: "Law of Harmony",
@@ -13441,34 +13918,10 @@ var LAW_OF_HARMONY_3PC = new Sonata3pc({
     }
   ]
 });
-var ACTION_THRENODIAN_LEVIATHAN = new PseudoTransformEcho("Echo - Reminiscence: Leviathan", {
-  cooldown: 60 * 25,
-  element: 384,
-  scaling: 0,
-  type: 28672,
-  bullets: [{ hitFrame: 0, mv: 13104 * 2, energy: 91 * 2 }],
-  // one summon at a time: a fresh one cuts off whatever hits the last had left
-  updateDebuffs: () => {
-    cancelHits(CORES_OF_COLLAPSE);
-    queue(ACTION_CORE_OF_COLLAPSE);
-  }
-});
-var ACTION_CORE_OF_COLLAPSE = new Action("Echo - Core of Collapse", {
-  element: 384,
-  scaling: 0,
-  type: 28672,
-  bullets: Array.from({ length: 8 }, (_, k) => ({ hitFrame: 30 * (k + 1), mv: 2457 })),
-  applyStats: () => {
-    if (stacksOfEnemy(HAVOC_BANE) > 0)
-      addStat(21, 100);
-  }
-});
-var CORES_OF_COLLAPSE = /* @__PURE__ */ new Set([ACTION_CORE_OF_COLLAPSE]);
 var THRENODIAN_LEVIATHAN = new Mainslot({
   id: 6000167,
   name: "Reminiscence: Threnodian - Leviathan",
   cost: 4,
-  action: ACTION_THRENODIAN_LEVIATHAN,
   stats: [[
     18,
     12,
@@ -13481,6 +13934,35 @@ var THRENODIAN_LEVIATHAN = new Mainslot({
     /* Type.Liberation */
   ]]
 });
+var ACTION_THRENODIAN_LEVIATHAN = new PseudoTransformEcho("Echo - Reminiscence: Leviathan", {
+  mainslot: THRENODIAN_LEVIATHAN,
+  castPosition: 0,
+  endPosition: 0,
+  cooldown: 60 * 25,
+  animFrames: 32,
+  element: 384,
+  scaling: 0,
+  type: 28672,
+  bullets: [
+    // one summon at a time: a fresh one cuts off whatever hits the last had left
+    { hitFrame: 19, commitFrame: 0, mv: 13104, energy: 91, updateDebuffs: () => {
+      cancelHits(CORES_OF_COLLAPSE);
+      queue(ACTION_CORE_OF_COLLAPSE);
+    } },
+    { hitFrame: 91, commitFrame: 0, mv: 13104, energy: 91 }
+  ]
+});
+var ACTION_CORE_OF_COLLAPSE = new Action("Echo - Core of Collapse", {
+  element: 384,
+  scaling: 0,
+  type: 28672,
+  bullets: Array.from({ length: 8 }, (_, k) => ({ hitFrame: 30 * (k + 1), mv: 2457, energy: 17 })),
+  applyStats: () => {
+    if (stacksOfEnemy(HAVOC_BANE) > 0)
+      addStat(21, 100);
+  }
+});
+var CORES_OF_COLLAPSE = /* @__PURE__ */ new Set([ACTION_CORE_OF_COLLAPSE]);
 var THREAD_OF_SEVERED_FATE_3PC = new Sonata3pc({
   id: 23,
   name: "Thread of Severed Fate 3pc",
@@ -13813,7 +14295,6 @@ var ROVER_AERO_RESONATOR = new Resonator({
   tuneBreak: tuneBreak(90, [0, 91], [0, 70], SWORD_BREAK),
   color: "#6fd6b0",
   intro: Intro3,
-  outro: Outro3,
   swapIn: BA13,
   swapInAir: MA,
   maxEnergy: 15e3,
@@ -13829,16 +14310,19 @@ var ROVER_AERO_RESONATOR = new Resonator({
   }
 });
 var AR_ROTATION = new Rotation([
-  NOINTRO,
+  SWAPIN,
   BA13.instaCancel(),
   Skill3,
-  INTRO,
+  Intro3,
   Cloudburst1,
   Cloudburst2,
   SkyfallSeverance,
   MA,
   BA43,
-  ECHO.instaDodge(),
+  ACTION_FALLACY.instaCancel(),
+  ACTION_BELL_BORNE.instaCancel(),
+  ACTION_HERON.instaDodge(),
+  ACTION_FLEURDELYS.instaCancel(),
   Liberation3,
   Skill3,
   Cloudburst1,
@@ -13847,7 +14331,7 @@ var AR_ROTATION = new Rotation([
   BA43,
   UnboundFlow1,
   UnboundFlow2.instaSwap(),
-  OUTRO
+  Outro3
 ]);
 var ROVER_AERO = new Loadout({
   id: 14061,
@@ -14184,7 +14668,6 @@ var IUNO_RESONATOR = new Resonator({
   weapon: 3,
   color: "#2dd4c0",
   intro: Intro4,
-  outro: Outro4,
   // New Moon attacks with the Moonbow, Sentience-enhanced while she holds any
   swapIn: () => isHeld(NEW_MOON) ? forte1() >= 1 ? FMA12 : MA13 : BA14,
   maxEnergy: 12500,
@@ -14195,14 +14678,16 @@ var IUNO_RESONATOR = new Resonator({
       applyCurrent(SHIELD, 1);
   }
 });
+var IO_S1_REGEN = new Buff({
+  name: "Iuno S1: Wax or Wane, All Gild the Bough (Energy)",
+  tick: {
+    every: () => stacksOfTeam(IUNO_DOMAIN) > 0 && currentTeam().slots[currentTeam().onField].resonator === IUNO_RESONATOR ? 60 : 0,
+    fire: () => addGain({ energy: 100 })
+  }
+});
 var IO_S1 = new Sequence({
   name: "Iuno S1: Wax or Wane, All Gild the Bough",
-  // a point of Energy a second while she herself stands in her own Full Moon Domain — this hook
-  // runs on her turns alone, which is that condition
-  updateBuffs: () => {
-    if (stacksOfTeam(IUNO_DOMAIN) > 0)
-      addGain({ energy: Math.round(elapsed() * 100 / 60) });
-  },
+  combatStart: () => applyCurrent(IO_S1_REGEN, 1),
   applyStats: () => {
     if (isHeld(LUNAR_CYCLE))
       addStat(6, 40);
@@ -14259,20 +14744,23 @@ var IO_S6 = new Sequence({
 });
 var IO_SEQUENCES = [IO_S1, IO_S2, IO_S3, IO_S4, IO_S5, IO_S6];
 var IO_ROTATION = new Rotation([
-  INTRO,
-  ECHO.instaDodge(),
+  Intro4,
+  ACTION_MYA.instaCancel(),
+  ACTION_HERON.instaDodge(),
+  ACTION_FALLACY.instaCancel(),
+  ACTION_NM_KELPIE.instaDodge(),
   Liberation4,
   JumpHeavy,
   FMA123.cancel(),
   FMSkill,
   FMSkill.cancel(),
   FHA2.instaSwap(),
-  OUTRO
+  Outro4
 ]);
 var IO_ROTATION_MDPS = new Rotation([
-  INTRO,
+  Intro4,
   ESkill,
-  ECHO,
+  ACTION_MYA,
   JumpHeavy,
   FMSkill,
   FMA123.cancel(),
@@ -14281,21 +14769,21 @@ var IO_ROTATION_MDPS = new Rotation([
   FMSkill,
   MA123.cancel(),
   FHA2.instaSwap(),
-  OUTRO
+  Outro4
 ]);
 var IO_ROTATION_MDPS_S6 = new Rotation([
-  INTRO,
+  Intro4,
   Liberation4,
   JumpHeavy,
   FMSkill,
   FMA123.cancel(),
   FMSkill.cancel(),
   FHA2,
-  ECHO,
+  ACTION_MYA,
   FMSkill,
   FMA123.cancel(),
   FMSkill,
-  OUTRO
+  Outro4
 ]);
 var IUNO = new Loadout({
   id: 14101,
@@ -14603,7 +15091,6 @@ var JIANXIN_RESONATOR = new Resonator({
   weapon: 3,
   color: "#9fe0c8",
   intro: Intro5,
-  outro: Outro5,
   swapIn: BA15,
   swapInAir: MA4,
   maxEnergy: 15e3,
@@ -14616,13 +15103,13 @@ var JIANXIN_RESONATOR = new Resonator({
   ]
 });
 var JX_ROTATION_S2 = new Rotation([
-  INTRO,
+  Intro5,
   ChiParry,
   ChiParry,
   Liberation5,
   ZHOUTIAN_4,
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_HERON.instaSwap(),
+  Outro5
 ]);
 var JIANXIN = new Loadout({
   id: 14051,
@@ -15160,7 +15647,6 @@ var JIYAN_RESONATOR = new Resonator({
   weapon: 1,
   color: "#4fc98f",
   intro: Intro6,
-  outro: Outro6,
   // Qingloong Mode replaces his Basic Attack with Lance of Qingloong
   swapIn: () => isHeld(QINGLOONG_MODE) ? Lance1 : BA16,
   swapInAir: MA5,
@@ -15260,7 +15746,7 @@ var JY_ROTATION = new Rotation([
   START_LAST,
   BA16.instaCancel(),
   Skill5.instaSwap(),
-  INTRO,
+  Intro6,
   Liberation6,
   Lance1.cancel(),
   Skill5,
@@ -15270,15 +15756,15 @@ var JY_ROTATION = new Rotation([
   Lance1.dodgeCancel(),
   Lance1.dodgeCancel(),
   Lance1.dodgeCancel(),
-  ECHO,
+  ACTION_NM_FEILIAN_BERINGAL,
   Skill5.instaSwap(),
-  OUTRO
+  Outro6
 ]);
 var JY_ROTATION_S6 = new Rotation([
   START_LAST,
   BA16.instaCancel(),
   Skill5.instaSwap(),
-  INTRO,
+  Intro6,
   Liberation6,
   Lance1.cancel(),
   Skill5,
@@ -15288,9 +15774,9 @@ var JY_ROTATION_S6 = new Rotation([
   Lance1.dodgeCancel(),
   Lance1.dodgeCancel(),
   Lance1.dodgeCancel(),
-  ECHO,
+  ACTION_NM_FEILIAN_BERINGAL,
   Skill5.instaSwap(),
-  OUTRO
+  Outro6
 ]);
 var JIYAN = new Loadout({
   id: 14041,
@@ -15318,18 +15804,10 @@ var JIYAN = new Loadout({
 });
 
 // dist/src/echoes/mengzhou.js
-var ACTION_MYRIAD_SNARE = new SummonEcho("Echo - Myriad Snare", {
-  cooldown: 60 * 20,
-  element: 192,
-  scaling: 1,
-  type: 28672,
-  bullets: [{ hitFrame: 0, mv: 1723, energy: 380 }]
-});
 var MYRIAD_SNARE = new Mainslot({
   id: 6000217,
   name: "Myriad Snare: Rustfire Chassis",
   cost: 4,
-  action: ACTION_MYRIAD_SNARE,
   stats: [[
     18,
     12,
@@ -15341,6 +15819,15 @@ var MYRIAD_SNARE = new Mainslot({
     8192
     /* Type.Heavy */
   ]]
+});
+var ACTION_MYRIAD_SNARE = new SummonEcho("Echo - Myriad Snare", {
+  mainslot: MYRIAD_SNARE,
+  cooldown: 60 * 20,
+  element: 192,
+  scaling: 1,
+  type: 28672,
+  // the impact, then wuwalab's five crushes (the text's "up to 19")
+  bullets: [{ hitFrame: 24, commitFrame: 0, mv: 1020, energy: 380 }, ...[24, 30, 36, 65, 67].map((f) => ({ hitFrame: f, commitFrame: 0, mv: 37 }))]
 });
 var LAMP_STACKS = new Buff({
   name: "Lamp of Nether Road 5pc",
@@ -15365,13 +15852,6 @@ var LAMP_5PC = new Sonata({
   sonata2pc: LAMP_2PC,
   grants: [{ on: onApplied(SHIELD), buff: LAMP_STACKS, stacks: () => applied2(SHIELD) }]
 });
-var ACTION_CALAMITY_EFFIGY = new TransformEcho("Echo - Calamity Effigy", {
-  bullets: [{ hitFrame: 46, mv: 40500, energy: 562 }],
-  cooldown: 60 * 25,
-  element: 64,
-  scaling: 0,
-  type: 28672
-});
 var CALAMITY_EFFIGY_STRAIN = new Buff({
   name: "Calamity Effigy (strain)",
   duration: 60 * 15,
@@ -15386,7 +15866,6 @@ var CALAMITY_EFFIGY = new Mainslot({
   id: 6000221,
   name: "Calamity Effigy",
   cost: 4,
-  action: ACTION_CALAMITY_EFFIGY,
   stats: [[
     18,
     10,
@@ -15394,6 +15873,16 @@ var CALAMITY_EFFIGY = new Mainslot({
     /* Attribute.Aero */
   ]],
   grants: [{ on: onInflict(TUNE_STRAIN_SHIFTING), buff: CALAMITY_EFFIGY_STRAIN }]
+});
+var ACTION_CALAMITY_EFFIGY = new TransformEcho("Echo - Calamity Effigy", {
+  mainslot: CALAMITY_EFFIGY,
+  endPosition: 0,
+  animFrames: 124,
+  bullets: [{ hitFrame: 80, mv: 40500, energy: 562 }],
+  cooldown: 60 * 25,
+  element: 64,
+  scaling: 0,
+  type: 28672
 });
 var HEART_OF_EVILS_PURGE_2PC = new Sonata2pc({ id: 34, name: "Heart of Evil's Purge 2pc", echoes: () => [MYRIAD_SNARE, CALAMITY_EFFIGY, FORBIDDEN_BASTION], stats: [[
   18,
@@ -15417,13 +15906,33 @@ var HEART_OF_EVILS_PURGE_BUFF = new Buff({
     /* Attribute.Aero */
   ]]
 });
+var THOUSAND_PUPPET_PAVILION = new Mainslot({
+  id: 6000218,
+  name: "Thousand-Puppet Pavilion",
+  cost: 4,
+  stats: [[
+    18,
+    12,
+    384
+    /* Attribute.Havoc */
+  ], [
+    18,
+    12,
+    8192
+    /* Type.Heavy */
+  ]]
+});
 var ACTION_THOUSAND_PUPPET_PAVILION = new PseudoTransformEcho("Echo - Thousand-Puppet Pavilion", {
+  mainslot: THOUSAND_PUPPET_PAVILION,
+  castPosition: 0,
+  endPosition: 0,
   cooldown: 60 * 20,
-  animFrames: 16,
+  animFrames: 4,
+  // wuwalab's 41.04% hit at 2 is a blade's, ACTION_BLADE_OF_THOUSAND_MEMORIES below
   element: 384,
   scaling: 0,
   type: 28672,
-  bullets: [{ hitFrame: 5, mv: 10944, energy: 152 }],
+  bullets: [{ hitFrame: 4, commitFrame: 0, mv: 10944, energy: 152 }],
   // one set of blades at a time: a fresh summon cuts off whatever the last had left
   updateBuffs: () => {
     cancelHits(BLADES_OF_THOUSAND_MEMORIES);
@@ -15437,23 +15946,6 @@ var ACTION_BLADE_OF_THOUSAND_MEMORIES = new Action("Echo - Blade of Thousand Mem
   bullets: Array.from({ length: 4 }, (_, k) => ({ hitFrame: 60 * (k + 1), mv: 4104, energy: 57 }))
 });
 var BLADES_OF_THOUSAND_MEMORIES = /* @__PURE__ */ new Set([ACTION_BLADE_OF_THOUSAND_MEMORIES]);
-var THOUSAND_PUPPET_PAVILION = new Mainslot({
-  id: 6000218,
-  name: "Thousand-Puppet Pavilion",
-  cost: 4,
-  action: ACTION_THOUSAND_PUPPET_PAVILION,
-  stats: [[
-    18,
-    12,
-    384
-    /* Attribute.Havoc */
-  ], [
-    18,
-    12,
-    8192
-    /* Type.Heavy */
-  ]]
-});
 var FEATHERED_TRACE_2PC = new Sonata2pc({ id: 33, name: "Song of Feathered Trace 2pc", echoes: () => [THOUSAND_PUPPET_PAVILION, FORBIDDEN_BASTION], stats: [[11, 10]] });
 var FEATHERED_TRACE_5PC = new Sonata({
   id: 33,
@@ -15484,19 +15976,19 @@ var CHONGMINGS_FEATHER = new Buff({
   duration: 60 * 10,
   stats: [[6, 25]]
 });
-var ACTION_FORBIDDEN_BASTION = new SummonEcho("Echo - Forbidden Bastion", {
-  cooldown: 60 * 20,
-  element: 256,
-  scaling: 0,
-  type: 28672,
-  bullets: [{ hitFrame: 0, mv: 23760, energy: 330 }]
-});
 var FORBIDDEN_BASTION = new Mainslot({
   id: 6000216,
   name: "Forbidden Bastion",
   cost: 3,
-  action: ACTION_FORBIDDEN_BASTION,
   stats: [[25, 10]]
+});
+var ACTION_FORBIDDEN_BASTION = new SummonEcho("Echo - Forbidden Bastion", {
+  mainslot: FORBIDDEN_BASTION,
+  cooldown: 60 * 20,
+  element: 256,
+  scaling: 0,
+  type: 28672,
+  bullets: [{ hitFrame: 34, commitFrame: 0, mv: 23760, energy: 330 }]
 });
 var STAY_TUNED_BUFF = new Buff({
   name: "Reminiscence: Suhsin (flare/unison)",
@@ -15509,25 +16001,10 @@ var STAY_TUNED_BUFF = new Buff({
   ]]
 });
 var STAY_TUNED_GRANTS = [{ on: either(onInflict(ELECTRO_FLARE), gainedUnison, unisonResponse), buff: STAY_TUNED_BUFF }];
-var ACTION_STAY_TUNED = new SummonEcho("Echo - Reminiscence: Suhsin", {
-  cooldown: 60 * 20,
-  element: 128,
-  scaling: 0,
-  type: 28672,
-  bullets: [{ hitFrame: 0, mv: 2736 * 4 + 16416, energy: 38 * 4 + 228 }]
-});
-var ACTION_STAY_TUNED_HSIN = new SummonEcho("Echo - Reminiscence: Suhsin (Hsin)", {
-  cooldown: 60 * 20,
-  element: 128,
-  scaling: 0,
-  type: 28672,
-  bullets: [{ hitFrame: 0, mv: 820 * 5 + 23256, energy: 11 * 5 + 323 }]
-});
 var STAY_TUNED = new Mainslot({
   id: 6000225,
   name: "Reminiscence: Suhsin",
   cost: 4,
-  action: () => wears("Hsin") ? ACTION_STAY_TUNED_HSIN : ACTION_STAY_TUNED,
   stats: [[
     18,
     10,
@@ -15536,19 +16013,37 @@ var STAY_TUNED = new Mainslot({
   ]],
   grants: STAY_TUNED_GRANTS
 });
-var ACTION_STAY_TUNED_3C = new SummonEcho("Echo - Soulfrayer", {
+var ACTION_STAY_TUNED = new SummonEcho("Echo - Reminiscence: Suhsin", {
+  mainslot: STAY_TUNED,
   cooldown: 60 * 20,
   element: 128,
   scaling: 0,
   type: 28672,
-  bullets: [{ hitFrame: 0, mv: 9118 * 3, energy: 126 * 3 }],
-  updateBuffs: () => queueOutro(STAY_TUNED_3C_OUTRO)
+  bullets: [...[0, 1, 2, 3].map(() => ({ hitFrame: 0, mv: 2736, energy: 38 })), { hitFrame: 0, mv: 16416, energy: 228 }]
+});
+var ACTION_STAY_TUNED_HSIN = new SummonEcho("Echo - Reminiscence: Suhsin (Hsin)", {
+  mainslot: STAY_TUNED,
+  cooldown: 60 * 20,
+  element: 128,
+  scaling: 0,
+  type: 28672,
+  bullets: [...[0, 1, 2, 3, 4].map(() => ({ hitFrame: 0, mv: 820, energy: 11 })), { hitFrame: 0, mv: 23256, energy: 323 }]
 });
 var STAY_TUNED_3C = new Mainslot({
   id: 6000224,
   name: "Soulfrayer",
-  cost: 3,
-  action: ACTION_STAY_TUNED_3C
+  cost: 3
+});
+var ACTION_STAY_TUNED_3C = new SummonEcho("Echo - Soulfrayer", {
+  mainslot: STAY_TUNED_3C,
+  castPosition: 0,
+  endPosition: 0,
+  cooldown: 60 * 20,
+  element: 128,
+  scaling: 0,
+  type: 28672,
+  bullets: [0, 1, 2].map(() => ({ hitFrame: 0, mv: 9118, energy: 126 })),
+  updateBuffs: () => queueOutro(STAY_TUNED_3C_OUTRO)
 });
 var STAY_TUNED_3C_OUTRO = handoff("Soulfrayer: Outro", () => addStat(
   18,
@@ -15615,19 +16110,19 @@ var ELECTRIC_REFLECTION_HANDOFF = handoff("Flash of Electric Reflection 5pc (out
   128
   /* Attribute.Electro */
 ));
+var FORMLESS_DEMON = new Mainslot({
+  id: 6000223,
+  name: "Formrender",
+  cost: 3,
+  stats: [[11, 10]]
+});
 var ACTION_FORMLESS_DEMON = new SummonEcho("Echo - Formrender", {
+  mainslot: FORMLESS_DEMON,
   cooldown: 60 * 20,
   element: 192,
   scaling: 0,
   type: 28672,
   bullets: [{ hitFrame: 0, mv: 27360, energy: 380 }]
-});
-var FORMLESS_DEMON = new Mainslot({
-  id: 6000223,
-  name: "Formrender",
-  cost: 3,
-  action: ACTION_FORMLESS_DEMON,
-  stats: [[11, 10]]
 });
 var TINGED_YEARNING_2PC = new Sonata2pc({ id: 38, name: "Flower of Tinged Yearning 2pc", echoes: [THOUSAND_PUPPET_PAVILION, FORMLESS_DEMON], stats: [[25, 10]] });
 var TINGED_YEARNING_5PC = new Sonata({
@@ -16041,7 +16536,6 @@ var QINGXIAO_RESONATOR = new Resonator({
   weapon: 0,
   color: "#6cc5b0",
   intro: Intro7,
-  outro: Outro7,
   swapIn: () => isHeld(EPHEMERAL) ? FBA12 : BA17,
   swapInAir: () => isHeld(EPHEMERAL) ? FBA12 : MA14,
   tuneBreak: tuneBreak(120, [0, 120], [0, 100], [[64, 1e4], [70, 1e4, 64], [76, 1e4, 64], [82, 1e4, 64], [101, 12e4]]),
@@ -16168,8 +16662,8 @@ var QX_ROTATION = new Rotation([
   START_LAST,
   BA17.instaCancel(),
   Liberation7,
-  ECHO.instaSwap(),
-  INTRO,
+  ACTION_CALAMITY_EFFIGY.instaSwap(),
+  Intro7,
   MA1232,
   BA342,
   Skill6,
@@ -16177,8 +16671,8 @@ var QX_ROTATION = new Rotation([
   FBA1234.holdCancel(),
   FHA4,
   Liberation7,
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_CALAMITY_EFFIGY.instaSwap(),
+  Outro7
 ]);
 var QINGXIAO = new Loadout({
   id: 14131,
@@ -16504,7 +16998,6 @@ var QIUYUAN_RESONATOR = new Resonator({
   weapon: 0,
   color: "#4fae6b",
   intro: Intro8,
-  outro: () => isHeld(STRAW_CAPE) ? OutroS3 : Outro8,
   // "When Qiuyuan reaches 200 points of Swordster's Soliloquy, his Basic Attack is replaced"
   swapIn: () => forte1() >= 200 ? EBA1 : BA18,
   maxEnergy: 12500,
@@ -16554,30 +17047,39 @@ var FHA123 = new ActionGroup("Forte - Thus Spoke the Blade: Heavy 123", [FHA1, F
 var EBA12 = new ActionGroup("Basic - Thus Spoke the Blade: Inkwash 12", [EBA1, EBA2]);
 var EBA34 = new ActionGroup("Basic - Thus Spoke the Blade: Inkwash 34", [EBA3, EBA4]);
 var QY_ROTATION = new Rotation([
-  NOINTRO,
+  SWAPIN,
   BA18.instaCancel(),
   HA7,
   EBA4.instaCancel(),
-  ECHO.instaDodge(),
+  ACTION_FENRICO.instaCancel(),
+  ACTION_HERON.instaDodge(),
+  ACTION_BELL_BORNE.instaCancel(),
+  ACTION_FALLACY.instaCancel(),
   Liberation8,
   HA7,
   EBA4.instaDodge(),
   EBA12.instaDodge(),
   EBA12.holdCancel(),
   FHA123.cancel(),
-  OUTRO,
-  INTRO,
+  Outro8,
+  Intro8,
   SkillHold.instaCancel(),
-  ECHO.instaDodge(),
+  ACTION_FENRICO.instaCancel(),
+  ACTION_HERON.instaDodge(),
+  ACTION_BELL_BORNE.instaCancel(),
+  ACTION_FALLACY.instaCancel(),
   Liberation8,
   EBA12.holdCancel(),
   FHA123.cancel(),
-  OUTRO
+  Outro8
 ]);
 var QY_ROTATION_MDPS = new Rotation([
-  INTRO,
+  Intro8,
   EBA34.holdCancel(),
-  ECHO,
+  ACTION_FENRICO,
+  ACTION_HERON,
+  ACTION_BELL_BORNE,
+  ACTION_FALLACY,
   SkillHold.holdCancel(),
   FHA123,
   HA7,
@@ -16588,19 +17090,22 @@ var QY_ROTATION_MDPS = new Rotation([
   EBA12.instaDodge(),
   EBA12.holdCancel(),
   FHA123.cancel(),
-  OUTRO
+  Outro8
 ]);
 var QY_ROTATION_MDPS_S3 = new Rotation([
-  INTRO,
+  Intro8,
   EBA34.holdCancel(),
-  ECHO,
+  ACTION_FENRICO,
+  ACTION_HERON,
+  ACTION_BELL_BORNE,
+  ACTION_FALLACY,
   SkillHold.holdCancel(),
   FHA123.cancel(),
   Liberation8,
   StrawCape,
   EBA34.holdCancel(),
   FHA123.cancel(),
-  OUTRO
+  OutroS3
 ]);
 var QIUYUAN = new Loadout({
   id: 14111,
@@ -16661,18 +17166,10 @@ var QIUYUAN_MDPS = new Loadout({
 });
 
 // dist/src/echoes/lahairoi.js
-var ACTION_NAMELESS_EXPLORER = new SummonEcho("Echo - Nameless Explorer", {
-  cooldown: 60 * 20,
-  element: 64,
-  scaling: 0,
-  type: 28672,
-  bullets: [{ hitFrame: 0, mv: 27360, energy: 380 }]
-});
 var NAMELESS_EXPLORER = new Mainslot({
   id: 6000192,
   name: "Nameless Explorer",
   cost: 4,
-  action: ACTION_NAMELESS_EXPLORER,
   stats: [[
     18,
     12,
@@ -16684,6 +17181,14 @@ var NAMELESS_EXPLORER = new Mainslot({
     28672
     /* Type.Echo */
   ]]
+});
+var ACTION_NAMELESS_EXPLORER = new SummonEcho("Echo - Nameless Explorer", {
+  mainslot: NAMELESS_EXPLORER,
+  cooldown: 60 * 20,
+  element: 64,
+  scaling: 0,
+  type: 28672,
+  bullets: [{ hitFrame: 26, commitFrame: 0, mv: 27360, energy: 380 }]
 });
 var SOUND_OF_TRUE_NAME_2PC = new Sonata2pc({ id: 29, name: "Sound of True Name 2pc", echoes: () => [NAMELESS_EXPLORER, SPACETREK_EXPLORER], stats: [[
   18,
@@ -16715,59 +17220,52 @@ var SOUND_OF_TRUE_NAME_5PC = new Sonata({
     /* Type.Echo */
   ), buff: SOUND_OF_TRUE_NAME_BUFF, onHit: true }]
 });
+var HYVATIA = new Mainslot({
+  id: 6000189,
+  name: "Hyvatia",
+  cost: 4
+});
 var ACTION_HYVATIA = new SummonEcho("Echo - Hyvatia", {
+  mainslot: HYVATIA,
   cooldown: 60 * 20,
   element: 320,
   scaling: 0,
   type: 28672,
-  bullets: [{ hitFrame: 0, mv: 2736 * 10, energy: 3 * 10 }],
+  bullets: [185, 192, 198, 205, 211, 216, 223, 238, 244, 250].map((f) => ({ hitFrame: f, commitFrame: 0, mv: 2736, energy: 3 })),
   updateBuffs: () => queueOutro(HYVATIA_HANDOFF)
 });
 var HYVATIA_HANDOFF = handoff("Hyvatia: Outro", () => addStat(18, 10));
-var HYVATIA = new Mainslot({
-  id: 6000189,
-  name: "Hyvatia",
+var REACTOR_HUSK = new Mainslot({
+  id: 6000190,
+  name: "Reactor Husk",
   cost: 4,
-  action: ACTION_HYVATIA
+  stats: [[11, 10]]
 });
 var ACTION_REACTOR_HUSK = new TransformEcho("Echo - Reactor Husk", {
-  bullets: [{ hitFrame: 46, mv: 35100, energy: 487 }],
+  mainslot: REACTOR_HUSK,
+  endPosition: 0,
+  animFrames: 75,
+  bullets: [{ hitFrame: 49, mv: 35100, energy: 487 }],
   cooldown: 60 * 20,
   element: 192,
   scaling: 0,
   type: 28672
 });
-var REACTOR_HUSK = new Mainslot({
-  id: 6000190,
-  name: "Reactor Husk",
-  cost: 4,
-  action: ACTION_REACTOR_HUSK,
-  stats: [[11, 10]]
-});
-var ACTION_SPACETREK = new SummonEcho("Echo - Spacetrek Explorer", {
-  cooldown: 60 * 20,
-  element: 192,
-  scaling: 0,
-  updateDebuffs: () => gainShield()
-});
 var SPACETREK_EXPLORER = new Mainslot({
   id: 6000184,
   name: "Spacetrek Explorer",
-  cost: 3,
-  action: ACTION_SPACETREK
+  cost: 3
 });
-var ACTION_VOIDBORNE_CONSTRUCT = new SummonEcho("Echo - Reminiscence: Voidborne Construct", {
+var ACTION_SPACETREK = new SummonEcho("Echo - Spacetrek Explorer", {
+  mainslot: SPACETREK_EXPLORER,
   cooldown: 60 * 20,
-  element: 256,
-  scaling: 0,
-  type: 28672,
-  bullets: [{ hitFrame: 0, mv: 2188 * 5 + 16416, energy: 12 * 5 + 136 }]
+  // the shield lands on a bullet that deals nothing, at wuwalab's echo_shield_all
+  bullets: [{ hitFrame: 135, commitFrame: 0, element: null, type: null, subtype: null, updateDebuffs: () => gainShield() }]
 });
 var VOIDBORNE_CONSTRUCT = new Mainslot({
   id: 6000199,
   name: "Reminiscence: Threnodian - Voidborne",
   cost: 4,
-  action: ACTION_VOIDBORNE_CONSTRUCT,
   stats: [[
     18,
     12,
@@ -16780,12 +17278,28 @@ var VOIDBORNE_CONSTRUCT = new Mainslot({
     /* Type.Liberation */
   ]]
 });
-var ACTION_GLOMMOTH = new SummonEcho("Echo - Glommoth", {
+var ACTION_VOIDBORNE_CONSTRUCT = new SummonEcho("Echo - Reminiscence: Voidborne Construct", {
+  mainslot: VOIDBORNE_CONSTRUCT,
   cooldown: 60 * 20,
   element: 256,
   scaling: 0,
   type: 28672,
-  bullets: [{ hitFrame: 0, mv: 27360, energy: 380 }],
+  bullets: [...[33, 42, 51, 60, 69].map((f) => ({ hitFrame: f, commitFrame: 0, mv: 2188, energy: 12 })), { hitFrame: 91, commitFrame: 0, mv: 16416, energy: 136 }]
+});
+var GLOMMOTH = new Mainslot({
+  id: 6000195,
+  name: "Glommoth",
+  cost: 3
+});
+var ACTION_GLOMMOTH = new SummonEcho("Echo - Glommoth", {
+  mainslot: GLOMMOTH,
+  castPosition: 0,
+  endPosition: 0,
+  cooldown: 60 * 20,
+  element: 256,
+  scaling: 0,
+  type: 28672,
+  bullets: [{ hitFrame: 54, commitFrame: 0, mv: 27360, energy: 380 }],
   updateBuffs: () => queueOutro(GLOMMOTH_HANDOFF)
 });
 var GLOMMOTH_HANDOFF = handoff("Glommoth: Outro", () => addStat(
@@ -16794,12 +17308,6 @@ var GLOMMOTH_HANDOFF = handoff("Glommoth: Outro", () => addStat(
   256
   /* Attribute.Glacio */
 ));
-var GLOMMOTH = new Mainslot({
-  id: 6000195,
-  name: "Glommoth",
-  cost: 3,
-  action: ACTION_GLOMMOTH
-});
 var QUIET_SNOWFALL_2PC = new Sonata2pc({ id: 30, name: "Wishes of Quiet Snowfall 2pc", echoes: [VOIDBORNE_CONSTRUCT, GLOMMOTH], stats: [[
   18,
   10,
@@ -17035,18 +17543,10 @@ var GILDED_REVELATION_STACKS = new Buff({
       );
   }
 });
-var ACTION_NEBULOUS_CANNON = new TransformEcho("Echo - Twin Nova: Nebulous Cannon", {
-  bullets: [{ hitFrame: 46, mv: 8051 * 2, energy: 55 * 2 }],
-  cooldown: 60 * 8,
-  element: 320,
-  scaling: 0,
-  type: 28672
-});
 var NEBULOUS_CANNON = new Mainslot({
   id: 6000179,
   name: "Twin Nova: Nebulous Cannon",
   cost: 3,
-  action: ACTION_NEBULOUS_CANNON,
   stats: [[
     18,
     12,
@@ -17059,12 +17559,28 @@ var NEBULOUS_CANNON = new Mainslot({
     /* Type.Basic */
   ]]
 });
+var ACTION_NEBULOUS_CANNON = new TransformEcho("Echo - Twin Nova: Nebulous Cannon", {
+  mainslot: NEBULOUS_CANNON,
+  endPosition: 0,
+  animFrames: 38,
+  bullets: [{ hitFrame: 11, mv: 8051, energy: 55 }, { hitFrame: 32, mv: 8051, energy: 55 }],
+  cooldown: new Cooldown({ frames: 60 * 8, charges: 2 }),
+  element: 320,
+  scaling: 0,
+  type: 28672
+});
+var TRICKSTER = new Mainslot({
+  id: 6000200,
+  name: "Reminiscence: Denia",
+  cost: 4
+});
 var ACTION_TRICKSTER = new SummonEcho("Echo - Trickster", {
+  mainslot: TRICKSTER,
   cooldown: 60 * 20,
   element: 192,
   scaling: 0,
   type: 28672,
-  bullets: [{ hitFrame: 0, mv: 27360, energy: 380 }],
+  bullets: [{ hitFrame: 35, commitFrame: 0, mv: 27360, energy: 380 }],
   updateBuffs: () => queueOutro(TRICKSTER_HANDOFF)
 });
 var TRICKSTER_HANDOFF = new Buff({
@@ -17077,14 +17593,16 @@ var TRICKSTER_HANDOFF = new Buff({
     /* Attribute.Fusion */
   ]]
 });
-var TRICKSTER = new Mainslot({
-  id: 6000200,
-  name: "Reminiscence: Denia",
-  cost: 4,
-  action: ACTION_TRICKSTER
+var VOIDWING_MOTH = new Mainslot({
+  id: 6000198,
+  name: "Voidwing Moth",
+  cost: 3
 });
 var ACTION_VOIDWING_MOTH = new TransformEcho("Echo - Voidwing Moth", {
-  bullets: [{ hitFrame: 46, mv: 40500, energy: 562 }],
+  mainslot: VOIDWING_MOTH,
+  endPosition: 0,
+  animFrames: 85,
+  bullets: [{ hitFrame: 39, mv: 40500, energy: 562 }],
   cooldown: 60 * 25,
   element: 320,
   scaling: 0,
@@ -17092,12 +17610,6 @@ var ACTION_VOIDWING_MOTH = new TransformEcho("Echo - Voidwing Moth", {
   updateBuffs: () => queueOutro(VOIDWING_HANDOFF)
 });
 var VOIDWING_HANDOFF = handoff("Voidwing Moth: Outro", () => addStat(6, 12));
-var VOIDWING_MOTH = new Mainslot({
-  id: 6000198,
-  name: "Voidwing Moth",
-  cost: 3,
-  action: ACTION_VOIDWING_MOTH
-});
 var REEL_2PC = new Sonata2pc({ id: 31, name: "Reel of Spliced Memories 2pc", echoes: [NAMELESS_EXPLORER, VOIDWING_MOTH], stats: [[6, 10]] });
 var REEL_5PC = new Sonata({
   id: 31,
@@ -17132,7 +17644,17 @@ var SHATTERED_DREAMS_1PC = new Sonata1pc({
   echoes: () => [ADAM_SMASHER],
   grants: [{ on: onInflict(TUNE_HACK_SHIFTING), buff: SHATTERED_DREAMS }]
 });
+var ADAM_SMASHER = new Mainslot({
+  id: 6000201,
+  name: "Nightmare: Adam Smasher",
+  cost: 4,
+  constantStats: () => {
+    if (wears("Lucy") || wears("Rebecca"))
+      addStat(9, 15);
+  }
+});
 var ACTION_ADAM_SMASHER_LUCY = new SummonEcho("Echo - Adam Smasher", {
+  mainslot: ADAM_SMASHER,
   cooldown: 60 * 20,
   element: 320,
   scaling: 0,
@@ -17140,41 +17662,25 @@ var ACTION_ADAM_SMASHER_LUCY = new SummonEcho("Echo - Adam Smasher", {
   bullets: [{ hitFrame: 0, mv: 27360, energy: 380 }]
 });
 var ACTION_ADAM_SMASHER_REBECCA = new SummonEcho("Echo - Adam Smasher", {
+  mainslot: ADAM_SMASHER,
   cooldown: 60 * 20,
   element: 128,
   scaling: 0,
   type: 28672,
-  bullets: [{ hitFrame: 0, mv: 1710 * 16, energy: 23 * 16 }]
+  bullets: [32, 42, 48, 53, 56, 64, 70, 81, 84, 87, 95, 102, 106, 118, 123, 130].map((f) => ({ hitFrame: f, commitFrame: 0, mv: 1710, energy: 23 }))
 });
 var ACTION_ADAM_SMASHER = new SummonEcho("Echo - Adam Smasher", {
+  mainslot: ADAM_SMASHER,
   cooldown: 60 * 20,
   element: 448,
   scaling: 0,
   type: 28672,
-  bullets: [{ hitFrame: 0, mv: 1026 * 16, energy: 14 * 16 }]
-});
-var ADAM_SMASHER = new Mainslot({
-  id: 6000201,
-  name: "Nightmare: Adam Smasher",
-  cost: 4,
-  action: () => wears("Lucy") ? ACTION_ADAM_SMASHER_LUCY : wears("Rebecca") ? ACTION_ADAM_SMASHER_REBECCA : ACTION_ADAM_SMASHER,
-  constantStats: () => {
-    if (wears("Lucy") || wears("Rebecca"))
-      addStat(9, 15);
-  }
-});
-var ACTION_SIGILLUM = new SummonEcho("Echo - Sigillum", {
-  cooldown: 60 * 20,
-  element: 192,
-  scaling: 0,
-  type: 28672,
-  bullets: [{ hitFrame: 0, mv: 6840 + 20520, energy: 23 + 213 }]
+  bullets: [85, 92, 97, 104, 110, 116, 122, 128].flatMap((f) => [0, 1].map(() => ({ hitFrame: f, commitFrame: 0, mv: 1026, energy: 14 })))
 });
 var SIGILLUM = new Mainslot({
   id: 6000191,
   name: "Sigillum",
   cost: 4,
-  action: ACTION_SIGILLUM,
   constantStats: () => {
     if (currentMember().resonator?.name === "Aemeath")
       addStat(
@@ -17184,6 +17690,14 @@ var SIGILLUM = new Mainslot({
         /* Type.Liberation */
       );
   }
+});
+var ACTION_SIGILLUM = new SummonEcho("Echo - Sigillum", {
+  mainslot: SIGILLUM,
+  cooldown: 60 * 20,
+  element: 192,
+  scaling: 0,
+  type: 28672,
+  bullets: [{ hitFrame: 25, commitFrame: 0, mv: 6840, energy: 23 }, { hitFrame: 55, commitFrame: 0, mv: 20520, energy: 213 }]
 });
 
 // dist/src/resonators/aero/sigrika.js
@@ -17597,7 +18111,6 @@ var SIGRIKA_RESONATOR = new Resonator({
   weapon: 3,
   color: "#e0aa7e",
   intro: Intro9,
-  outro: Outro9,
   swapIn: () => forte2() >= 50 ? BA29 : BA19,
   swapInAir: MA6,
   maxEnergy: 12500,
@@ -17659,8 +18172,8 @@ var SR_SEQUENCES = [SR_S1, SR_S2, SR_S3, SR_S4, SR_S5, SR_S6];
 var BA2343 = new ActionGroup("Basic - One, Two, Three 234", [BA29, BA310, BA47]);
 var BA343 = new ActionGroup("Basic - One, Two, Three 34", [BA310, BA47]);
 var SR_ROTATION = new Rotation([
-  INTRO,
-  ECHO,
+  Intro9,
+  ACTION_NAMELESS_EXPLORER,
   BA2343,
   EBASIC.cancel(),
   FHA5.cancel(),
@@ -17672,7 +18185,7 @@ var SR_ROTATION = new Rotation([
   Skill8,
   BA343,
   EBASIC.cancel(),
-  OUTRO
+  Outro9
 ]);
 var SR_ROTATION_DOUBLE = new Rotation([
   START_LAST,
@@ -17680,8 +18193,8 @@ var SR_ROTATION_DOUBLE = new Rotation([
   Skill8,
   BA343,
   EBASIC.instaSwap(),
-  INTRO_LAST,
-  ECHO,
+  Intro9.inLastSlot(),
+  ACTION_NAMELESS_EXPLORER,
   FHA5.dodgeCancel(),
   BA2343,
   ESKILL,
@@ -17693,11 +18206,11 @@ var SR_ROTATION_DOUBLE = new Rotation([
   Skill8,
   BA343,
   EBASIC.cancel(),
-  OUTRO
+  Outro9
 ]);
 var SR_ROTATION_FAST = new Rotation([
-  INTRO,
-  ECHO,
+  Intro9,
+  ACTION_NAMELESS_EXPLORER,
   BA2343,
   EBASIC.cancel(),
   FHA5.cancel(),
@@ -17706,7 +18219,7 @@ var SR_ROTATION_FAST = new Rotation([
   EBASIC.cancel(),
   FHA5.holdCancel(),
   FSkill,
-  OUTRO
+  Outro9
 ]);
 var SIGRIKA_EBA = new Loadout({
   id: 14121,
@@ -18003,7 +18516,6 @@ var AUGUSTA_RESONATOR = new Resonator({
   weapon: 1,
   color: "#e8734f",
   intro: Intro10,
-  outro: Outro10,
   swapIn: BA110,
   swapInAir: MA7,
   maxEnergy: 12500,
@@ -18080,7 +18592,7 @@ var AG_S6 = new Sequence({
 });
 var AG_SEQUENCES = [AG_S1, AG_S2, AG_S3, AG_S4, AG_S5, AG_S6];
 var AG_ROTATION = new Rotation([
-  INTRO,
+  Intro10,
   FHA12,
   FHA23,
   Skill9,
@@ -18094,8 +18606,8 @@ var AG_ROTATION = new Rotation([
   FSkill3.holdCancel(),
   Lib22,
   FJump2,
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_FALSE_SOVEREIGN.instaSwap(),
+  Outro10
 ]);
 var AUGUSTA = new Loadout({
   id: 13061,
@@ -18472,7 +18984,6 @@ var JINHSI_RESONATOR = new Resonator({
   weapon: 1,
   color: "#c2ecfb",
   intro: Intro11,
-  outro: () => isHeld(UNISON) ? OutroUnison : Outro11,
   // Incarnation and Ordination Glow each replace the Basic Attack, mid-air too
   swapIn: () => isHeld(ORDINATION_GLOW) ? IncHeavy : isHeld(INCARNATION) ? IncBA1 : BA111,
   swapInAir: () => isHeld(ORDINATION_GLOW) ? IncHeavy : isHeld(INCARNATION) ? IncBA1 : MA8,
@@ -18500,81 +19011,86 @@ var JX_ROTATION_FULL = new Rotation([
   BA111.instaCancel(),
   Liberation10,
   Skill10.instaSwap(),
-  DOUBLE_INTRO,
+  Intro11.doubleIntro(),
   Skill22,
   IncBA12.cancel(),
   Skill32,
   IncBA34.instaCancel(),
-  ECHO,
+  ACTION_JUE,
+  ACTION_STAY_TUNED,
   Skill4_Unison,
-  OUTRO,
-  INTRO,
+  OutroUnison,
+  Intro11,
   Skill22,
   IncBA12.cancel(),
   Skill32,
   IncBA34.instaCancel(),
   Skill42,
   Liberation10,
-  OUTRO
+  Outro11
 ]);
 var JX_ROTATION_EVERY_OTHER = new Rotation([
   START_LAST,
   BA111.instaCancel(),
   Liberation10.everyOther(),
   Skill10.instaSwap(),
-  NOINTRO,
+  SWAPIN,
   BA12342.instaCancel(),
   Skill22.instaCancel(),
-  ECHO,
+  ACTION_JUE,
+  ACTION_STAY_TUNED,
   Liberation10.everyOther(),
   IncBA1,
   IncBA2.instaJump(),
   IncBA3.instaJump(),
   IncBA4.instaCancel(),
   Skill4_Unison,
-  OUTRO,
-  DOUBLE_INTRO,
+  OutroUnison,
+  Intro11.doubleIntro(),
   Skill22.instaDodge(),
   IncBA12.cancel(),
   Skill32,
   IncBA34.instaCancel(),
-  ECHO,
+  ACTION_JUE,
+  ACTION_STAY_TUNED,
   Skill4_Unison,
   Liberation10.everyOther(),
-  OUTRO,
-  INTRO,
+  OutroUnison,
+  Intro11,
   Skill22.instaDodge(),
   IncBA12.cancel(),
   Skill32,
   IncBA34.instaCancel(),
   Skill42,
-  OUTRO
+  Outro11
 ]);
 var JX_ROTATION_SUPPORT = new Rotation([
   START_LAST,
   BA111.instaCancel(),
   Liberation10.everyOther(),
   Skill10.instaSwap(),
-  NOINTRO,
+  SWAPIN,
   BA12342.instaCancel(),
   Skill22.instaCancel(),
-  ECHO,
+  ACTION_JUE,
+  ACTION_STAY_TUNED,
   Liberation10.everyOther(),
   IncBA1,
   IncBA2.instaJump(),
   IncBA3.instaJump(),
   IncBA4.instaCancel(),
   Skill4_Unison,
-  OUTRO,
-  INTRO,
+  OutroUnison,
+  Intro11,
   Skill22.instaDodge(),
-  ECHO,
+  ACTION_JUE,
+  ACTION_STAY_TUNED,
   IncBA12.cancel(),
   Skill32,
   IncBA34.instaCancel(),
   Skill4_Unison,
   Liberation10.everyOther(),
-  OUTRO
+  OutroUnison
 ]);
 var JX_ECHOES = [
   new EchoLoadout(JUE, CELESTIAL_LIGHT_5PC),
@@ -18867,7 +19383,7 @@ var INTRO_UNFURLED = {
 };
 var IntroThunderRending = suomingAction("Intro - Unfurled Canopy: Thunder Rending", INTRO_UNFURLED);
 var IntroWhirlingThunder = suomingAction("Intro - Unfurled Canopy: Whirling Thunder (Unison)", { ...INTRO_UNFURLED, updateBuffs: respondToUnison });
-var INTROS2 = /* @__PURE__ */ new Set([IntroFlashRift, IntroThunderRending, IntroSealedDelusion, IntroWhirlingThunder]);
+var INTROS = /* @__PURE__ */ new Set([IntroFlashRift, IntroThunderRending, IntroSealedDelusion, IntroWhirlingThunder]);
 var SealedDelusion = suomingAction("Forte Skill - Furled Canopy: Sealed Delusion", {
   minForte1: 800,
   requireBuff: AWAKENED_MIND,
@@ -18993,7 +19509,7 @@ var RAIN_SOAKED_COVENANT = new Buff({
 });
 var RAIN_SOAKED_INHERENT = new Inherent({
   name: "Inherent: Rain-Soaked Covenant",
-  grants: [{ on: () => runningAnyOf(INTROS2), buff: RAIN_SOAKED_COVENANT }],
+  grants: [{ on: () => runningAnyOf(INTROS), buff: RAIN_SOAKED_COVENANT }],
   // a gain the press makes once, so on its cast: the Intro now lands as its separate hits
   updateBuffs: () => {
     if (runningAction(IntroSealedDelusion) || runningAction(IntroWhirlingThunder))
@@ -19065,7 +19581,7 @@ var BOON_RESPONSE = new Buff({});
 var SM_S1 = new Sequence({
   name: "Suoming S1: Into the Blight Rain",
   applyStats: () => {
-    if (runningAnyOf(INTROS2))
+    if (runningAnyOf(INTROS))
       addStat(17, 60);
   }
 });
@@ -19149,7 +19665,6 @@ var SUOMING_RESONATOR = new Resonator({
   // queue, since the handoff is adopted only once the Intro row itself is evaluated
   color: "#ea5d64",
   // resolved when its row is reached: whichever Intro the kit's state calls for there
-  outro: () => isHeld(UNISON) ? OutroUnison2 : Outro12,
   intro: () => isHeld(DEEP_MIND) ? unisonIntro() ? IntroWhirlingThunder : IntroThunderRending : unisonIntro() ? IntroSealedDelusion : IntroFlashRift,
   // Deep Mind's Basic Attack is Unfurled Canopy
   swapIn: () => isHeld(DEEP_MIND) ? UBA1 : BA112,
@@ -19177,34 +19692,50 @@ var UBA12 = new ActionGroup("Basic - Unfurled Canopy 12", [UBA1, UBA2]);
 var UBA1234 = new ActionGroup("Basic - Unfurled Canopy 1234", [UBA1, UBA2, UBA3, UBA4]);
 var UBA123 = new ActionGroup("Basic - Unfurled Canopy 123", [UBA1, UBA2, UBA3]);
 var SM_ROTATION = new Rotation([
-  NOINTRO,
+  SWAPIN,
   BA1232,
   BA1232.cancel(),
   SealedDelusion,
-  DOUBLE_INTRO,
+  IntroFlashRift.doubleIntro(),
+  IntroSealedDelusion.doubleIntro(),
+  IntroThunderRending.doubleIntro(),
+  IntroWhirlingThunder.doubleIntro(),
   Liberation11,
-  OUTRO,
-  INTRO,
+  OutroUnison2,
+  IntroFlashRift,
+  IntroSealedDelusion,
+  IntroThunderRending,
+  IntroWhirlingThunder,
   UHA2.dodgeCancel(),
   UBA12.cancel(),
   UnforsakenMind,
   EngravedHeart.mashCancel(),
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_HERON.instaSwap(),
+  ACTION_STAY_TUNED.instaSwap(),
+  ACTION_STAY_TUNED_3C.instaSwap(),
+  Outro12
 ]);
 var SM_ROTATION_MDPS = new Rotation([
-  INTRO.mashCancel(),
+  IntroFlashRift.mashCancel(),
+  IntroSealedDelusion.mashCancel(),
+  IntroThunderRending.mashCancel(),
+  IntroWhirlingThunder.mashCancel(),
   Liberation11,
   RiftCleaver.instaDodge(),
   UBA12UHA12.dodgeCancel(),
   UBA12UHA12.cancel(),
   UnforsakenMind,
   EngravedHeart.mashCancel(),
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_HERON.instaSwap(),
+  ACTION_STAY_TUNED.instaSwap(),
+  ACTION_STAY_TUNED_3C.instaSwap(),
+  Outro12
 ]);
 var SM_ROTATION_MDPS_SIMPLE = new Rotation([
-  INTRO.mashCancel(),
+  IntroFlashRift.mashCancel(),
+  IntroSealedDelusion.mashCancel(),
+  IntroThunderRending.mashCancel(),
+  IntroWhirlingThunder.mashCancel(),
   Liberation11,
   RiftCleaver,
   UBA3,
@@ -19214,13 +19745,21 @@ var SM_ROTATION_MDPS_SIMPLE = new Rotation([
   UBA4,
   UnforsakenMind,
   EngravedHeart.mashCancel(),
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_HERON.instaSwap(),
+  ACTION_STAY_TUNED.instaSwap(),
+  ACTION_STAY_TUNED_3C.instaSwap(),
+  Outro12
 ]);
 var SM_ROTATION_MDPS_DOUBLE = new Rotation([
-  DOUBLE_INTRO,
+  IntroFlashRift.doubleIntro(),
+  IntroSealedDelusion.doubleIntro(),
+  IntroThunderRending.doubleIntro(),
+  IntroWhirlingThunder.doubleIntro(),
   UBA1.instaSwap(),
-  INTRO,
+  IntroFlashRift,
+  IntroSealedDelusion,
+  IntroThunderRending,
+  IntroWhirlingThunder,
   UHA2.cancel(),
   Liberation11,
   RiftCleaver.instaDodge(),
@@ -19228,8 +19767,10 @@ var SM_ROTATION_MDPS_DOUBLE = new Rotation([
   UBA12UHA12.cancel(),
   UnforsakenMind,
   EngravedHeart.mashCancel(),
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_HERON.instaSwap(),
+  ACTION_STAY_TUNED.instaSwap(),
+  ACTION_STAY_TUNED_3C.instaSwap(),
+  Outro12
 ]);
 var SM_ECHOES = [
   new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
@@ -20734,7 +21275,6 @@ var HSIN_RESONATOR = new Resonator({
   },
   color: "#f1a49b",
   // resolved when its row is reached: whichever Intro the kit's state calls for there
-  outro: () => isHeld(UNISON) ? OutroUnison3 : Outro13,
   intro: () => {
     if (!isHeld(MODE_UNISON))
       return isHeld(ILLUMINING_FORM) ? FlareIIntro : FlareIntro;
@@ -20758,11 +21298,11 @@ var FBA12342 = new ActionGroup("Basic - Illumining Form: Pillars Aligned 1234", 
 var FBA123 = new ActionGroup("Basic - Illumining Form: Pillars Aligned 123", [FBA13, FBA23, FBA33]);
 var FBA122 = new ActionGroup("Basic - Illumining Form: Pillars Aligned 12", [FBA13, FBA23]);
 var HS_ROTATION_FLARE = new Rotation([
-  INTRO,
+  FlareIntro,
   BA410.holdCancel(),
   RealmProtector,
   Lib12,
-  ECHO,
+  ACTION_STAY_TUNED_HSIN,
   IBA1.instaCancel(),
   ISkill.mashCancel(),
   //IBA123.instaCancel(), ISkill.holdCancel(),
@@ -20774,15 +21314,13 @@ var HS_ROTATION_FLARE = new Rotation([
   FHA6,
   Lib23,
   BA113.instaSwap(),
-  OUTRO
+  Outro13
 ]);
 var HS_ROTATION_FLARE_S2 = new Rotation([
-  INTRO,
-  BA410.holdCancel(),
-  INTRO_OPENER,
+  FlareIntro.firstIntro(),
   RealmProtector,
   Lib12,
-  ECHO,
+  ACTION_STAY_TUNED_HSIN,
   IBA1.instaCancel(),
   ISkill.mashCancel(),
   PillarsAligned,
@@ -20791,42 +21329,64 @@ var HS_ROTATION_FLARE_S2 = new Rotation([
   FHA6,
   Lib23,
   BA113.instaSwap(),
-  OUTRO
+  Outro13,
+  FlareIntro,
+  BA410.holdCancel(),
+  RealmProtector,
+  Lib12,
+  ACTION_STAY_TUNED_HSIN,
+  IBA1.instaCancel(),
+  ISkill.mashCancel(),
+  PillarsAligned,
+  FBA122.dodgeCancel(),
+  FBA123.holdCancel(),
+  FHA6,
+  Lib23,
+  BA113.instaSwap(),
+  Outro13
 ]);
 var HS_ROTATION_UNISON = new Rotation([
-  DOUBLE_INTRO,
+  UIntro.doubleIntro(),
+  ManifoldAnswering.doubleIntro(),
   BA344.holdCancel(),
   RealmProtector,
   Lib12,
   IBA1.instaCancel(),
   ISkill.instaSwap(),
-  OUTRO,
-  INTRO,
-  ECHO,
+  OutroUnison3,
+  ManifoldIllumining,
+  ACTION_STAY_TUNED_HSIN,
   FBA122.dodgeCancel(),
   FBA123.holdCancel(),
   FHA6,
   Lib23,
   Skill11.instaSwap(),
-  OUTRO
+  Outro13
 ]);
 var HS_ROTATION_UNISON_S2 = new Rotation([
-  DOUBLE_INTRO,
-  BA344.holdCancel(),
-  INTRO_OPENER,
+  UIntro.firstDoubleIntro(),
+  ManifoldAnswering.firstDoubleIntro(),
   RealmProtector,
   Lib12,
   IBA1.instaCancel(),
   ISkill.instaSwap(),
-  OUTRO,
-  INTRO,
-  ECHO,
+  OutroUnison3,
+  UIntro.doubleIntro(),
+  ManifoldAnswering.doubleIntro(),
+  BA344.holdCancel(),
+  RealmProtector,
+  Lib12,
+  IBA1.instaCancel(),
+  ISkill.instaSwap(),
+  OutroUnison3,
+  ManifoldIllumining,
+  ACTION_STAY_TUNED_HSIN,
   FBA122.dodgeCancel(),
   FBA123.holdCancel(),
   FHA6,
   Lib23,
   Skill11.instaSwap(),
-  OUTRO
+  Outro13
 ]);
 var HSIN_FLARE = new Loadout({
   id: 13111,
@@ -21189,7 +21749,6 @@ var BULING_RESONATOR = new Resonator({
   weapon: 4,
   color: "#7a6ff0",
   intro: Intro12,
-  outro: Outro14,
   swapIn: BA114,
   swapInAir: MA11,
   maxEnergy: 15e3,
@@ -21199,19 +21758,20 @@ var BULING_RESONATOR = new Resonator({
   stats: [[1, 10625], [0, 225], [2, 1258.8866]]
 });
 var BL_ROTATION = new Rotation([
-  NOINTRO,
+  SWAPIN,
   BA114.instaCancel(),
-  INTRO.mashCancel(),
+  Intro12.mashCancel(),
   Skill12,
   BA411.jumpCancel(),
   MA11,
   BA124.instaCancel(),
   HA12,
   HA12.cancel(),
-  ECHO.instaDodge(),
+  ACTION_FALLACY.instaCancel(),
+  ACTION_FORMLESS_DEMON.instaCancel(),
   // TODO maybe cancel HA?
   LIB,
-  OUTRO
+  Outro14
 ]);
 var BULING = new Loadout({
   id: 13071,
@@ -21721,7 +22281,6 @@ var LUCY_RESONATOR = new Resonator({
   weapon: 2,
   color: "#efe8de",
   intro: Intro13,
-  outro: Outro15,
   // Algorithm Compaction replaces the Basic and Mid-air Attacks
   swapIn: () => isHeld(ALGORITHM_COMPACTION) ? EBA13 : BA115,
   swapInAir: () => isHeld(ALGORITHM_COMPACTION) ? EMA : MA15,
@@ -21744,9 +22303,9 @@ var LC_ROTATION = new Rotation([
   START_LAST,
   BA115.instaCancel(),
   Lib,
-  ECHO,
+  ACTION_ADAM_SMASHER_LUCY,
   HA1.instaSwap(),
-  INTRO_LAST,
+  Intro13.inLastSlot(),
   BA2344.cancel(),
   Skill1,
   Skill33,
@@ -21754,11 +22313,11 @@ var LC_ROTATION = new Rotation([
   EBA234.holdCancel(),
   DualThreading,
   MultiThreadingResolver,
-  ECHO,
+  ACTION_ADAM_SMASHER_LUCY,
   ELib,
   HA1,
   HA23.instaSwap(),
-  OUTRO
+  Outro15
 ]);
 var LC_ECHOES = [
   new EchoLoadout(ADAM_SMASHER, SHATTERED_DREAMS_1PC, CELESTIAL_LIGHT_2PC, NEONLIGHT_LEAP_2PC),
@@ -22177,7 +22736,6 @@ var JINGRAN_RESONATOR = new Resonator({
   dodge: ShadowStep,
   color: "#f2c13c",
   intro: Intro14,
-  outro: Outro16,
   // Qi Modulation picks the Basic Attack; in mid-air it is the plunge
   swapIn: () => isHeld(YIN_VESSEL) ? EBA14 : BA116,
   swapInAir: MA16,
@@ -22213,7 +22771,7 @@ var ESkill12 = new ActionGroup("Skill - Encroaching Yin + Netherworld Traverse",
 var EBA2342 = new ActionGroup("Basic - Drink Soul 234", [EBA23, EBA33, EBA43]);
 var BA2345 = new ActionGroup("Basic - Devil's Bane 234", [BA216, BA317, BA413]);
 var JR_ROTATION = new Rotation([
-  INTRO,
+  Intro14,
   Lib3,
   FHA7,
   EBA2342.cancel(),
@@ -22222,14 +22780,14 @@ var JR_ROTATION = new Rotation([
   FHA7,
   ESkill12.cancel(),
   EFHA,
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_MYRIAD_SNARE.instaSwap(),
+  Outro16
 ]);
 var JR_ROTATION_S2 = new Rotation([
   START,
   BA116.instaCancel(),
   FHA7.instaSwap(),
-  INTRO,
+  Intro14,
   Lib3,
   EFHA,
   BA2345.cancel(),
@@ -22238,8 +22796,8 @@ var JR_ROTATION_S2 = new Rotation([
   EFHA,
   Skill122,
   FHA7,
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_MYRIAD_SNARE.instaSwap(),
+  Outro16
 ]);
 var JINGRAN = new Loadout({
   id: 12121,
@@ -22295,7 +22853,7 @@ var EatLead = rebeccaAction("Heavy - Eat Lead!: Huntress", { chains: [HHA], requ
 ] });
 var HMA = rebeccaAction("Mid-air - Huntress Plunge", { castPosition: 1, endPosition: 0, requireBuff: HUNTRESS, animFrames: 43, animPriority: { 0: 6, 32: 2 }, castPriority: 3, node: 0, cast: 1, type: 4096, bullets: [{ hitFrame: 34, mv: 13604, energy: 202, concerto: 403, offtune: 6440, forte1: 1305 }] });
 var HTD = rebeccaAction("Dodge - Tactical Dodge: Huntress", {
-  chains: () => [HBA1, HBA2, HBA3, HHA, EatLead, CominInHot, HTD, Skill14, ESkill3, INTRO],
+  chains: () => [HBA1, HBA2, HBA3, HHA, EatLead, CominInHot, HTD, Skill14, ESkill3, Intro15, EIntro],
   castPosition: 0,
   requireBuff: HUNTRESS,
   animFrames: 36,
@@ -22335,7 +22893,7 @@ var GBA3 = rebeccaAction("Basic - Guts 3", { chains: [GBA2], requireBuff: GUTS, 
 var GHA = rebeccaAction("Heavy - Guts", { requireBuff: GUTS, animFrames: 68, animPriority: { 69: 2 }, castPriority: 4, node: 0, cast: 2, type: 8192, bullets: [{ hitFrame: 50, mv: 20279, energy: 300, concerto: 600, offtune: 9600, forte1: 1945 }] });
 var GMA = rebeccaAction("Mid-air - Guts Plunge", { castPosition: 1, endPosition: 0, requireBuff: GUTS, animFrames: 57, animPriority: { 0: 6, 32: 2 }, castPriority: 3, node: 0, cast: 1, type: 4096, bullets: [{ hitFrame: 34, mv: 10478, energy: 155, concerto: 310, offtune: 4960, forte1: 1005 }] });
 var GTD = rebeccaAction("Dodge - Tactical Dodge: Guts", {
-  chains: () => [GBA1, GBA2, GBA3, GTD, Skill14, ESkill3, INTRO],
+  chains: () => [GBA1, GBA2, GBA3, GTD, Skill14, ESkill3, Intro15, EIntro],
   castPosition: 0,
   requireBuff: GUTS,
   animFrames: 40,
@@ -22508,7 +23066,6 @@ var Outro17 = rebeccaAction("Outro - Preem Choom", {
     else
       applyTeam(REBECCA_TURRET, 14);
     queueQTE(EDGERUNNER_BONDS);
-    addGain({ forte2: 120 });
   }
 });
 var TURRET_FIELD = new ActionField("Rebecca: Outro Turret");
@@ -22529,6 +23086,7 @@ var Meltdown = rebeccaAction("Tune Hack Response - Meltdown", {
 var A_GIRL = new Buff({
   name: "Rebecca: A Girl Gets What She Wants!",
   duration: 60 * 12,
+  tick: { every: 6, fire: () => addGain({ forte2: -1 }) },
   applyStats: () => {
     const k = isHeld(RB_S4) ? 1.6 : 1;
     if (!isHeld(HUNTRESS))
@@ -22544,6 +23102,16 @@ var A_GIRL = new Buff({
     const hotHand = currentHit().forte2;
     if (hotHand > 0)
       addGain({ forte2: -hotHand });
+  }
+});
+var HOT_HAND_REGEN = new Buff({
+  name: "Rebecca: Hot Hand (regen)",
+  tick: {
+    every: 6,
+    fire: () => {
+      if (!isHeld(A_GIRL) && forte2() < 120)
+        addGain({ forte2: 1 });
+    }
   }
 });
 var TAG_YOURE_IT = new Buff({
@@ -22709,7 +23277,6 @@ var REBECCA_RESONATOR = new Resonator({
   color: "#abebda",
   // resolved when its row is reached: whichever Intro the kit's state calls for there
   intro: () => isHeld(GUTS) ? EIntro : Intro15,
-  outro: Outro17,
   swapIn: () => isHeld(GUTS) ? GBA1 : HBA1,
   swapInAir: () => isHeld(GUTS) ? GMA : HMA,
   // her Tactical Dodges, each off its own mode's ground presses; a Skill or Intro dodges in whichever
@@ -22727,12 +23294,14 @@ var REBECCA_RESONATOR = new Resonator({
   combatStart: () => {
     applyCurrent(HUNTRESS, 1);
     setForte2(120);
+    applyCurrent(HOT_HAND_REGEN, 1);
     applyEnemy(TUNE_SHIFTABLE, 1);
   },
   hitGlobal: () => tuneHackResponse(Meltdown),
-  // at a full Hot Hand bar, a Resonance Skill or Intro Skill trades it for the 12s window
+  // at a full Hot Hand bar, a Resonance Skill or Intro Skill opens the 12s window, which drains the
+  // bar itself; the Fervor rides on the trigger, an Intro
   updateBuffs: () => {
-    if (forte2() >= 120 && (casting(
+    if (forte2() >= 120 && !isHeld(A_GIRL) && (casting(
       3
       /* Cast.Skill */
     ) || casting(
@@ -22740,10 +23309,11 @@ var REBECCA_RESONATOR = new Resonator({
       /* Cast.Intro */
     ))) {
       applyCurrent(A_GIRL, 1);
-      addGain({ forte2: -120, forte1: casting(
+      if (casting(
         5
         /* Cast.Intro */
-      ) ? 5e3 : 0 });
+      ))
+        addGain({ forte1: 5e3 });
     }
   },
   stats: [
@@ -22757,27 +23327,35 @@ var REBECCA_RESONATOR = new Resonator({
 var GBA23 = new ActionGroup("Basic - Guts 23", [GBA2, GBA3]);
 var Lib1234 = new ActionGroup("Liberation - Party 'til Dawn! + Mk. 31 HMG", [Lib13, Lib24, Lib32, Lib4]);
 var RB_ROTATION = new Rotation([
-  INTRO_OPENER,
+  Intro15.firstIntro(),
+  EIntro.firstIntro(),
   GBA1.hitDodge(),
   GBA23.cancel(),
   GHA.holdCancel(),
   FHAGuts,
   GHA.cancel(),
-  ECHO.instaDodge(),
+  ACTION_ADAM_SMASHER_REBECCA.instaCancel(),
+  ACTION_HYVATIA.instaCancel(),
+  ACTION_HERON.instaDodge(),
+  ACTION_STONEWALL_BRACER_1.instaDodge(),
   Lib1234,
   Boom.instaSwap(),
-  OUTRO,
-  INTRO.jumpCancel(),
+  Outro17,
+  Intro15.jumpCancel(),
+  EIntro.jumpCancel(),
   HMA,
   // cancel is too slow
   Skill14.hitDodge(),
   GBA1.cancel(),
   FHAGuts,
   GHA.cancel(),
-  ECHO.instaDodge(),
+  ACTION_ADAM_SMASHER_REBECCA.instaCancel(),
+  ACTION_HYVATIA.instaCancel(),
+  ACTION_HERON.instaDodge(),
+  ACTION_STONEWALL_BRACER_1.instaDodge(),
   Lib1234,
   Boom.instaSwap(),
-  OUTRO
+  Outro17
 ]);
 var RB_ECHOES = [
   new EchoLoadout(ADAM_SMASHER, SHATTERED_DREAMS_1PC, LINGERING_TUNES_2PC, VOID_THUNDER_2PC),
@@ -23137,7 +23715,6 @@ var ROVER_ELECTRO_RESONATOR = new Resonator({
   weapon: 0,
   color: "#b98ce8",
   intro: Intro16,
-  outro: Outro18,
   swapIn: BA117,
   swapInAir: MA17,
   // 91 frames of time stop on a 90-frame break: the one over banks into the next press
@@ -23154,14 +23731,16 @@ var ROVER_ELECTRO_RESONATOR = new Resonator({
 });
 var BA12344 = new ActionGroup("Basic - Deterrence 1234", [BA117, BA217, BA318, BA414]);
 var ER_ROTATION = new Rotation([
-  INTRO,
+  Intro16,
   BA12344,
   Skill15,
   Repel.cancel(),
   Liberation12,
   Overshock,
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_HERON.instaSwap(),
+  ACTION_STAY_TUNED_3C.instaSwap(),
+  ACTION_STAY_TUNED.instaSwap(),
+  Outro18
 ]);
 var THRUM_SPECTRO = new ActionGroup("Skill - Thrum: Spectro 123", [
   ThrumSpectro1,
@@ -23174,7 +23753,7 @@ var THRUM_HAVOC = new ActionGroup("Skill - Thrum: Havoc 123", [
   ThrumHavoc3
 ]);
 var ER_ROTATION_MDPS = new Rotation([
-  INTRO,
+  Intro16,
   BA12344,
   Skill15,
   Repel,
@@ -23183,8 +23762,10 @@ var ER_ROTATION_MDPS = new Rotation([
   THRUM_SPECTRO,
   THRUM_HAVOC,
   SilencingBlade,
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_HERON.instaSwap(),
+  ACTION_STAY_TUNED_3C.instaSwap(),
+  ACTION_STAY_TUNED.instaSwap(),
+  Outro18
 ]);
 var ROVER_ELECTRO = new Loadout({
   id: 13091,
@@ -23350,7 +23931,7 @@ var UForte = xlyAction("Forte Skill - Law of Reigns", {
   castForte2: -5,
   updateBuffs: () => removeStack(INTUITION, 1)
 });
-var FBA = xlyAction("Mid-air - Revamp", { chains: [FSkill4, USkill], castPosition: 1, animFrames: 95, castPriority: 2, node: 2, cast: 1, type: 16384, bullets: [
+var FBA = xlyAction("Mid-air - Revamp", { chains: [FSkill4, USkill], castPosition: 1, endPosition: 0, animFrames: 95, castPriority: 2, node: 2, cast: 1, type: 16384, bullets: [
   { hitFrame: 67, mv: 2187, energy: 28, offtune: 880 },
   { hitFrame: 67, mv: 2187, energy: 28, offtune: 880 },
   { hitFrame: 67, mv: 2187, energy: 28, offtune: 880 },
@@ -23426,7 +24007,6 @@ var XIANGLI_YAO_RESONATOR = new Resonator({
   weapon: 3,
   color: "#6b74e8",
   intro: Intro17,
-  outro: Outro19,
   // Intuition replaces his Basic Attack with Pivot - Impale
   swapIn: () => isHeld(INTUITION) ? UBA13 : BA118,
   swapInAir: MA18,
@@ -23513,7 +24093,7 @@ var XLY_S6 = new Sequence({
 var XLY_SEQUENCES = [XLY_S1, XLY_S2, XLY_S3, XLY_S4, XLY_S5, XLY_S6];
 var UBA1232 = new ActionGroup("Basic - Pivot: Impale 123", [UBA13, UBA22, UBA32]);
 var XLY_ROTATION = new Rotation([
-  INTRO,
+  Intro17,
   Liberation13,
   USkill,
   FBA,
@@ -23523,8 +24103,8 @@ var XLY_ROTATION = new Rotation([
   USkill,
   FBA,
   UForte,
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_NM_MEPHIS.instaSwap(),
+  Outro19
 ]);
 var XIANGLI_YAO = new Loadout({
   id: 13051,
@@ -23774,7 +24354,6 @@ var YINLIN_RESONATOR = new Resonator({
   weapon: 4,
   color: "#a45ee8",
   intro: Intro18,
-  outro: Outro20,
   swapIn: BA119,
   swapInAir: MA19,
   maxEnergy: 12500,
@@ -23853,14 +24432,15 @@ var YL_S6 = new Sequence({
 var YL_SEQUENCES = [YL_S1, YL_S2, YL_S3, YL_S4, YL_S5, YL_S6];
 var BA12345 = new ActionGroup("Basic - Zapstring's Dance 1234", [BA119, BA219, BA320, BA416]);
 var YL_ROTATION = new Rotation([
-  INTRO,
+  Intro18,
   Skill17,
   Liberation14,
   BA12345,
   Skill24,
   FHA8,
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_NM_TEMPEST_MEPHIS.instaSwap(),
+  ACTION_HERON.instaSwap(),
+  Outro20
 ]);
 var YINLIN_MATRIX_TEAM = new Buff({
   name: "Yinlin: Matrix Buff",
@@ -24238,7 +24818,6 @@ var AEMEATH_RESONATOR = new Resonator({
   color: "#ff4680",
   // resolved when its row is reached: whichever Intro the kit's state calls for there
   intro: () => stacksOf(MECH_FORM) ? EIntro2 : Intro19,
-  outro: Outro21,
   swapIn: () => stacksOf(MECH_FORM) ? MBA1 : ABA1,
   // Mid-air Attack - Mech (a plunge) isn't modelled; Basic Attack - Mech "can be cast in mid-air close to the ground"
   swapInAir: () => stacksOf(MECH_FORM) ? MBA1 : AMA,
@@ -24443,7 +25022,7 @@ var ABA234 = new ActionGroup("Basic - Aemeath 234", [ABA2, ABA3, ABA4]);
 var MBA234 = new ActionGroup("Basic - Mech 234", [MBA2, MBA3, MBA4]);
 var ABA34 = new ActionGroup("Basic - Aemeath 34", [ABA3, ABA4]);
 var AE_ROTATION = new Rotation([
-  INTRO,
+  Intro19,
   ABA34.cancel(),
   Lib14,
   MBA234.cancel(),
@@ -24452,14 +25031,14 @@ var AE_ROTATION = new Rotation([
   Duet,
   MHA2.cancel(),
   Lib25,
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_SIGILLUM.instaSwap(),
+  Outro21
 ]);
 var AE_ROTATION_S1 = new Rotation([
   START,
   ABA1.instaCancel(),
   AHA2.instaSwap(),
-  INTRO,
+  Intro19,
   ABA34.cancel(),
   Lib14,
   MBA234.cancel(),
@@ -24468,8 +25047,8 @@ var AE_ROTATION_S1 = new Rotation([
   Duet,
   MHA2.cancel(),
   Lib25,
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_SIGILLUM.instaSwap(),
+  Outro21
 ]);
 var AEMEATH_RUPTURE = new Loadout({
   id: 12101,
@@ -24589,42 +25168,46 @@ function brantAction(id, def2) {
 var Intro20 = brantAction("Intro - Applaud for Me!", {
   endPosition: 1,
   updateBuffs: () => saveChain(MA110),
-  animFrames: 106,
+  qteFrames: 40,
+  animFrames: 108,
+  noSwapFrames: 107,
   castPriority: 11,
+  motionStop: [0, 71],
   node: 4,
   cast: 5,
   type: 20480,
   bullets: [
-    { hitFrame: 106, mv: 20279, offtune: 9600, updateDebuffs: () => applyCurrent(HEALS, 1) },
-    { hitFrame: 106, mv: 5070, offtune: 2400, forte1: 2500 }
+    { hitFrame: 77, mv: 20279, offtune: 9600, forte1: 2e3, updateDebuffs: () => applyCurrent(HEALS, 1) },
+    { hitFrame: 89, mv: 5070, offtune: 2400, forte1: 500 }
   ],
   castConcerto: 1e3
 });
 var Outro22 = brantAction("Outro - The Course is Set!", { cast: 6, minConcerto: 1e4, castConcerto: -1e4, updateBuffs: () => queueQTE(BRANT_OUTRO) });
-var Skill18 = brantAction("Skill - Anchors Aweigh!", { castPosition: 0, endPosition: 1, animFrames: 46, castPriority: 4, cooldown: 60 * 4, node: 1, cast: 3, type: 12288, bullets: [
-  { hitFrame: 21, mv: 20035, energy: 431, offtune: 6096 },
-  { hitFrame: 21, mv: 13357, energy: 287, offtune: 4064, forte1: 788 }
+var Skill18 = brantAction("Skill - Anchors Aweigh!", { castPosition: 0, endPosition: 1, animFrames: 40, castPriority: 4, cooldown: 60 * 4, node: 1, cast: 3, type: 12288, bullets: [
+  { hitFrame: 9, mv: 20035, energy: 431, offtune: 6096, forte1: 473 },
+  { hitFrame: 23, mv: 13357, energy: 287, offtune: 4064, forte1: 315 }
 ], castConcerto: 1e3 });
 var Liberation15 = brantAction("Liberation - To the Horizon", {
-  animFrames: 247,
-  timestop: [0, 247],
-  motionStop: [0, 247],
+  animFrames: 236,
+  timestop: [0, 236],
+  motionStop: [0, 144],
   castPriority: 10,
   cooldown: 60 * 24,
+  endPosition: 1,
   node: 3,
   cast: 4,
   type: 16384,
   bullets: [
-    { hitFrame: 247, mv: 8506, offtune: 6e3 },
-    { hitFrame: 247, mv: 8506, offtune: 6e3 },
-    { hitFrame: 247, mv: 8506, offtune: 6e3 },
-    { hitFrame: 247, mv: 8506, offtune: 6e3 },
-    { hitFrame: 247, mv: 34021, offtune: 24e3 }
+    { hitFrame: 120, commitFrame: 0, mv: 8506, offtune: 6e3 },
+    { hitFrame: 125, commitFrame: 0, mv: 8506, offtune: 6e3 },
+    { hitFrame: 130, commitFrame: 0, mv: 8506, offtune: 6e3 },
+    { hitFrame: 135, commitFrame: 0, mv: 8506, offtune: 6e3 },
+    { hitFrame: 146, commitFrame: 0, mv: 34021, offtune: 24e3 }
   ],
   castConcerto: 2e3,
   castEnergy: -17500,
-  // Aflame swaps his conversion up to its "My" Moment rate for as long as it lasts
-  updateBuffs: () => {
+  // Aflame opens as the Liberation ends, swapping his conversion up to its "My" Moment rate
+  afterAction: () => {
     applyCurrent(AFLAME, 1);
     revokeCurrent(THEATRICAL_MOMENT);
     applyCurrent(MY_MOMENT, 1);
@@ -24632,15 +25215,16 @@ var Liberation15 = brantAction("Liberation - To the Horizon", {
 });
 var FSkill5 = brantAction("Forte Skill - Returned from Ashes", {
   minForte1: 1e4,
-  animFrames: 139,
-  castPriority: 4,
+  animFrames: 138,
+  animPriority: { 141: 2 },
+  castPriority: 6,
   endPosition: 0,
   node: 2,
   cast: 3,
   type: 4096,
   bullets: [
     {
-      hitFrame: 109,
+      hitFrame: 15,
       mv: 4722,
       energy: 75,
       concerto: 75,
@@ -24649,18 +25233,21 @@ var FSkill5 = brantAction("Forte Skill - Returned from Ashes", {
         gainShield();
         if (isHeld(BR_S4))
           applyCurrent(HEALS, 1);
-        if (isHeld(BR_S6))
-          queue(AshesBlast);
       }
     },
-    { hitFrame: 109, mv: 4722, energy: 75, concerto: 75, offtune: 1580 },
-    { hitFrame: 109, mv: 9444, energy: 150, concerto: 150, offtune: 3160 },
-    { hitFrame: 109, mv: 18887, energy: 300, concerto: 300, offtune: 6320 },
-    { hitFrame: 109, mv: 18887, energy: 300, concerto: 300, offtune: 6320 },
-    { hitFrame: 109, mv: 132209, energy: 2100, concerto: 2100, offtune: 44240 }
+    { hitFrame: 29, mv: 4722, energy: 75, concerto: 75, offtune: 1580 },
+    { hitFrame: 49, mv: 9444, energy: 150, concerto: 150, offtune: 3160 },
+    { hitFrame: 107, mv: 18887, energy: 300, concerto: 300, offtune: 6320 },
+    { hitFrame: 110, commitFrame: 107, mv: 18887, energy: 300, concerto: 300, offtune: 6320 },
+    { hitFrame: 115, mv: 132209, energy: 2100, concerto: 2100, offtune: 44240 }
   ],
   castConcerto: 2e3,
   castForte1: -1e4,
+  // S6's secondary blast, 158f from the cast and committed there
+  updateBuffs: () => {
+    if (isHeld(BR_S6))
+      queue(AshesBlast, 158);
+  },
   // its own end, not Aflame's: behind a swap it can run out after Aflame's 12s already has
   afterAction: () => {
     revokeCurrent(AFLAME);
@@ -24668,28 +25255,28 @@ var FSkill5 = brantAction("Forte Skill - Returned from Ashes", {
     applyCurrent(THEATRICAL_MOMENT, 1);
   }
 });
-var BA120 = brantAction("Basic - Captain's Rhapsody 1", { castPriority: 2, node: 0, cast: 1, type: 4096, bullets: [{ hitFrame: 0, mv: 5053, energy: 75, concerto: 150, offtune: 2392, forte1: 130 }] });
-var BA220 = brantAction("Basic - Captain's Rhapsody 2", { chains: [BA120], castPriority: 2, node: 0, cast: 1, type: 4096, bullets: [
-  { hitFrame: 0, mv: 5070, energy: 75, concerto: 150, offtune: 2400 },
-  { hitFrame: 0, mv: 5070, energy: 75, concerto: 150, offtune: 2400, forte1: 262 }
+var BA120 = brantAction("Basic - Captain's Rhapsody 1", { animFrames: 19, castPriority: 2, node: 0, cast: 1, type: 4096, bullets: [{ hitFrame: 12, mv: 5053, energy: 75, concerto: 150, offtune: 2392, forte1: 130 }] });
+var BA220 = brantAction("Basic - Captain's Rhapsody 2", { chains: [BA120], animFrames: 37, castPriority: 2, node: 0, cast: 1, type: 4096, bullets: [
+  { hitFrame: 9, mv: 5070, energy: 75, concerto: 150, offtune: 2400, forte1: 131 },
+  { hitFrame: 24, mv: 5070, energy: 75, concerto: 150, offtune: 2400, forte1: 131 }
 ] });
-var BA321 = brantAction("Basic - Captain's Rhapsody 3", { chains: [BA220], castPriority: 2, node: 0, cast: 1, type: 4096, bullets: [
-  { hitFrame: 0, mv: 2206, energy: 33, concerto: 66, offtune: 1044 },
-  { hitFrame: 0, mv: 2206, energy: 33, concerto: 66, offtune: 1044 },
-  { hitFrame: 0, mv: 2206, energy: 33, concerto: 66, offtune: 1044 },
-  { hitFrame: 0, mv: 3308, energy: 49, concerto: 98, offtune: 1566 },
-  { hitFrame: 0, mv: 3308, energy: 49, concerto: 98, offtune: 1566, forte1: 341 }
+var BA321 = brantAction("Basic - Captain's Rhapsody 3", { chains: [BA220], animFrames: 55, castPriority: 2, node: 0, cast: 1, type: 4096, bullets: [
+  { hitFrame: 13, mv: 2206, energy: 33, concerto: 66, offtune: 1044, forte1: 57 },
+  { hitFrame: 19, commitFrame: 13, mv: 2206, energy: 33, concerto: 66, offtune: 1044, forte1: 57 },
+  { hitFrame: 25, commitFrame: 13, mv: 2206, energy: 33, concerto: 66, offtune: 1044, forte1: 57 },
+  { hitFrame: 38, mv: 3308, energy: 49, concerto: 98, offtune: 1566, forte1: 85 },
+  { hitFrame: 46, mv: 3308, energy: 49, concerto: 98, offtune: 1566, forte1: 85 }
 ] });
-var BA417 = brantAction("Basic - Captain's Rhapsody 4", { chains: [BA321], castPriority: 2, node: 0, cast: 1, type: 4096, bullets: [
-  { hitFrame: 0, mv: 2802, energy: 42, concerto: 83, offtune: 1326 },
-  { hitFrame: 0, mv: 2242, energy: 34, concerto: 67, offtune: 1061 },
-  { hitFrame: 0, mv: 2242, energy: 34, concerto: 67, offtune: 1061 },
-  { hitFrame: 0, mv: 2242, energy: 34, concerto: 67, offtune: 1061 },
-  { hitFrame: 0, mv: 2242, energy: 34, concerto: 67, offtune: 1061 },
-  { hitFrame: 0, mv: 2242, energy: 34, concerto: 67, offtune: 1061, forte1: 362 }
+var BA417 = brantAction("Basic - Captain's Rhapsody 4", { chains: [BA321], animFrames: 70, animPriority: { 92: 2 }, castPriority: 2, node: 0, cast: 1, type: 4096, bullets: [
+  { hitFrame: 34, mv: 2802, energy: 42, concerto: 83, offtune: 1326, forte1: 72 },
+  { hitFrame: 52, mv: 2242, energy: 34, concerto: 67, offtune: 1061, forte1: 58 },
+  { hitFrame: 55, commitFrame: 52, mv: 2242, energy: 34, concerto: 67, offtune: 1061, forte1: 58 },
+  { hitFrame: 59, commitFrame: 52, mv: 2242, energy: 34, concerto: 67, offtune: 1061, forte1: 58 },
+  { hitFrame: 62, commitFrame: 52, mv: 2242, energy: 34, concerto: 67, offtune: 1061, forte1: 58 },
+  { hitFrame: 65, commitFrame: 52, mv: 2242, energy: 34, concerto: 67, offtune: 1061, forte1: 58 }
 ] });
-var HA15 = brantAction("Heavy - Captain's Rhapsody", { castPriority: 2, node: 0, cast: 2, type: 8192, bullets: [{ hitFrame: 0, mv: 19755, energy: 293, concerto: 585, offtune: 9352, forte1: 725 }] });
-var HARiff = brantAction("Heavy - Rhapsodic Riff", { chains: () => [BA220, BA417, MA42], castPriority: 2, node: 0, cast: 2, type: 8192, bullets: [{ hitFrame: 0, mv: 16899, energy: 250, concerto: 500, offtune: 8e3, forte1: 620 }] });
+var HA15 = brantAction("Heavy - Captain's Rhapsody", { animFrames: 47, castPriority: 3, node: 0, cast: 2, type: 8192, bullets: [{ hitFrame: 14, mv: 19755, energy: 293, concerto: 585, offtune: 9352, forte1: 725 }] });
+var HARiff = brantAction("Heavy - Rhapsodic Riff", { chains: () => [BA220, BA417, MA42], animFrames: 66, animPriority: { 60: 2 }, castPriority: 3, node: 0, cast: 2, type: 8192, bullets: [{ hitFrame: 53, mv: 16899, energy: 250, concerto: 500, offtune: 8e3, forte1: 620 }] });
 var DC18 = brantAction("Dodge Counter - Captain's Rhapsody", { chains: [DODGE], castPriority: 8, node: 0, cast: 0, type: 4096, bullets: [
   { hitFrame: 0, mv: 3803, energy: 57, concerto: 113, offtune: 1800 },
   { hitFrame: 0, mv: 3803, energy: 57, concerto: 113, offtune: 1800 },
@@ -24697,64 +25284,92 @@ var DC18 = brantAction("Dodge Counter - Captain's Rhapsody", { chains: [DODGE], 
   { hitFrame: 0, mv: 5704, energy: 85, concerto: 169, offtune: 2700 },
   { hitFrame: 0, mv: 5704, energy: 85, concerto: 169, offtune: 2700 }
 ], castConcerto: 1e3 });
-var Plunge5 = brantAction("Mid-air - Plunging Attack", { castPosition: 1, endPosition: 0, animFrames: 55, castPriority: 6, node: 0, cast: 1, type: 4096, bullets: [{ hitFrame: 55, mv: 10478, energy: 155, concerto: 310, offtune: 4960, forte1: 383 }] });
+var Plunge5 = brantAction("Skill - Plunging Attack", { castPosition: 1, endPosition: 0, maxForte1: 9999, animFrames: 45, castPriority: 4, node: 1, cast: 3, type: 4096, bullets: [{ hitFrame: 32, mv: 10478, energy: 155, concerto: 310, offtune: 4960, forte1: 383 }] });
 var MA110 = brantAction("Mid-air - Captain's Rhapsody 1", {
   castPosition: 1,
-  animFrames: 48,
-  castPriority: 2,
-  bullets: [{ hitFrame: 34, mv: 12286, energy: 182, concerto: 364, offtune: 5816, forte1: 451 }],
+  afterAction: () => {
+    if (!pressCut())
+      queue(MAFlip1);
+  },
+  animFrames: 16,
+  castPriority: 3,
+  bullets: [{ hitFrame: 13, mv: 12286, energy: 182, concerto: 364, offtune: 5816, forte1: 451 }],
   node: 0,
   cast: 1,
   type: 4096
   /* Type.Basic */
 });
-var MA1C = brantAction("Mid-air - Captain's Rhapsody 1 (Charged)", { chains: [MA110], castPosition: 1, animFrames: 181 - 48, castPriority: 2, node: 0, cast: 1, type: 4096, bullets: [
-  { hitFrame: 133, mv: 3325, energy: 50, concerto: 99, offtune: 1574 },
-  { hitFrame: 133, mv: 4987, energy: 74, concerto: 148, offtune: 2360 },
-  { hitFrame: 133, mv: 4156, energy: 62, concerto: 123, offtune: 1967 },
-  { hitFrame: 133, mv: 4156, energy: 62, concerto: 123, offtune: 1967 },
-  { hitFrame: 133, mv: 4156, energy: 62, concerto: 123, offtune: 1967 },
-  { hitFrame: 133, mv: 4156, energy: 62, concerto: 123, offtune: 1967 },
-  { hitFrame: 133, mv: 4156, energy: 62, concerto: 123, offtune: 1967 },
-  { hitFrame: 133, mv: 4156, energy: 62, concerto: 123, offtune: 1967, forte1: 1223 }
+var MA1C = brantAction("Mid-air - Captain's Rhapsody 1 (Charged)", { castPosition: 1, afterAction: () => {
+  if (!pressCut())
+    queue(MAFlip1);
+}, animFrames: 155, animPriority: { 16: 2 }, castPriority: 3, node: 0, cast: 1, type: 4096, bullets: [
+  { hitFrame: 13, mv: 12286, energy: 182, concerto: 364, offtune: 5816, forte1: 451 },
+  { hitFrame: 51, mv: 3325, energy: 50, concerto: 99, offtune: 1574, forte1: 122 },
+  { hitFrame: 66, mv: 4987, energy: 74, concerto: 148, offtune: 2360, forte1: 183 },
+  { hitFrame: 86, mv: 4156, energy: 62, concerto: 123, offtune: 1967, forte1: 153 },
+  { hitFrame: 96, mv: 4156, energy: 62, concerto: 123, offtune: 1967, forte1: 153 },
+  { hitFrame: 109, mv: 4156, energy: 62, concerto: 123, offtune: 1967, forte1: 153 },
+  { hitFrame: 121, mv: 4156, energy: 62, concerto: 123, offtune: 1967, forte1: 153 },
+  { hitFrame: 133, mv: 4156, energy: 62, concerto: 123, offtune: 1967, forte1: 153 },
+  { hitFrame: 146, mv: 4156, energy: 62, concerto: 123, offtune: 1967, forte1: 153 }
 ] });
-var MA25 = brantAction("Mid-air - Captain's Rhapsody 2", { chains: () => [MA110, MA1C, MAFlip], castPosition: 1, animFrames: 88, castPriority: 2, node: 0, cast: 1, type: 4096, bullets: [
-  { hitFrame: 74, mv: 8492, energy: 126, concerto: 252, offtune: 4020 },
-  { hitFrame: 74, mv: 8492, energy: 126, concerto: 252, offtune: 4020, forte1: 624 }
+var MAFlip1 = brantAction("Mid-air - Captain's Rhapsody 1 (Flip)", { chains: [MA110, MA1C], castPosition: 1, animFrames: 31, castPriority: 3, node: 0, cast: 1, type: 4096, bullets: [
+  { hitFrame: 8, mv: 3380, energy: 50, concerto: 100, offtune: 1600, forte1: 186 },
+  { hitFrame: 20, mv: 5915, energy: 88, concerto: 175, offtune: 2800, forte1: 326 }
 ] });
-var MA2C = brantAction("Mid-air - Captain's Rhapsody 2 (Charged)", { chains: [MA25], castPosition: 1, animFrames: 154 - 88, castPriority: 2, node: 0, cast: 1, type: 4096, bullets: [
-  { hitFrame: 66, mv: 3287, energy: 49, concerto: 98, offtune: 1556 },
-  { hitFrame: 66, mv: 3287, energy: 49, concerto: 98, offtune: 1556 },
-  { hitFrame: 66, mv: 3287, energy: 49, concerto: 98, offtune: 1556 },
-  { hitFrame: 66, mv: 3287, energy: 49, concerto: 98, offtune: 1556 },
-  { hitFrame: 66, mv: 3287, energy: 49, concerto: 98, offtune: 1556 },
-  { hitFrame: 66, mv: 3287, energy: 49, concerto: 98, offtune: 1556, forte1: 1266 }
+var MA25 = brantAction("Mid-air - Captain's Rhapsody 2", { chains: [MA110, MA1C, MAFlip1], castPosition: 1, afterAction: () => {
+  if (!pressCut())
+    queue(MAFlip2);
+}, animFrames: 54, castPriority: 3, node: 0, cast: 1, type: 4096, bullets: [
+  { hitFrame: 27, mv: 8492, energy: 126, concerto: 252, offtune: 4020, forte1: 312 },
+  { hitFrame: 46, mv: 8492, energy: 126, concerto: 252, offtune: 4020, forte1: 312 }
 ] });
-var MA34 = brantAction("Mid-air - Captain's Rhapsody 3", { chains: () => [MA25, MA2C, MAFlip, DODGE], castPosition: 1, animFrames: 95, castPriority: 2, node: 0, cast: 1, type: 4096, bullets: [
-  { hitFrame: 56, mv: 2817, energy: 42, concerto: 84, offtune: 1333 },
-  { hitFrame: 56, mv: 2817, energy: 42, concerto: 84, offtune: 1333 },
-  { hitFrame: 56, mv: 2817, energy: 42, concerto: 84, offtune: 1333 },
-  { hitFrame: 56, mv: 2817, energy: 42, concerto: 84, offtune: 1333 },
-  { hitFrame: 56, mv: 2817, energy: 42, concerto: 84, offtune: 1333 },
-  { hitFrame: 56, mv: 2817, energy: 42, concerto: 84, offtune: 1333, forte1: 930 }
+var MA2C = brantAction("Mid-air - Captain's Rhapsody 2 (Charged)", { chains: [MA110, MA1C, MAFlip1], castPosition: 1, afterAction: () => {
+  if (!pressCut())
+    queue(MAFlip2);
+}, animFrames: 114, animPriority: { 54: 2 }, castPriority: 3, node: 0, cast: 1, type: 4096, bullets: [
+  { hitFrame: 27, mv: 8492, energy: 126, concerto: 252, offtune: 4020, forte1: 312 },
+  { hitFrame: 46, mv: 8492, energy: 126, concerto: 252, offtune: 4020, forte1: 312 },
+  { hitFrame: 56, mv: 3287, energy: 49, concerto: 98, offtune: 1556, forte1: 211 },
+  { hitFrame: 65, mv: 3287, energy: 49, concerto: 98, offtune: 1556, forte1: 211 },
+  { hitFrame: 75, mv: 3287, energy: 49, concerto: 98, offtune: 1556, forte1: 211 },
+  { hitFrame: 86, mv: 3287, energy: 49, concerto: 98, offtune: 1556, forte1: 211 },
+  { hitFrame: 96, mv: 3287, energy: 49, concerto: 98, offtune: 1556, forte1: 211 },
+  { hitFrame: 106, mv: 3287, energy: 49, concerto: 98, offtune: 1556, forte1: 211 }
 ] });
-var MAFlip = brantAction("Mid-air - Captain's Rhapsody Flip", { chains: [MA110, MA1C, MA25, MA2C, MA34], castPosition: 1, castPriority: 2, node: 0, cast: 1, type: 4096, bullets: [
-  { hitFrame: 0, mv: 3380, energy: 50, concerto: 100, offtune: 1600 },
-  { hitFrame: 0, mv: 5915, energy: 88, concerto: 175, offtune: 2800, forte1: 512 }
+var MAFlip2 = brantAction("Mid-air - Captain's Rhapsody 2 (Flip)", { chains: [MA25, MA2C], castPosition: 1, animFrames: 29, castPriority: 3, node: 0, cast: 1, type: 4096, bullets: [
+  { hitFrame: 8, mv: 3380, energy: 50, concerto: 100, offtune: 1600, forte1: 186 },
+  { hitFrame: 20, mv: 5915, energy: 88, concerto: 175, offtune: 2800, forte1: 326 }
+] });
+var MA34 = brantAction("Mid-air - Captain's Rhapsody 3", { chains: [MA25, MA2C, MAFlip2, DODGE], castPosition: 1, afterAction: () => {
+  if (!pressCut())
+    queue(MAFlip3);
+}, animFrames: 55, castPriority: 3, node: 0, cast: 1, type: 4096, bullets: [
+  { hitFrame: 14, mv: 2817, energy: 42, concerto: 84, offtune: 1333, forte1: 155 },
+  { hitFrame: 20, mv: 2817, energy: 42, concerto: 84, offtune: 1333, forte1: 155 },
+  { hitFrame: 26, mv: 2817, energy: 42, concerto: 84, offtune: 1333, forte1: 155 },
+  { hitFrame: 32, mv: 2817, energy: 42, concerto: 84, offtune: 1333, forte1: 155 },
+  { hitFrame: 38, mv: 2817, energy: 42, concerto: 84, offtune: 1333, forte1: 155 },
+  { hitFrame: 44, mv: 2817, energy: 42, concerto: 84, offtune: 1333, forte1: 155 }
+] });
+var MAFlip3 = brantAction("Mid-air - Captain's Rhapsody 3 (Flip)", { chains: [MA34], castPosition: 1, animFrames: 29, castPriority: 3, node: 0, cast: 1, type: 4096, bullets: [
+  { hitFrame: 8, mv: 3380, energy: 50, concerto: 100, offtune: 1600, forte1: 186 },
+  { hitFrame: 20, mv: 5915, energy: 88, concerto: 175, offtune: 2800, forte1: 326 }
 ] });
 var MASlash = brantAction("Mid-air - Captain's Rhapsody 1 Slash", { castPosition: 1, castPriority: 2, node: 0, cast: 1, type: 4096, bullets: [
   { hitFrame: 0, mv: 2817, energy: 42, concerto: 84, offtune: 1333 },
   { hitFrame: 0, mv: 2817, energy: 42, concerto: 84, offtune: 1333 },
   { hitFrame: 0, mv: 2817, energy: 42, concerto: 84, offtune: 1333 }
 ] });
-var MA42 = brantAction("Mid-air - Captain's Rhapsody 4", { chains: [MA34, MAFlip], castPosition: 1, endPosition: 0, animFrames: 73, castPriority: 2, node: 0, cast: 1, type: 4096, bullets: [
-  { hitFrame: 44, mv: 10153, energy: 151, concerto: 301, offtune: 4806 },
-  { hitFrame: 44, mv: 2539, energy: 38, concerto: 76, offtune: 1202 },
-  { hitFrame: 44, mv: 2539, energy: 38, concerto: 76, offtune: 1202 },
-  { hitFrame: 44, mv: 2539, energy: 38, concerto: 76, offtune: 1202 },
-  { hitFrame: 44, mv: 7615, energy: 113, concerto: 226, offtune: 3605, forte1: 935 }
+var MA42 = brantAction("Mid-air - Captain's Rhapsody 4", { chains: [MA34, MAFlip3], castPosition: 1, endPosition: 0, animFrames: 73, animPriority: { 73: 2 }, castPriority: 3, node: 0, cast: 1, type: 4096, bullets: [
+  { hitFrame: 42, mv: 10153, energy: 151, concerto: 301, offtune: 4806, forte1: 373 },
+  { hitFrame: 66, commitFrame: 42, mv: 2539, energy: 38, concerto: 76, offtune: 1202, forte1: 94 },
+  { hitFrame: 71, commitFrame: 42, mv: 2539, energy: 38, concerto: 76, offtune: 1202, forte1: 94 },
+  { hitFrame: 76, commitFrame: 42, mv: 2539, energy: 38, concerto: 76, offtune: 1202, forte1: 94 },
+  { hitFrame: 91, commitFrame: 42, mv: 7615, energy: 113, concerto: 226, offtune: 3605, forte1: 280 }
 ] });
-var midAir = () => runningAction(MA110) || runningAction(MA1C) || runningAction(MA25) || runningAction(MA2C) || runningAction(MA34) || runningAction(MAFlip) || runningAction(MASlash) || runningAction(MA42) || runningAction(Plunge5);
+var flip = () => runningAction(MAFlip1) || runningAction(MAFlip2) || runningAction(MAFlip3);
+var midAir = () => runningAction(MA110) || runningAction(MA1C) || runningAction(MA25) || runningAction(MA2C) || runningAction(MA34) || flip() || runningAction(MASlash) || runningAction(MA42) || runningAction(Plunge5);
 var AFLAME = new Buff({
   name: "Brant: Aflame",
   duration: 60 * 12,
@@ -24819,11 +25434,15 @@ var BY_CURRENTS = new Buff({
 var BR_S1 = new Sequence({
   name: "Brant S1: By Currents and Winds",
   updateBuffs: () => {
-    if (runningAction(Intro20) || runningAction(MAFlip))
+    if (flip())
+      applyCurrent(BY_CURRENTS, 1);
+  },
+  afterAction: () => {
+    if (runningAction(Intro20))
       applyCurrent(BY_CURRENTS, 1);
   }
 });
-var CourseBlast = brantAction("Outro - The Course is Set! (S2 Blast)", { node: 0, type: 4096, bullets: [{ hitFrame: 0, mv: 44e3 }] });
+var CourseBlast = brantAction("Outro - The Course is Set! (S2 Blast)", { node: 0, type: 4096, bullets: [{ hitFrame: 3, commitFrame: 0, mv: 44e3 }] });
 var COURSE_BLAST = new Buff({
   name: "Brant S2: The Course is Set!",
   maxStacks: 2,
@@ -24902,7 +25521,6 @@ var BRANT_RESONATOR = new Resonator({
   tuneBreak: midairBreak(tuneBreak(90, [0, 90], [0, 70], SWORD_BREAK)),
   color: "#d1257f",
   intro: Intro20,
-  outro: Outro22,
   swapIn: BA120,
   swapInAir: MA110,
   maxEnergy: 17500,
@@ -24911,30 +25529,33 @@ var BRANT_RESONATOR = new Resonator({
   combatStart: () => applyCurrent(THEATRICAL_MOMENT, 1),
   stats: [[1, 11675], [0, 375], [2, 1307.7754]]
 });
-var MA1H = new ActionGroup("Mid-air - Captain's Rhapsody 1 (Hold)", [MA110, MA1C, MAFlip]);
-var MA2H = new ActionGroup("Mid-air - Captain's Rhapsody 2 (Hold)", [MA25, MA2C, MAFlip]);
 var BR_ROTATION = new Rotation([
-  INTRO,
+  Intro20,
   Liberation15,
-  MA2H,
+  MA2C,
   MA34,
-  MAFlip,
   FSkill5.swapCancel(),
-  OUTRO
+  Outro22
 ]);
 var BR_ROTATION_MDPS = new Rotation([
-  INTRO,
-  MA25.instaCancel(),
-  Liberation15,
-  MA1H,
-  MA2H,
-  MA34.cancel(),
-  ECHO.instaDodge(),
+  Intro20.doubleIntro(),
+  MA2C,
+  MA34.hitCancel(),
+  ACTION_DRAGON_OF_DIRGE.instaDodge(),
+  ACTION_NM_INFERNO_RIDER.instaDodge(),
   MA34,
-  MAFlip,
-  MA42.cancel(),
+  MA42,
+  SWAP,
+  Intro20,
+  MA25.instaCancel(),
+  FSkill5.cancel(),
+  Liberation15,
+  MA110,
+  MA2C,
+  MA34,
+  MA42.hitCancel(),
   FSkill5.swapCancel(),
-  OUTRO
+  Outro22
 ]);
 var BRANT = new Loadout({
   id: 12061,
@@ -25225,7 +25846,6 @@ var CHANGLI_RESONATOR = new Resonator({
   weapon: 0,
   color: "#f38b68",
   intro: Intro21,
-  outro: Outro23,
   // True Sight turns the Basic Attack into Conquest on the ground, Charge in mid-air
   swapIn: () => isHeld(TRUE_SIGHT) ? SBA : BA121,
   swapInAir: () => isHeld(TRUE_SIGHT) ? SMA : MA111,
@@ -25246,7 +25866,7 @@ var CH_ROTATION = new Rotation([
   Skill19.hitCancel(),
   Liberation16,
   FlamingSacrifice.instaSwap(),
-  INTRO,
+  Intro21,
   SMA,
   MHA,
   BA345.dodgeCancel(),
@@ -25259,7 +25879,7 @@ var CH_ROTATION = new Rotation([
   FlamingSacrifice.cancel(),
   Liberation16,
   FlamingSacrifice.swapCancel(),
-  OUTRO
+  Outro23
 ]);
 var CHANGLI = new Loadout({
   id: 12051,
@@ -25604,7 +26224,6 @@ var LUUK_RESONATOR = new Resonator({
   weapon: 3,
   color: "#ddb246",
   intro: Intro22,
-  outro: Outro24,
   swapIn: BA125,
   swapInAir: MA112,
   // his break leaves him in mid-air
@@ -25717,7 +26336,7 @@ var MA232 = new ActionGroup("Mid-air - Scythe: Dissection 23", [MA27, MA36]);
 var Jump23 = new ActionGroup("Mid-air - Scythe: Resection 23", [MA2R, MA3R]);
 var LK_ROTATION = new Rotation([
   // start lib costs too much ER
-  INTRO,
+  Intro22,
   Jump23.cancel(),
   Ring,
   GoldenImpale,
@@ -25729,10 +26348,10 @@ var LK_ROTATION = new Rotation([
   Gavel.cancel(),
   Liberation17,
   Skill20.instaSwap(),
-  OUTRO
+  Outro24
 ]);
 var LK_ROTATION_16s = new Rotation([
-  INTRO,
+  Intro22,
   Jump23.cancel(),
   Ring,
   GoldenImpale,
@@ -25745,7 +26364,7 @@ var LK_ROTATION_16s = new Rotation([
   Liberation17,
   Jump123.cancel(),
   Ring.instaSwap(),
-  OUTRO
+  Outro24
 ]);
 var LUUK = new Loadout({
   id: 15101,
@@ -26107,19 +26726,23 @@ var ENTROPY_BREAKDOWN = new Buff({
 var ENTROPY_STAGECRAFT = new Buff({
   name: "Entropy Shift: Stagecraft Form",
   duration: 60 * 30,
-  // S3 takes its regen to 4 Void Particle a second, so the same off-field window banks four times as much
-  // the shift's own Dark Core keeps coming while she is off field too: one across that window at
-  // the kit's 12s, three at S3's 6s
-  updateBuffs: () => {
-    if (!casting(
-      6
-      /* Cast.Outro */
-    ))
-      return;
-    applyCurrent(DARK_CORE, isHeld(DN_S3) ? 4 : 2);
-    addGain({ forte1: 20 });
-    if (isHeld(DN_S3))
-      asSource(DN_S3, () => addGain({ forte1: 60 }));
+  tick: {
+    every: 60,
+    fire: () => {
+      addGain({ forte1: 1 });
+      if (isHeld(DN_S3))
+        asSource(DN_S3, () => addGain({ forte1: 3 }));
+    }
+  }
+});
+var DARK_CORE_REGEN = new Buff({
+  name: "Denia: Dark Core (regen)",
+  tick: {
+    every: () => isHeld(ENTROPY_BREAKDOWN) || isHeld(ENTROPY_STAGECRAFT) ? isHeld(DN_S3) ? 60 * 6 : 60 * 12 : 0,
+    fire: () => {
+      if (stacksOf(DARK_CORE) < (isHeld(DN_S3) ? 5 : 3))
+        applyCurrent(DARK_CORE, 1);
+    }
   }
 });
 var ETCHED_COLORS_BURST = new Buff({
@@ -26334,14 +26957,16 @@ var DENIA_RESONATOR = new Resonator({
   color: "#ecabe3",
   // resolved when its row is reached: whichever Intro the kit's state calls for there
   intro: () => stacksOf(BREAKDOWN_FORM) ? EIntro3 : Intro23,
-  outro: Outro25,
   // Stagecraft's mid-air attack is its plunge; Breakdown has a mid-air string
   swapIn: () => stacksOf(BREAKDOWN_FORM) ? UBA14 : BA126,
   swapInAir: () => stacksOf(BREAKDOWN_FORM) ? UMBA1 : MA20,
   maxEnergy: 12500,
   maxForte1: 100,
   maxForte2: 100,
-  combatStart: () => applyCurrent(STAGECRAFT_FORM, 1),
+  combatStart: () => {
+    applyCurrent(STAGECRAFT_FORM, 1);
+    applyCurrent(DARK_CORE_REGEN, 1);
+  },
   stats: [
     [1, 11025],
     [0, 425],
@@ -26356,7 +26981,7 @@ var UMBA1234 = new ActionGroup("Mid-air - Breakdown Form 1234", [UMBA1, UMBA2, U
 var UMBA12 = new ActionGroup("Mid-air - Breakdown Form 12", [UMBA1, UMBA2]);
 var USkill12 = new ActionGroup("Skill - Banish 12", [Banish1, Banish2]);
 var DN_ROTATION_BURST = new Rotation([
-  NOINTRO,
+  SWAPIN,
   BA126.instaCancel(),
   Skill21.instaCancel(),
   Lib15,
@@ -26364,28 +26989,40 @@ var DN_ROTATION_BURST = new Rotation([
   UMBA1234.cancel(),
   USkill12.mashCancel(),
   Lib26,
-  ECHO.instaSwap(),
-  OUTRO,
-  INTRO,
+  ACTION_TRICKSTER.instaSwap(),
+  ACTION_LIONESS.instaSwap(),
+  ACTION_SIGILLUM.instaSwap(),
+  ACTION_VOIDWING_MOTH.instaSwap(),
+  ACTION_HYVATIA.instaSwap(),
+  Outro25,
+  Intro23,
   BA420.instaCancel(),
   Skill21.instaCancel(),
   Lib15,
   UBA12342.cancel(),
   USkill12.mashCancel(),
   Lib26,
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_TRICKSTER.instaSwap(),
+  ACTION_LIONESS.instaSwap(),
+  ACTION_SIGILLUM.instaSwap(),
+  ACTION_VOIDWING_MOTH.instaSwap(),
+  ACTION_HYVATIA.instaSwap(),
+  Outro25
 ]);
 var DN_ROTATION_BURST_S3 = new Rotation([
-  NOINTRO,
+  SWAPIN,
   BA126.instaCancel(),
-  INTRO,
+  Intro23,
   Lib15,
   UBA12342.cancel(),
   USkill12.mashCancel(),
   Lib26,
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_TRICKSTER.instaSwap(),
+  ACTION_LIONESS.instaSwap(),
+  ACTION_SIGILLUM.instaSwap(),
+  ACTION_VOIDWING_MOTH.instaSwap(),
+  ACTION_HYVATIA.instaSwap(),
+  Outro25
 ]);
 var DENIA_BURST = new Loadout({
   id: 12111,
@@ -26414,7 +27051,7 @@ var DENIA_BURST = new Loadout({
   mode: MODE_BURST2
 });
 var DN_ROTATION_STRAIN = new Rotation([
-  NOINTRO,
+  SWAPIN,
   BA126.instaCancel(),
   Skill21.instaCancel(),
   Lib15,
@@ -26423,9 +27060,13 @@ var DN_ROTATION_STRAIN = new Rotation([
   UMBA12.cancel(),
   USkill12.mashCancel(),
   Lib26,
-  ECHO.instaSwap(),
-  OUTRO,
-  INTRO,
+  ACTION_TRICKSTER.instaSwap(),
+  ACTION_LIONESS.instaSwap(),
+  ACTION_SIGILLUM.instaSwap(),
+  ACTION_VOIDWING_MOTH.instaSwap(),
+  ACTION_HYVATIA.instaSwap(),
+  Outro25,
+  Intro23,
   BA420.instaCancel(),
   Skill21.instaCancel(),
   Lib15,
@@ -26433,20 +27074,28 @@ var DN_ROTATION_STRAIN = new Rotation([
   UMBA12.cancel(),
   USkill12.mashCancel(),
   Lib26,
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_TRICKSTER.instaSwap(),
+  ACTION_LIONESS.instaSwap(),
+  ACTION_SIGILLUM.instaSwap(),
+  ACTION_VOIDWING_MOTH.instaSwap(),
+  ACTION_HYVATIA.instaSwap(),
+  Outro25
 ]);
 var DN_ROTATION_STRAIN_S3 = new Rotation([
-  NOINTRO,
+  SWAPIN,
   BA126.instaCancel(),
-  INTRO,
+  Intro23,
   Lib15,
   UBA122.jumpCancel(),
   UMBA12.cancel(),
   USkill12.mashCancel(),
   Lib26,
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_TRICKSTER.instaSwap(),
+  ACTION_LIONESS.instaSwap(),
+  ACTION_SIGILLUM.instaSwap(),
+  ACTION_VOIDWING_MOTH.instaSwap(),
+  ACTION_HYVATIA.instaSwap(),
+  Outro25
 ]);
 var DENIA_STRAIN = new Loadout({
   id: 12112,
@@ -26491,85 +27140,87 @@ var DEMON_HYPOSTASIS = new Buff({
   }
 });
 var BA127 = galbrenaAction("Basic - Slayer's Trigger 1", {
-  animFrames: 20,
+  animFrames: 18,
   castPriority: 2,
-  bullets: [{ hitFrame: 12, mv: 5918, energy: 83, concerto: 116, offtune: 2646, forte1: 20 }],
+  bullets: [{ hitFrame: 12, mv: 5918, energy: 83, concerto: 116, offtune: 2646, forte1: 5 }],
   node: 0,
   cast: 1,
   type: 8192
   /* Type.Heavy */
 });
-var BA224 = galbrenaAction("Basic - Slayer's Trigger 2", { chains: () => [BA127, BA421, HA19, Liberation18, Intro24], animFrames: 41, castPriority: 2, node: 0, cast: 1, type: 8192, bullets: [
-  { hitFrame: 32, mv: 2631, energy: 37, concerto: 52, offtune: 1176 },
-  { hitFrame: 32, mv: 2631, energy: 37, concerto: 52, offtune: 1176 },
-  { hitFrame: 32, mv: 7891, energy: 111, concerto: 155, offtune: 3528, forte1: 50 }
+var BA224 = galbrenaAction("Basic - Slayer's Trigger 2", { chains: () => [BA127, BA421, HA19, Liberation18, Intro24], animFrames: 42, castPriority: 2, node: 0, cast: 1, type: 8192, bullets: [
+  { hitFrame: 10, mv: 2631, energy: 37, concerto: 52, offtune: 1176, forte1: 5 },
+  { hitFrame: 16, mv: 2631, energy: 37, concerto: 52, offtune: 1176, forte1: 5 },
+  { hitFrame: 32, mv: 7891, energy: 111, concerto: 155, offtune: 3528, forte1: 9 }
 ] });
-var BA325 = galbrenaAction("Basic - Slayer's Trigger 3", { chains: () => [BA224, HA24, HA33, MA21], animFrames: 47, castPriority: 2, node: 0, cast: 1, type: 8192, bullets: [
-  { hitFrame: 41, mv: 2860, energy: 40, concerto: 56, offtune: 1279 },
-  { hitFrame: 41, mv: 2860, energy: 40, concerto: 56, offtune: 1279 },
-  { hitFrame: 41, mv: 4289, energy: 60, concerto: 84, offtune: 1918 },
-  { hitFrame: 41, mv: 4289, energy: 60, concerto: 84, offtune: 1918, forte1: 50 }
+var BA325 = galbrenaAction("Basic - Slayer's Trigger 3", { chains: () => [BA224, HA24, HA33, MA21], animFrames: 48, castPriority: 2, node: 0, cast: 1, type: 8192, bullets: [
+  { hitFrame: 16, mv: 2860, energy: 40, concerto: 56, offtune: 1279, forte1: 5 },
+  { hitFrame: 22, mv: 4289, energy: 60, concerto: 84, offtune: 1918, forte1: 5 },
+  { hitFrame: 28, mv: 2860, energy: 40, concerto: 56, offtune: 1279, forte1: 5 },
+  { hitFrame: 37, mv: 4289, energy: 60, concerto: 84, offtune: 1918, forte1: 5 }
 ] });
 var BA421 = galbrenaAction("Basic - Slayer's Trigger 4", {
   chains: () => [BA325, DC22],
-  animFrames: 62,
+  animFrames: 59,
   castPriority: 2,
-  bullets: [{ hitFrame: 36, mv: 17786, energy: 249, concerto: 348, offtune: 7952, forte1: 40 }],
+  bullets: [{ hitFrame: 30, mv: 17786, energy: 249, concerto: 348, offtune: 7952, forte1: 15 }],
   node: 0,
   cast: 1,
   type: 28672
   /* Type.Echo */
 });
-var DC22 = galbrenaAction("Dodge Counter - Blood for Blood", { chains: [DODGE], animFrames: 47, castPriority: 8, node: 0, cast: 0, type: 8192, bullets: [
-  { hitFrame: 41, mv: 4105, energy: 40, concerto: 56, offtune: 1279 },
-  { hitFrame: 41, mv: 4105, energy: 40, concerto: 56, offtune: 1279 },
-  { hitFrame: 41, mv: 6157, energy: 60, concerto: 84, offtune: 1918 },
-  { hitFrame: 41, mv: 6157, energy: 60, concerto: 84, offtune: 1918 }
+var DC22 = galbrenaAction("Dodge Counter - Blood for Blood", { chains: [DODGE], animFrames: 48, animPriority: { 39: 2 }, castPriority: 8, node: 0, cast: 0, type: 8192, bullets: [
+  { hitFrame: 16, mv: 4105, energy: 40, concerto: 56, offtune: 1279, forte1: 3 },
+  { hitFrame: 22, mv: 6157, energy: 60, concerto: 84, offtune: 1918, forte1: 5 },
+  { hitFrame: 28, mv: 4105, energy: 40, concerto: 56, offtune: 1279, forte1: 2 },
+  { hitFrame: 37, mv: 6157, energy: 60, concerto: 84, offtune: 1918, forte1: 3 }
 ], castConcerto: 1e3 });
 var MA21 = galbrenaAction("Mid-air - Ashfall Barrage (Plunge)", {
   castPosition: 1,
   endPosition: 0,
+  animFrames: 52,
   castPriority: 6,
   node: 0,
   cast: 1,
   type: 8192,
-  bullets: [{ hitFrame: 0, mv: 14315, energy: 200, concerto: 280, offtune: 6400, forte1: 27 }]
+  bullets: [{ hitFrame: 46, mv: 14315, energy: 200, concerto: 280, offtune: 6400, forte1: 10 }]
 });
 var MASustained = galbrenaAction("Mid-air - Ashfall Barrage (Sustained Fire)", { castPosition: 1, castPriority: 2, node: 0, cast: 1, type: 8192, bullets: [{ hitFrame: 0, mv: 2684, energy: 38, concerto: 53, offtune: 1200 }] });
-var HA19 = galbrenaAction("Heavy - Volley of Death 1", { animFrames: 36, castPriority: 2, node: 0, cast: 2, type: 8192, bullets: [
-  { hitFrame: 27, mv: 5330, energy: 75, concerto: 105, offtune: 2383 },
-  { hitFrame: 27, mv: 5330, energy: 75, concerto: 105, offtune: 2383, forte1: 20 }
+var HA19 = galbrenaAction("Heavy - Volley of Death 1", { animFrames: 35, castPriority: 3, node: 0, cast: 2, type: 8192, bullets: [
+  { hitFrame: 10, mv: 5330, energy: 75, concerto: 105, offtune: 2383 },
+  { hitFrame: 16, mv: 5330, energy: 75, concerto: 105, offtune: 2383, forte1: 10 }
 ] });
-var HA24 = galbrenaAction("Heavy - Volley of Death 2", { chains: () => [HA19, Intro24], animFrames: 26, castPriority: 2, node: 0, cast: 2, type: 8192, bullets: [
-  { hitFrame: 22, mv: 3459, energy: 49, concerto: 68, offtune: 1547 },
-  { hitFrame: 22, mv: 3459, energy: 49, concerto: 68, offtune: 1547, forte1: 70 }
+var HA24 = galbrenaAction("Heavy - Volley of Death 2", { chains: () => [HA19, Intro24], animFrames: 22, castPriority: 3, node: 0, cast: 2, type: 8192, bullets: [
+  { hitFrame: 2, mv: 3459, energy: 49, concerto: 68, offtune: 1547, forte1: 7 },
+  { hitFrame: 13, mv: 3459, energy: 49, concerto: 68, offtune: 1547, forte1: 7 }
 ] });
-var HA33 = galbrenaAction("Heavy - Volley of Death 3", { chains: [HA24], animFrames: 73, castPriority: 2, node: 0, cast: 2, type: 28672, bullets: [
-  { hitFrame: 34, mv: 1677, energy: 24, concerto: 33, offtune: 750 },
-  { hitFrame: 34, mv: 1677, energy: 24, concerto: 33, offtune: 750 },
-  { hitFrame: 34, mv: 1677, energy: 24, concerto: 33, offtune: 750 },
-  { hitFrame: 34, mv: 11739, energy: 165, concerto: 230, offtune: 5249, forte1: 50 }
+var HA33 = galbrenaAction("Heavy - Volley of Death 3", { chains: [HA24], animFrames: 70, castPriority: 3, node: 0, cast: 2, type: 28672, bullets: [
+  { hitFrame: 30, mv: 1677, energy: 24, concerto: 33, offtune: 750, forte1: 5 },
+  { hitFrame: 39, commitFrame: 30, mv: 1677, energy: 24, concerto: 33, offtune: 750, forte1: 5 },
+  { hitFrame: 48, commitFrame: 30, mv: 1677, energy: 24, concerto: 33, offtune: 750, forte1: 5 },
+  { hitFrame: 57, commitFrame: 30, mv: 11739, energy: 165, concerto: 230, offtune: 5249, forte1: 4 }
 ] });
 var DRIVE = { updateBuffs: () => applyCurrent(BURNING_DRIVE, 1) };
 var ENCROACH_CD = new Cooldown({ frames: 60 * 5 });
-var Encroach = galbrenaAction("Skill - Encroach", { endPosition: 1, maxForte1: 269, animFrames: 39, castPriority: 4, cooldown: ENCROACH_CD, node: 1, cast: 3, type: 8192, bullets: [
-  { hitFrame: 39, mv: 1074, energy: 198, concerto: 67, offtune: 1512 },
-  { hitFrame: 39, mv: 2504, energy: 461, concerto: 155, offtune: 3527, forte1: 50 }
+var Encroach = galbrenaAction("Skill - Encroach", { endPosition: 1, maxForte1: 99, animFrames: 60, animPriority: { 32: 2 }, castPriority: 4, cooldown: ENCROACH_CD, node: 1, cast: 3, type: 8192, bullets: [
+  { hitFrame: 12, mv: 1074, energy: 198, concerto: 67, offtune: 1512, forte1: 5 },
+  { hitFrame: 32, commitFrame: 17, mv: 2504, energy: 461, concerto: 155, offtune: 3527, forte1: 5 }
 ], ...DRIVE });
 var AscentOfMalice = galbrenaAction("Skill - Ascent of Malice", {
-  minForte1: 270,
-  animFrames: 42,
-  castPriority: 4,
+  minForte1: 100,
+  animFrames: 39,
+  castPriority: 5,
   cooldown: 60 * 13,
   node: 1,
   cast: 3,
   type: 8192,
   bullets: [
-    { hitFrame: 30, mv: 5157, energy: 738, offtune: 2794 },
-    { hitFrame: 30, mv: 5157, energy: 738, offtune: 2794, forte2: 1e4 }
+    { hitFrame: 22, mv: 5157, energy: 738, offtune: 2794 },
+    { hitFrame: 70, commitFrame: 22, mv: 5157, energy: 738, offtune: 2794 }
   ],
   castConcerto: 1e3,
-  castForte1: -270,
+  castForte1: -100,
+  castForte2: 100,
   // the conversion is a top-off, not a top-up: Purging Flame is emptied ahead of the +100 above,
   // so it lands on exactly 100 from wherever the enhanced chain left it
   resetForte2: true,
@@ -26580,51 +27231,53 @@ var AscentOfMalice = galbrenaAction("Skill - Ascent of Malice", {
 });
 var SeraphicExecution1 = galbrenaAction("Forte Basic - Seraphic Execution 1", {
   requireBuff: DEMON_HYPOSTASIS,
-  animFrames: 24,
+  animFrames: 18,
   castPriority: 2,
-  bullets: [{ hitFrame: 20, mv: 5899, energy: 100, concerto: 554, offtune: 2374, forte2: -488 }],
+  bullets: [{ hitFrame: 14, mv: 5899, energy: 100, concerto: 554, offtune: 2374, forte2: -5 }],
   node: 2,
   cast: 1,
   type: 8192
   /* Type.Heavy */
 });
-var SeraphicExecution2 = galbrenaAction("Forte Basic - Seraphic Execution 2", { chains: () => [SeraphicExecution1, AscentOfMalice, FlamewingVerdict1, Liberation18, Intro24], requireBuff: DEMON_HYPOSTASIS, animFrames: 47, castPriority: 2, node: 2, cast: 1, type: 8192, bullets: [
-  { hitFrame: 37, mv: 2784, energy: 40, concerto: 139, offtune: 1120 },
-  { hitFrame: 37, mv: 2784, energy: 40, concerto: 139, offtune: 1120 },
-  { hitFrame: 37, mv: 8351, energy: 120, concerto: 417, offtune: 3360, forte2: -976 }
+var SeraphicExecution2 = galbrenaAction("Forte Basic - Seraphic Execution 2", { chains: () => [SeraphicExecution1, AscentOfMalice, FlamewingVerdict1, Liberation18, DemonIntro], requireBuff: DEMON_HYPOSTASIS, animFrames: 42, castPriority: 2, node: 2, cast: 1, type: 8192, bullets: [
+  { hitFrame: 19, mv: 2784, energy: 40, concerto: 139, offtune: 1120, forte2: -3 },
+  { hitFrame: 28, mv: 2784, energy: 40, concerto: 139, offtune: 1120, forte2: -3 },
+  { hitFrame: 38, mv: 8351, energy: 120, concerto: 417, offtune: 3360, forte2: -3 }
 ] });
-var SeraphicExecution3 = galbrenaAction("Forte Basic - Seraphic Execution 3", { chains: () => [SeraphicExecution2, SeraphicExecution5, FlamewingVerdict2, FlamewingVerdict3], requireBuff: DEMON_HYPOSTASIS, animFrames: 69, castPriority: 2, node: 2, cast: 1, type: 8192, bullets: [
-  { hitFrame: 40, mv: 2432, energy: 34, concerto: 88, offtune: 979 },
-  { hitFrame: 40, mv: 2432, energy: 34, concerto: 88, offtune: 979 },
-  { hitFrame: 40, mv: 2432, energy: 34, concerto: 88, offtune: 979 },
-  { hitFrame: 40, mv: 17021, energy: 232, concerto: 615, offtune: 6849, forte2: -1829 }
+var SeraphicExecution3 = galbrenaAction("Forte Basic - Seraphic Execution 3", { chains: () => [SeraphicExecution2, SeraphicExecution5, FlamewingVerdict2, FlamewingVerdict3, HellsentBarrage], requireBuff: DEMON_HYPOSTASIS, animFrames: 72, castPriority: 2, node: 2, cast: 1, type: 8192, bullets: [
+  { hitFrame: 18, mv: 2432, energy: 34, concerto: 88, offtune: 979, forte2: -2 },
+  { hitFrame: 24, commitFrame: 18, mv: 2432, energy: 34, concerto: 88, offtune: 979, forte2: -2 },
+  { hitFrame: 30, commitFrame: 18, mv: 2432, energy: 34, concerto: 88, offtune: 979, forte2: -2 },
+  { hitFrame: 53, mv: 17021, energy: 232, concerto: 615, offtune: 6849, forte2: -12 }
 ] });
-var SeraphicExecution4 = galbrenaAction("Forte Basic - Seraphic Execution 4", { chains: [SeraphicExecution3], requireBuff: DEMON_HYPOSTASIS, animFrames: 56, castPriority: 2, node: 2, cast: 1, type: 28672, bullets: [
-  { hitFrame: 42, mv: 1815, energy: 26, concerto: 77, offtune: 731 },
-  { hitFrame: 42, mv: 1815, energy: 26, concerto: 77, offtune: 731 },
-  { hitFrame: 42, mv: 1815, energy: 26, concerto: 77, offtune: 731 },
-  { hitFrame: 42, mv: 12702, energy: 178, concerto: 539, offtune: 5112, forte2: -1341 }
+var SeraphicExecution4 = galbrenaAction("Forte Basic - Seraphic Execution 4", { chains: () => [SeraphicExecution3, PurgatoryScourge], requireBuff: DEMON_HYPOSTASIS, animFrames: 57, castPriority: 2, node: 2, cast: 1, type: 28672, bullets: [
+  { hitFrame: 10, mv: 1815, energy: 26, concerto: 77, offtune: 731, forte2: -2 },
+  { hitFrame: 17, commitFrame: 10, mv: 1815, energy: 26, concerto: 77, offtune: 731, forte2: -2 },
+  { hitFrame: 24, commitFrame: 10, mv: 1815, energy: 26, concerto: 77, offtune: 731, forte2: -2 },
+  { hitFrame: 49, mv: 12702, energy: 178, concerto: 539, offtune: 5112, forte2: -7 }
 ], ...DRIVE });
-var SeraphicExecution5 = galbrenaAction("Forte Basic - Seraphic Execution 5", { chains: [SeraphicExecution4], requireBuff: DEMON_HYPOSTASIS, animFrames: 85, castPriority: 2, node: 2, cast: 1, type: 28672, bullets: [
-  { hitFrame: 42, commitFrame: 42, mv: 6728, energy: 93, concerto: 254, offtune: 2708 },
-  { hitFrame: 78, commitFrame: 42, mv: 15699, energy: 215, concerto: 592, offtune: 6317, forte2: -1951 }
+var SeraphicExecution5 = galbrenaAction("Forte Basic - Seraphic Execution 5", { chains: [SeraphicExecution4], requireBuff: DEMON_HYPOSTASIS, animFrames: 83, castPriority: 2, node: 2, cast: 1, type: 28672, bullets: [
+  { hitFrame: 36, mv: 6728, energy: 93, concerto: 254, offtune: 2708, forte2: -7 },
+  { hitFrame: 66, commitFrame: 36, mv: 15699, energy: 215, concerto: 592, offtune: 6317, forte2: -13 }
 ] });
-var FlamewingVerdict1 = galbrenaAction("Forte Heavy - Flamewing Verdict 1", { requireBuff: DEMON_HYPOSTASIS, animFrames: 36, castPriority: 6, node: 2, cast: 2, type: 8192, bullets: [
-  { hitFrame: 27, mv: 5922, energy: 87, concerto: 330, offtune: 2383 },
-  { hitFrame: 27, mv: 5922, energy: 87, concerto: 330, offtune: 2383, forte2: -976 }
+var FlamewingVerdict1 = galbrenaAction("Forte Heavy - Flamewing Verdict 1", { requireBuff: DEMON_HYPOSTASIS, animFrames: 35, castPriority: 3, node: 2, cast: 2, type: 8192, bullets: [
+  { hitFrame: 10, mv: 5922, energy: 87, concerto: 330, offtune: 2383, forte2: -5 },
+  { hitFrame: 16, mv: 5922, energy: 87, concerto: 330, offtune: 2383, forte2: -5 }
 ] });
-var FlamewingVerdict2 = galbrenaAction("Forte Heavy - Flamewing Verdict 2", { chains: () => [FlamewingVerdict1, Intro24], requireBuff: DEMON_HYPOSTASIS, animFrames: 26, castPriority: 6, node: 2, cast: 2, type: 8192, bullets: [
-  { hitFrame: 22, mv: 3835, energy: 61, concerto: 293, offtune: 1543 },
-  { hitFrame: 22, mv: 3835, energy: 61, concerto: 293, offtune: 1543, forte2: -732 }
+var FlamewingVerdict2 = galbrenaAction("Forte Heavy - Flamewing Verdict 2", { chains: () => [FlamewingVerdict1, DemonIntro], requireBuff: DEMON_HYPOSTASIS, animFrames: 22, castPriority: 3, node: 2, cast: 2, type: 8192, bullets: [
+  { hitFrame: 2, mv: 3835, energy: 61, concerto: 293, offtune: 1543, forte2: -4 },
+  { hitFrame: 13, mv: 3835, energy: 61, concerto: 293, offtune: 1543, forte2: -4 }
 ] });
-var FlamewingVerdict3 = galbrenaAction("Forte Heavy - Flamewing Verdict 3", { chains: [FlamewingVerdict2], requireBuff: DEMON_HYPOSTASIS, animFrames: 73, castPriority: 6, node: 2, cast: 2, type: 28672, bullets: [
-  { hitFrame: 34, mv: 1769, energy: 25, concerto: 77, offtune: 712 },
-  { hitFrame: 34, mv: 1769, energy: 25, concerto: 77, offtune: 712 },
-  { hitFrame: 34, mv: 1769, energy: 25, concerto: 77, offtune: 712 },
-  { hitFrame: 34, mv: 12377, energy: 174, concerto: 533, offtune: 4981, forte2: -1463 }
+var FlamewingVerdict3 = galbrenaAction("Forte Heavy - Flamewing Verdict 3", { chains: [FlamewingVerdict2], requireBuff: DEMON_HYPOSTASIS, animFrames: 72, castPriority: 3, node: 2, cast: 2, type: 28672, bullets: [
+  { hitFrame: 30, mv: 1769, energy: 25, concerto: 77, offtune: 712, forte2: -3 },
+  { hitFrame: 39, commitFrame: 30, mv: 1769, energy: 25, concerto: 77, offtune: 712, forte2: -3 },
+  { hitFrame: 48, commitFrame: 30, mv: 1769, energy: 25, concerto: 77, offtune: 712, forte2: -3 },
+  { hitFrame: 63, commitFrame: 30, mv: 12377, energy: 174, concerto: 533, offtune: 4981, forte2: -4 }
 ] });
 var Ravage = galbrenaAction("Forte Skill - Ravage", {
   endPosition: 1,
+  animFrames: 60,
+  animPriority: { 0: 6, 32: 2 },
   castPriority: 4,
   cooldown: ENCROACH_CD,
   requireBuff: DEMON_HYPOSTASIS,
@@ -26632,42 +27285,63 @@ var Ravage = galbrenaAction("Forte Skill - Ravage", {
   cast: 3,
   type: 8192,
   bullets: [
-    { hitFrame: 0, mv: 1074, energy: 198, concerto: 67, offtune: 1512 },
-    { hitFrame: 0, mv: 2504, energy: 461, concerto: 155, offtune: 3527 }
+    { hitFrame: 12, mv: 1074, energy: 198, concerto: 67, offtune: 1512, forte2: -5 },
+    { hitFrame: 32, commitFrame: 17, mv: 2504, energy: 461, concerto: 155, offtune: 3527, forte2: -5 }
   ],
-  resetForte2: true,
   updateBuffs: () => applyCurrent(BURNING_DRIVE, 1)
 });
+var PurgatoryScourge = galbrenaAction("Forte Dodge Counter - Purgatory Scourge", { chains: [DODGE], requireBuff: DEMON_HYPOSTASIS, animFrames: 74, animPriority: { 51: 2 }, castPriority: 8, node: 2, cast: 0, type: 8192, bullets: [
+  { hitFrame: 18, mv: 3210, energy: 35, concerto: 90, offtune: 1014, forte2: -2 },
+  { hitFrame: 24, commitFrame: 18, mv: 3210, energy: 35, concerto: 90, offtune: 1014, forte2: -2 },
+  { hitFrame: 30, commitFrame: 18, mv: 3210, energy: 35, concerto: 90, offtune: 1014, forte2: -2 },
+  { hitFrame: 53, mv: 22470, energy: 240, concerto: 626, offtune: 7093, forte2: -12 }
+], castConcerto: 1e3 });
+var HellsentBarrage = galbrenaAction("Forte Mid-air - Hellsent Barrage (Plunge)", {
+  castPosition: 1,
+  endPosition: 0,
+  requireBuff: DEMON_HYPOSTASIS,
+  animFrames: 52,
+  castPriority: 6,
+  node: 2,
+  cast: 1,
+  type: 8192,
+  bullets: [{ hitFrame: 46, mv: 15905, energy: 200, concerto: 280, offtune: 6400, forte2: -12 }]
+});
+var demonForm = () => runningAction(SeraphicExecution1) || runningAction(SeraphicExecution2) || runningAction(SeraphicExecution3) || runningAction(SeraphicExecution4) || runningAction(SeraphicExecution5) || runningAction(FlamewingVerdict1) || runningAction(FlamewingVerdict2) || runningAction(FlamewingVerdict3) || runningAction(HellsentBarrage) || runningAction(PurgatoryScourge);
 var Liberation18 = galbrenaAction("Liberation - Hellfire Absolution", {
+  animFrames: 195,
+  timestop: [0, 210],
+  motionStop: [0, 210],
   castPriority: 10,
   cooldown: 60 * 25,
   node: 3,
   cast: 4,
   type: 28672,
   bullets: [
-    { hitFrame: 0, mv: 11090, offtune: 8400 },
-    { hitFrame: 0, mv: 9074, offtune: 6873 },
-    { hitFrame: 0, mv: 9074, offtune: 6873 },
-    { hitFrame: 0, mv: 9074, offtune: 6873 },
-    { hitFrame: 0, mv: 9074, offtune: 6873 },
-    { hitFrame: 0, mv: 9074, offtune: 6873 },
-    { hitFrame: 0, mv: 9074, offtune: 6873 },
-    { hitFrame: 0, mv: 9074, offtune: 6873 },
-    { hitFrame: 0, mv: 9074, offtune: 6873 },
-    { hitFrame: 0, mv: 9074, offtune: 6873 },
-    { hitFrame: 0, mv: 9074, offtune: 6873 },
-    { hitFrame: 0, mv: 9074, offtune: 6873 }
+    { hitFrame: 156, mv: 11090, offtune: 8400 },
+    { hitFrame: 174, commitFrame: 156, mv: 9074, offtune: 6873 },
+    { hitFrame: 182, commitFrame: 156, mv: 9074, offtune: 6873 },
+    { hitFrame: 191, commitFrame: 156, mv: 9074, offtune: 6873 },
+    { hitFrame: 199, commitFrame: 156, mv: 9074, offtune: 6873 },
+    { hitFrame: 208, commitFrame: 156, mv: 9074, offtune: 6873 },
+    { hitFrame: 216, commitFrame: 156, mv: 9074, offtune: 6873 },
+    { hitFrame: 224, commitFrame: 156, mv: 9074, offtune: 6873 },
+    { hitFrame: 233, commitFrame: 156, mv: 9074, offtune: 6873 },
+    { hitFrame: 241, commitFrame: 156, mv: 9074, offtune: 6873 },
+    { hitFrame: 250, commitFrame: 156, mv: 9074, offtune: 6873 },
+    { hitFrame: 258, commitFrame: 156, mv: 9074, offtune: 6873 }
   ],
   castConcerto: 2e3,
   castEnergy: -12500,
   updateBuffs: () => applyCurrent(HELLFIRE_WINDOW, 1)
 });
-var Intro24 = galbrenaAction("Intro - Hellflare Overload", { endPosition: 0, animFrames: 57, castPriority: 11, node: 4, cast: 5, type: 20480, bullets: [{ hitFrame: 57, mv: 9412, energy: 1e3, offtune: 4208, forte1: 30 }], castConcerto: 1e3, ...DRIVE });
+var Intro24 = galbrenaAction("Intro - Hellflare Overload", { endPosition: 0, qteFrames: 38, animFrames: 66, noSwapFrames: 47, animPriority: { 41: 2 }, castPriority: 11, motionStop: [0, 29], node: 4, cast: 5, type: 20480, bullets: [{ hitFrame: 33, mv: 9412, energy: 1e3, offtune: 4208, forte1: 10 }], castConcerto: 1e3, ...DRIVE });
+var DemonIntro = Intro24.variant("Intro - Hellflare Overload (Demon Hypostasis)", { bullets: [{ hitFrame: 33, mv: 9412, energy: 1e3, offtune: 4208 }] });
 var Outro26 = galbrenaAction("Outro - Ashen Pursuit", { cast: 6, type: 24576, bullets: [
   { hitFrame: 0, mv: 7950 },
-  { hitFrame: 0, mv: 7950 },
-  { hitFrame: 0, mv: 7950 },
-  { hitFrame: 0, mv: 55650 }
+  { hitFrame: 9, commitFrame: 0, mv: 7950 },
+  { hitFrame: 19, commitFrame: 0, mv: 7950 },
+  { hitFrame: 34, commitFrame: 0, mv: 55650 }
 ], minConcerto: 1e4, castConcerto: -1e4 });
 var BURNING_DRIVE = new Buff({
   name: "Galbrena: Burning Drive",
@@ -26698,7 +27372,7 @@ var AFTERFLAME = new Buff({
   name: "Galbrena: Afterflame",
   maxStacks: 40,
   applyStats: () => {
-    if (runningAction(SeraphicExecution1) || runningAction(SeraphicExecution2) || runningAction(SeraphicExecution3) || runningAction(SeraphicExecution4) || runningAction(SeraphicExecution5) || runningAction(FlamewingVerdict1) || runningAction(FlamewingVerdict2) || runningAction(FlamewingVerdict3) || runningAction(Ravage)) {
+    if (demonForm() || runningAction(Ravage)) {
       addStat(20, Math.min(60, 1.5 * frozenStacks()));
       const flame = frozenStacks();
       if (isHeld(GB_S1))
@@ -26717,9 +27391,12 @@ var AFTERFLAME = new Buff({
 var HELLFIRE_WINDOW = new Buff({
   name: "Galbrena: Hellfire Absolution",
   duration: 60 * 14,
+  lostWith: DEMON_HYPOSTASIS,
   applyStats: () => {
-    if (runningAction(SeraphicExecution1) || runningAction(SeraphicExecution2) || runningAction(SeraphicExecution3) || runningAction(SeraphicExecution4) || runningAction(SeraphicExecution5) || runningAction(FlamewingVerdict1) || runningAction(FlamewingVerdict2) || runningAction(FlamewingVerdict3))
-      addStat(17, 85);
+    if (!demonForm())
+      return;
+    addStat(17, 85);
+    addStat(15, 145.2);
   }
 });
 var GB_S1 = new Sequence({ name: "Galbrena S1: Heart of Defiance Ever Ablaze" });
@@ -26756,9 +27433,8 @@ var GB_S5 = new Sequence({
 var GB_S6 = new Sequence({
   name: "Galbrena S6: I Remain Who I am, Eternal My Flame",
   applyStats: () => {
-    if (runningAction(SeraphicExecution1) || runningAction(SeraphicExecution2) || runningAction(SeraphicExecution3) || runningAction(SeraphicExecution4) || runningAction(SeraphicExecution5) || runningAction(FlamewingVerdict1) || runningAction(FlamewingVerdict2) || runningAction(FlamewingVerdict3)) {
+    if (demonForm())
       addStat(17, isHeld(HELLFIRE_WINDOW) ? 60 * 1.85 : 60);
-    }
   }
 });
 var GB_SEQUENCES = [GB_S1, GB_S2, GB_S3, GB_S4, GB_S5, GB_S6];
@@ -26766,7 +27442,7 @@ var GALBRENA_TALENTS = new Talent({
   name: "Galbrena: Talents",
   stats: [[6, 11.9999997], [10, 16]]
 });
-var Hellstride = galbrenaAction("Dodge - Hellstride", { castPosition: 0, cast: 9, animFrames: 22, castPriority: 6, type: 4096, scaling: 5, bullets: [{ hitFrame: 5, mv: 66600 }], ...DRIVE });
+var Hellstride = galbrenaAction("Dodge - Hellstride", { castPosition: 0, cast: 9, animFrames: 24, animPriority: { 19: 2 }, castPriority: 7, type: 4096, scaling: 5, bullets: [{ hitFrame: 4, mv: 66600 }], ...DRIVE });
 var GALBRENA_RESONATOR = new Resonator({
   id: 1208,
   name: "Galbrena",
@@ -26778,15 +27454,13 @@ var GALBRENA_RESONATOR = new Resonator({
   weapon: 2,
   dodge: Hellstride,
   color: "#3454ac",
-  intro: Intro24,
-  outro: Outro26,
+  intro: () => isHeld(DEMON_HYPOSTASIS) ? DemonIntro : Intro24,
   // Demon Hypostasis replaces Basic Attack with Seraphic Execution; she has no mid-air chain, only the plunge
   swapIn: () => isHeld(DEMON_HYPOSTASIS) ? SeraphicExecution1 : BA127,
-  swapInAir: MA21,
+  swapInAir: () => isHeld(DEMON_HYPOSTASIS) ? HellsentBarrage : MA21,
   maxEnergy: 12500,
-  forteScale: [1, 0.01, 1, 1, 1],
-  maxForte1: 270,
-  maxForte2: 1e4,
+  maxForte1: 100,
+  maxForte2: 100,
   // reacts to *any* team member's own Echo cast, not just her own — see AFTERFLAME's own comment
   updateGlobal: () => {
     if (casting(
@@ -26813,18 +27487,18 @@ var BA128 = new ActionGroup("Basic - Slayer's Trigger 12", [BA127, BA224]);
 var BA346 = new ActionGroup("Basic - Slayer's Trigger 34", [BA325, BA421]);
 var BA232 = new ActionGroup("Basic - Slayer's Trigger 23", [BA224, BA325]);
 var GB_ROTATION = new Rotation([
-  INTRO,
+  Intro24.holdCancel(),
   HA232,
-  Encroach,
+  BA325,
+  Encroach.cancel(),
   MA21,
-  BA346,
-  AscentOfMalice,
+  BA325.mashCancel(),
+  AscentOfMalice.cancel(),
   Liberation18,
-  ECHO,
+  ACTION_CORROSAURUS,
   SeraphicExecution2345.dodgeCancel(),
-  SeraphicExecution345.dodgeCancel(),
-  SeraphicExecution3.instaSwap(),
-  OUTRO
+  SeraphicExecution345,
+  Outro26
 ]);
 var GB_WEAPONS = [LUX_UMBRA, NEW_STD_PISTOL, STATIC_MIST, THUNDERBOLT, SOLAR_FLAME];
 var GB_ECHOES = [new EchoLoadout(CORROSAURUS, FLAMEWING_SHADOW_3PC, CLAWPRINT_2PC)];
@@ -26927,22 +27601,22 @@ var HA20 = lupaAction("Heavy - Flaming Star", { maxForte1: 499999, animFrames: 5
   { hitFrame: 18, mv: 5636, energy: 84, concerto: 167, offtune: 2668 },
   { hitFrame: 28, mv: 5636, energy: 84, concerto: 167, offtune: 2668 }
 ] });
-var EMA3 = lupaAction("Mid-air - Firestrike", { chains: () => [MA29, Intro25], castPosition: 1, minForte1: 5e5, animFrames: 71, animPriority: { 0: 6, 46: 2 }, castPriority: 2, node: 0, cast: 1, type: 8192, bullets: [
+var EMA3 = lupaAction("Mid-air - Firestrike", { chains: () => [MA29, Intro25], castPosition: 1, endPosition: 0, minForte1: 5e5, animFrames: 71, animPriority: { 0: 6, 46: 2 }, castPriority: 2, node: 0, cast: 1, type: 8192, bullets: [
   { hitFrame: 32, mv: 2848, energy: 43, concerto: 500, offtune: 1348 },
-  { hitFrame: 50, mv: 2848, energy: 43, concerto: 500, offtune: 1348, forte2: 1 }
-], castForte1: -5e5 });
+  { hitFrame: 50, mv: 2848, energy: 43, concerto: 500, offtune: 1348 }
+], castForte1: -5e5, castForte2: 1 });
 var EHA3 = lupaAction("Heavy - Wolf's Gnawing", { minForte1: 5e5, animFrames: 50, castPriority: 2, node: 0, cast: 2, type: 8192, bullets: [
   { hitFrame: 26, mv: 5611, energy: 83, concerto: 500, offtune: 2656 },
-  { hitFrame: 40, mv: 5611, energy: 83, concerto: 500, offtune: 2656, forte2: 1 }
-], castForte1: -5e5 });
-var EHA4 = lupaAction("Heavy - Wolf's Claw", { minForte1: 5e5, minForte2: 1, animFrames: 96, animPriority: { 2: 4, 82: 2 }, castPriority: 2, node: 0, cast: 2, type: 8192, bullets: [
+  { hitFrame: 40, mv: 5611, energy: 83, concerto: 500, offtune: 2656 }
+], castForte1: -5e5, castForte2: 1 });
+var EHA4 = lupaAction("Heavy - Wolf's Claw", { castPosition: 0, minForte1: 5e5, minForte2: 1, animFrames: 96, animPriority: { 2: 4, 82: 2 }, castPriority: 2, node: 0, cast: 2, type: 8192, bullets: [
   { hitFrame: 24, mv: 7215, energy: 107, concerto: 300, offtune: 3415 },
   { hitFrame: 41, mv: 1804, energy: 27, concerto: 75, offtune: 854 },
   { hitFrame: 46, commitFrame: 41, mv: 1804, energy: 27, concerto: 75, offtune: 854 },
   { hitFrame: 50, commitFrame: 41, mv: 1804, energy: 27, concerto: 75, offtune: 854 },
   { hitFrame: 54, commitFrame: 41, mv: 1804, energy: 27, concerto: 75, offtune: 854 },
-  { hitFrame: 75, mv: 9619, energy: 143, concerto: 400, offtune: 4554, forte2: 1 }
-], castForte1: -5e5 });
+  { hitFrame: 75, mv: 9619, energy: 143, concerto: 400, offtune: 4554 }
+], castForte1: -5e5, castForte2: 1 });
 var Skill110 = lupaAction("Skill - Shewolf's Hunt", {
   animFrames: 56,
   animPriority: { 30: 2 },
@@ -26974,6 +27648,7 @@ var USkill2 = lupaAction("Skill - Foebreaker", {
   }
 });
 var Liberation19 = lupaAction("Liberation - Fire-Kissed Glory", {
+  endPosition: 0,
   animFrames: 220,
   animPriority: { 200: 4, 210: 2 },
   castPriority: 10,
@@ -27288,7 +27963,6 @@ var LUPA_RESONATOR = new Resonator({
   color: "#e8483a",
   // resolved when its row is reached: whichever Intro the kit's state calls for there
   intro: () => stacksOfTeam(WILD_HUNT) ? EIntro4 : Intro25,
-  outro: Outro27,
   swapIn: BA129,
   swapInAir: MA113,
   maxEnergy: 12500,
@@ -27318,18 +27992,20 @@ var LUPA_RESONATOR = new Resonator({
 });
 var MA122 = new ActionGroup("Mid-air - Flaming Star 12", [MA113, MA29]);
 var LP_LOOP = new Rotation([
-  NOINTRO,
+  SWAPIN,
   BA129.instaCancel(),
   Skill110.cancel(),
-  INTRO,
-  ECHO.instaDodge(),
+  EIntro4.mashCancel(),
+  ACTION_HERON.instaDodge(),
+  Intro25.mashCancel(),
   Liberation19,
+  ACTION_LIONESS,
   USkill2,
   MA122,
   EMA3,
   EHA4.mashCancel(),
   UFSkill.swapCancel(),
-  OUTRO
+  Outro27
 ]);
 var LUPA = new Loadout({
   id: 12071,
@@ -27691,7 +28367,6 @@ var MORNYE_RESONATOR = new Resonator({
   weapon: 1,
   color: "#d2d4ff",
   intro: Intro26,
-  outro: Outro28,
   // Wide Field Observation Mode ends on a swap, so she always arrives in Baseline Mode; no mid-air chain, only the plunge
   swapIn: BA130,
   swapInAir: MA30,
@@ -27718,30 +28393,32 @@ var MO_ROTATION = new Rotation([
   START_LAST,
   BA130.instaCancel(),
   Skill26.instaSwap(),
-  NOINTRO,
+  SWAPIN,
   BA1233,
   GeopotentialShift,
-  INTRO.mashCancel(),
+  Intro26.mashCancel(),
   Liberation20,
   WBA123.cancel(),
   DistributedArray,
   Inversion,
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_REACTOR_HUSK.instaSwap(),
+  ACTION_SPACETREK.instaSwap(),
+  Outro28
 ]);
 var MO_ROTATION_S3 = new Rotation([
   START_LAST,
   BA130.instaCancel(),
   Skill26.instaSwap(),
-  NOINTRO,
+  SWAPIN,
   BA1233,
   GeopotentialShift,
-  INTRO.mashCancel(),
+  Intro26.mashCancel(),
   Liberation20,
   DistributedArray,
   Inversion,
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_REACTOR_HUSK.instaSwap(),
+  ACTION_SPACETREK.instaSwap(),
+  Outro28
 ]);
 var MO_ECHOES = [
   new EchoLoadout(REACTOR_HUSK, STARRY_RADIANCE_5PC),
@@ -28016,7 +28693,6 @@ var MORTEFI_RESONATOR = new Resonator({
   weapon: 2,
   color: "#d7370f",
   intro: Intro27,
-  outro: Outro29,
   swapIn: BA131,
   swapInAir: MA114,
   maxEnergy: 12500,
@@ -28026,14 +28702,16 @@ var MORTEFI_RESONATOR = new Resonator({
 });
 var BA12347 = new ActionGroup("Basic - Impromptu Show 1234", [BA131, BA227, BA328, BA424]);
 var MO_ROTATION2 = new Rotation([
-  INTRO,
+  Intro27,
   Skill27,
   FSkill7,
   BA12347.cancel(),
   FSkill7.cancel(),
   Liberation21,
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_HERON.instaSwap(),
+  ACTION_STONEWALL_BRACER_1.instaSwap(),
+  ACTION_HECATE.instaSwap(),
+  Outro29
 ]);
 var MORTEFI = new Loadout({
   id: 12041,
@@ -28406,7 +29084,6 @@ var CARLOTTA_RESONATOR = new Resonator({
   weapon: 2,
   color: "#8fb3d9",
   intro: Intro28,
-  outro: Outro30,
   // Necessary Measures replaces her Basic Attack while she holds Moldable Crystals
   swapIn: () => forte1() > 0 ? NM1 : BA132,
   swapInAir: MA115,
@@ -28428,7 +29105,7 @@ var CL_ROTATION = new Rotation([
   START,
   BA132.instaCancel(),
   Skill123.instaSwap(),
-  INTRO,
+  Intro28,
   Skill123,
   MA115.holdCancel(),
   FHA9.cancel(),
@@ -28436,14 +29113,14 @@ var CL_ROTATION = new Rotation([
   DeathKnellx4,
   FatalFinaleResolver,
   Skill123.mashCancel(),
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_SENTRY_CONSTRUCT.instaSwap(),
+  Outro30
 ]);
 var CL_ROTATION_FAST = new Rotation([
   START,
   BA132.instaCancel(),
   Skill123.instaSwap(),
-  INTRO,
+  Intro28,
   Skill123,
   MA115.holdCancel(),
   FHA9.cancel(),
@@ -28451,7 +29128,7 @@ var CL_ROTATION_FAST = new Rotation([
   DeathKnellx4,
   FatalFinaleResolver,
   Skill123.instaSwap(),
-  OUTRO
+  Outro30
 ]);
 var CARLOTTA = new Loadout({
   id: 11071,
@@ -29047,7 +29724,6 @@ var HIYUKI_RESONATOR = new Resonator({
   dodge: (after) => forte2() >= 100 && IaiFlash.follows(after) ? IaiFlash : null,
   color: "#87e6e6",
   intro: () => isHeld(FORECLAIMED_SELF) ? FIntro2 : Intro29,
-  outro: Outro31,
   swapIn: () => isHeld(FORECLAIMED_SELF) ? UBA15 : BA133,
   swapInAir: () => isHeld(FORECLAIMED_SELF) ? FMA13 : MA31,
   maxEnergy: 12500,
@@ -29183,7 +29859,7 @@ var UBA1233 = new ActionGroup("Basic - Foreclaimed Self 123", [UBA15, UBA24, UBA
 var UHAUBA23 = new ActionGroup("Heavy - Foreclaimed Self + Basic 23", [UHA3, UBA24, UBA35]);
 var BA1235 = new ActionGroup("Basic - Present Self 123", [BA133, BA229, BA329]);
 var HY_ROTATION = new Rotation([
-  NOINTRO_OPENER,
+  SWAPIN_OPENER,
   BA1235.instaCancel(),
   Skill29,
   BA329,
@@ -29196,11 +29872,11 @@ var HY_ROTATION = new Rotation([
   Iai.instaJump(),
   USkill22.dodgeCancel(),
   Iai.hitDodge(),
-  ECHO,
+  ACTION_VOIDBORNE_CONSTRUCT,
   FHA10,
   Lib2Tap,
-  OUTRO,
-  INTRO_OPENER,
+  Outro31,
+  Intro29.firstIntro(),
   BA329,
   FrostSplinter.mashCancel(),
   Lib17,
@@ -29211,15 +29887,15 @@ var HY_ROTATION = new Rotation([
   Iai.instaJump(),
   USkill22.dodgeCancel(),
   Iai.hitDodge(),
-  ECHO,
+  ACTION_VOIDBORNE_CONSTRUCT,
   FHA10,
   Lib2Tap,
   Skill29.instaSwap(),
-  OUTRO,
-  NOINTRO,
+  Outro31,
+  SWAPIN,
   BA1235.instaCancel(),
   Skill29,
-  INTRO,
+  Intro29,
   BA329,
   FrostSplinter.mashCancel(),
   Lib17,
@@ -29230,14 +29906,14 @@ var HY_ROTATION = new Rotation([
   Iai.instaJump(),
   USkill22.dodgeCancel(),
   Iai.hitDodge(),
-  ECHO,
+  ACTION_VOIDBORNE_CONSTRUCT,
   FHA10,
   Lib2Hold,
   Skill29.instaSwap(),
-  OUTRO
+  Outro31
 ]);
 var HY_ROTATION_S2 = new Rotation([
-  NOINTRO_OPENER,
+  SWAPIN_OPENER,
   BA1235.instaCancel(),
   Skill29,
   BA329,
@@ -29252,11 +29928,11 @@ var HY_ROTATION_S2 = new Rotation([
   Iai,
   Iai.hitDodge(),
   // extra from s2
-  ECHO,
+  ACTION_VOIDBORNE_CONSTRUCT,
   FHA10,
   Lib2Tap,
-  OUTRO,
-  INTRO_OPENER,
+  Outro31,
+  Intro29.firstIntro(),
   BA329,
   FrostSplinter.mashCancel(),
   Lib17,
@@ -29269,15 +29945,15 @@ var HY_ROTATION_S2 = new Rotation([
   Iai,
   Iai.hitDodge(),
   // extra from s2
-  ECHO,
+  ACTION_VOIDBORNE_CONSTRUCT,
   FHA10,
   Lib2Tap,
   Skill29.instaSwap(),
-  OUTRO,
-  NOINTRO,
+  Outro31,
+  SWAPIN,
   BA1235.instaCancel(),
   Skill29,
-  INTRO,
+  Intro29,
   BA329,
   FrostSplinter.mashCancel(),
   Lib17,
@@ -29288,11 +29964,11 @@ var HY_ROTATION_S2 = new Rotation([
   Iai.instaJump(),
   USkill22.dodgeCancel(),
   Iai.hitDodge(),
-  ECHO,
+  ACTION_VOIDBORNE_CONSTRUCT,
   FHA10,
   Lib2Hold,
   Skill29.instaSwap(),
-  OUTRO
+  Outro31
 ]);
 var HY_ECHOES = [
   new EchoLoadout(VOIDBORNE_CONSTRUCT, QUIET_SNOWFALL_5PC)
@@ -29641,7 +30317,6 @@ var LUCILLA_RESONATOR = new Resonator({
   weapon: 4,
   color: "#4f74c2",
   intro: () => isHeld(REMINISCENCE) ? HardCut : Intro30,
-  outro: Outro32,
   // Reminiscence replaces her Basic Attack; its own plunge has no action, so the plain one
   swapIn: () => isHeld(REMINISCENCE) ? UBA16 : BA134,
   swapInAir: MA38,
@@ -29650,27 +30325,6 @@ var LUCILLA_RESONATOR = new Resonator({
   stats: [[1, 12237.5], [0, 375], [2, 1197.7756]]
 });
 OWN_CHAFE_RUNGS.set(LUCILLA_RESONATOR, CHAFE_RUNGS);
-var UBA1235 = new ActionGroup("Basic - Tracing Forms 123", [UBA16, UBA25, UBA36]);
-var LC_ROTATION2 = new Rotation([
-  INTRO.mashCancel(),
-  Spotlight,
-  Liberation22,
-  UBA1235,
-  LettingGo,
-  ECHO.instaSwap(),
-  OUTRO,
-  START_LAST,
-  BA134.instaCancel(),
-  Spotlight,
-  BA134.instaSwap(),
-  INTRO_LAST.mashCancel(),
-  Liberation22,
-  UBA1235,
-  LettingGo.cancel(),
-  ECHO.instaDodge(),
-  Spotlight,
-  OUTRO
-]);
 var DISTANT_NOON = new Buff({
   name: "Lucilla S1: Distant Noon",
   duration: 60 * 10,
@@ -29754,6 +30408,33 @@ var LC_S62 = new Sequence({
   }
 });
 var LC_SEQUENCES = [LC_S12, LC_S22, LC_S32, LC_S42, LC_S52, LC_S62];
+var UBA1235 = new ActionGroup("Basic - Tracing Forms 123", [UBA16, UBA25, UBA36]);
+var LC_ROTATION2 = new Rotation([
+  Intro30.mashCancel(),
+  Spotlight,
+  Liberation22,
+  UBA1235,
+  LettingGo,
+  ACTION_BELL_BORNE.instaSwap(),
+  ACTION_HERON.instaSwap(),
+  ACTION_FALLACY.instaSwap(),
+  ACTION_GLOMMOTH.instaSwap(),
+  Outro32,
+  START_LAST,
+  BA134.instaCancel(),
+  Spotlight,
+  SWAP,
+  Intro30.inLastSlot().mashCancel(),
+  ACTION_BELL_BORNE.instaCancel(),
+  ACTION_HERON.instaDodge(),
+  ACTION_FALLACY.instaCancel(),
+  ACTION_GLOMMOTH.instaCancel(),
+  Liberation22,
+  UBA1235,
+  LettingGo.cancel(),
+  Spotlight,
+  Outro32
+]);
 var LC_ECHOES2 = [
   new EchoLoadout(BELL_BORNE_GEOCHELONE, DREAM_OF_THE_LOST_3PC, MOONLIT_CLOUDS_2PC),
   new EchoLoadout(HERON, DREAM_OF_THE_LOST_3PC, MOONLIT_CLOUDS_2PC),
@@ -30051,7 +30732,6 @@ var SANHUA_RESONATOR = new Resonator({
   weapon: 0,
   color: "#5fc9e8",
   intro: Intro31,
-  outro: Outro33,
   // her no-Intro chains open on Basic 2; no mid-air string, so the plunge
   swapIn: BA231,
   swapInAir: MA39,
@@ -30061,30 +30741,30 @@ var SANHUA_RESONATOR = new Resonator({
   stats: [[1, 10062.5], [0, 275], [2, 941.1094]]
 });
 var SH_ROTATION_S5 = new Rotation([
-  NOINTRO,
+  SWAPIN,
   BA233,
-  INTRO,
+  Intro31,
   Skill30.cancel(),
   Liberation23,
   FHA11,
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_HERON.instaSwap(),
+  Outro33
 ]);
 var SH_ROTATION = new Rotation([
-  NOINTRO,
+  SWAPIN,
   BA2347.cancel(),
   Skill30,
   Liberation23,
   FHA11,
-  ECHO.instaSwap(),
-  OUTRO,
-  INTRO,
+  ACTION_HERON.instaSwap(),
+  Outro33,
+  Intro31,
   FHA11,
   Skill30.cancel(),
   Liberation23,
   FHA11,
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_HERON.instaSwap(),
+  Outro33
 ]);
 var SANHUA = new Loadout({
   id: 11021,
@@ -30586,7 +31266,6 @@ var SUISUI_RESONATOR = new Resonator({
   weapon: 4,
   color: "#e8e6a6",
   intro: IntroSky,
-  outro: Outro34,
   // Drizzle Stance replaces her basics; there, Swallow's Cut is the press made in mid-air
   swapIn: () => isHeld(DRIZZLE_STANCE) ? FBA14 : BA136,
   swapInAir: () => isHeld(DRIZZLE_STANCE) ? FMA : MA40,
@@ -30606,26 +31285,26 @@ var SUISUI_RESONATOR = new Resonator({
 var FBA12343 = new ActionGroup("Basic - Drizzle Stance 1234", [FBA14, FBA24, FBA34, FBA45]);
 var BA1236 = new ActionGroup("Basic - Zephyr Stance 123", [BA136, BA235, BA332]);
 var SS_ROTATION = new Rotation([
-  NOINTRO,
+  SWAPIN,
   BA1236.cancel(),
   ESkillSky,
-  INTRO,
+  IntroSky,
   FSkill8,
   FBA12343.cancel(),
-  ECHO.instaDodge(),
+  ACTION_FORBIDDEN_BASTION.instaCancel(),
   Liberation24,
-  OUTRO
+  Outro34
 ]);
 var SS_ROTATION_S3 = new Rotation([
-  NOINTRO,
+  SWAPIN,
   BA1236.cancel(),
   ESkillSky,
-  INTRO,
+  IntroSky,
   FSkill8,
   FBA45.cancel(),
-  ECHO.instaDodge(),
+  ACTION_FORBIDDEN_BASTION.instaCancel(),
   Liberation24,
-  OUTRO
+  Outro34
 ]);
 var SUISUI = new Loadout({
   id: 11101,
@@ -30923,7 +31602,6 @@ var ZHEZHI_RESONATOR = new Resonator({
   weapon: 4,
   color: "#8fd3e8",
   intro: Intro33,
-  outro: Outro35,
   swapIn: BA137,
   swapInAir: MA41,
   maxEnergy: 12500,
@@ -30934,18 +31612,19 @@ var ZHEZHI_RESONATOR = new Resonator({
 });
 var BA1237 = new ActionGroup("Basic - Dimming Brush 123", [BA137, BA236, BA333]);
 var ZZ_ROTATION = new Rotation([
-  NOINTRO,
+  SWAPIN,
   BA1237,
-  INTRO,
+  Intro33,
   BA1237.cancel(),
-  ECHO.instaDodge(),
+  ACTION_NM_LAMPY.instaCancel(),
+  ACTION_HERON.instaDodge(),
   Liberation25,
   Skill34,
   FHA14.cancel(),
   FSkill9.jumpCancel(),
   FSkill9.jumpCancel(),
   FSkill32.instaSwap(),
-  OUTRO
+  Outro35
 ]);
 var BRUSHWORKS_FINISH = new Buff({
   name: "Zhezhi S1: Brushwork's Finish",
@@ -31305,7 +31984,6 @@ var CAMELLYA_RESONATOR = new Resonator({
   tuneBreak: tuneBreak(89, [0, 91], [0, 70], SWORD_BREAK),
   color: "#891c2b",
   intro: Intro34,
-  outro: () => isHeld(TWINING) ? OutroEphemeral : Outro36,
   // Blossom Mode replaces Basic Attack with Vining Waltz, which can be used in mid-air too
   swapIn: () => isHeld(BLOSSOM_MODE) ? VW1 : BA138,
   swapInAir: () => isHeld(BLOSSOM_MODE) ? VW1 : MA45,
@@ -31382,21 +32060,21 @@ var CM_S6 = new Sequence({ name: "Camellya S6: Bloom For You Thousand Times Over
 var CM_SEQUENCES = [CM_S1, CM_S2, CM_S3, CM_S4, CM_S5, CM_S6];
 var VW1234 = new ActionGroup("Basic - Vining Waltz 123H4", [VW1, VW2, VW3, BlazingWaltz, VW4]);
 var CM_ROTATION_16s = new Rotation([
-  INTRO,
+  Intro34,
   CrimsonBlossom.cancel(),
-  ECHO.instaDodge(),
+  ACTION_NM_CROWNLESS.instaDodge(),
   VW1234,
   Liberation26,
   VW1,
   Ephemeral,
   VW1234,
   FloralRavage.instaSwap(),
-  OUTRO
+  OutroEphemeral
 ]);
 var CM_ROTATION_16s_S6 = new Rotation([
-  INTRO,
+  Intro34,
   CrimsonBlossom.cancel(),
-  ECHO,
+  ACTION_NM_CROWNLESS,
   VW1234,
   Liberation26,
   VW1,
@@ -31406,57 +32084,57 @@ var CM_ROTATION_16s_S6 = new Rotation([
   Perennial.instaSwap()
 ]);
 var CM_ROTATION_DOUBLE = new Rotation([
-  DOUBLE_INTRO,
+  Intro34.doubleIntro(),
   CrimsonBlossom.cancel(),
-  ECHO,
+  ACTION_NM_CROWNLESS,
   HA29,
   BA427,
   FloralRavage.instaSwap(),
-  INTRO,
+  Intro34,
   Liberation26,
   Ephemeral,
   CrimsonBlossom,
   VW1234,
   FloralRavage,
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_NM_CROWNLESS.instaSwap(),
+  OutroEphemeral
 ]);
 var CM_ROTATION_DOUBLE_FAST_SUP = new Rotation([
-  DOUBLE_INTRO,
+  Intro34.doubleIntro(),
   CrimsonBlossom.cancel(),
-  ECHO,
+  ACTION_NM_CROWNLESS,
   HA29,
   BA427,
   FloralRavage.instaSwap(),
-  INTRO,
+  Intro34,
   Liberation26,
   Ephemeral,
   CrimsonBlossom,
   VW1234,
-  ECHO.instaDodge(),
+  ACTION_NM_CROWNLESS.instaDodge(),
   VW1234,
   FloralRavage,
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_NM_CROWNLESS.instaSwap(),
+  OutroEphemeral
 ]);
 var CM_ROTATION_DOUBLE_S6 = new Rotation([
-  DOUBLE_INTRO,
+  Intro34.doubleIntro(),
   CrimsonBlossom.cancel(),
-  ECHO,
+  ACTION_NM_CROWNLESS,
   HA29,
   BA427,
   FloralRavage.instaSwap(),
-  INTRO,
+  Intro34,
   Liberation26,
   Ephemeral,
   CrimsonBlossom,
   VW1234,
-  ECHO.instaDodge(),
+  ACTION_NM_CROWNLESS.instaDodge(),
   VW1,
   Perennial,
   VW1234,
   FloralRavage,
-  OUTRO
+  OutroEphemeral
 ]);
 var CAMELLYA_DOUBLE_ALWAYS = new Loadout({
   id: 16031,
@@ -31556,7 +32234,7 @@ var BA139 = phroAction("Basic - Movement of Life and Death 1", { animFrames: 44,
 ] });
 var BA238 = phroAction("Basic - Movement of Life and Death 2", { chains: [BA139], animFrames: 36, castPriority: 2, node: 0, cast: 1, type: 4096, bullets: [{ hitFrame: 12, mv: 9543, energy: 150, concerto: 300, offtune: 4800 }] });
 var BA335 = phroAction("Basic - Movement of Life and Death 3", {
-  chains: [BA238, INTRO],
+  chains: () => [BA238, Intro35, EIntro5],
   animFrames: 81,
   animPriority: { 0: 4, 81: 2 },
   castPriority: 2,
@@ -31783,6 +32461,7 @@ var COMMANDS = NOTE_MOVES.map((move) => move.variant(`${move.name} (Command)`, {
   requireBuff: MAESTRO,
   updateBuffs: () => startEnhanced()
 }));
+var HecateDodge = DEFAULT_DODGE.variant("Dodge - Hecate", {});
 var EnhancedHecate = new Action("Enhanced Hecate Resolver", {
   resolve: () => {
     const note = stacksOf(NOTES) & 3;
@@ -31830,7 +32509,7 @@ function endsMaestro(a) {
   if (a.cast === null)
     return false;
   for (let x = a; x; x = x.cancelOf ?? x.formOf) {
-    if (HECATE_ACTIONS.has(x) || x === Liberation27 || x === Outro37)
+    if (HECATE_ACTIONS.has(x) || x === HecateDodge || x === Liberation27 || x === Outro37)
       return false;
   }
   return true;
@@ -32107,10 +32786,11 @@ var PHROLOVA_RESONATOR = new Resonator({
   color: "#a62c57",
   // resolved when its row is reached: whichever Intro the kit's state calls for there
   intro: () => stacksOf(MAESTRO) ? EIntro5 : Intro35,
-  outro: Outro37,
   // switching to her in Maestro without an Intro casts Curtain Call; no Plunging Attack is modelled
   swapIn: () => stacksOf(MAESTRO) || stacksOf(CURTAIN_CALL_READY) ? CurtainCall : BA238,
   // Maestro still open means Suite of Immortality (EIntro) instead of plain Intro
+  // in Maestro her dash is Hecate's, which keeps it standing
+  dodge: () => stacksOf(MAESTRO) ? HecateDodge : null,
   maxEnergy: 0,
   maxForte1: 6,
   holdBefore: (next) => hecateHold(next),
@@ -32135,10 +32815,10 @@ var PHROLOVA_RESONATOR = new Resonator({
 var BA1238 = new ActionGroup("Basic - Movement of Life and Death 123", [BA139, BA238, BA335]);
 var BA239 = new ActionGroup("Basic - Movement of Life and Death 23", [BA238, BA335]);
 var HBA122 = new ActionGroup("Basic - Hecate 12", [HBA12, HBA22]);
-var PHRO_FAST = new Rotation([
-  NOINTRO,
+var PHRO_3FBA_MANUAL = new Rotation([
+  SWAPIN,
   BA239.hitCancel(),
-  ECHO,
+  ACTION_NM_HECATE,
   FBA6.instaDodge(),
   BA1238.hitDodge(),
   FBA6.instaCancel(),
@@ -32146,35 +32826,12 @@ var PHRO_FAST = new Rotation([
   FBA6.holdCancel(),
   ScarletCoda.mashCancel(),
   Liberation27,
-  OUTRO,
-  INTRO,
+  Outro37,
+  Intro35,
+  EIntro5,
   BA335.hitDodge(),
   FBA6.instaCancel(),
-  ECHO,
-  BA1238.hitDodge(),
-  FBA6.instaCancel(),
-  Skill35,
-  FBA6.holdCancel(),
-  ScarletCoda.mashCancel(),
-  Liberation27,
-  OUTRO
-]);
-var PHRO_MANUAL = new Rotation([
-  NOINTRO,
-  BA239.hitCancel(),
-  ECHO,
-  FBA6.instaDodge(),
-  BA1238.hitDodge(),
-  FBA6.instaCancel(),
-  Skill35,
-  FBA6.holdCancel(),
-  ScarletCoda.mashCancel(),
-  Liberation27,
-  OUTRO,
-  INTRO,
-  BA335.hitDodge(),
-  FBA6.instaCancel(),
-  ECHO,
+  ACTION_NM_HECATE,
   BA1238.hitDodge(),
   FBA6.instaCancel(),
   Skill35,
@@ -32183,12 +32840,12 @@ var PHRO_MANUAL = new Rotation([
   Liberation27,
   HBA122.instaDodge(),
   EnhancedHecate.instaSwap(),
-  OUTRO
+  Outro37
 ]);
-var PHRO_5FBA = new Rotation([
-  NOINTRO,
+var PHRO_3FBA = new Rotation([
+  SWAPIN,
   BA239.hitCancel(),
-  ECHO,
+  ACTION_NM_HECATE,
   FBA6.instaDodge(),
   BA1238.hitDodge(),
   FBA6.instaCancel(),
@@ -32196,70 +32853,156 @@ var PHRO_5FBA = new Rotation([
   FBA6.holdCancel(),
   ScarletCoda.mashCancel(),
   Liberation27,
-  OUTRO,
-  INTRO,
-  BA335.instaDodge(),
-  FBA6.instaDodge(),
-  BA1238.instaDodge(),
-  FBA6.instaDodge(),
-  BA1238.instaDodge(),
+  Outro37,
+  Intro35,
+  EIntro5,
+  BA335.hitDodge(),
   FBA6.instaCancel(),
-  ECHO,
-  BA1238.instaDodge(),
+  ACTION_NM_HECATE,
+  BA1238.hitDodge(),
   FBA6.instaCancel(),
   Skill35,
   FBA6.holdCancel(),
   ScarletCoda.mashCancel(),
   Liberation27,
-  OUTRO
+  Outro37
 ]);
-var PHRO_FAST_S2 = new Rotation([
-  NOINTRO,
-  BA239.hitCancel(),
-  ECHO,
+var PHRO_3FBA_S2 = new Rotation([
+  SWAPIN,
+  BA239.instaCancel(),
+  ACTION_NM_HECATE,
+  FBA6.instaDodge(),
+  BA1238.instaDodge(),
   FBA6.instaCancel(),
   Skill35,
   FBA6.holdCancel(),
   ScarletCoda.mashCancel(),
   Liberation27,
-  OUTRO,
-  INTRO,
+  Outro37,
+  Intro35,
+  EIntro5,
+  BA335.hitDodge(),
+  FBA6.instaCancel(),
+  ACTION_NM_HECATE,
+  BA1238.hitDodge(),
+  FBA6.instaCancel(),
+  Skill35,
+  FBA6.holdCancel(),
+  ScarletCoda.mashCancel(),
+  Liberation27,
+  Outro37
+]);
+var PHRO_4FBA = new Rotation([
+  SWAPIN,
+  BA239.hitCancel(),
+  ACTION_NM_HECATE,
+  FBA6.instaDodge(),
+  BA1238.hitDodge(),
+  FBA6.instaCancel(),
+  Skill35,
+  FBA6.holdCancel(),
+  ScarletCoda.mashCancel(),
+  Liberation27,
+  Outro37,
+  Intro35,
+  EIntro5,
   BA335.hitDodge(),
   FBA6.instaDodge(),
-  BA1238.hitCancel(),
-  ECHO,
+  BA1238.instaDodge(),
+  FBA6.instaCancel(),
+  ACTION_NM_HECATE,
+  BA1238.instaDodge(),
   FBA6.instaCancel(),
   Skill35,
   FBA6.holdCancel(),
   ScarletCoda.mashCancel(),
   Liberation27,
-  OUTRO
+  Outro37
 ]);
-var PHRO_5FBA_S2 = new Rotation([
-  NOINTRO,
-  BA239.hitCancel(),
-  ECHO,
+var PHRO_4FBA_S2 = new Rotation([
+  SWAPIN,
+  BA239.instaCancel(),
+  ACTION_NM_HECATE,
+  FBA6.instaDodge(),
+  BA1238.instaDodge(),
   FBA6.instaCancel(),
   Skill35,
   FBA6.holdCancel(),
   ScarletCoda.mashCancel(),
   Liberation27,
-  OUTRO,
-  INTRO,
+  Outro37,
+  Intro35,
+  EIntro5,
+  BA335.hitDodge(),
+  FBA6.instaDodge(),
+  BA1238.instaDodge(),
+  FBA6.instaCancel(),
+  ACTION_NM_HECATE,
+  BA1238.instaDodge(),
+  FBA6.instaCancel(),
+  Skill35,
+  FBA6.holdCancel(),
+  ScarletCoda.mashCancel(),
+  Liberation27,
+  Outro37
+]);
+var PHRO_5FBA = new Rotation([
+  SWAPIN,
+  BA239.hitCancel(),
+  ACTION_NM_HECATE,
+  FBA6.instaDodge(),
+  BA1238.hitDodge(),
+  FBA6.instaCancel(),
+  Skill35,
+  FBA6.holdCancel(),
+  ScarletCoda.mashCancel(),
+  Liberation27,
+  Outro37,
+  Intro35,
+  EIntro5,
   BA335.instaDodge(),
   FBA6.instaDodge(),
   BA1238.instaDodge(),
   FBA6.instaDodge(),
   BA1238.instaDodge(),
-  FBA6.instaDodge(),
-  BA1238.instaCancel(),
-  ECHO,
+  FBA6.instaCancel(),
+  ACTION_NM_HECATE,
+  BA1238.instaDodge(),
   FBA6.instaCancel(),
   Skill35,
   FBA6.holdCancel(),
   ScarletCoda.mashCancel(),
   Liberation27,
-  OUTRO
+  Outro37
+]);
+var PHRO_5FBA_S2 = new Rotation([
+  SWAPIN,
+  BA239.instaCancel(),
+  ACTION_NM_HECATE,
+  FBA6.instaDodge(),
+  BA1238.instaDodge(),
+  FBA6.instaCancel(),
+  Skill35,
+  FBA6.holdCancel(),
+  ScarletCoda.mashCancel(),
+  Liberation27,
+  Outro37,
+  Intro35,
+  EIntro5,
+  BA335.instaDodge(),
+  FBA6.instaDodge(),
+  BA1238.instaDodge(),
+  FBA6.instaDodge(),
+  BA1238.instaDodge(),
+  FBA6.instaCancel(),
+  ACTION_NM_HECATE,
+  BA1238.instaDodge(),
+  FBA6.instaCancel(),
+  Skill35,
+  FBA6.holdCancel(),
+  ScarletCoda.mashCancel(),
+  Liberation27,
+  Outro37
 ]);
 var PHRO_12s = new Loadout({
   id: 16081,
@@ -32278,10 +33021,38 @@ var PHRO_12s = new Loadout({
     substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Basic),
     highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Basic, Substat.Liberation)
   }),
-  rotation: { 0: PHRO_5FBA, 2: PHRO_5FBA_S2 },
+  rotation: {
+    0: PHRO_5FBA,
+    2: PHRO_5FBA_S2
+  },
   sequences: [PH_S1, PH_S2, PH_S3, PH_S4, PH_S5, PH_S6]
 });
-var PHRO_10s = new Loadout({
+var PHRO_11s = new Loadout({
+  id: 16083,
+  resonator: PHROLOVA_RESONATOR,
+  weapons: [LETHEAN_ELEGY, COSMIC_RIPPLES, STRINGMASTER, AUGMENT, RADIANT_DAWN],
+  echoes: new Echoes({
+    sets: [
+      new EchoLoadout(NM_HECATE, DREAM_OF_THE_LOST_3PC, HAVOC_ECLIPSE_2PC)
+    ],
+    mainstats: mainstatOptions(
+      0,
+      1,
+      6,
+      14,
+      15
+      /* Mainstat.ATK1 */
+    ),
+    substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Basic),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Basic, Substat.Liberation)
+  }),
+  rotation: {
+    0: PHRO_4FBA,
+    2: PHRO_4FBA_S2
+  },
+  sequences: [PH_S1, PH_S2, PH_S3, PH_S4, PH_S5, PH_S6]
+});
+var PHRO_9s = new Loadout({
   id: 16082,
   resonator: PHROLOVA_RESONATOR,
   weapons: [LETHEAN_ELEGY, COSMIC_RIPPLES, STRINGMASTER, AUGMENT, RADIANT_DAWN],
@@ -32300,7 +33071,10 @@ var PHRO_10s = new Loadout({
     substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Basic),
     highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Basic, Substat.Liberation)
   }),
-  rotation: { 0: PHRO_FAST, 2: PHRO_FAST_S2 },
+  rotation: {
+    0: PHRO_3FBA,
+    2: PHRO_3FBA_S2
+  },
   sequences: [PH_S1, PH_S2, PH_S3, PH_S4, PH_S5, PH_S6]
 });
 
@@ -32643,7 +33417,6 @@ var CANTARELLA_RESONATOR = new Resonator({
   color: "#896fd6",
   // resolved when its row is reached: whichever Intro the kit's state calls for there
   intro: () => isHeld(MIRAGE) ? EIntro6 : Intro36,
-  outro: Outro38,
   // Mirage makes Basic Attack Phantom Sting; no Plunging Attack is modelled for a swapInAir
   swapIn: () => isHeld(MIRAGE) ? FBA15 : BA140,
   maxEnergy: 12500,
@@ -32696,10 +33469,14 @@ var CA_SEQUENCES = [CA_S1, CA_S2, CA_S3, CA_S4, CA_S5, CA_S6];
 var FBA1232 = new ActionGroup("Forte Basic - Phantom Sting 123", [FBA15, FBA25, FBA35]);
 var BA1239 = new ActionGroup("Basic - Illusion Collapse 123", [BA140, BA240, BA336]);
 var CA_ROTATION = new Rotation([
-  INTRO,
+  Intro36,
   BA3hit1.instaCancel(),
   Skill36.instaCancel(),
-  ECHO.instaDodge(),
+  ACTION_NM_HERON.instaDodge(),
+  ACTION_FALLACY.instaCancel(),
+  ACTION_HERON.instaDodge(),
+  ACTION_HECATE.instaCancel(),
+  ACTION_NM_CROWNLESS.instaDodge(),
   Liberation28,
   EHA5,
   FBA15.cancel(),
@@ -32709,25 +33486,33 @@ var CA_ROTATION = new Rotation([
   FSkill11,
   FBA15,
   FBA25.instaSwap(),
-  OUTRO
+  Outro38
 ]);
 var CA_ROTATION_MDPS = new Rotation([
-  INTRO,
+  Intro36,
   BA3hit1.instaCancel(),
   Skill36.instaCancel(),
-  ECHO,
+  ACTION_NM_HERON,
+  ACTION_FALLACY,
+  ACTION_HERON,
+  ACTION_HECATE,
+  ACTION_NM_CROWNLESS,
   Liberation28,
   EHA5,
   FBA1232.cancel(),
   FSkill11,
-  ECHO,
+  ACTION_NM_HERON,
+  ACTION_FALLACY,
+  ACTION_HERON,
+  ACTION_HECATE,
+  ACTION_NM_CROWNLESS,
   ESkill5,
   // TODO check if fskill cancelled by echo
   FBA15,
   FBA25,
   BA1239.cancel(),
   Skill36.instaSwap(),
-  OUTRO
+  Outro38
 ]);
 var CANTARELLA = new Loadout({
   id: 16071,
@@ -33336,7 +34121,6 @@ var CHISA_RESONATOR = new Resonator({
   weapon: 1,
   color: "#8a3b47",
   intro: Intro37,
-  outro: Outro39,
   swapIn: () => isHeld(CHAINSAW_MODE) ? Blitz1 : BA141,
   swapInAir: ReignOfSilenceMidAir,
   maxEnergy: 12500,
@@ -33344,31 +34128,37 @@ var CHISA_RESONATOR = new Resonator({
   stats: [[1, 10775], [0, 437.5], [2, 1136.6646]]
 });
 var CS_ROTATION = new Rotation([
-  NOINTRO,
+  SWAPIN,
   BA141,
   BA241.cancel(),
   Skill37,
   RendingLunge,
   DeathSnipSpread,
   ThreadWithdrawn.instaCancel(),
-  ECHO.instaDodge(),
+  ACTION_THRENODIAN_LEVIATHAN.instaCancel(),
+  ACTION_FALLACY.instaCancel(),
+  ACTION_HERON.instaDodge(),
+  ACTION_BELL_BORNE.instaCancel(),
   Liberation29,
   SerratedLoop,
   Blitz2Hold,
   Blitz3Hold,
   Eradication.instaSwap(),
-  OUTRO,
-  INTRO,
+  Outro39,
+  Intro37,
   Skill37,
   RendingLunge,
   DeathSnipSpread,
-  ECHO.instaDodge(),
+  ACTION_THRENODIAN_LEVIATHAN.instaCancel(),
+  ACTION_FALLACY.instaCancel(),
+  ACTION_HERON.instaDodge(),
+  ACTION_BELL_BORNE.instaCancel(),
   Liberation29,
   SerratedLoop,
   Blitz2Hold,
   Blitz3Hold,
   Eradication.instaSwap(),
-  OUTRO
+  Outro39
 ]);
 var CS_ECHOES = [
   new EchoLoadout(THRENODIAN_LEVIATHAN, THREAD_OF_SEVERED_FATE_3PC, HAVOC_ECLIPSE_2PC),
@@ -33654,7 +34444,6 @@ var DANJIN_RESONATOR = new Resonator({
   weapon: 0,
   color: "#a83250",
   intro: Intro38,
-  outro: Outro40,
   swapIn: BA142,
   swapInAir: MA46,
   tuneBreak: tuneBreak(91, [0, 91], [0, 70], SWORD_BREAK),
@@ -33740,15 +34529,18 @@ var Crimson12 = new ActionGroup("Skill - Crimson Erosion 12", [CrimsonErosion1, 
 var Sanguine123 = new ActionGroup("Skill - Sanguine Pulse 123", [SanguinePulse1, SanguinePulse2, SanguinePulse3]);
 var Forte12 = new ActionGroup("Forte Heavy - Chaoscleave + Scatterbloom", [Chaoscleave, Scatterbloom]);
 var DJ_ROTATION = new Rotation([
-  INTRO,
+  Intro38,
   Crimson12.cancel(),
   Liberation30,
   CarmineGleam,
   BA12310,
   Sanguine123,
   Forte12,
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_NM_HERON.instaSwap(),
+  ACTION_HERON.instaSwap(),
+  ACTION_FALLACY.instaSwap(),
+  ACTION_CROWNLESS_1.instaSwap(),
+  Outro40
 ]);
 var DANJIN = new Loadout({
   id: 16021,
@@ -33977,7 +34769,6 @@ var ROCCIA_RESONATOR = new Resonator({
   weapon: 3,
   color: "#9634b2",
   intro: Intro39,
-  outro: Outro41,
   swapIn: BA143,
   swapInAir: MA47,
   maxEnergy: 12500,
@@ -34067,42 +34858,54 @@ var BA12348 = new ActionGroup("Basic - Pero, Easy 1234", [BA143, BA243, BA338, B
 var FBA1233 = new ActionGroup("Forte Basic - Real Fantasy 123", [FBA16, FBA26, FBA36]);
 var FBA123Success = new ActionGroup("Forte Basic - Real Fantasy 123 (Success)", [FBA16, FBA26, FBA3Success]);
 var RC_ROTATION = new Rotation([
-  NOINTRO,
+  SWAPIN,
   BA12348.cancel(),
   Liberation31,
   Skill38.instaDodge(),
   JUMP,
   FBA1233,
-  ECHO.instaSwap(),
-  OUTRO,
-  INTRO,
+  ACTION_NM_HERON.instaSwap(),
+  ACTION_HERON.instaSwap(),
+  ACTION_BELL_BORNE.instaSwap(),
+  ACTION_NM_CROWNLESS.instaSwap(),
+  Outro41,
+  Intro39,
   BA428.cancel(),
   Liberation31,
   Skill38.instaDodge(),
   JUMP,
   FBA1233,
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_NM_HERON.instaSwap(),
+  ACTION_HERON.instaSwap(),
+  ACTION_BELL_BORNE.instaSwap(),
+  ACTION_NM_CROWNLESS.instaSwap(),
+  Outro41
 ]);
 var RC_ROTATION_S1 = new Rotation([
-  NOINTRO,
+  SWAPIN,
   BA12311,
   Skill38.instaDodge(),
   JUMP,
   FBA1233,
   Liberation31,
-  ECHO.instaSwap(),
-  OUTRO,
-  INTRO,
+  ACTION_NM_HERON.instaSwap(),
+  ACTION_HERON.instaSwap(),
+  ACTION_BELL_BORNE.instaSwap(),
+  ACTION_NM_CROWNLESS.instaSwap(),
+  Outro41,
+  Intro39,
   Skill38.instaDodge(),
   JUMP,
   FBA1233,
   Liberation31,
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_NM_HERON.instaSwap(),
+  ACTION_HERON.instaSwap(),
+  ACTION_BELL_BORNE.instaSwap(),
+  ACTION_NM_CROWNLESS.instaSwap(),
+  Outro41
 ]);
 var RC_ROTATION_S6_MDPS = new Rotation([
-  INTRO,
+  Intro39,
   BA428.cancel(),
   Liberation31,
   Skill38.instaDodge(),
@@ -34115,7 +34918,7 @@ var RC_ROTATION_S6_MDPS = new Rotation([
   RealityRecreation,
   RealityRecreation,
   RealityRecreationFail,
-  OUTRO
+  Outro41
 ]);
 var ROCCIA_MATRIX_TEAM = new Buff({
   name: "Roccia: Matrix Buff",
@@ -34503,7 +35306,7 @@ var ShadowOfXuanling = yangyangAction("Liberation - Shadow of Xuanling", { tag: 
 var ShadowUnfaltering = yangyangAction("Liberation - Shadow of Xuanling: Unfaltering (S1)", { tag: ActionTag.OffField, type: 8192, bullets: [{ hitFrame: 0, mv: 33798 }] });
 var ShadowStrungNotes = yangyangAction("Liberation - Shadow of Xuanling: Strung Notes (S2)", { tag: ActionTag.OffField, type: 8192, bullets: [{ hitFrame: 0, mv: 33798 }] });
 var ShadowWitheredWood = yangyangAction("Liberation - Shadow of Xuanling: Still as Withered Wood (S6)", { tag: ActionTag.OffField, type: 8192, bullets: [{ hitFrame: 0, mv: 33798 }] });
-var INTRO2 = {
+var INTRO = {
   endPosition: 0,
   animFrames: 47,
   animPriority: { 38: 2 },
@@ -34519,9 +35322,9 @@ var INTRO2 = {
   castConcerto: 1e3,
   castForte2: 1
 };
-var IntroAzure = yangyangAction("Intro - Skybound Feather (Azure)", { qteFrames: 32, ...INTRO2, requireBuff: AZURE_STANCE });
-var IntroFeather = yangyangAction("Intro - Skybound Feather (Feather)", { qteFrames: 32, ...INTRO2, requireBuff: FEATHER_STANCE });
-var INTROS3 = /* @__PURE__ */ new Set([IntroAzure, IntroFeather]);
+var IntroAzure = yangyangAction("Intro - Skybound Feather (Azure)", { qteFrames: 32, ...INTRO, requireBuff: AZURE_STANCE });
+var IntroFeather = yangyangAction("Intro - Skybound Feather (Feather)", { qteFrames: 32, ...INTRO, requireBuff: FEATHER_STANCE });
+var INTROS2 = /* @__PURE__ */ new Set([IntroAzure, IntroFeather]);
 var Outro42 = yangyangAction("Outro - As the Wind Wills", {
   animFrames: 0,
   cast: 6,
@@ -34627,7 +35430,7 @@ var XL_S2 = new Sequence({
 var XL_S3 = new Sequence({
   name: "Xuanling S3: My Grief Follows You into the Clouds",
   updateDebuffs: () => {
-    if (runningAnyOf(INTROS3) || isFlow())
+    if (runningAnyOf(INTROS2) || isFlow())
       maxStackIncrease(HAVOC_BANE, 3);
   },
   applyStats: () => {
@@ -34643,7 +35446,7 @@ var A_LETTER_AND_MY_LONGING = new Buff({
 var XL_S4 = new Sequence({
   name: "Xuanling S4: Across the Miles, a Letter and My Longing",
   updateBuffs: () => {
-    if (runningAnyOf(INTROS3) || runningAction(SwitchAzure) || runningAction(SwitchFeather) || isFlow())
+    if (runningAnyOf(INTROS2) || runningAction(SwitchAzure) || runningAction(SwitchFeather) || isFlow())
       applyTeam(A_LETTER_AND_MY_LONGING, 1);
   }
 });
@@ -34728,7 +35531,6 @@ var XUANLING_RESONATOR = new Resonator({
   color: "#6140e5",
   // resolved when its row is reached: the Skybound Feather of the stance she left in
   intro: () => isHeld(FEATHER_STANCE) ? IntroFeather : IntroAzure,
-  outro: Outro42,
   // the stance's Basic, Havoc in Bloom under Hark the Wind; airborne at full Azure Plume, Feather Fall
   swapIn: () => isHeld(AZURE_STANCE) ? BA_A1 : isHeld(HARK_THE_WIND) ? HiB1 : BA_F1,
   swapInAir: () => isHeld(AZURE_STANCE) ? MA_A : forte2() >= 2 ? FeatherFall : MA_F,
@@ -34771,36 +35573,36 @@ var XUANLING_ROTATION = new Rotation([
   BA_A1.instaCancel(),
   SwitchFeather.instaSwap(),
   // start in feather stance, so the first cast is a switch to Azure
-  INTRO_LAST,
+  IntroFeather.inLastSlot(),
   BA_F1234.cancel(),
   FlowAzure.holdCancel(),
   HeavyAzure.cancel(),
   Lib5,
   FlowFeather.cancel(),
-  ECHO,
+  ACTION_THOUSAND_PUPPET_PAVILION,
   HeavyFeather,
   FeatherFall,
   HiB123.swapCancel(),
-  OUTRO
+  Outro42
 ]);
-var XUANLING_ROTATION_S1 = new Rotation([
+var XUANLING_ROTATION_S2 = new Rotation([
   START_LAST,
   BA_A1.instaCancel(),
   HeavyAzure,
   BA_A1.instaCancel(),
   SwitchFeather.instaSwap(),
   // start in feather stance, so the first cast is a switch to Azure
-  INTRO_LAST,
+  IntroFeather.inLastSlot(),
   BA_F1234.cancel(),
   FlowAzure.holdCancel(),
   HeavyAzure.cancel(),
   Lib5,
   FlowFeather.cancel(),
-  ECHO,
+  ACTION_THOUSAND_PUPPET_PAVILION,
   HeavyFeather,
   FeatherFall,
   HiB123.swapCancel(),
-  OUTRO
+  Outro42
 ]);
 var XUANLING_ECHOES = [
   new EchoLoadout(THOUSAND_PUPPET_PAVILION, FEATHERED_TRACE_5PC)
@@ -34822,7 +35624,7 @@ var XUANLING = new Loadout({
     substats: substats(Substat.CritDmg, Substat.CritRate, Substat.Heavy, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
     highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Heavy, Substat.AtkPct, Substat.FlatAtk, Substat.Basic, Substat.Liberation)
   }),
-  rotation: { 0: XUANLING_ROTATION, 1: XUANLING_ROTATION_S1 },
+  rotation: { 0: XUANLING_ROTATION, 2: XUANLING_ROTATION_S2 },
   sequences: XL_SEQUENCES
 });
 
@@ -35149,7 +35951,6 @@ var LYNAE_RESONATOR = new Resonator({
   weapon: 2,
   color: "#eae477",
   intro: Intro40,
-  outro: Outro43,
   // Kaleidoscopic Parade replaces the Basic Attack; its own Mid-air Attack has no action here
   swapIn: () => isHeld(KALEIDOSCOPIC_PARADE) ? KBA1 : BA144,
   swapInAir: MA48,
@@ -35213,14 +36014,17 @@ var LY_S6 = new Sequence({
 var LY_SEQUENCES = [LY_S1, LY_S2, LY_S3, LY_S4, LY_S5, LY_S6];
 var PolychromeLeap123 = new ActionGroup("Forte - Polychrome Leap 123", [PolychromeLeap1, PolychromeLeap2, PolychromeLeap3]);
 var LY_ROTATION = new Rotation([
-  INTRO.mashCancel(),
+  Intro40.mashCancel(),
   Skill39.cancel(),
-  ECHO.instaDodge(),
+  ACTION_VOIDWING_MOTH.instaDodge(),
+  ACTION_HYVATIA.instaCancel(),
+  ACTION_HERON.instaDodge(),
+  ACTION_STONEWALL_BRACER_1.instaDodge(),
   Liberation32,
   SparkCollision.cancel(),
   PolychromeLeap123,
   VisualImpact.cancel(),
-  OUTRO
+  Outro43
 ]);
 var LY_ECHOES = [
   // Reel's team Tune Break Boost only pays a Tune DMG dealer
@@ -35648,7 +36452,6 @@ var PHOEBE_RESONATOR = new Resonator({
   weapon: 4,
   color: "#f2e5c0",
   intro: Intro41,
-  outro: Outro44,
   // inside the Ring of Mirrors her Basic Attack is Chamuel's Star
   swapIn: () => isHeld(RING_OF_MIRRORS) ? CBA1 : BA145,
   swapInAir: MA49,
@@ -35658,7 +36461,7 @@ var PHOEBE_RESONATOR = new Resonator({
 });
 var PHOEBE_CONFESSION_ROTATION = new Rotation([
   // leading, she has no Intro's 10 Concerto: two more chains make up the OUTRO's 100
-  NOINTRO,
+  SWAPIN,
   BA145.instaCancel(),
   SkillConf.instaCancel(),
   Liberation33,
@@ -35668,9 +36471,10 @@ var PHOEBE_CONFESSION_ROTATION = new Rotation([
   CBA123.instaDodge(),
   CBA123.instaDodge(),
   Starflash,
-  ECHO.instaCancel(),
-  OUTRO,
-  INTRO.mashCancel(),
+  ACTION_HERON.instaCancel(),
+  ACTION_CAPITANEUS.instaCancel(),
+  Outro44,
+  Intro41.mashCancel(),
   Liberation33,
   SkillConf.instaDodge(),
   Skill40.instaDodge(),
@@ -35678,12 +36482,14 @@ var PHOEBE_CONFESSION_ROTATION = new Rotation([
   Starflash.dodgeCancel(),
   CBA123.instaDodge(),
   Starflash,
-  ECHO.instaCancel(),
-  OUTRO
+  ACTION_HERON.instaCancel(),
+  ACTION_CAPITANEUS.instaCancel(),
+  Outro44
 ]);
 var PHOEBE_ABSOLUTION_ROTATION = new Rotation([
-  INTRO.mashCancel(),
+  Intro41.mashCancel(),
   Liberation33,
+  ACTION_CAPITANEUS,
   HeavyAbs.instaDodge(),
   Skill40.instaDodge(),
   CBA123.instaDodge(),
@@ -35693,9 +36499,8 @@ var PHOEBE_ABSOLUTION_ROTATION = new Rotation([
   CBA123.instaDodge(),
   Starflash.dodgeCancel(),
   CBA123.instaDodge(),
-  Starflash.cancel(),
-  ECHO.instaCancel(),
-  OUTRO
+  Starflash,
+  Outro44
 ]);
 var PHOEBE_BUILD = {
   resonator: PHOEBE_RESONATOR,
@@ -35925,7 +36730,6 @@ var ROVER_SPECTRO_RESONATOR = new Resonator({
   weapon: 0,
   color: "#e8d98f",
   intro: Intro42,
-  outro: Outro45,
   swapIn: BA146,
   swapInAir: MA50,
   tuneBreak: tuneBreak(91, [0, 91], [0, 70], SWORD_BREAK),
@@ -35935,7 +36739,7 @@ var ROVER_SPECTRO_RESONATOR = new Resonator({
   stats: [[1, 11400], [0, 375], [2, 1368.8864]]
 });
 var SPR_ROTATION = new Rotation([
-  NOINTRO,
+  SWAPIN,
   BA146,
   HA1232,
   FSkill13,
@@ -35943,17 +36747,19 @@ var SPR_ROTATION = new Rotation([
   HA1232,
   HA1232,
   FSkill13,
-  ECHO.instaSwap(),
-  OUTRO,
-  INTRO,
+  ACTION_FALLACY.instaSwap(),
+  ACTION_HERON.instaSwap(),
+  Outro45,
+  Intro42,
   FSkill13,
   FBA7.cancel(),
   Liberation34,
   HA1232,
   HA1232,
   FSkill13,
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_FALLACY.instaSwap(),
+  ACTION_HERON.instaSwap(),
+  Outro45
 ]);
 var ROVER_SPECTRO = new Loadout({
   id: 15011,
@@ -36206,7 +37012,6 @@ var SHOREKEEPER_RESONATOR = new Resonator({
   // resolved when its row is reached: whichever Intro the kit's state calls for there
   // planned ahead of the handoff's Outro, the realm reads a stage on from where it stands
   intro: () => realmStage() + (handoffPending() && realmStage() ? 1 : 0) >= 3 ? EIntro7 : Intro43,
-  outro: Outro46,
   swapIn: BA147,
   // no mid-air string: her Mid-air Attack is the Plunging Attack
   swapInAir: MA51,
@@ -36226,8 +37031,10 @@ var SK_LOOP = new Rotation([
   BA147.instaCancel(),
   Skill43.cancel(),
   Liberation35,
-  ECHO.instaSwap(),
-  NOINTRO,
+  ACTION_FALLACY.instaSwap(),
+  ACTION_SPACETREK.instaSwap(),
+  ACTION_FORMLESS_DEMON.instaSwap(),
+  SWAPIN,
   BA12312.jumpCancel(),
   MA51,
   FHA16.instaCancel(),
@@ -36236,37 +37043,49 @@ var SK_LOOP = new Rotation([
   BA1210.holdCancel(),
   FHA16.instaCancel(),
   Liberation35,
-  ECHO.instaSwap(),
-  OUTRO,
-  INTRO,
+  ACTION_FALLACY.instaSwap(),
+  ACTION_SPACETREK.instaSwap(),
+  ACTION_FORMLESS_DEMON.instaSwap(),
+  Outro46,
+  Intro43,
+  EIntro7,
   BA12312.jumpCancel(),
   MA51,
   FHA16.instaCancel(),
   Skill43.cancel(),
   Liberation35,
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_FALLACY.instaSwap(),
+  ACTION_SPACETREK.instaSwap(),
+  ACTION_FORMLESS_DEMON.instaSwap(),
+  Outro46
 ]);
 var SK_LOOP_S3 = new Rotation([
   START_LAST,
   BA147.instaCancel(),
   Skill43.cancel(),
   Liberation35,
-  ECHO.instaSwap(),
-  NOINTRO,
+  ACTION_FALLACY.instaSwap(),
+  ACTION_SPACETREK.instaSwap(),
+  ACTION_FORMLESS_DEMON.instaSwap(),
+  SWAPIN,
   BA12312.jumpCancel(),
   MA51,
   FHA16.instaCancel(),
   Skill43.cancel(),
   Liberation35,
-  ECHO.instaSwap(),
-  OUTRO,
-  INTRO,
+  ACTION_FALLACY.instaSwap(),
+  ACTION_SPACETREK.instaSwap(),
+  ACTION_FORMLESS_DEMON.instaSwap(),
+  Outro46,
+  Intro43,
+  EIntro7,
   BA147,
   Skill43,
   Liberation35,
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_FALLACY.instaSwap(),
+  ACTION_SPACETREK.instaSwap(),
+  ACTION_FORMLESS_DEMON.instaSwap(),
+  Outro46
 ]);
 var SHOREKEEPER = new Loadout({
   id: 15051,
@@ -36485,7 +37304,6 @@ var VERINA_RESONATOR = new Resonator({
   weapon: 4,
   color: "#cfee7a",
   intro: Intro44,
-  outro: Outro47,
   // her no-Intro chain opens on Basic 3
   swapIn: BA348,
   swapInAir: MA116,
@@ -36502,38 +37320,46 @@ var VERINA_RESONATOR = new Resonator({
 });
 var BA3452 = new ActionGroup("Basic - Cultivation 345", [BA348, BA430, BA55]);
 var VR_LOOP = new Rotation([
-  NOINTRO,
+  SWAPIN,
   BA3452.cancel(),
   Liberation36,
   Skill44.jumpCancel(),
   ForteMidair1,
   ForteMidair2,
-  ECHO.instaSwap(),
-  OUTRO,
-  INTRO,
+  ACTION_FALLACY.instaSwap(),
+  ACTION_SPACETREK.instaSwap(),
+  ACTION_FORMLESS_DEMON.instaSwap(),
+  Outro47,
+  Intro44,
   Liberation36,
   Skill44.jumpCancel(),
   ForteMidair1,
   ForteMidair2,
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_FALLACY.instaSwap(),
+  ACTION_SPACETREK.instaSwap(),
+  ACTION_FORMLESS_DEMON.instaSwap(),
+  Outro47
 ]);
 var VR_S2 = new Rotation([
-  NOINTRO,
+  SWAPIN,
   BA348.instaCancel(),
   Liberation36,
   Skill44.jumpCancel(),
   ForteMidair1,
   ForteMidair2,
-  ECHO.instaSwap(),
-  OUTRO,
-  INTRO,
+  ACTION_FALLACY.instaSwap(),
+  ACTION_SPACETREK.instaSwap(),
+  ACTION_FORMLESS_DEMON.instaSwap(),
+  Outro47,
+  Intro44,
   Liberation36,
   Skill44.jumpCancel(),
   ForteMidair1,
   ForteMidair2,
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_FALLACY.instaSwap(),
+  ACTION_SPACETREK.instaSwap(),
+  ACTION_FORMLESS_DEMON.instaSwap(),
+  Outro47
 ]);
 var VERINA = new Loadout({
   id: 15031,
@@ -36969,7 +37795,6 @@ var ZANI_RESONATOR = new Resonator({
   weapon: 3,
   color: "#b8a897",
   intro: Intro45,
-  outro: Outro48,
   // "When Blaze is no less than 30, Basic Attack is replaced with Heavy Slash - Daybreak" in Inferno Mode
   swapIn: () => isHeld(INFERNO_MODE) && forte2() >= 30 ? Daybreak : BA149,
   swapInAir: MA52,
@@ -37006,7 +37831,7 @@ var ZANI_RESONATOR = new Resonator({
   }
 });
 var ZANI_ROTATION = new Rotation([
-  INTRO,
+  Intro45,
   Skill45,
   BA3Follow,
   TargetedAction,
@@ -37014,11 +37839,12 @@ var ZANI_ROTATION = new Rotation([
   UBA1236,
   UBA1236.cancel(),
   Lib27,
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_CAPITANEUS.instaSwap(),
+  ACTION_NM_MOURNING_AIX.instaSwap(),
+  Outro48
 ]);
 var ZANI_ROTATION_S6 = new Rotation([
-  INTRO,
+  Intro45,
   Skill45,
   BA3Follow,
   TargetedAction,
@@ -37027,8 +37853,9 @@ var ZANI_ROTATION_S6 = new Rotation([
   UBA1236,
   UBA1236.cancel(),
   Lib27,
-  ECHO.instaSwap(),
-  OUTRO
+  ACTION_CAPITANEUS.instaSwap(),
+  ACTION_NM_MOURNING_AIX.instaSwap(),
+  Outro48
 ]);
 var ZANI = new Loadout({
   id: 15071,
@@ -37089,21 +37916,21 @@ var TEAMS = [
   [[MORNYE, SHOREKEEPER, VERINA, CIACCONA], [DENIA_STRAIN, LYNAE_STRAIN, CIACCONA, SANHUA, MORTEFI, REBECCA, JIANXIN], QINGXIAO],
   // xuanling: havoc heavy attack on Havoc Bane — Chisa's +3 to every Negative Status cap is what
   // takes Unbroken Vow off its 3-stack 30% tier onto the 4-6 stack 36% one
-  [[SUISUI, CHISA, VERINA, SHOREKEEPER], [MORTEFI, REBECCA, IUNO, PHRO_10s, CHISA], XUANLING],
+  [[SUISUI, CHISA, VERINA, SHOREKEEPER], [MORTEFI, REBECCA, IUNO, PHRO_9s, CHISA], XUANLING],
   // lucy: spectro heavy on tune hack, with rebecca feeding her the outro
   [[MORNYE, SHOREKEEPER, VERINA], [REBECCA, LYNAE_RUPTURE, MORTEFI], LUCY],
   // hiyuki: glacio chafe/bite — every stack the team lands calculates at the target's own limit,
   // which is why Chisa (+3 to it) and Lucilla's Chafe build stand behind her
-  [[SUISUI], PHRO_10s, HIYUKI],
+  [[SUISUI], PHRO_9s, HIYUKI],
   [[SUISUI], CARLOTTA_FAST, HIYUKI],
-  [PHRO_10s, [LUCILLA], HIYUKI],
+  [PHRO_9s, [LUCILLA], HIYUKI],
   [HIYUKI, CARLOTTA_FAST, [LUCILLA_CHAFE]],
   [[SUISUI, CHISA, MORNYE, VERINA, SHOREKEEPER], [LUCILLA_CHAFE, LYNAE_RUPTURE, CHISA, JIANXIN, ROVER_ELECTRO], HIYUKI],
   // sigrika: aero + echo
   [[SHOREKEEPER, VERINA, MORNYE], [QIUYUAN, CIACCONA, CANTARELLA], SIGRIKA_EBA],
   [[QIUYUAN], [LUCILLA], SIGRIKA_FAST],
   //[[SHOREKEEPER], [QIUYUAN], SIGRIKA_DOUBLE],
-  [[PHRO_10s], [QIUYUAN, LUCILLA], SIGRIKA_FAST],
+  [[PHRO_9s], [QIUYUAN, LUCILLA], SIGRIKA_FAST],
   [[MORNYE, SHOREKEEPER, VERINA], [LYNAE_RUPTURE], SIGRIKA_FAST],
   [[CIACCONA], [QIUYUAN, LUCILLA], SIGRIKA_FAST],
   [[SHOREKEEPER, VERINA, MORNYE], [LUCILLA, ROVER_AERO], SIGRIKA_FAST],
@@ -37140,7 +37967,7 @@ var TEAMS = [
   // qiuyuan: aero heavy echo
   [[SHOREKEEPER, VERINA, CIACCONA, MORNYE, SUISUI], [MORTEFI, IUNO, CIACCONA, LUCILLA], QIUYUAN_MDPS],
   [[MORNYE, SHOREKEEPER, VERINA, CIACCONA, SUISUI], [REBECCA, LYNAE_RUPTURE], QIUYUAN_MDPS],
-  [[SHOREKEEPER, VERINA], PHRO_10s, QIUYUAN_MDPS],
+  [[SHOREKEEPER, VERINA], PHRO_9s, QIUYUAN_MDPS],
   // galbrena: fusion echo and heavy
   [[SHOREKEEPER, VERINA, MORNYE, SUISUI, LUPA], [MORTEFI, IUNO, QIUYUAN, LUCILLA], GALBRENA],
   [[LUPA], [BRANT], GALBRENA],
@@ -37156,12 +37983,27 @@ var TEAMS = [
   [[MORNYE, SHOREKEEPER, VERINA, SUISUI], [REBECCA], AUGUSTA],
   [[MORNYE], [LYNAE_RUPTURE], AUGUSTA],
   // phrolova: havoc, echo, skill
+  // each team on the loadout that beats the other two at both S0 and S2: 3 Forte Basics (PHRO_9s),
+  // 4 (PHRO_11s) or 5 (PHRO_12s)
   [PHRO_12s, [JINHSI_SUPPORT], [CANTARELLA]],
-  [PHRO_10s, [QIUYUAN, LUCILLA, DANJIN], [LYNAE_RUPTURE, QIUYUAN, LUCILLA]],
-  [PHRO_10s, [LYNAE_RUPTURE, DANJIN], [LUCILLA, QIUYUAN, CANTARELLA]],
-  [PHRO_12s, [QIUYUAN, ROCCIA], [QIUYUAN, CANTARELLA]],
-  [PHRO_12s, [SHOREKEEPER, BULING, MORNYE, SUISUI, VERINA], [QIUYUAN, DANJIN, LUCILLA, CANTARELLA, ROCCIA]],
-  [PHRO_12s, [QIUYUAN, ROCCIA, DANJIN], [SHOREKEEPER, SUISUI, MORNYE, VERINA]],
+  [PHRO_9s, [LUCILLA], [QIUYUAN]],
+  [PHRO_9s, [DANJIN], [LYNAE_RUPTURE, LUCILLA]],
+  [PHRO_11s, [QIUYUAN], [LUCILLA]],
+  [PHRO_12s, [QIUYUAN], [LYNAE_RUPTURE]],
+  [PHRO_11s, [LUCILLA], [LYNAE_RUPTURE]],
+  [PHRO_11s, [DANJIN], [QIUYUAN, CANTARELLA]],
+  [PHRO_11s, [LYNAE_RUPTURE], [LUCILLA, QIUYUAN, CANTARELLA]],
+  [PHRO_12s, [QIUYUAN, ROCCIA], [CANTARELLA]],
+  [PHRO_11s, [ROCCIA], [QIUYUAN]],
+  [PHRO_12s, [SHOREKEEPER, BULING, MORNYE, SUISUI, VERINA], [QIUYUAN, CANTARELLA, ROCCIA]],
+  [PHRO_12s, [SHOREKEEPER, BULING, SUISUI], [DANJIN]],
+  [PHRO_12s, [SHOREKEEPER, MORNYE, VERINA], [LUCILLA]],
+  [PHRO_11s, [BULING, SUISUI], [LUCILLA]],
+  [PHRO_11s, [MORNYE, VERINA], [DANJIN]],
+  [PHRO_12s, [QIUYUAN, ROCCIA], [SHOREKEEPER, SUISUI, MORNYE, VERINA]],
+  [PHRO_12s, [DANJIN], [MORNYE]],
+  [PHRO_11s, [DANJIN], [SHOREKEEPER, VERINA]],
+  [PHRO_9s, [DANJIN], [SUISUI]],
   [PHRO_12s, [MORNYE], [LYNAE_RUPTURE]],
   // cartethyia: aero HP-scaling basic attack on Aero Erosion — Aero Rover and Chisa both raise the
   // status's own cap, which is what her Erosion ticks and her Blade's amplification both read
@@ -37210,7 +38052,7 @@ var TEAMS = [
   //[[MORNYE, LUPA, SHOREKEEPER, DENIA_BURST, VERINA, SUISUI], [LYNAE_RUPTURE], CHANGLI],
   // jiyan: aero heavy
   [[CIACCONA], [IUNO], JIYAN],
-  [[SHOREKEEPER, VERINA, CIACCONA, MORNYE, SUISUI], [MORTEFI, IUNO, CIACCONA, PHRO_10s], JIYAN],
+  [[SHOREKEEPER, VERINA, CIACCONA, MORNYE, SUISUI], [MORTEFI, IUNO, CIACCONA, PHRO_9s], JIYAN],
   [[MORNYE, SHOREKEEPER, VERINA, CIACCONA, SUISUI], [REBECCA], JIYAN],
   [[MORNYE], [LYNAE_RUPTURE], JIYAN]
   // encore: fusion basic
@@ -37885,6 +38727,7 @@ export {
   TAG_NAME,
   scopedStat,
   splitStat,
+  POSITION_NAME,
   ENERGY_UNIT,
   CONCERTO_UNIT,
   MV_UNIT,
