@@ -77,6 +77,7 @@ import {
   previousPress,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, START_LAST, ActionTag, DODGE } from "../../engine/rotation.js";
+import { tuneBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
 import { HAVOC_BANE, anyNegativeStatusInflicted } from "../../shared/status.js";
 import { AZURE_OATH, EMERALD_SENTENCE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
@@ -582,6 +583,8 @@ export const XUANLING_RESONATOR = new Resonator({
   // the stance's Basic, Havoc in Bloom under Hark the Wind; airborne at full Azure Plume, Feather Fall
   swapIn: () => (isHeld(AZURE_STANCE) ? BA_A1 : isHeld(HARK_THE_WIND) ? HiB1 : BA_F1),
   swapInAir: () => (isHeld(AZURE_STANCE) ? MA_A : forte2() >= 2 ? FeatherFall : MA_F),
+  // the sword's own break, but swappable a frame before its end
+  tuneBreak: tuneBreak(90, 89, [0, 90], [0, 70], SWORD_BREAK),
   maxEnergy: 12500,
   forteScale: [0.01, 1, 1, 1, 1],
   maxForte1: 10000,

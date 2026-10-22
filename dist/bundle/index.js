@@ -74,7 +74,7 @@ import {
   teamAt,
   teamKey,
   weaponBase
-} from "./chunk-TR2QGI5W.js";
+} from "./chunk-TJ5JRD5Q.js";
 
 // dist/src/page/display.js
 var shown = (s, i) => s.shownAfter?.[i] ?? [s.energy, s.concerto, s.offtune, ...s.forte][i];
@@ -640,6 +640,7 @@ function rowValues(snap, { mv, avg }, members = []) {
       buffed.add(key);
     raw[`moved:${key}`] = rows.reduce((n, r) => n + r.value, 0);
   }
+  raw["gen:energy"] = (hitsBank(snap, "energy") + Math.max(0, snap.action.castEnergy)) / RESOURCE_SCALE.energy;
   const hitEnergy = hitsBank(snap, "energy");
   if (hitEnergy > 0) {
     const scaled = hitEnergy / RESOURCE_SCALE.energy * (1 + snap.stat(
@@ -820,6 +821,7 @@ function rowValues(snap, { mv, avg }, members = []) {
       if (per.some((p) => p.raw[moved] !== void 0))
         raw[moved] = per.reduce((n, p) => n + (Number(p.raw[moved]) || 0), 0);
     }
+    raw["gen:energy"] = per.reduce((n, p, k) => n + (members[k].member === snap.member ? Number(p.raw["gen:energy"]) || 0 : 0), 0);
     FORTE_GAUGES.forEach((key, i) => {
       raw[`before:gauge:${RESOURCE_NAME[key]}`] = shownBefore(members[0], 3 + i) * members[0].forteScale[i];
     });
@@ -4975,7 +4977,7 @@ function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = tr
       if (!spend)
         attr = ` data-val="${Number(v) || 0}" data-before="${before}"`;
       if (!spend && col.key === "energy")
-        attr += ` data-gen="${Number(row.raw["moved:energy"]) || 0}"`;
+        attr += ` data-gen="${Number(row.raw["gen:energy"]) || 0}"`;
       const fed = (sources ?? []).some((r) => !RATE_SECTIONS.has(r.section ?? ""));
       if (!fed && Math.abs((Number(v) || 0) - before) < 1e-9)
         return cell(col, { attr });

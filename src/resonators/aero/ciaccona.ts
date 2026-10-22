@@ -260,7 +260,7 @@ export const CIACCONA_RESONATOR = new Resonator({
   intro: Intro,
   swapIn: BA1,
   swapInAir: MA1,
-  tuneBreak: tuneBreak(97, [0, 97], [0, 70], [[72, 160000]], { 0: 11, 97: 3 }),
+  tuneBreak: tuneBreak(97, 96, [0, 97], [0, 70], [[72, 160000]], { 0: 11, 97: 3 }),
   maxEnergy: 12500,
   maxForte1: 3,
 

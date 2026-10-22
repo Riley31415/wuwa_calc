@@ -40,7 +40,7 @@ import {
   teamFromKey,
   weaponBase,
   weaponOptions
-} from "./chunk-TR2QGI5W.js";
+} from "./chunk-TJ5JRD5Q.js";
 export {
   AXES,
   TEAM_COSTS,

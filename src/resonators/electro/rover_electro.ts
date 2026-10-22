@@ -42,7 +42,7 @@ import { tuneBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
 import { inflictElectroFlare, inflictedNegativeStatus, HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { HERON, MOONLIT_CLOUDS_5PC, ACTION_HERON } from "../../echoes/jinzhou.js";
-import { STAY_TUNED_3C, SWORN_VIGIL_5PC, ELECTRIC_REFLECTION_5PC, STAY_TUNED, ACTION_STAY_TUNED_3C, ACTION_STAY_TUNED } from "../../echoes/mengzhou.js";
+import { SOULFRATER, SWORN_VIGIL_5PC, ELECTRIC_REFLECTION_5PC, STAY_TUNED, ACTION_SOULFRAYER, ACTION_SUHSIN } from "../../echoes/mengzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -364,7 +364,7 @@ const ROVER_ELECTRO_RESONATOR = new Resonator({
   swapIn: BA1,
   swapInAir: MA,
   // 91 frames of time stop on a 90-frame break: the one over banks into the next press
-  tuneBreak: tuneBreak(90, [0, 91], [0, 70], SWORD_BREAK),
+  tuneBreak: tuneBreak(90, 90, [0, 91], [0, 70], SWORD_BREAK),
   maxEnergy: 12500,
   forteScale: [0.01, 0.01, 1, 1, 1],
   maxForte1: 12000,
@@ -386,7 +386,7 @@ const ROVER_ELECTRO_RESONATOR = new Resonator({
 const BA1234 = new ActionGroup("Basic - Deterrence 1234", [BA1, BA2, BA3, BA4]);
 
 const ER_ROTATION = new Rotation([
-  Intro, BA1234, Skill, Repel.cancel(), Liberation, Overshock, ACTION_HERON.instaSwap(), ACTION_STAY_TUNED_3C.instaSwap(), ACTION_STAY_TUNED.instaSwap(), Outro,
+  Intro, BA1234, Skill, Repel.cancel(), Liberation, Overshock, ACTION_HERON.instaSwap(), ACTION_SOULFRAYER.instaSwap(), ACTION_SUHSIN.instaSwap(), Outro,
 ]);
 
 // The main-DPS loop: the same fill, the Liberation while the Surge is being built, then Overshock
@@ -404,7 +404,7 @@ const THRUM_HAVOC = new ActionGroup("Skill - Thrum: Havoc 123", [
 const ER_ROTATION_MDPS = new Rotation([
   Intro, BA1234, Skill, Repel, OvershockHold, Liberation,
   THRUM_SPECTRO, THRUM_HAVOC, SilencingBlade,
-  ACTION_HERON.instaSwap(), ACTION_STAY_TUNED_3C.instaSwap(), ACTION_STAY_TUNED.instaSwap(), Outro,
+  ACTION_HERON.instaSwap(), ACTION_SOULFRAYER.instaSwap(), ACTION_SUHSIN.instaSwap(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
@@ -420,7 +420,7 @@ export const ROVER_ELECTRO = new Loadout({
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
     //new EchoLoadout(STAY_TUNED, ELECTRIC_REFLECTION_5PC),
     // both its Outro handoffs are Electro: worn only for Hsin, the one Electro DPS she hands to
-    new EchoLoadout(STAY_TUNED_3C, ELECTRIC_REFLECTION_5PC).requires(HSIN_RESONATOR),
+    new EchoLoadout(SOULFRATER, ELECTRIC_REFLECTION_5PC).requires(HSIN_RESONATOR),
     new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC),
     //new EchoLoadout(SOUL_OF_DESPAIR, SWORN_VIGIL_5PC),
   ],

@@ -235,7 +235,7 @@ const YANGYANG_RESONATOR = new Resonator({
   intro: Intro,
   swapIn: BA1,
   swapInAir: () => (forte1() >= 3 ? FeatherRelease : MA),
-  tuneBreak: tuneBreak(89, [0, 90], [0, 70], SWORD_BREAK),
+  tuneBreak: tuneBreak(89, 89, [0, 90], [0, 70], SWORD_BREAK),
   maxEnergy: 10000,
   maxForte1: 3,
   tier: Tier.Free,

@@ -368,7 +368,7 @@ const BRANT_RESONATOR = new Resonator({
   element: Attribute.Fusion,
   weapon: WeaponType.Sword,
   // the sword's break, but it leaves him in mid-air
-  tuneBreak: midairBreak(tuneBreak(90, [0, 90], [0, 70], SWORD_BREAK)),
+  tuneBreak: midairBreak(tuneBreak(90, 90, [0, 90], [0, 70], SWORD_BREAK)),
   color: "#d1257f",
   intro: Intro,
   swapIn: BA1,

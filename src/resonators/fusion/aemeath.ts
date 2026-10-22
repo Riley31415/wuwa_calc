@@ -403,8 +403,8 @@ const AE_INHERENT_2 = new Inherent({
   },
 });
 
-const TB_BASE = tuneBreak(90, [0, 89], [0, 68], SWORD_BREAK);
-const TB_FORM = tuneBreak(94, [0, 94], [0, 64], [[4, 17334], [48, 22666], [74, 120000]]);
+const TB_BASE = tuneBreak(90, 90, [0, 89], [0, 68], SWORD_BREAK);
+const TB_FORM = tuneBreak(94, 94, [0, 94], [0, 64], [[4, 17334], [48, 22666], [74, 120000]]);
 
 export const AEMEATH_RESONATOR = new Resonator({
   id: 1210,

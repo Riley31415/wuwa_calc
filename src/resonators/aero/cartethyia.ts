@@ -529,8 +529,8 @@ const CARTETHYIA_TALENTS = new Talent({
 
 /** Her, as a Resonator: name/element/weapon, and her own base stat line. The Intro resolves by
  *  form — Manifest survives a swap, so a visit begun mid-Manifest opens as Fleurdelys. */
-const TB_BASE = tuneBreak(91, [0, 91], [0, 70], SWORD_BREAK);
-const TB_FORM = tuneBreak(94, [0, 94], [0, 64], BROADBLADE_BREAK);
+const TB_BASE = tuneBreak(91, 91, [0, 91], [0, 70], SWORD_BREAK);
+const TB_FORM = tuneBreak(94, 94, [0, 94], [0, 64], BROADBLADE_BREAK);
 
 export const CARTETHYIA_RESONATOR = new Resonator({
   id: 1409,

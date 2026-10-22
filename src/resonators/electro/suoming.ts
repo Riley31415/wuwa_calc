@@ -36,8 +36,8 @@
  * modelled from the same file — see their own block below.
  *
  * MVs from nanoka (character 1312, read through encore.moe); frames, per-hit gains and Delusion
- * from wuwalab. The flat "Concerto Regen" rows (each Intro's 10, Engraved Heart's 40) are on cast,
- * and the dodge counters carry the hidden +10. The larger twin rows on the Intros (x1.6) and Engraved
+ * from wuwalab. The flat "Concerto Regen" rows are each Intro's 10 on cast and Engraved Heart's 40 on
+ * its last hit, where wuwalab puts them, and the dodge counters carry the hidden +10. The larger twin rows on the Intros (x1.6) and Engraved
  * Heart (x1.5) are S1 and S6 re-shown; Seal Master's twins (x2 MV, ~1.4x off-tune) are paid by
  * SEAL_MASTER itself. Engraved
  * Heart is its tap row plus its "(Hold)" row: the rotation holds it, and holding adds the 19.40%x10
@@ -69,7 +69,7 @@ import { NINE_SHADOWS, UNISON, UNISON_BOON, BOON_REACTOR, grantBoon, takeBoon, r
 import { RED_SPRING, UNSPOKEN_RUE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
-import { STAY_TUNED, STAY_TUNED_3C, SWORN_VIGIL_5PC, ACTION_STAY_TUNED, ACTION_STAY_TUNED_3C } from "../../echoes/mengzhou.js";
+import { STAY_TUNED, SOULFRATER, SWORN_VIGIL_5PC, ACTION_SUHSIN, ACTION_SOULFRAYER } from "../../echoes/mengzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -208,7 +208,8 @@ const Liberation = suomingAction("Liberation - Umbral Canopy: Miasma Lock", { re
  *  damage during the Unison outro's window, on her own slot. */
 const BLIGHT_RAIN_FIELD = new ActionField("Suoming: Blight Rain, Miasmic Thunder");
 const ThunderCrest = suomingAction("Liberation - Blight Rain, Miasmic Thunder", {
-  tag: ActionTag.OffField, type: Type.Liberation, subtype: Subtype.Coordinated, bullets: [{ hitFrame: 3, mv: 5965 }], field: BLIGHT_RAIN_FIELD,
+  tag: ActionTag.OffField, type: Type.Liberation, // subtype: Subtype.Coordinated, // datamined not actually coordinated damage
+  bullets: [{ hitFrame: 3, commitFrame: 0, mv: 5965 }], field: BLIGHT_RAIN_FIELD,
 });
 
 // --- the four Intros, all Basic Attack DMG: Furled forms from Awakened Mind (into Deep Mind,
@@ -324,8 +325,8 @@ const EngravedHeart = suomingAction("Forte Basic - Umbral Canopy: Engraved Heart
     { hitFrame: 229, commitFrame: 224, mv: 2424 },
     { hitFrame: 234, mv: 2424 },
     { hitFrame: 239, commitFrame: 234, mv: 2424 },
-    { hitFrame: 250, mv: 62055, energy: 818, offtune: 10405 },
-  ], castConcerto: 4000, resetForte1: true,
+    { hitFrame: 250, mv: 62055, energy: 818, concerto: 4000, offtune: 10405 },
+  ], resetForte1: true,
   updateBuffs: () => {
     revokeCurrent(DEEP_MIND);
     revokeCurrent(ENGRAVED_HEART_READY);
@@ -526,7 +527,7 @@ export const SUOMING_RESONATOR = new Resonator({
   swapIn: () => (isHeld(DEEP_MIND) ? UBA1 : BA1),
   swapInAir: MA,
   // 91 frames of time stop on a 90-frame break: the one over banks into the next press
-  tuneBreak: tuneBreak(90, [0, 91], [0, 70], SWORD_BREAK),
+  tuneBreak: tuneBreak(90, 92, [0, 91], [0, 70], SWORD_BREAK),
   maxEnergy: 12500,
   maxForte1: 800,
   // Unison Response: the team's Unison Boon, one stack from her, refreshed after the first
@@ -565,7 +566,7 @@ const SM_ROTATION = new Rotation([
   IntroFlashRift.doubleIntro(), IntroSealedDelusion.doubleIntro(), IntroThunderRending.doubleIntro(), IntroWhirlingThunder.doubleIntro(), Liberation, OutroUnison,
 
   IntroFlashRift, IntroSealedDelusion, IntroThunderRending, IntroWhirlingThunder, UHA2.dodgeCancel(), UBA12.cancel(),
-  UnforsakenMind, EngravedHeart.mashCancel(), ACTION_HERON.instaSwap(), ACTION_STAY_TUNED.instaSwap(), ACTION_STAY_TUNED_3C.instaSwap(), Outro,
+  UnforsakenMind, EngravedHeart.mashCancel(), ACTION_HERON.instaSwap(), ACTION_SUHSIN.instaSwap(), ACTION_SOULFRAYER.instaSwap(), Outro,
 ]);
 
 /** The Seal Master main-DPS loop, the kit's other way to spend a Unison. Her Intro drops her into
@@ -582,7 +583,7 @@ const SM_ROTATION_MDPS = new Rotation([
   RiftCleaver.instaDodge(),
   UBA12UHA12.dodgeCancel(),
   UBA12UHA12.cancel(),
-  UnforsakenMind, EngravedHeart.mashCancel(), ACTION_HERON.instaSwap(), ACTION_STAY_TUNED.instaSwap(), ACTION_STAY_TUNED_3C.instaSwap(),
+  UnforsakenMind, EngravedHeart.mashCancel(), ACTION_HERON.instaSwap(), ACTION_SUHSIN.instaSwap(), ACTION_SOULFRAYER.instaSwap(),
   Outro,
 ]);
 const SM_ROTATION_MDPS_SIMPLE = new Rotation([
@@ -590,7 +591,7 @@ const SM_ROTATION_MDPS_SIMPLE = new Rotation([
   IntroFlashRift.mashCancel(), IntroSealedDelusion.mashCancel(), IntroThunderRending.mashCancel(), IntroWhirlingThunder.mashCancel(), 
   Liberation, 
   RiftCleaver, UBA3, UBA4, UBA2, UBA3, UBA4,
-  UnforsakenMind, EngravedHeart.mashCancel(), ACTION_HERON.instaSwap(), ACTION_STAY_TUNED.instaSwap(), ACTION_STAY_TUNED_3C.instaSwap(),
+  UnforsakenMind, EngravedHeart.mashCancel(), ACTION_HERON.instaSwap(), ACTION_SUHSIN.instaSwap(), ACTION_SOULFRAYER.instaSwap(),
   Outro,
 ]);
 const SM_ROTATION_MDPS_DOUBLE = new Rotation([
@@ -601,14 +602,14 @@ const SM_ROTATION_MDPS_DOUBLE = new Rotation([
   RiftCleaver.instaDodge(),
   UBA12UHA12.dodgeCancel(),
   UBA12UHA12.cancel(),
-  UnforsakenMind, EngravedHeart.mashCancel(), ACTION_HERON.instaSwap(), ACTION_STAY_TUNED.instaSwap(), ACTION_STAY_TUNED_3C.instaSwap(),
+  UnforsakenMind, EngravedHeart.mashCancel(), ACTION_HERON.instaSwap(), ACTION_SUHSIN.instaSwap(), ACTION_SOULFRAYER.instaSwap(),
   Outro,
 ]);
 
 const SM_ECHOES = [
   new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
   new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC),
-  new EchoLoadout(STAY_TUNED_3C, SWORN_VIGIL_5PC),
+  new EchoLoadout(SOULFRATER, SWORN_VIGIL_5PC),
 ];
 
 export const SUOMING = new Loadout({

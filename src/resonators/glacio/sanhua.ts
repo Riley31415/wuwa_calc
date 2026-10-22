@@ -243,7 +243,7 @@ const SANHUA_RESONATOR = new Resonator({
   // her no-Intro chains open on Basic 2; no mid-air string, so the plunge
   swapIn: BA2,
   swapInAir: MA,
-  tuneBreak: tuneBreak(92, [0, 92], [0, 70], SWORD_BREAK),
+  tuneBreak: tuneBreak(92, 92, [0, 92], [0, 70], SWORD_BREAK),
   maxEnergy: 12500,
   tier: Tier.Free,
 

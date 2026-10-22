@@ -1916,6 +1916,9 @@ export function runRotations(state: State, rotations: Rotation[], count: number)
       endReal = drainUntil + SWAP_DELAY;
       end = state.gameOf(endReal);
     }
+    out.forEach((rows, k) => {
+      for (const r of rows) r.section = k;
+    });
     return { sections: out, starts, end, blind };
   };
 

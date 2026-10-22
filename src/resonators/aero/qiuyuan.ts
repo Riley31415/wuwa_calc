@@ -453,6 +453,7 @@ export const QIUYUAN_MDPS = new Loadout({
   }),
   // an ER 3-cost is on the table: beside Phrolova her bar wants more Energy than her spread can
   // carry, and without it every sonata she owns falls out of reach rather than out of the running
-  rotation: { 0: QY_ROTATION_MDPS, 3: QY_ROTATION_MDPS_S3 },
+  rotation: { //0: QY_ROTATION_MDPS,
+     3: QY_ROTATION_MDPS_S3 },
   sequences: QY_SEQUENCES,
 });

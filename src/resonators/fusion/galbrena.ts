@@ -103,8 +103,13 @@ const MA = galbrenaAction("Mid-air - Ashfall Barrage (Plunge)", { castPosition: 
    [{ hitFrame: 46, mv: 14315, energy: 200, concerto: 280, offtune: 6400, forte1: 10 }] });
 const MASustained = galbrenaAction("Mid-air - Ashfall Barrage (Sustained Fire)", { castPosition: Position.Midair, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 2684, energy: 38, concerto: 53, offtune: 1200 }] });
 
-// Threshold State heavy: Volley of Death, 3 held stages
-const HA1 = galbrenaAction("Heavy - Volley of Death 1", { animFrames: 35, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+// Threshold State heavy: Volley of Death, 3 held stages. Holding on after Stage 1, Stage 2 or the
+// Intro comes out as the next stage, so Stage 1 follows anything else
+const HA1 = galbrenaAction("Heavy - Volley of Death 1", { chains: () => [
+    BA1, BA2, BA3, BA4, DC, MA, MASustained, HA3, Encroach, AscentOfMalice, Liberation, Ravage, PurgatoryScourge, HellsentBarrage,
+    SeraphicExecution1, SeraphicExecution2, SeraphicExecution3, SeraphicExecution4, SeraphicExecution5,
+    FlamewingVerdict1, FlamewingVerdict2, FlamewingVerdict3, DemonIntro,
+  ], animFrames: 35, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 10, mv: 5330, energy: 75, concerto: 105, offtune: 2383 },
     { hitFrame: 16, mv: 5330, energy: 75, concerto: 105, offtune: 2383, forte1: 10 },
   ]});
@@ -413,6 +418,7 @@ const GALBRENA_RESONATOR = new Resonator({
 
 const SeraphicExecution2345 = new ActionGroup("Forte Basic - Seraphic Execution 2345", [SeraphicExecution2, SeraphicExecution3, SeraphicExecution4, SeraphicExecution5]);
 const SeraphicExecution345 = new ActionGroup("Forte Basic - Seraphic Execution 345", [SeraphicExecution3, SeraphicExecution4, SeraphicExecution5]);
+const SeraphicExecution45 = new ActionGroup("Forte Basic - Seraphic Execution 45", [SeraphicExecution4, SeraphicExecution5]);
 
 const HA23 = new ActionGroup("Heavy - Volley of Death 23", [HA2, HA3]);
 const HA123 = new ActionGroup("Heavy - Volley of Death 123", [HA1, HA2, HA3]);
@@ -426,6 +432,18 @@ const GB_ROTATION = new Rotation([
   AscentOfMalice.cancel(), Liberation, ACTION_CORROSAURUS,
   SeraphicExecution2345.dodgeCancel(),
   SeraphicExecution345, 
+  Outro,
+]);
+
+const GB_ROTATION_ECHO = new Rotation([
+  Intro.holdCancel(), HA23, BA3, Encroach.cancel(), MA, BA3.mashCancel(),
+  AscentOfMalice.cancel(), Liberation, ACTION_CORROSAURUS,
+  SeraphicExecution2.hitDodge(),SeraphicExecution3.instaDodge(),
+  SeraphicExecution45.dodgeCancel(), 
+  SeraphicExecution3.hitDodge(),
+  SeraphicExecution45.dodgeCancel(), 
+  SeraphicExecution3.instaDodge(),
+  SeraphicExecution45,
   Outro,
 ]);
 
@@ -446,5 +464,18 @@ export const GALBRENA = new Loadout({
     highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Skill, Substat.Basic),
   }),
   rotation: { 0: GB_ROTATION },
+  sequences: GB_SEQUENCES,
+});
+export const GALBRENA_ECHO = new Loadout({
+  id: 12082,
+  resonator: GALBRENA_RESONATOR,
+  weapons: GB_WEAPONS,
+  echoes: new Echoes({
+    sets: GB_ECHOES,
+    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
+    substats: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Skill),
+    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Skill, Substat.Basic),
+  }),
+  rotation: { 0: GB_ROTATION_ECHO },
   sequences: GB_SEQUENCES,
 });

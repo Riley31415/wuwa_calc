@@ -264,7 +264,7 @@ export enum ActionTag {
   InstaCancel = "instant cancel",
   InstaDodge = "instant dodge",
   InstaJump = "instant jump",
-  InstaSwap = "insta swap",
+  InstaSwap = "instant swap",
 
   HitCancel = "cancel on hit",
   DodgeOnHit = "dodge on hit",

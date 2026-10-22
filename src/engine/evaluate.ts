@@ -46,6 +46,8 @@ export interface Result {
   triggered: boolean;
   /** A split press's hits still to land, counted down as each does (`lastHit()`). */
   pending?: number;
+  /** The rotation this row was placed in (`runRotations()`), stamped once the fight is over. */
+  section?: number;
   /** The ActionGroup this row was pressed as part of, and whether it is that group's last cast —
    *  stamped by `run()` as it expands a group, and read by nothing but the report, which folds a
    *  group's members into one row. Null/false on every action pressed on its own, and on every
@@ -1219,7 +1221,7 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
       sortByDue(state.timed);
     }
     // what this evaluation dealt, at the frame it landed: what the rotations' damage is summed from
-    if (result.avg !== 0 || result.variantAvg) state.hits.push({ at: result.starts, slot: result.slot, member: result.member, avg: result.avg, variantAvg: result.variantAvg });
+    if (result.avg !== 0 || result.variantAvg) state.hits.push({ at: result.starts, slot: result.slot, member: result.member, avg: result.avg, variantAvg: result.variantAvg, res: step.into ?? result });
     if (ctx.offFieldShift !== 0) shiftOffField(state, ctx.offFieldShift, Math.max(now, ctx.offFieldFrom));
     // each hit carries its press's length, and the end (afterAction) is where the press stops: a cut
     // one at its cut and delay, ahead of any committed hit still to land, else past its last hit

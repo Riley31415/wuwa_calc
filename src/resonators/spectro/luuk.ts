@@ -411,7 +411,7 @@ export const LUUK_RESONATOR = new Resonator({
   swapIn: BA1,
   swapInAir: MA1,
   // his break leaves him in mid-air
-  tuneBreak: midairBreak(tuneBreak(94, [0, 94], [0, 70], [[72, 160000]], { 0: 11, 90: 0 })),
+  tuneBreak: midairBreak(tuneBreak(94, 94, [0, 94], [0, 70], [[72, 160000]], { 0: 11, 90: 0 })),
   maxEnergy: 12500,
   forteScale: [0.01, 1, 1, 1, 1],
   maxForte1: 30000,

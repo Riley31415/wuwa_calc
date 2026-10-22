@@ -299,7 +299,7 @@ table the user pastes (the same columns). with neither, list the nanoka row's bu
 - pair an engine action to its ability by name, then check off-tune/MV agree; a row the kit has no
   action for is left alone, and a kit action with no row keeps what it has — say which
 - Tune Break: each weapon class has its own default (tunebreak.ts); a kit whose "Tune Break Skill"
-  differs declares `tuneBreak: tuneBreak(animFrames, [ts0, ts1], [ms0, ms1], [[frame, mv, commit?], ...])` on its Resonator, or a
+  differs declares `tuneBreak: tuneBreak(animFrames, noSwapFrames, [ts0, ts1], [ms0, ms1], [[frame, mv, commit?], ...])` on its Resonator, or a
   resolver where it depends on form (Aemeath's Mech, Cartethyia's Fleurdelys)
 - cooldowns: `cooldown: 60 * s` off the ability's `cooldown` (frames) or nanoka's "... Cooldown" row;
   two presses on one button share a `new Cooldown({ frames })`

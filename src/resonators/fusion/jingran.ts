@@ -480,7 +480,7 @@ export const JINGRAN_RESONATOR = new Resonator({
   swapIn: () => (isHeld(YIN_VESSEL) ? EBA1 : BA1),
   swapInAir: MA,
   // his broadblade break lands its last hit at 80, not the class's 66
-  tuneBreak: tuneBreak(94, [0, 94], [0, 64], [[4, 17334], [26, 22666], [80, 120000]]),
+  tuneBreak: tuneBreak(94, 94, [0, 94], [0, 64], [[4, 17334], [26, 22666], [80, 120000]]),
   maxEnergy: 12500,
   forteScale: [1, 0.01, 1, 1, 1],
   maxForte1: 300,

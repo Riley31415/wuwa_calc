@@ -270,7 +270,7 @@ const DANJIN_RESONATOR = new Resonator({
   intro: Intro,
   swapIn: BA1,
   swapInAir: MA,
-  tuneBreak: tuneBreak(91, [0, 91], [0, 70], SWORD_BREAK),
+  tuneBreak: tuneBreak(91, 90, [0, 91], [0, 70], SWORD_BREAK),
   maxEnergy: 10000,
   maxForte1: 120,
   tier: Tier.Free,

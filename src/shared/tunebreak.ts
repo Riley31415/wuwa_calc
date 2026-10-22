@@ -220,9 +220,9 @@ export const BROADBLADE_BREAK: TuneBreakHit[] = [[4, 17334], [26, 22666], [66, 1
 
 /** The break as one resonator performs it: its bullets, played over their own frames — a form of
  *  `TUNE_BREAK`, so every `runningAction(TUNE_BREAK)` still reads it. Its priority holds to its end
- *  unless the kit's own break drops sooner (`animPriority`). */
-export function tuneBreak(animFrames: number, timestop: readonly [number, number], motionStop: readonly [number, number], bullets: TuneBreakHit[], animPriority = TUNE_BREAK.def.animPriority): Action {
-  const out = TUNE_BREAK.variant(TUNE_BREAK.name, { animFrames, animPriority, timestop, motionStop, bullets: bullets.map(([hitFrame, mv, commitFrame]) => ({ hitFrame, mv, commitFrame })) });
+ *  unless the kit's own break drops sooner (`animPriority`); `noSwapFrames` is wuwalab's `no_swap`. */
+export function tuneBreak(animFrames: number, noSwapFrames: number, timestop: readonly [number, number], motionStop: readonly [number, number], bullets: TuneBreakHit[], animPriority = TUNE_BREAK.def.animPriority): Action {
+  const out = TUNE_BREAK.variant(TUNE_BREAK.name, { animFrames, noSwapFrames, animPriority, timestop, motionStop, bullets: bullets.map(([hitFrame, mv, commitFrame]) => ({ hitFrame, mv, commitFrame })) });
   out.formOf = TUNE_BREAK;
   return out;
 }
@@ -236,11 +236,11 @@ export function midairBreak(tb: Action): Action {
 
 /** Each weapon class's own Tune Break (wuwalab's "Tune Break Skill", the class's usual one). */
 const CLASS_TUNE_BREAK: Record<WeaponType, Action> = {
-  [WeaponType.Sword]: tuneBreak(90, [0, 90], [0, 70], SWORD_BREAK),
-  [WeaponType.Broadblade]: tuneBreak(94, [0, 94], [0, 64], BROADBLADE_BREAK),
-  [WeaponType.Rectifier]: tuneBreak(90, [0, 90], [0, 54], [[56, 160000]]),
-  [WeaponType.Pistols]: tuneBreak(96, [0, 96], [0, 70], [[72, 160000]]),
-  [WeaponType.Gauntlets]: tuneBreak(92, [0, 92], [0, 70], [[72, 160000]]),
+  [WeaponType.Sword]: tuneBreak(90, 90, [0, 90], [0, 70], SWORD_BREAK),
+  [WeaponType.Broadblade]: tuneBreak(94, 94, [0, 94], [0, 64], BROADBLADE_BREAK),
+  [WeaponType.Rectifier]: tuneBreak(90, 90, [0, 90], [0, 54], [[56, 160000]]),
+  [WeaponType.Pistols]: tuneBreak(96, 96, [0, 96], [0, 70], [[72, 160000]]),
+  [WeaponType.Gauntlets]: tuneBreak(92, 92, [0, 92], [0, 70], [[72, 160000]]),
 };
 
 /** What a full bar queues: resolved when reached to the on-field resonator's own break — their kit's

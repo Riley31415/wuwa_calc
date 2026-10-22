@@ -37,7 +37,7 @@ import { mainstats, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { SPACETREK_EXPLORER, STARRY_RADIANCE_5PC, ACTION_SPACETREK } from "../../echoes/lahairoi.js";
-import { FORMLESS_DEMON, TINGED_YEARNING_5PC, ACTION_FORMLESS_DEMON } from "../../echoes/mengzhou.js";
+import { FORMRENDER, TINGED_YEARNING_5PC, ACTION_FORMRENDER } from "../../echoes/mengzhou.js";
 import { JINGRAN_RESONATOR } from "../fusion/jingran.js";
 import { JINHSI_RESONATOR } from "./jinhsi.js";
 import { SUOMING_RESONATOR } from "../electro/suoming.js";
@@ -307,30 +307,30 @@ const BA23 = new ActionGroup("Basic - Origin Calculus 23", [BA2, BA3]);
 const BA12 = new ActionGroup("Basic - Origin Calculus 12", [BA1, BA2]);
 
 const SK_LOOP = new Rotation([
-  START_LAST, BA1.instaCancel(), Skill.cancel(), Liberation, ACTION_FALLACY.instaSwap(), ACTION_SPACETREK.instaSwap(), ACTION_FORMLESS_DEMON.instaSwap(),
+  START_LAST, BA1.instaCancel(), Skill.cancel(), Liberation, ACTION_FALLACY.instaSwap(), ACTION_SPACETREK.instaSwap(), ACTION_FORMRENDER.instaSwap(),
 
   SWAPIN, 
   BA123.jumpCancel(), MA, FHA.instaCancel(),
   Skill, BA23.dodgeCancel(),
   BA12.holdCancel(), FHA.instaCancel(), 
-  Liberation, ACTION_FALLACY.instaSwap(), ACTION_SPACETREK.instaSwap(), ACTION_FORMLESS_DEMON.instaSwap(), Outro,
+  Liberation, ACTION_FALLACY.instaSwap(), ACTION_SPACETREK.instaSwap(), ACTION_FORMRENDER.instaSwap(), Outro,
 
   Intro, EIntro, 
   BA123.jumpCancel(), MA, FHA.instaCancel(), Skill.cancel(),
-  Liberation, ACTION_FALLACY.instaSwap(), ACTION_SPACETREK.instaSwap(), ACTION_FORMLESS_DEMON.instaSwap(), Outro,
+  Liberation, ACTION_FALLACY.instaSwap(), ACTION_SPACETREK.instaSwap(), ACTION_FORMRENDER.instaSwap(), Outro,
 ]);
 
 const SK_LOOP_S3 = new Rotation([
-  START_LAST, BA1.instaCancel(), Skill.cancel(), Liberation, ACTION_FALLACY.instaSwap(), ACTION_SPACETREK.instaSwap(), ACTION_FORMLESS_DEMON.instaSwap(),
+  START_LAST, BA1.instaCancel(), Skill.cancel(), Liberation, ACTION_FALLACY.instaSwap(), ACTION_SPACETREK.instaSwap(), ACTION_FORMRENDER.instaSwap(),
 
   SWAPIN, 
   BA123.jumpCancel(), MA, FHA.instaCancel(),
   Skill.cancel(),
-  Liberation, ACTION_FALLACY.instaSwap(), ACTION_SPACETREK.instaSwap(), ACTION_FORMLESS_DEMON.instaSwap(), Outro,
+  Liberation, ACTION_FALLACY.instaSwap(), ACTION_SPACETREK.instaSwap(), ACTION_FORMRENDER.instaSwap(), Outro,
 
   Intro, EIntro, BA1,
   Skill,
-  Liberation, ACTION_FALLACY.instaSwap(), ACTION_SPACETREK.instaSwap(), ACTION_FORMLESS_DEMON.instaSwap(), Outro,
+  Liberation, ACTION_FALLACY.instaSwap(), ACTION_SPACETREK.instaSwap(), ACTION_FORMRENDER.instaSwap(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
@@ -348,7 +348,7 @@ export const SHOREKEEPER = new Loadout({
     new EchoLoadout(FALLACY, REJUV_5PC),
     // worn for Spacetrek's shield, which Jingran's Trace the Vestige feeds on; Tinged Yearning for a Unison
     new EchoLoadout(SPACETREK_EXPLORER, STARRY_RADIANCE_5PC).requires(JINGRAN_RESONATOR),
-    new EchoLoadout(FORMLESS_DEMON, TINGED_YEARNING_5PC).requires(JINHSI_RESONATOR, SUOMING_RESONATOR, HSIN_RESONATOR),
+    new EchoLoadout(FORMRENDER, TINGED_YEARNING_5PC).requires(JINHSI_RESONATOR, SUOMING_RESONATOR, HSIN_RESONATOR),
     //new EchoLoadout(BELL_BORNE_GEOCHELONE, MOONLIT_CLOUDS_5PC),
     //new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
   ],

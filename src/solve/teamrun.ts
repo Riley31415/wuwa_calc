@@ -28,8 +28,7 @@ export interface TeamRun {
   combo: Combo[];
   /** [opener, loop 1, loop 2, loop 3] — only kept on a traced run; the table never reads them. */
   rotationLines: ChainGroup[][] | null;
-  /** Adjusted DPR: the four rotations' damage over the time they took as a rate, over 26 seconds
-   *  (DPS × 26). */
+  /** DPS: the four rotations' damage over the time they took, per second. */
   total: number;
   bySlot: Map<string, number>;
   /** Each rotation's damage — the opener and the three loops. */
@@ -228,11 +227,11 @@ export function collapseFields(sections: ChainGroup[][]): ChainGroup[][] {
   return out;
 }
 
-/** Adjusted DPR: `damage` dealt over `frames`, as a rate per second, over 26 seconds. */
-const adjusted = (damage: number, frames: number): number => Math.floor((damage * 26 * 60) / frames);
+/** `damage` dealt over `frames`, per second. */
+const perSecond = (damage: number, frames: number): number => (damage * 60) / frames;
 
 /** A run's figures: the rotations (the first `complete` sections), each on its own and together as
- *  adjusted DPR over the frames they took, and the whole fight's damage beside them. */
+ *  DPS over the frames they took, and the whole fight's damage beside them. */
 type RunSums = Pick<TeamRun, "total" | "bySlot" | "sectionTotals" | "sectionBySlot" | "fightTotal" | "fightBySlot" | "seconds">;
 
 /** One walk over a fight's hits (all whole numbers): the run's figures off each member's own hits, or where
@@ -316,7 +315,7 @@ function sumHits(sections: HitRecord[][], complete: number, frames: number, memb
     });
     let total = 0;
     for (const k of wholeOrder) {
-      const x = adjusted(whole[k]!, frames);
+      const x = perSecond(whole[k]!, frames);
       bySlot.set(slotNames[k]!, x);
       total += x;
     }
@@ -336,7 +335,7 @@ function sumHits(sections: HitRecord[][], complete: number, frames: number, memb
       }
     }
     let total = 0;
-    for (const k of wholeOrder) total += adjusted(whole[k]!, frames);
+    for (const k of wholeOrder) total += perSecond(whole[k]!, frames);
     return total;
   };
   return {
@@ -750,9 +749,15 @@ function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace:
   // a rotation's damage is the hits landing inside its frames, swap to swap, whatever row shows them
   const hits: HitRecord[][] = starts.map(() => []);
   for (const h of state.hits) {
-    if (h.at > frames) continue;
+    if (h.at > frames) {
+      h.res = null;
+      continue;
+    }
     let k = 0;
     while (k + 1 < starts.length && h.at >= starts[k + 1]!) k++;
+    // a hit on the very frame a rotation closes (its closing Intro's last frame) stays in that rotation
+    if (k > 0 && h.at === starts[k] && h.res?.section === k - 1) k--;
+    h.res = null;
     hits[k]!.push(h);
   }
   const { total, bySlot, sectionTotals, sectionBySlot, fightTotal, fightBySlot, seconds, variantRuns } = sumHits(hits, complete, frames, members,
@@ -773,7 +778,7 @@ function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace:
 /** A row's figures as plain data a worker can post back: `TeamRun`'s own, Maps as entries. */
 export interface RowScore {
   total: number; bySlot: [string, number][]; sectionTotals: number[]; sectionBySlot: [string, number][][];
-  fightTotal?: number; fightBySlot?: [string, number][]; seconds?: number; sectionSeconds?: number[];
+  fightTotal: number; fightBySlot: [string, number][]; seconds: number; sectionSeconds?: number[];
 }
 
 export const scoreOf = (run: TeamRun): RowScore => ({
@@ -785,11 +790,7 @@ export const runFromScore = (teamKey: string, members: Member[], combo: Combo[],
   state: null, teamKey, members, combo, rotationLines: null, variantRuns: [],
   total: score.total, bySlot: new Map(score.bySlot), sectionTotals: score.sectionTotals,
   sectionBySlot: score.sectionBySlot.map((by) => new Map(by)),
-  // a score saved before the whole-fight figures carries none: read back off the adjusted ones
-  fightTotal: score.fightTotal ?? (score.total * 120) / 26,
-  fightBySlot: new Map(score.fightBySlot ?? score.bySlot.map(([slot, v]): [string, number] => [slot, (v * 120) / 26])),
-  // a score saved before it: the time the sections took, off their damage and its rate
-  seconds: score.seconds ?? (score.sectionTotals.reduce((a, b) => a + b, 0) * 26) / Math.max(1, score.total),
+  fightTotal: score.fightTotal, fightBySlot: new Map(score.fightBySlot), seconds: score.seconds,
   // a score saved before it: each rotation the average of the time they took
-  sectionSeconds: score.sectionSeconds ?? score.sectionTotals.map(() => (score.seconds ?? 0) / Math.max(1, score.sectionTotals.length)),
+  sectionSeconds: score.sectionSeconds ?? score.sectionTotals.map(() => score.seconds / Math.max(1, score.sectionTotals.length)),
 });

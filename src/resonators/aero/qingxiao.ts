@@ -423,7 +423,7 @@ export const QINGXIAO_RESONATOR = new Resonator({
   intro: Intro,
   swapIn: () => (isHeld(EPHEMERAL) ? FBA1 : BA1),
   swapInAir: () => (isHeld(EPHEMERAL) ? FBA1 : MA1),
-  tuneBreak: tuneBreak(120, [0, 120], [0, 100], [[64, 10000], [70, 10000, 64], [76, 10000, 64], [82, 10000, 64], [101, 120000]]),
+  tuneBreak: tuneBreak(120, 120, [0, 120], [0, 100], [[64, 10000], [70, 10000, 64], [76, 10000, 64], [82, 10000, 64], [101, 120000]]),
   maxEnergy: 12500,
   forteScale: [0.01, 0.01, 1, 1, 1],
   maxForte1: 10000,

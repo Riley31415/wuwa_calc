@@ -232,7 +232,7 @@ const ROVER_SPECTRO_RESONATOR = new Resonator({
   intro: Intro,
   swapIn: BA1,
   swapInAir: MA,
-  tuneBreak: tuneBreak(91, [0, 91], [0, 70], SWORD_BREAK),
+  tuneBreak: tuneBreak(91, 91, [0, 91], [0, 70], SWORD_BREAK),
   maxEnergy: 12500,
   maxForte1: 100,
   tier: Tier.Free,

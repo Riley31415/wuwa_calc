@@ -445,7 +445,7 @@ const ZANI_RESONATOR = new Resonator({
   // "When Blaze is no less than 30, Basic Attack is replaced with Heavy Slash - Daybreak" in Inferno Mode
   swapIn: () => (isHeld(INFERNO_MODE) && forte2() >= 30 ? Daybreak : BA1),
   swapInAir: MA,
-  tuneBreak: tuneBreak(94, [0, 94], [0, 70], [[72, 160000]]),
+  tuneBreak: tuneBreak(94, 94, [0, 94], [0, 70], [[72, 160000]]),
   maxEnergy: 12500,
   maxForte1: 100,
   // Blaze's mirror (syncBlaze): Inferno Mode's 150, the lower 100 clamped there

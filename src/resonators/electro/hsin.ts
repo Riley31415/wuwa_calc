@@ -89,7 +89,7 @@ import { ELECTRO_FLARE, ELECTRO_RAGE, FLARE_RETAINED, inflictElectroFlare } from
 import { BLOOMING_JADEHAVEN, FREEZE_FRAME, LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";
 import { COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { AUGMENT, RADIANT_DAWN } from "../../weapons/battlepass.js";
-import { STAY_TUNED, SWORN_VIGIL_5PC, ACTION_STAY_TUNED_HSIN } from "../../echoes/mengzhou.js";
+import { STAY_TUNED, SWORN_VIGIL_5PC, ACTION_SUHSIN_HSIN } from "../../echoes/mengzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -982,7 +982,7 @@ const FBA12 = new ActionGroup("Basic - Illumining Form: Pillars Aligned 12", [FB
 
 const HS_ROTATION_FLARE = new Rotation([
   FlareIntro, BA4.holdCancel(),
-  RealmProtector, Lib1, ACTION_STAY_TUNED_HSIN,
+  RealmProtector, Lib1, ACTION_SUHSIN_HSIN,
   IBA1.instaCancel(), ISkill.mashCancel(),
   //IBA123.instaCancel(), ISkill.holdCancel(),
   PillarsAligned, 
@@ -994,14 +994,14 @@ const HS_ROTATION_FLARE = new Rotation([
 // her first arrival skips the Stage 4 the loop opens on
 const HS_ROTATION_FLARE_S2 = new Rotation([
   FlareIntro.firstIntro(),
-  RealmProtector, Lib1, ACTION_STAY_TUNED_HSIN,
+  RealmProtector, Lib1, ACTION_SUHSIN_HSIN,
   IBA1.instaCancel(), ISkill.mashCancel(),
   PillarsAligned, 
   FBA12.dodgeCancel(), FBA123.holdCancel(),FHA,
   Lib2, BA1.instaSwap(), Outro,
 
   FlareIntro, BA4.holdCancel(),
-  RealmProtector, Lib1, ACTION_STAY_TUNED_HSIN,
+  RealmProtector, Lib1, ACTION_SUHSIN_HSIN,
   IBA1.instaCancel(), ISkill.mashCancel(),
   PillarsAligned, 
   FBA12.dodgeCancel(), FBA123.holdCancel(),FHA,
@@ -1021,7 +1021,7 @@ const HS_ROTATION_UNISON = new Rotation([
   IBA1.instaCancel(), ISkill.instaSwap(), OutroUnison,
 
   ManifoldIllumining, 
-  ACTION_STAY_TUNED_HSIN, 
+  ACTION_SUHSIN_HSIN, 
   FBA12.dodgeCancel(), FBA123.holdCancel(),FHA,
   Lib2, Skill.instaSwap(), Outro,
 ]);
@@ -1036,7 +1036,7 @@ const HS_ROTATION_UNISON_S2 = new Rotation([
   IBA1.instaCancel(), ISkill.instaSwap(), OutroUnison,
 
   ManifoldIllumining, 
-  ACTION_STAY_TUNED_HSIN, 
+  ACTION_SUHSIN_HSIN, 
   FBA12.dodgeCancel(), FBA123.holdCancel(),FHA,
   Lib2, Skill.instaSwap(), Outro,
 ]);

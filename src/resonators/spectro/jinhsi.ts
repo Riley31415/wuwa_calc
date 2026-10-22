@@ -71,7 +71,7 @@ import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { UNISON, unisonOutro } from "../../shared/unison.js";
-import { STAY_TUNED, SWORN_VIGIL_5PC, ACTION_STAY_TUNED } from "../../echoes/mengzhou.js";
+import { STAY_TUNED, SWORN_VIGIL_5PC, ACTION_SUHSIN } from "../../echoes/mengzhou.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -468,7 +468,7 @@ const JX_ROTATION_FULL = new Rotation([
 
   Intro.doubleIntro(), Skill2, 
   IncBA12.cancel(), Skill3, IncBA34.instaCancel(),
-  ACTION_JUE, ACTION_STAY_TUNED, Skill4_Unison, OutroUnison,
+  ACTION_JUE, ACTION_SUHSIN, Skill4_Unison, OutroUnison,
 
   Intro, Skill2,
   IncBA12.cancel(), Skill3, IncBA34.instaCancel(),
@@ -483,13 +483,13 @@ const JX_ROTATION_FULL = new Rotation([
 const JX_ROTATION_EVERY_OTHER = new Rotation([
   START_LAST, BA1.instaCancel(), Liberation.everyOther(), Skill.instaSwap(),
 
-  SWAPIN, BA1234.instaCancel(), Skill2.instaCancel(), ACTION_JUE, ACTION_STAY_TUNED, Liberation.everyOther(),
+  SWAPIN, BA1234.instaCancel(), Skill2.instaCancel(), ACTION_JUE, ACTION_SUHSIN, Liberation.everyOther(),
   IncBA1, IncBA2.instaJump(), IncBA3.instaJump(), IncBA4.instaCancel(), 
   Skill4_Unison, OutroUnison,
 
   Intro.doubleIntro(), Skill2.instaDodge(), 
   IncBA12.cancel(), Skill3, IncBA34.instaCancel(),
-  ACTION_JUE, ACTION_STAY_TUNED, Skill4_Unison, Liberation.everyOther(), OutroUnison,
+  ACTION_JUE, ACTION_SUHSIN, Skill4_Unison, Liberation.everyOther(), OutroUnison,
 
   Intro, Skill2.instaDodge(),
   IncBA12.cancel(), Skill3, IncBA34.instaCancel(),
@@ -499,11 +499,11 @@ const JX_ROTATION_EVERY_OTHER = new Rotation([
 const JX_ROTATION_SUPPORT = new Rotation([
   START_LAST, BA1.instaCancel(), Liberation.everyOther(), Skill.instaSwap(),
 
-  SWAPIN, BA1234.instaCancel(), Skill2.instaCancel(), ACTION_JUE, ACTION_STAY_TUNED, Liberation.everyOther(), 
+  SWAPIN, BA1234.instaCancel(), Skill2.instaCancel(), ACTION_JUE, ACTION_SUHSIN, Liberation.everyOther(), 
   IncBA1, IncBA2.instaJump(), IncBA3.instaJump(), IncBA4.instaCancel(), 
   Skill4_Unison, OutroUnison,
 
-  Intro, Skill2.instaDodge(), ACTION_JUE, ACTION_STAY_TUNED, 
+  Intro, Skill2.instaDodge(), ACTION_JUE, ACTION_SUHSIN, 
   IncBA12.cancel(), Skill3, IncBA34.instaCancel(),
   Skill4_Unison, Liberation.everyOther(), OutroUnison,
 ]);

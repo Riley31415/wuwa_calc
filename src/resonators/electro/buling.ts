@@ -62,7 +62,7 @@ import { HEALS, heal, inflictElectroFlare } from "../../shared/status.js";
 import { VARIATION } from "../../weapons/standard.js";
 import { REJUV_5PC, ACTION_FALLACY } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
-import { FORMLESS_DEMON, TINGED_YEARNING_5PC, ACTION_FORMLESS_DEMON } from "../../echoes/mengzhou.js";
+import { FORMRENDER, TINGED_YEARNING_5PC, ACTION_FORMRENDER } from "../../echoes/mengzhou.js";
 import { JINHSI_RESONATOR } from "../spectro/jinhsi.js";
 import { SUOMING_RESONATOR } from "./suoming.js";
 import { HSIN_RESONATOR } from "./hsin.js";
@@ -402,7 +402,7 @@ const BULING_RESONATOR = new Resonator({
 const BL_ROTATION = new Rotation([
   SWAPIN, BA1.instaCancel(),
   Intro.mashCancel(),
-  Skill, BA4.jumpCancel(), MA, BA12.instaCancel(), HA, HA.cancel(), ACTION_FALLACY.instaCancel(), ACTION_FORMLESS_DEMON.instaCancel(), // TODO maybe cancel HA?
+  Skill, BA4.jumpCancel(), MA, BA12.instaCancel(), HA, HA.cancel(), ACTION_FALLACY.instaCancel(), ACTION_FORMRENDER.instaCancel(), // TODO maybe cancel HA?
   LIB, Outro,
 ]);
 
@@ -418,7 +418,7 @@ export const BULING = new Loadout({
     sets: [
     new EchoLoadout(FALLACY, REJUV_5PC),
     // Tinged Yearning's extra ATK is for whoever obtains or responds to a Unison
-    new EchoLoadout(FORMLESS_DEMON, TINGED_YEARNING_5PC).requires(JINHSI_RESONATOR, SUOMING_RESONATOR, HSIN_RESONATOR),
+    new EchoLoadout(FORMRENDER, TINGED_YEARNING_5PC).requires(JINHSI_RESONATOR, SUOMING_RESONATOR, HSIN_RESONATOR),
   ],
     mainstats: [mainstats(Mainstat.CD4, Mainstat.ER3, Mainstat.ER3, Mainstat.ATK1, Mainstat.ATK1)],
     substats: substats(Substat.Er, Substat.CritRate, Substat.CritDmg, Substat.Liberation, Substat.AtkPct, Substat.Basic),

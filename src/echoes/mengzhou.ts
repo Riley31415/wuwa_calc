@@ -175,26 +175,26 @@ export const ACTION_FORBIDDEN_BASTION = new SummonEcho("Echo - Forbidden Bastion
  *  text says only "Cast Echo Skill to deal", the same wording as Nameless Explorer. */
 /** Named apart from the echo it sits on: the mainslot's own +10% is flat and this one is earned,
  *  and two lines with the echo's own name said nothing about which was which. */
-export const STAY_TUNED_BUFF = new Buff({
+export const SUHSIN_BUFF = new Buff({
   name: "Reminiscence: Suhsin (flare/unison)",
   duration: 60 * 30,
   stats: [[Stat.DmgBonus, 10, Attribute.Electro]],
 });
-const STAY_TUNED_GRANTS = [{ on: either(onInflict(ELECTRO_FLARE), gainedUnison, unisonResponse), buff: STAY_TUNED_BUFF }];
+const SUHSIN_BUFF_GRANTS = [{ on: either(onInflict(ELECTRO_FLARE), gainedUnison, unisonResponse), buff: SUHSIN_BUFF }];
 export const STAY_TUNED = new Mainslot({
   id: 6000225,
   name: "Reminiscence: Suhsin",
   cost: 4,
   stats: [[Stat.DmgBonus, 10, Attribute.Electro]],
-  grants: STAY_TUNED_GRANTS,
+  grants: SUHSIN_BUFF_GRANTS,
 });
-export const ACTION_STAY_TUNED = new SummonEcho("Echo - Reminiscence: Suhsin", {
+export const ACTION_SUHSIN = new SummonEcho("Echo - Reminiscence: Suhsin", {
   mainslot: STAY_TUNED, cooldown: 60 * 20,
   element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
   bullets: [...[0, 1, 2, 3].map(() => ({ hitFrame: 0, mv: 2736, energy: 38 })), { hitFrame: 0, mv: 16416, energy: 228 }],
 });
 /** Hsin's own form of it. */
-export const ACTION_STAY_TUNED_HSIN = new SummonEcho("Echo - Reminiscence: Suhsin (Hsin)", {
+export const ACTION_SUHSIN_HSIN = new SummonEcho("Echo - Reminiscence: Suhsin (Hsin)", {
   mainslot: STAY_TUNED, cooldown: 60 * 20,
   element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
   bullets: [...[0, 1, 2, 3, 4].map(() => ({ hitFrame: 0, mv: 820, energy: 11 })), { hitFrame: 0, mv: 23256, energy: 323 }],
@@ -203,25 +203,25 @@ export const ACTION_STAY_TUNED_HSIN = new SummonEcho("Echo - Reminiscence: Suhsi
 /** Soulfrayer (6000224, the 3-cost "Stay tuned"), Electro Rover's own mainslot: three
  *  91.18% Electro hits, and the Impermanence Heron shape — its cast primes an Outro handoff, the
  *  incoming resonator's +12% Electro DMG Bonus for 15s, long enough to outlast their own visit
- *  (gear.ts's `handoff`). Text is the CN translation ("conductive" = Electro); encore's own
- *  data lists the hit once — the three instances are the CN text's. Summon by that text. */
-export const STAY_TUNED_3C = new Mainslot({
+ *  (gear.ts's `handoff`). encore lists the hit once; wuwalab has all three, and a summon. Its
+ *  frames and cooldown are blank there, so the 8f summon cast and 20s stay. */
+export const SOULFRATER = new Mainslot({
   id: 6000224,
   name: "Soulfrayer",
   cost: 3,
 });
-export const ACTION_STAY_TUNED_3C = new SummonEcho("Echo - Soulfrayer", {
-  mainslot: STAY_TUNED_3C, castPosition: Position.Grounded, endPosition: Position.Grounded, cooldown: 60 * 20,
+export const ACTION_SOULFRAYER = new SummonEcho("Echo - Soulfrayer", {
+  mainslot: SOULFRATER, castPosition: Position.Grounded, endPosition: Position.Grounded, cooldown: 60 * 20,
   element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo, bullets: [0, 1, 2].map(() => ({ hitFrame: 0, mv: 9118, energy: 126 })),
-  updateBuffs: () => queueOutro(STAY_TUNED_3C_OUTRO),
+  updateBuffs: () => queueOutro(SOULFRAYER_OUTRO),
 });
-export const STAY_TUNED_3C_OUTRO = handoff("Soulfrayer: Outro", () => addStat(Stat.DmgBonus, 12, Attribute.Electro));
+export const SOULFRAYER_OUTRO = handoff("Soulfrayer: Outro", () => addStat(Stat.DmgBonus, 12, Attribute.Electro));
 
 /** Heart of Sworn Vigil. 2pc: +10% Electro DMG Bonus flat. 5pc: inflicting Electro Flare,
  *  obtaining Unison or triggering Unison Response grants +15% Crit. Rate and +22.5% Electro DMG
  *  Bonus for 30s — permanent once granted. `onInflict`: a "when *you* inflict" payout, so a
  *  stack one of the markers adds off the wearer's swing pays nothing here. */
-export const SWORN_VIGIL_2PC = new Sonata2pc({ id: 36, name: "Heart of Sworn Vigil 2pc", echoes: () => [STAY_TUNED, FORMLESS_DEMON, STAY_TUNED_3C], stats: [[Stat.DmgBonus, 10, Attribute.Electro]] });
+export const SWORN_VIGIL_2PC = new Sonata2pc({ id: 36, name: "Heart of Sworn Vigil 2pc", echoes: () => [STAY_TUNED, FORMRENDER, SOULFRATER], stats: [[Stat.DmgBonus, 10, Attribute.Electro]] });
 export const SWORN_VIGIL_5PC = new Sonata({
   id: 36,
   name: "Heart of Sworn Vigil 5pc",
@@ -238,7 +238,7 @@ export const SWORN_VIGIL_BUFF = new Buff({
  *  grants +10% Electro DMG Bonus for 15s — and an
  *  Outro cast while it stands hands the incoming resonator +25% Electro DMG Bonus for 15s, the
  *  Impermanence Heron-style handoff that outlasts their own visit. */
-export const ELECTRIC_REFLECTION_2PC = new Sonata2pc({ id: 37, name: "Flash of Electric Reflection 2pc", echoes: [STAY_TUNED, STAY_TUNED_3C], stats: [[Stat.DmgBonus, 10, Attribute.Electro]] });
+export const ELECTRIC_REFLECTION_2PC = new Sonata2pc({ id: 37, name: "Flash of Electric Reflection 2pc", echoes: [STAY_TUNED, SOULFRATER], stats: [[Stat.DmgBonus, 10, Attribute.Electro]] });
 export const ELECTRIC_REFLECTION_5PC = new Sonata({
   id: 37,
   name: "Flash of Electric Reflection 5pc",
@@ -257,14 +257,14 @@ export const ELECTRIC_REFLECTION_HANDOFF = handoff("Flash of Electric Reflection
  *  mainslot: one 273.60% Fusion hit ("Molten" DMG in the CN translation — unconfirmed against EN
  *  text), and +10% Energy Regen for whoever wears it. Pairs with Flower of Tinged Yearning below.
  *  Summon by its text ("summon the Formless Demon"). */
-export const FORMLESS_DEMON = new Mainslot({
+export const FORMRENDER = new Mainslot({
   id: 6000223,
   name: "Formrender",
   cost: 3,
   stats: [[Stat.ER, 10]],
 });
-export const ACTION_FORMLESS_DEMON = new SummonEcho("Echo - Formrender", {
-  mainslot: FORMLESS_DEMON, cooldown: 60 * 20,
+export const ACTION_FORMRENDER = new SummonEcho("Echo - Formrender", {
+  mainslot: FORMRENDER, cooldown: 60 * 20,
   element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 27360, energy: 380 }],
 });
 
@@ -274,7 +274,7 @@ export const ACTION_FORMLESS_DEMON = new SummonEcho("Echo - Formrender", {
  *  Response gains a further +15% ATK of their own — watched from the team buff itself, so it
  *  lands on whoever is acting, not on the wearer; no duration of its own is stated, so it is
  *  taken as the team effect's — permanent once granted. */
-export const TINGED_YEARNING_2PC = new Sonata2pc({ id: 38, name: "Flower of Tinged Yearning 2pc", echoes: [THOUSAND_PUPPET_PAVILION, FORMLESS_DEMON], stats: [[Stat.HealingBonus, 10]] });
+export const TINGED_YEARNING_2PC = new Sonata2pc({ id: 38, name: "Flower of Tinged Yearning 2pc", echoes: [THOUSAND_PUPPET_PAVILION, FORMRENDER], stats: [[Stat.HealingBonus, 10]] });
 export const TINGED_YEARNING_5PC = new Sonata({
   id: 38,
   name: "Flower of Tinged Yearning 5pc",

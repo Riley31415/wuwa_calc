@@ -530,6 +530,8 @@ function rowValues(
     if (traced.length) buffed.add(key);
     raw[`moved:${key}`] = rows.reduce((n, r) => n + r.value, 0);
   }
+  // what the press itself generates, unbuffed: its landed hits' and a positive cast's, no ER, nothing shared
+  raw["gen:energy"] = (hitsBank(snap, "energy") + Math.max(0, snap.action.castEnergy)) / RESOURCE_SCALE.energy;
   // energy banks `hits x (1 + Hit Energy Multiplier) x ER + cast + added` (evaluate.ts): the hits'
   // multiplier its own section, the Total before ER, and ER below it
   const hitEnergy = hitsBank(snap, "energy");
@@ -694,6 +696,7 @@ function rowValues(
       const moved = `moved:${key}`;
       if (per.some((p) => p.raw[moved] !== undefined)) raw[moved] = per.reduce((n, p) => n + (Number(p.raw[moved]) || 0), 0);
     }
+    raw["gen:energy"] = per.reduce((n, p, k) => n + (members[k]!.member === snap.member ? Number(p.raw["gen:energy"]) || 0 : 0), 0);
     FORTE_GAUGES.forEach((key, i) => {
       raw[`before:gauge:${RESOURCE_NAME[key]}`] = shownBefore(members[0]!, 3 + i) * members[0]!.forteScale[i]!;
     });

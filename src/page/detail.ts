@@ -84,9 +84,8 @@ function stepRow(
         : col.key === "concerto" && cast === Cast.Outro;
       const before = Number(row.raw[`before:${col.key}`]) || 0;
       if (!spend) attr = ` data-val="${Number(v) || 0}" data-before="${before}"`;
-      // energy's block total reads what each row generated before ER (its panel's Total), not how
-      // far it moved the bar
-      if (!spend && col.key === "energy") attr += ` data-gen="${Number(row.raw["moved:energy"]) || 0}"`;
+      // energy's block total reads what each row's own press generated, unbuffed: no ER, nothing shared
+      if (!spend && col.key === "energy") attr += ` data-gen="${Number(row.raw["gen:energy"]) || 0}"`;
       const fed = (sources ?? []).some((r) => !RATE_SECTIONS.has(r.section ?? ""));
       if (!fed && Math.abs((Number(v) || 0) - before) < 1e-9) return cell(col, { attr });
     }
@@ -511,7 +510,7 @@ function doubled(row: HTMLElement, held: Set<HTMLElement>): boolean {
  *  block gained of it: each row's balance less the one it was entered on, added up, so the run
  *  reads from the balance standing before the block (0 at the top of the run) and the Tune Break
  *  that takes the whole bar drops out rather than reading as a loss across it. Energy generated
- *  adds up each row's own gain before ER. A member's own concerto and forte are left to their columns; nothing else
+ *  adds up each row's own press's raw energy: no ER, multiplier or shared gain. A member's own concerto and forte are left to their columns; nothing else
  *  in the block earns a line,
  *  and a block with no line at all has no panel. An opened group's own row is left out where the
  *  block holds the rows it opened onto (`doubled`). */
@@ -537,7 +536,7 @@ function blockPanel(sel: CellSel): string {
       }
       if (c.dataset.val === undefined) continue;
       const col = logColumns[[...c.parentElement!.children].indexOf(c)]!;
-      // energy: each row's own gain before any ER (`moved:energy`), its Liberation's spend left out
+      // energy: each row's own unbuffed generation (`gen:energy`), its Liberation's spend left out
       if (col.key === "energy") {
         energy += Number(c.dataset.gen) || 0;
         energyDigits = col.digits ?? 2;

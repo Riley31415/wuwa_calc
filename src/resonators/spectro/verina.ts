@@ -40,7 +40,7 @@ import { mainstats, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { SPACETREK_EXPLORER, STARRY_RADIANCE_5PC, ACTION_SPACETREK } from "../../echoes/lahairoi.js";
-import { FORMLESS_DEMON, TINGED_YEARNING_5PC, ACTION_FORMLESS_DEMON } from "../../echoes/mengzhou.js";
+import { FORMRENDER, TINGED_YEARNING_5PC, ACTION_FORMRENDER } from "../../echoes/mengzhou.js";
 import { JINGRAN_RESONATOR } from "../fusion/jingran.js";
 import { JINHSI_RESONATOR } from "./jinhsi.js";
 import { SUOMING_RESONATOR } from "../electro/suoming.js";
@@ -275,21 +275,21 @@ const BA345 = new ActionGroup("Basic - Cultivation 345", [BA3, BA4, BA5]);
 const VR_LOOP = new Rotation([
   SWAPIN, BA345.cancel(), Liberation, 
   Skill.jumpCancel(), ForteMidair1, ForteMidair2,
-  ACTION_FALLACY.instaSwap(), ACTION_SPACETREK.instaSwap(), ACTION_FORMLESS_DEMON.instaSwap(), Outro,
+  ACTION_FALLACY.instaSwap(), ACTION_SPACETREK.instaSwap(), ACTION_FORMRENDER.instaSwap(), Outro,
 
   Intro, Liberation,
   Skill.jumpCancel(), ForteMidair1, ForteMidair2,
-  ACTION_FALLACY.instaSwap(), ACTION_SPACETREK.instaSwap(), ACTION_FORMLESS_DEMON.instaSwap(), Outro,
+  ACTION_FALLACY.instaSwap(), ACTION_SPACETREK.instaSwap(), ACTION_FORMRENDER.instaSwap(), Outro,
 ]);
 
 const VR_S2 = new Rotation([
   SWAPIN, BA3.instaCancel(), Liberation, 
   Skill.jumpCancel(), ForteMidair1, ForteMidair2,
-  ACTION_FALLACY.instaSwap(), ACTION_SPACETREK.instaSwap(), ACTION_FORMLESS_DEMON.instaSwap(), Outro,
+  ACTION_FALLACY.instaSwap(), ACTION_SPACETREK.instaSwap(), ACTION_FORMRENDER.instaSwap(), Outro,
 
   Intro, Liberation,
   Skill.jumpCancel(), ForteMidair1, ForteMidair2,
-  ACTION_FALLACY.instaSwap(), ACTION_SPACETREK.instaSwap(), ACTION_FORMLESS_DEMON.instaSwap(), Outro,
+  ACTION_FALLACY.instaSwap(), ACTION_SPACETREK.instaSwap(), ACTION_FORMRENDER.instaSwap(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
@@ -305,7 +305,7 @@ export const VERINA = new Loadout({
     new EchoLoadout(FALLACY, REJUV_5PC),
     // worn for Spacetrek's shield, which Jingran's Trace the Vestige feeds on; Tinged Yearning for a Unison
     new EchoLoadout(SPACETREK_EXPLORER, STARRY_RADIANCE_5PC).requires(JINGRAN_RESONATOR),
-    new EchoLoadout(FORMLESS_DEMON, TINGED_YEARNING_5PC).requires(JINHSI_RESONATOR, SUOMING_RESONATOR, HSIN_RESONATOR),
+    new EchoLoadout(FORMRENDER, TINGED_YEARNING_5PC).requires(JINHSI_RESONATOR, SUOMING_RESONATOR, HSIN_RESONATOR),
     //new EchoLoadout(BELL_BORNE_GEOCHELONE, MOONLIT_CLOUDS_5PC),
     //new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
     ],

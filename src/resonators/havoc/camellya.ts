@@ -355,7 +355,7 @@ const CAMELLYA_RESONATOR = new Resonator({
   inherent2: EPIPHYTE,
   element: Attribute.Havoc,
   weapon: WeaponType.Sword,
-  tuneBreak: tuneBreak(89, [0, 91], [0, 70], SWORD_BREAK),
+  tuneBreak: tuneBreak(89, 91, [0, 91], [0, 70], SWORD_BREAK),
   color: "#891c2b",
   intro: Intro,
   // Blossom Mode replaces Basic Attack with Vining Waltz, which can be used in mid-air too

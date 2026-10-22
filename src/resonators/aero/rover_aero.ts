@@ -301,7 +301,7 @@ export const ROVER_AERO_RESONATOR = new Resonator({
   inherent2: AR_INHERENT_2,
   element: Attribute.Aero,
   weapon: WeaponType.Sword,
-  tuneBreak: tuneBreak(90, [0, 91], [0, 70], SWORD_BREAK),
+  tuneBreak: tuneBreak(90, 90, [0, 91], [0, 70], SWORD_BREAK),
   color: "#6fd6b0",
   intro: Intro,
   swapIn: BA1,

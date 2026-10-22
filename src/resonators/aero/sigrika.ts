@@ -513,7 +513,7 @@ const SR_ROTATION = new Rotation([
 ]);
 
 const SR_ROTATION_DOUBLE = new Rotation([
-  START_LAST, Liberation, 
+  START_LAST, BA1.instaCancel(), Liberation, 
   Skill, BA34, EBASIC.instaSwap(),
 
   Intro.inLastSlot(), ACTION_NAMELESS_EXPLORER, FHA.dodgeCancel(),

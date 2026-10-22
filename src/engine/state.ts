@@ -908,7 +908,9 @@ export class TeamMember {
 /** One entry on the fight's clock (`State.timed`): a queued hit, a press's end, or a function. */
 /** One evaluation's damage, where it landed: `slot` is the report bucket (a Tune Break's is the
  *  enemy's), `variantAvg` the acting member's main-stat variants' (see `Result`). */
-export interface HitRecord { at: number; slot: string; member: string; avg: number; variantAvg: number[] | null }
+/** `res`: the press row that dealt it (a hit's own, the row it lands into), until its rotation is
+ *  known — teamrun.ts drops it once binned. */
+export interface HitRecord { at: number; slot: string; member: string; avg: number; variantAvg: number[] | null; res: Result | null }
 
 /** `cut`: on a press's end, the tag it was cut short by (`ActionTag`, "" for none) — what `pressWasCut()` reads there. */
 export interface Timed { due: number; action: Action | null; slot: number; into: Result | null; by: HeldBuff | null; away?: boolean; apply?: () => void; frames?: number; closes?: boolean; triggered?: boolean; cut?: string; check?: () => void; behind?: boolean; at?: number }

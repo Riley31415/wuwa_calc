@@ -235,7 +235,7 @@ const ROCCIA_RESONATOR = new Resonator({
   maxEnergy: 12500,
   maxForte1: 300,
   // her Tune Break Skill runs 2 frames past the gauntlet default
-  tuneBreak: tuneBreak(94, [0, 94], [0, 70], [[72, 160000]]),
+  tuneBreak: tuneBreak(94, 94, [0, 94], [0, 70], [[72, 160000]]),
 
   stats: [[Stat.BaseHp, 12250], [Stat.BaseAtk, 375], [Stat.BaseDef, 1197.7756]],
 });
