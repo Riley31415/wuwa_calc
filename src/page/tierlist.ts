@@ -18,7 +18,7 @@ const app = document.getElementById("app")!;
 
 /** A resonator's best team in one block: its figure (DPR, or DPS in DPS mode) and the team, for the label and the link. */
 interface Entry { name: string; dpr: number; teamKey: string }
-/** What the table ranks by: Best Team DPR (the default) or Best Team DPS — a heading's click flips it. */
+/** What the table ranks by: Best Team DPR (the default) or Best Team DPS â€” a heading's click flips it. */
 let dpsMode = false;
 /** The step every tier cut lands on: 100k DPR, or 1k DPS. */
 const cutStep = (): number => (dpsMode ? 1_000 : 100_000);
@@ -98,9 +98,10 @@ function render(): void {
     const start = band;
     if (!e) return `${gap}<div class="sec"><div class="c${start}"></div><div class="c${band}"></div></div>`;
     const href = pageOf(e.teamKey);
+    const hue = RESONATOR_HUE.get(e.name) ?? FALLBACK_HUE;
     const figure = href ? `<a href="${esc(href)}">${fmt(e.dpr)}</a>` : fmt(e.dpr);
     // each block of a row its own box-less group, so a hover lights that block alone (index.css `.sec`)
-    return `${gap}<div class="sec"><div class="c name res${start}" style="--mem:${RESONATOR_HUE.get(e.name) ?? FALLBACK_HUE}"><span class="res-label">${esc(e.name)}</span></div>`
+    return `${gap}<div class="sec"><div class="c name res${start}" style="--mem:${hue};color:${hue}"><span class="res-label">${esc(e.name)}</span></div>`
       + `<div class="c num total${band}">${figure}</div></div>`;
   };
   // a band of rows per tier, as tall as its longest block, its name standing down the first column

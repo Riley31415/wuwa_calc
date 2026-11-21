@@ -55,7 +55,7 @@ export const RESONATOR_HUE = new Map(
 export const FALLBACK_HUE = "#ff0000";
 
 /** A signature weapon's owner's colour: the first loadout to list it as its own best weapon, else the
- *  first to list it at all — pinned for an owner with no team on the page (their kit's own colour). */
+ *  first to list it at all â€” pinned for an owner with no team on the page (their kit's own colour). */
 const SIGNATURE_HUE = new Map<string, string>([["Blazing Brilliance", "#f38b68"], ["Verity's Handle", "#6b74e8"]]);
 for (const pass of [true, false]) {
   for (const l of ALL_TEAMS.flatMap((t) => t.loadouts)) {
@@ -65,7 +65,7 @@ for (const pass of [true, false]) {
   }
 }
 /** A weapon's colour: a signature its resonator's, a 5-star standard (or Rover's) white, a 4-star
- *  (battlepass, concerto) purple — the star read off its base ATK (5-stars 500+). */
+ *  (battlepass, concerto) purple â€” the star read off its base ATK (5-stars 500+). */
 export function weaponHue(w: Weapon): string {
   if (w.tier === Tier.Limited) return SIGNATURE_HUE.get(weaponBase(w)) ?? FALLBACK_HUE;
   const atk = w.decl.stats.find((line) => line[0] === Stat.BaseAtk)?.[1] ?? 0;

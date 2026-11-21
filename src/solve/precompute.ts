@@ -1,7 +1,7 @@
 /**
  * Solve the roster offline into `dist/solves/` (one file per state plus index.json), so the published
- * site opens onto a full table. Run after the bundle: the stamp is a hash of dist/bundle/, and a
- * stamp that doesn't match the running page means the files are ignored. Fan-out is
+ * site opens onto a full table. The stamp (a hash of dist/bundle/) only keys browser-saved solves; the
+ * page loads these files whatever its bundle, so only a kit or engine change needs a re-run. Fan-out is
  * worker_threads over this same file. Only one box is open per state on purpose — rows are the
  * cross of every open axis. Row counts: default 486 | sequences 3.5k | echoes 4.8k | weapons 9.7k.
  *

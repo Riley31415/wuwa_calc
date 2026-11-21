@@ -304,7 +304,7 @@ export const BLOOMING_JADEHAVEN = refinements((r, rank) => {
   });
 });
 
-/** Anna Sig — Unspoken Rue (Suoming's) made Fusion for Anna: her Liberation (where Suoming gains
+/** Anna Sig â€” Unspoken Rue (Suoming's) made Fusion for Anna: her Liberation (where Suoming gains
  *  Unison) grants Locked Thunder to her and Binding Mind to the team and ends Yearning Mind;
  *  spending Concerto grants Yearning Mind and ends the team's Binding Mind. */
 export const ANNA_SIG = refinements((r, rank) => {

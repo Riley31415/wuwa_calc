@@ -99,8 +99,9 @@ function render() {
     if (!e)
       return `${gap}<div class="sec"><div class="c${start}"></div><div class="c${band}"></div></div>`;
     const href = pageOf(e.teamKey);
+    const hue = RESONATOR_HUE.get(e.name) ?? FALLBACK_HUE;
     const figure = href ? `<a href="${esc(href)}">${fmt(e.dpr)}</a>` : fmt(e.dpr);
-    return `${gap}<div class="sec"><div class="c name res${start}" style="--mem:${RESONATOR_HUE.get(e.name) ?? FALLBACK_HUE}"><span class="res-label">${esc(e.name)}</span></div><div class="c num total${band}">${figure}</div></div>`;
+    return `${gap}<div class="sec"><div class="c name res${start}" style="--mem:${hue};color:${hue}"><span class="res-label">${esc(e.name)}</span></div><div class="c num total${band}">${figure}</div></div>`;
   };
   const body = TIERS.map((tier, t) => {
     const inTier = blocks.map((b) => b.filter((e) => tierOf(e.dpr) === t));

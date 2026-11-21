@@ -148,10 +148,11 @@ function render(): void {
     const start = side ? " blockstart" : "";
     if (!r) return `<div class="sec"><div class="c${start}"></div><div class="c"></div><div class="c"></div></div>`;
     const gain = shownGain(r);
+    const hue = RESONATOR_HUE.get(r.name) ?? FALLBACK_HUE;
     const figure = r.href ? `<a href="${esc(r.href)}">${fmt(gain)}</a>` : fmt(gain);
     // each half of a row its own box-less group, so a hover lights that half alone (index.css `.sec`)
     return `<div class="sec"><label class="c check${start}"><input type="checkbox" data-name="${esc(r.name)}" aria-label="Owned: ${esc(r.name)}"${r.owned ? " checked" : ""}></label>`
-      + `<div class="c name res" style="--mem:${RESONATOR_HUE.get(r.name) ?? FALLBACK_HUE}"><span class="res-label">${esc(r.label)}</span></div>`
+      + `<div class="c name res" style="--mem:${hue};color:${hue}"><span class="res-label">${esc(r.label)}</span></div>`
       + `<div class="c num total">${figure}</div></div>`;
   };
   // the unowned in the three columns on the left, the owned in the three on the right
@@ -227,7 +228,7 @@ async function load(): Promise<void> {
 
 async function boot(): Promise<void> {
   overlayPhase("Initializing…", true);
-  // the cost from the link as the main page reads it (`tc=`, s0r1 without one); `mx=` is ignored �
+  // the cost from the link as the main page reads it (`tc=`, s0r1 without one); `mx=` is ignored —
   // the scoring runs every Matrix itself (valueFilters), and each team link carries it in its team code
   applyHash();
   filters.matrix = [];

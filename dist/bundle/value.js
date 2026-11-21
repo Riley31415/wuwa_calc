@@ -558,8 +558,9 @@ function render() {
     if (!r)
       return `<div class="sec"><div class="c${start}"></div><div class="c"></div><div class="c"></div></div>`;
     const gain = shownGain(r);
+    const hue = RESONATOR_HUE.get(r.name) ?? FALLBACK_HUE;
     const figure = r.href ? `<a href="${esc(r.href)}">${fmt(gain)}</a>` : fmt(gain);
-    return `<div class="sec"><label class="c check${start}"><input type="checkbox" data-name="${esc(r.name)}" aria-label="Owned: ${esc(r.name)}"${r.owned ? " checked" : ""}></label><div class="c name res" style="--mem:${RESONATOR_HUE.get(r.name) ?? FALLBACK_HUE}"><span class="res-label">${esc(r.label)}</span></div><div class="c num total">${figure}</div></div>`;
+    return `<div class="sec"><label class="c check${start}"><input type="checkbox" data-name="${esc(r.name)}" aria-label="Owned: ${esc(r.name)}"${r.owned ? " checked" : ""}></label><div class="c name res" style="--mem:${hue};color:${hue}"><span class="res-label">${esc(r.label)}</span></div><div class="c num total">${figure}</div></div>`;
   };
   const sides = [rows.filter((r) => !r.owned), rows.filter((r) => r.owned)].map((side) => side.sort((a, b) => shownGain(b) - shownGain(a) || a.name.localeCompare(b.name)));
   const body = Array.from({ length: Math.max(...sides.map((side) => side.length)) }, (_, k) => `<div class="trow">${sides.map((side, i) => cell(side[k], i)).join("")}</div>`).join("");
