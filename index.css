@@ -1016,7 +1016,7 @@ main {
   background: color-mix(in srgb, var(--tier) 16%, var(--surface));
 }
 .valuepage .trow:not(.thead):hover .c.tier { background: color-mix(in srgb, var(--tier) 16%, var(--surface)); }
-.valuepage .trow .c.bandstart { border-top: 1px solid var(--line-2); }
+.valuepage .trow .c.bandstart { border-top: 1px solid var(--bg); }
 /* a roster page's row is several blocks side by side: a hover lights the block under the pointer
    (`.sec`, box-less like the row) rather than the whole row */
 .valuepage .trow .sec { display: contents; }
