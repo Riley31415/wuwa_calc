@@ -22,7 +22,8 @@
 <meta name="theme-color" content="#f2074a">
 
 <link rel="icon" type="image/png" sizes="192x192" href="./favicon.png">
-<link rel="stylesheet" href="./index.css">
+<!-- fetched fresh each load like the bundle: Pages caches a bare index.css for 10 min, and new scripts on an old sheet break the layout -->
+<script>document.write(`<link rel="stylesheet" href="./index.css?v=${Date.now()}">`);</script>
 </head>
 <body class="valuepage">
 
