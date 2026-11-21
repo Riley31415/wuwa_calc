@@ -166,7 +166,7 @@ export const STARFIELD_CALIBRATOR = refinements((r, rank) => {
   /** The charge the Skill spends: held from the moment the weapon is equipped, gone the cast it
    *  pays for, and back on the wielder's own Outro. */
   const DEFINITE_SOLUTION: Buff = new Buff({
-    name: `Starfield Calibrator: Definite Solution${rank}`,
+    name: `Starfield Calibrator: Definite Solution${rank} (ready)`,
     updateBuffs: () => {
       if (!casting(Cast.Skill)) return;
       addGain({ concerto: [800, 1000, 1200, 1400, 1600][r]! });

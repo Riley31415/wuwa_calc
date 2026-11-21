@@ -32,17 +32,17 @@ import {
   saveChain,
   addStatAs,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
 import { SHIELD } from "../../shared/status.js";
 import { IUNO_SIG, VERITYS_HANDLE } from "../../weapons/gauntlet.js";
 import { MARCATO, NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
 import { STONARD, AETHER_STRIKE } from "../../weapons/battlepass.js";
-import { MYA, COV_3PC, ACTION_MYA } from "../../echoes/septimont.js";
-import { WINDWARD_5PC, NM_KELPIE, ACTION_NM_KELPIE } from "../../echoes/rinascita.js";
+import { MYA_MAINSLOT, COV_3PC, MYA } from "../../echoes/septimont.js";
+import { WINDWARD_5PC, NM_KELPIE_MAINSLOT, NM_KELPIE } from "../../echoes/rinascita.js";
 import { CARTETHYIA_RESONATOR } from "./cartethyia.js";
 import { CIACCONA_RESONATOR } from "./ciaccona.js";
 import { ROVER_AERO_RESONATOR } from "./rover_aero.js";
-import { SIERRA_GALE_2PC, HERON, MOONLIT_CLOUDS_5PC, REJUV_5PC, FALLACY, ACTION_HERON, ACTION_FALLACY } from "../../echoes/jinzhou.js";
+import { SIERRA_GALE_2PC, HERON_MAINSLOT, MOONLIT_CLOUDS_5PC, REJUV_5PC, FALLACY_MAINSLOT, HERON, FALLACY } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -64,21 +64,21 @@ const NEW_MOON = new Buff({ name: "Iuno: New Moon", lostWith: LUNAR_CYCLE });
 const CLOSING_REFRAIN_READY = new Buff({ name: "Iuno: Closing Refrain Ready", duration: 60 * 5 });
 
 // --- basics and dodge counter, all shielding
-const BA1 = iunoAction("Basic - Moonring 1", { animFrames: 29, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 16, mv: 8768, energy: 123, concerto: 123, offtune: 3920, forte1: 5 }]});
-const BA2 = iunoAction("Basic - Moonring 2", { chains: [BA1], animFrames: 51, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = iunoAction("Basic - Moonring 1", { notAfter: () => [BA1, BA2, DC], animFrames: 29, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 16, mv: 8768, energy: 123, concerto: 123, offtune: 3920, forte1: 5 }]});
+const BA2 = iunoAction("Basic - Moonring 2", { after: [BA1], animFrames: 51, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 25, mv: 4606, energy: 65, concerto: 65, offtune: 2060 },
     { hitFrame: 32, mv: 4606, energy: 65, concerto: 65, offtune: 2060 },
     { hitFrame: 42, mv: 4746, energy: 67, concerto: 67, offtune: 2122, forte1: 10 },
   ]});
 // Moonring - Dodge Counter: "Press Normal Attack again shortly after ... to cast Moonring - Basic Attack Stage 3"
-const BA3 = iunoAction("Basic - Moonring 3", { chains: () => [BA2, DC], animFrames: 100, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = iunoAction("Basic - Moonring 3", { after: () => [BA2, DC], animFrames: 100, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 29, mv: 8798, energy: 123, concerto: 123, offtune: 3934 },
     { hitFrame: 56, mv: 8798, energy: 123, concerto: 123, offtune: 3934 },
     { hitFrame: 67, mv: 9065, energy: 127, concerto: 127, offtune: 4053, forte1: 20 },
   ],
   updateBuffs: () => { if (!isHeld(LUNAR_CYCLE)) applyCurrent(CLOSING_REFRAIN_READY, 1); },
 });
-const DC = iunoAction("Dodge Counter - Moonring", { chains: [DODGE], animFrames: 51, animPriority: { 0: 5, 51: 1 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const DC = iunoAction("Dodge Counter - Moonring", { after: [SUCCESSFUL_DODGE], animFrames: 51, animPriority: { 0: 5, 51: 1 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 25, mv: 8208, energy: 66, concerto: 131, offtune: 2086 },
     { hitFrame: 32, mv: 8208, energy: 66, concerto: 131, offtune: 2086 },
     { hitFrame: 42, mv: 8457, energy: 68, concerto: 135, offtune: 2149, forte1: 10 },
@@ -88,18 +88,18 @@ const BA123 = new ActionGroup("Basic - Moonring 123", [BA1, BA2, BA3]);
 
 // --- Moonbow basics (Lunar Cycle - New Moon), considered liberation damage; also shield. A stage
 //     follows the one before it plain or Sentience-enhanced (FMA1-3), the same string either way
-const MA1 = iunoAction("Basic - Moonbow 1", { requireBuff: NEW_MOON, animFrames: 34, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Liberation, bullets: [{ hitFrame: 15, mv: 12645, energy: 233, concerto: 265, offtune: 4240 }]});
-const MA2 = iunoAction("Basic - Moonbow 2", { chains: () => [MA1, FMA1], requireBuff: NEW_MOON, animFrames: 45, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Liberation, bullets: [
+const MA1 = iunoAction("Basic - Moonbow 1", { notAfter: () => [MA1, MA2, FMA1, FMA2, MDC], requireBuff: NEW_MOON, animFrames: 34, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Liberation, bullets: [{ hitFrame: 15, mv: 12645, energy: 233, concerto: 265, offtune: 4240 }]});
+const MA2 = iunoAction("Basic - Moonbow 2", { after: () => [MA1, FMA1], requireBuff: NEW_MOON, animFrames: 45, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Liberation, bullets: [
     { hitFrame: 10, mv: 5567, energy: 109, concerto: 117, offtune: 1867 },
     { hitFrame: 17, mv: 5567, energy: 109, concerto: 117, offtune: 1867 },
     { hitFrame: 24, mv: 5567, energy: 109, concerto: 117, offtune: 1867 },
   ]});
 // Moonbow - Dodge Counter: "press Normal Attack again shortly after ... to cast Moonbow - Basic Attack Stage 3"
-const MA3 = iunoAction("Basic - Moonbow 3", { chains: () => [MA2, FMA2, MDC], requireBuff: NEW_MOON, animFrames: 92, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Liberation, bullets: [
+const MA3 = iunoAction("Basic - Moonbow 3", { after: () => [MA2, FMA2, MDC], requireBuff: NEW_MOON, animFrames: 92, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Liberation, bullets: [
     { hitFrame: 18, mv: 16701, energy: 300, concerto: 350, offtune: 5600 },
     { hitFrame: 53, mv: 16701, energy: 300, concerto: 350, offtune: 5600 },
   ]});
-const MDC = iunoAction("Dodge Counter - Moonbow", { chains: [DODGE], requireBuff: NEW_MOON, animFrames: 45, animPriority: { 0: 5, 45: 1 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Liberation, bullets: [
+const MDC = iunoAction("Dodge Counter - Moonbow", { after: [SUCCESSFUL_DODGE], requireBuff: NEW_MOON, animFrames: 45, animPriority: { 0: 5, 45: 1 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Liberation, bullets: [
     { hitFrame: 10, mv: 10339, energy: 59, concerto: 117, offtune: 1867 },
     { hitFrame: 17, mv: 10339, energy: 59, concerto: 117, offtune: 1867 },
     { hitFrame: 24, mv: 10339, energy: 59, concerto: 117, offtune: 1867 },
@@ -183,13 +183,13 @@ const FJump = iunoAction("Heavy - Flux: Moonring", { requireBuff: NEW_MOON, anim
   ],
   updateBuffs: () => revokeCurrent(NEW_MOON),
 });
-const FMA1 = iunoAction("Forte Basic - Enhanced Moonbow 1", { requireBuff: NEW_MOON, minForte1: 1, animFrames: 34, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, bullets: [{ hitFrame: 15, mv: 20597, energy: 233, concerto: 265, offtune: 4240 }], castConcerto: 400, castForte1: -10});
-const FMA2 = iunoAction("Forte Basic - Enhanced Moonbow 2", { chains: [FMA1, MA1], requireBuff: NEW_MOON, minForte1: 1, animFrames: 45, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, bullets: [
+const FMA1 = iunoAction("Forte Basic - Enhanced Moonbow 1", { notAfter: () => [MA1, MA2, FMA1, FMA2, MDC], requireBuff: NEW_MOON, minForte1: 1, animFrames: 34, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, bullets: [{ hitFrame: 15, mv: 20597, energy: 233, concerto: 265, offtune: 4240 }], castConcerto: 400, castForte1: -10});
+const FMA2 = iunoAction("Forte Basic - Enhanced Moonbow 2", { after: [FMA1, MA1], requireBuff: NEW_MOON, minForte1: 1, animFrames: 45, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, bullets: [
     { hitFrame: 10, mv: 9543, energy: 109, concerto: 117, offtune: 1867 },
     { hitFrame: 17, mv: 9543, energy: 109, concerto: 117, offtune: 1867 },
     { hitFrame: 24, mv: 9543, energy: 109, concerto: 117, offtune: 1867 },
   ], castConcerto: 600, castForte1: -15});
-const FMA3 = iunoAction("Forte Basic - Enhanced Moonbow 3", { chains: [FMA2, MA2, MDC], requireBuff: NEW_MOON, minForte1: 1, animFrames: 92, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, bullets: [
+const FMA3 = iunoAction("Forte Basic - Enhanced Moonbow 3", { after: [FMA2, MA2, MDC], requireBuff: NEW_MOON, minForte1: 1, animFrames: 92, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, bullets: [
     { hitFrame: 18, mv: 26641, energy: 300, concerto: 350, offtune: 5600 },
     { hitFrame: 53, mv: 26641, energy: 300, concerto: 350, offtune: 5600 },
   ], castConcerto: 1000, castForte1: -25});
@@ -203,7 +203,7 @@ const FMA123 = new ActionGroup("Forte - Enhanced Moonbow 123", [FMA1, FMA2, FMA3
 /** Ends Lunar Cycle and conjures the Full Moon domain. Needs a full Concerto bar, and spends none.
  *  S6 puts her straight back into New Moon on the same cast. */
 const FHA = iunoAction("Heavy - Absolute Fullness", {
-  animFrames: 89, animPriority: { 0: 5, 89: 2 }, castPriority: 8,
+  animFrames: 89, cooldown: 60 * 25, animPriority: { 0: 5, 89: 2 }, castPriority: 8,
   node: Node.Forte, cast: Cast.Heavy, type: Type.Liberation, bullets: [{ hitFrame: 66, mv: 15905, energy: 500, offtune: 2400 }], minConcerto: 10000,
   updateBuffs: () => {
     applyTeam(IUNO_DOMAIN, 1);
@@ -364,17 +364,17 @@ const IO_S6 = new Sequence({
 const IO_SEQUENCES = [IO_S1, IO_S2, IO_S3, IO_S4, IO_S5, IO_S6];
 
 const IO_ROTATION = new Rotation([
-  Intro, ACTION_MYA.instaCancel(), ACTION_HERON.instaDodge(), ACTION_FALLACY.instaCancel(), ACTION_NM_KELPIE.instaDodge(), 
+  Intro, MYA.instaCancel(), HERON.instaDodge(), FALLACY.instaCancel(), NM_KELPIE.instaDodge(), 
   Liberation, JumpHeavy,
   FMA123.cancel(), FMSkill, FMSkill.cancel(), 
   FHA.instaSwap(), Outro,
 ]);
 
 const IO_ROTATION_MDPS = new Rotation([
-  Intro, ESkill, ACTION_MYA, 
+  Intro, ESkill,
   JumpHeavy,
   FMSkill,
-  FMA123.cancel(), Liberation, 
+  FMA123.cancel(), MYA.instaCancel(), Liberation, 
   FMA123.cancel(), FMSkill, 
   MA123.cancel(), 
   FHA.instaSwap(), Outro,
@@ -385,7 +385,7 @@ const IO_ROTATION_MDPS_S6 = new Rotation([
   Intro, Liberation, JumpHeavy,
   FMSkill, 
   FMA123.cancel(), FMSkill.cancel(),
-  FHA, ACTION_MYA,
+  FHA, MYA,
   FMSkill, FMA123.cancel(), FMSkill, Outro,
 ]);
 
@@ -399,9 +399,9 @@ export const IUNO = new Loadout({
   weapons: [IUNO_SIG, NEW_STD_GAUNTLET, MARCATO, ABYSS_SURGES, VERITYS_HANDLE, STONARD, AETHER_STRIKE],
   echoes: new Echoes({
     sets: [
-    new EchoLoadout(MYA, COV_3PC, SIERRA_GALE_2PC),
-    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
-    new EchoLoadout(FALLACY, REJUV_5PC),
+    new EchoLoadout(MYA_MAINSLOT, COV_3PC, SIERRA_GALE_2PC),
+    new EchoLoadout(HERON_MAINSLOT, MOONLIT_CLOUDS_5PC),
+    new EchoLoadout(FALLACY_MAINSLOT, REJUV_5PC),
   ],
     mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
     substats: substats(Substat.CritDmg, Substat.CritRate, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Skill),
@@ -422,9 +422,9 @@ export const IUNO_MDPS = new Loadout({
   weapons: [IUNO_SIG, NEW_STD_GAUNTLET, ABYSS_SURGES, VERITYS_HANDLE, STONARD, AETHER_STRIKE],
   echoes: new Echoes({
     sets: [
-    new EchoLoadout(MYA, COV_3PC, SIERRA_GALE_2PC),
+    new EchoLoadout(MYA_MAINSLOT, COV_3PC, SIERRA_GALE_2PC),
     // Windward's 5pc needs Aero Erosion on the target, which only these three inflict
-    new EchoLoadout(NM_KELPIE, WINDWARD_5PC).requires(CARTETHYIA_RESONATOR, CIACCONA_RESONATOR, ROVER_AERO_RESONATOR),
+    new EchoLoadout(NM_KELPIE_MAINSLOT, WINDWARD_5PC).requires(CARTETHYIA_RESONATOR, CIACCONA_RESONATOR, ROVER_AERO_RESONATOR),
   ],
     mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
     substats: substats(Substat.CritDmg, Substat.CritRate, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Skill),

@@ -3,10 +3,11 @@
 import { comboOf, compares, echoPicks, gateOf, loadoutName, mainstatRanking, scopedOpen, sequenceLevels, weaponBase } from "../solve/solver.js";
 import type { Axis, Filters, Gate, Member, Pick } from "../solve/solver.js";
 import type { TeamRun } from "../solve/teamrun.js";
+import { erRollsFor } from "../solve/teamrun.js";
 import { Tier } from "../engine/stats.js";
-import { filters, results, routeTeam, picksOfKey, prospectiveRows, snapshotFilters, admitTeam, admitBuild, pruneGearFilters, solvedRows, ROW_CAP } from "./model.js";
+import { filters, results, routeTeam, picksOfKey, prospectiveRows, snapshotFilters, admitTeam, admitBuild, pruneGearFilters, solvedRows, ROW_CAP, weaponHue } from "./model.js";
 import type { TeamRow } from "./model.js";
-import { dropPanel, holdPanels, subsLabel } from "./panels.js";
+import { dropPanel, holdPanels } from "./panels.js";
 import type { PickKind } from "./panels.js";
 import { showMenu, rowCapWarning, teamFigure, personalFigure, pctTrunc } from "./table.js";
 import type { MenuItem } from "./table.js";
@@ -75,8 +76,12 @@ function choices(run: TeamRun, i: number, kind: PickKind): Choice[] {
     return mainstatRanking(run.teamKey, run.members, picksOf(run), i).map(({ mainstat: k, run: ranked }) =>
       ({ ...choice(l.mainstats[k]!.name, "mainstats", { ...cur, mainstat: k }, (p) => p.mainstat === k, []), run: ranked }));
   }
-  return [false, true].map((h) => choice(subsLabel(comboOf(l, { ...cur, highSubs: h })), "substats", { ...cur, highSubs: h },
-    (p) => p.highSubs === h, regear));
+  // each spread named whole, as the cell names the one worn: at the ER rolls the team wants with it on
+  return [false, true].map((h) => {
+    const combo = run.combo.map((c, j) => (j === i ? comboOf(l, { ...cur, highSubs: h }) : c));
+    const name = l.spread(h, erRollsFor(run.teamKey, run.members, combo)[i]!).name;
+    return choice(name, "substats", { ...cur, highSubs: h }, (p) => p.highSubs === h, regear);
+  });
 }
 
 /** Whether a cell has anything to swap to — main stats by their list alone, ranking them being a run. */
@@ -301,6 +306,11 @@ const openPickMenu = (e: MouseEvent): void => {
   });
   dressAs(menu, el);
   const boxes = new Map(offered.map((c, n): [Choice, HTMLElement] => [c, menu.querySelectorAll<HTMLElement>(".ctxitem")[n]!]));
+  // a weapon option reads in its own weapon's colour, not the cell's (`weaponHue`)
+  const l = run.members[i]!.loadout;
+  for (const [c, b] of boxes) {
+    if (c.axis === "weapons" || c.axis === "refines") b.style.color = weaponHue(l.refinements[c.pick.weapon]![c.pick.refine]!);
+  }
   void showRatios(run, i, list, boxes, el);
   menu.addEventListener("mouseover", (ev) => frame((ev.target as Element).closest(".ctxitem") ?? el));
   menu.addEventListener("mouseleave", () => frame(el));

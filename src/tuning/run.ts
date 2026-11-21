@@ -2,9 +2,9 @@
  * Runs the tuning simulator over Qingxiao's goals — internal testing only. Each goal, mode and
  * strategy in turn runs its runs split over worker threads, every core by default, stopped together
  * once the median is settled.
- * `npx tsc && node dist/tuning/run.js [runs=1000] [seed=1] [limit=<tuners>] [strategies=index-all,greedy]
+ * `npx tsc && node dist/src/tuning/run.js [runs=1000] [seed=1] [limit=<tuners>] [strategies=index-all,greedy]
  *  [goals=554421,555321] [modes=er,er-cr,er-cr-cd] [shards=<threads, every core by default>] [fresh=1]`
- * A job's finished runs are kept in tuning/out/goals/ under a hash of the simulation code and the main
+ * A job's finished runs are kept in src/tuning/out/goals/ under a hash of the simulation code and the main
  * stats, and reused by the next run asking for the same job, so a new column needs no new runs;
  * `fresh=1` runs them anyway.
  */
@@ -13,7 +13,7 @@ import { cpus } from "node:os";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
-import { Substat, rollAt } from "../src/shared/substats.js";
+import { Substat, rollAt } from "../shared/substats.js";
 import { Target, totalsOf } from "./target.js";
 import { buildOf, linesOf, tierUpPercentile, goalOf, Batch, mediansOf } from "./sim.js";
 import type { Tuned, Median, Strategy, Bucket } from "./sim.js";
@@ -83,7 +83,7 @@ if (!isMainThread) {
   interface Kept { done: Tuned[]; round: number; running: number; seconds: number }
   const code = createHash("sha1").update(readFileSync(new URL("./sim.js", import.meta.url)))
     .update(readFileSync(new URL("./target.js", import.meta.url))).update(MAINSTAT).digest("hex").slice(0, 8);
-  const dir = new URL("tuning/out/goals/", pathToFileURL(`${process.cwd()}/`));
+  const dir = new URL("src/tuning/out/goals/", pathToFileURL(`${process.cwd()}/`));
   const fileOf = (job: Job): URL => new URL(`${job.digits}-${job.mode}-${job.strategy}-r${runs}-s${seed}-l${limit}-${code}.json`, dir);
 
   const solve = (job: Job): Promise<Kept> => new Promise((resolve, reject) => {
@@ -143,7 +143,7 @@ if (!isMainThread) {
     results.push(kept);
     console.log(rowOf(job, kept));
   }
-  // the whole table grouped, also kept as tuning/out/goals.txt
+  // the whole table grouped, also kept as src/tuning/out/goals.txt
   const table = [header, ...jobs.flatMap((job, i) => [...(i && job.mode !== jobs[i - 1]!.mode ? [""] : []), rowOf(job, results[i]!)])];
   writeFileSync(new URL("../goals.txt", dir), `${table.join("\n")}\n`);
   console.log(`\n${table.join("\n")}`);

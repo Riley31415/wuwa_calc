@@ -21,12 +21,11 @@ export class EchoAction extends Action {
 }
 
 /** An echo the wearer transforms into ("Transform into ..."): 60 frames held at 13, cast at 5. Its def
- *  lists wuwalab's commits; each lands 14 frames earlier (floored at 0), the transform staying on field
- *  to finish its attack. */
+ *  lists wuwalab's commits as given: wuwalab already lands them ahead of the hit, the transform staying on
+ *  field to finish its attack. */
 export class TransformEcho extends EchoAction {
   constructor(name: string, def: EchoDef) {
-    const bullets = def.bullets?.map((b) => ({ ...b, commitFrame: Math.max(0, (b.commitFrame ?? b.hitFrame) - 14) }));
-    super(name, { cast: Cast.Echo, animFrames: 60, animPriority: { 0: 13 }, castPriority: 5, ...def, bullets });
+    super(name, { cast: Cast.Echo, animFrames: 60, animPriority: { 0: 13 }, castPriority: 5, ...def });
   }
 }
 
@@ -38,10 +37,10 @@ export class PseudoTransformEcho extends EchoAction {
   }
 }
 
-/** An echo that summons its own attack: 8 frames, cast at 10 but held at 0 (a Liberation cuts it), and
- *  no break in its wearer's chain. */
+/** An echo that summons its own attack: 8 frames, cast at 10 as the next press starts, never cutting
+ *  the one before (`castsWithNext`), held at 8 (a Liberation cuts it), and no break in its wearer's chain. */
 export class SummonEcho extends EchoAction {
   constructor(name: string, def: EchoDef) {
-    super(name, { cast: Cast.Echo, animFrames: 8, animPriority: { 0: 0 }, castPriority: 10, keepsChain: true, ...def });
+    super(name, { cast: Cast.Echo, animFrames: 8, animPriority: { 0: 8 }, castPriority: 10, keepsChain: true, castsWithNext: true, ...def });
   }
 }

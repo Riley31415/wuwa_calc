@@ -31,7 +31,7 @@ function concertoWeapon(id: number, name: string, weaponType: WeaponType, tier: 
      *  pays for, and back on the wielder's own Outro. A charge the wielder is holding, so it reads
      *  in the held-buffs list by name — a repeat Skill while it is spent finds nothing to spend. */
     const CEASELESS_ARIA: Buff = new Buff({
-      name: `${name}: Ceaseless Aria${rank}`,
+      name: `${name}: Ceaseless Aria${rank} (ready)`,
       updateBuffs: () => {
         if (!casting(Cast.Skill)) return;
         addGain({ concerto: [800, 1000, 1200, 1400, 1600][r]! });

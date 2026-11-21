@@ -988,6 +988,51 @@ main {
 /* the team column's heading switches it between adjusted DPR and DPS (table.ts's own `teamMode`) */
 .trow.thead .c.dprhead { cursor: pointer; }
 .trow.thead .c.dprhead:hover { color: var(--ink); }
+/* the Value page: rows are not filters, a gain that opens its team's page reads as figure text until
+   hovered, and "Reset Account" is a plain underlined word, the colour of the figure opposite, that goes red under the pointer */
+.valuepage .trow .c.name.res { cursor: default; }
+.valuepage .trow .c a { color: inherit; text-decoration: none; }
+.valuepage .trow .c a:hover { color: var(--accent); text-decoration: underline; }
+.valuepage .trow .c.check { text-align: center; cursor: pointer; }
+.valuepage .trow .c.check input { margin: 0; vertical-align: middle; accent-color: var(--accent); cursor: pointer; }
+.valuepage .resetlink {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+/* the Tier List's tier names, one cell standing down each band in that tier's colour, and the line
+   that opens each band after the first */
+.valuepage .trow .c.tier {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 14px;
+  font-weight: 650;
+  color: var(--tier);
+  background: color-mix(in srgb, var(--tier) 16%, var(--surface));
+}
+.valuepage .trow:not(.thead):hover .c.tier { background: color-mix(in srgb, var(--tier) 16%, var(--surface)); }
+.valuepage .trow .c.bandstart { border-top: 1px solid var(--line-2); }
+/* a roster page's row is several blocks side by side: a hover lights the block under the pointer
+   (`.sec`, box-less like the row) rather than the whole row */
+.valuepage .trow .sec { display: contents; }
+.valuepage .trow:not(.thead):hover .c { background: transparent; }
+.valuepage .trow:not(.thead):hover .c.name { background: color-mix(in srgb, var(--mem, transparent) 10%, var(--surface)); }
+.valuepage .trow .sec:hover .c { background: var(--surface-2); }
+.valuepage .trow .sec:hover .c.name { background: color-mix(in srgb, var(--mem, transparent) 18%, var(--surface)); }
+/* each block after the first opens on a divider, the divider's pixel taken back off the cell's 10px
+   padding so a name stands as far from its colour bar in every block */
+.valuepage .trow .c.blockstart { border-left: 1px solid var(--line); padding-left: 9px; }
+/* the Tier List's sliver of gap between the tier names and the blocks */
+.valuepage .trow .c.tiergap { width: 6px; padding: 0; }
+.valuepage .resetlink:hover { color: #e5484d; }
+/* the Value page's gain heading switches the table between score and DPR */
+.valuepage .trow.thead .c.modehead { cursor: pointer; }
+.valuepage .trow.thead .c.modehead:hover { color: var(--ink); }
 /* the loop time beside a team's DPR, read second */
 .c.teamdpr .looptime { color: var(--dim); font-size: 0.75em; line-height: 0; margin-left: 1px; }
 
@@ -1314,8 +1359,8 @@ body.coldrag { user-select: none; }
   background: color-mix(in srgb, var(--m, transparent) 4%, var(--surface));
   margin-top: -1px;
 }
-/* ...but not over the heading, nor over the 1px loop bar (`.loopline`), which it would cover */
-.step:first-child, .loopline + .step { margin-top: 0; }
+/* ...but not over the heading */
+.step:first-child { margin-top: 0; }
 /* The rule between rows is drawn by the cells rather than across the whole step, so that the
    member column can sit it out: as one line over the full width it cut that column's colour bar
    into a dash per row. Transparent rather than absent there, so the cells all keep the same
@@ -1323,30 +1368,24 @@ body.coldrag { user-select: none; }
 /* ...and transparent everywhere now: the rows run unruled, the border kept only so every row
    stays the height the intrinsic size above assumes */
 .step > .r > .c { border-top: 1px solid transparent; }
-/* Where a loop begins: a bar the full width of the table, ahead of the first row of Loop 1, 2
-   and 3 (index.js's own rotationTable), its name hung off the table's right edge and centred on
-   it. An element of its own rather than a border on the row's cells, so it runs straight across
-   the member column's colour bar — the one line that should — and the row under it drops its own
-   grey rule so the two don't stack. */
-/* over the rows (which stack in source order, so the row after would otherwise paint across its
-   label), under the pinned heading (40) and the hover panels (200) */
-.loopline { position: relative; z-index: 10; height: 1px; background: #39ff14; }
-.loopline > span {
-  position: absolute;
-  left: 100%;
-  top: 50%;
-  transform: translateY(-50%);
-  margin-left: 8px;
-  white-space: nowrap;
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 650;
-  text-transform: uppercase;
-  letter-spacing: .6px;
-  color: #39ff14;
+/* Where a loop begins (detail.ts's `loopBar`): a short row of the table's own columns with
+   a dashed neon green outline on its top, right and bottom and a colour bar down its left like the member column's,
+   LOOP n centred in the action column. Nothing in it takes a press (selections may still run over it). */
+.loopbar { --m: #39ff14; margin-top: 0; z-index: 1; contain-intrinsic-size: auto 12px; pointer-events: none; user-select: none; }
+.loopbar::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  box-shadow: inset 2px 0 #39ff14;
+  border: 1px dashed #39ff14; border-left: 0;
 }
-.loopline + .step > .r > .c { border-top-color: transparent; }
-.loopline + .step > .r > .c.member { --rule: transparent; }
+/* half a short row: the 1px reserved border plus an 11px line */
+.loopbar .r.short .c { padding-top: 0; padding-bottom: 0; line-height: 11px; font-size: 9px; }
+.loopbar .r.short .c.action {
+  padding-left: 0; text-align: center; color: #39ff14; font-weight: 650; letter-spacing: .6px;
+  -webkit-text-fill-color: currentColor;
+}
+.loopbar + .step { margin-top: 0; }
+/* no background of its own: the page's shows through, over the row wash and the Avg column's */
+.loopbar, .loopbar.step > .r.loop, .grid .loopbar.step > .r.loop:not(.head) > .c.avg { background: transparent; }
 /* the member column's own rule (see `.c.member`) is off like every other row rule now: drawn, it
    read as a break in the column's colour bar at every row */
 .step > .r > .c.member { border-color: transparent; --rule: transparent; }
@@ -1441,6 +1480,11 @@ body.coldrag { user-select: none; }
 
 .parts { display: none; }
 .tgl:checked ~ .parts { display: block; }
+/* an opened group's own row gives way to its parts; the first part's ▾ closes it again */
+.tgl:checked ~ label.r { display: none; }
+.uncaret { color: var(--accent); cursor: pointer; }
+.c:has(> .uncaret) { position: relative; overflow: hidden; }
+.uncaret::after { content: ""; position: absolute; top: 0; bottom: 0; width: 100vw; }
 
 /* The follow-ups a group's own casts queued, while the group reads as one beat: ordinary rows in
    every way — same wash, same weight — just sitting after the group instead of inside it. Opening

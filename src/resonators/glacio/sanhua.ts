@@ -27,7 +27,7 @@ import {
 import { Action, Rotation, SWAPIN, ActionGroup } from "../../engine/rotation.js";
 import { tuneBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
 import { EMERALD_OF_GENESIS, OVERTURE } from "../../weapons/standard.js";
-import { HERON, MOONLIT_CLOUDS_5PC, ACTION_HERON } from "../../echoes/jinzhou.js";
+import { HERON_MAINSLOT, MOONLIT_CLOUDS_5PC, HERON } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -65,20 +65,21 @@ const Liberation = sanhuaAction("Liberation - Glacial Gaze", {
   updateBuffs: () => applyCurrent(GLACIER_BUFF, 1),
 });
 
-const BA1 = sanhuaAction("Basic - Frigid Light 1", { animFrames: 23, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 13, mv: 4871, energy: 87, concerto: 200, offtune: 2800 }]});
-const BA2 = sanhuaAction("Basic - Frigid Light 2", { chains: [BA1], animFrames: 33, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 24, mv: 7376, energy: 132, concerto: 400, offtune: 4240 }]});
-const BA3 = sanhuaAction("Basic - Frigid Light 3", { chains: [BA2], animFrames: 36, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = sanhuaAction("Basic - Frigid Light 1", { notAfter: () => [BA1, BA2, BA3, BA4], animFrames: 23, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 13, mv: 4871, energy: 87, concerto: 200, offtune: 2800 }]});
+const BA2 = sanhuaAction("Basic - Frigid Light 2", { after: [BA1], animFrames: 33, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 24, mv: 7376, energy: 132, concerto: 400, offtune: 4240 }]});
+const BA3 = sanhuaAction("Basic - Frigid Light 3", { after: [BA2], animFrames: 36, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 18, mv: 2158, energy: 38, concerto: 200, offtune: 1240 },
     { hitFrame: 24, mv: 2158, energy: 38, concerto: 200, offtune: 1240 },
     { hitFrame: 30, mv: 2158, energy: 38, concerto: 200, offtune: 1240 },
     { hitFrame: 36, mv: 2158, energy: 38, concerto: 200, offtune: 1240 },
   ]});
-const BA4 = sanhuaAction("Basic - Frigid Light 4", { chains: [BA3], animFrames: 36, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA4 = sanhuaAction("Basic - Frigid Light 4", { after: [BA3], animFrames: 36, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 12, mv: 3967, energy: 71, concerto: 400, offtune: 2280 },
     { hitFrame: 24, mv: 3967, energy: 71, concerto: 400, offtune: 2280 },
   ]});
-const BA5 = sanhuaAction("Basic - Frigid Light 5", { chains: [BA4], animFrames: 109, animPriority: { 6: 4, 41: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 32, mv: 23381, energy: 420, concerto: 1000, offtune: 13440 }]});
-const HA = sanhuaAction("Heavy - Frigid Light", { animFrames: 50, animPriority: { 47: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+const BA5 = sanhuaAction("Basic - Frigid Light 5", { after: [BA4], animFrames: 109, animPriority: { 6: 4, 41: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 32, mv: 23381, energy: 420, concerto: 1000, offtune: 13440 }]});
+// after these presses the held Basic Attack is Detonate
+const HA = sanhuaAction("Heavy - Frigid Light", { notAfter: () => [BA5, Skill, Intro, Liberation], animFrames: 50, animPriority: { 47: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 10, mv: 2227, energy: 40, concerto: 160, offtune: 1600 },
     { hitFrame: 14, commitFrame: 10, mv: 2227, energy: 40, concerto: 160, offtune: 1600 },
     { hitFrame: 18, commitFrame: 10, mv: 2227, energy: 40, concerto: 160, offtune: 1600 },
@@ -106,9 +107,9 @@ const FHA = sanhuaAction("Forte Heavy - Detonate", {
     { hitFrame: 101, mv: 18629, energy: 234, concerto: 750, offtune: 7496 },
   ],
 });
-const DETONATE_THORN = sanhuaAction("Forte - Ice Burst (Thorn)", { node: Node.Normal, type: Type.Skill, bullets: [{ hitFrame: 0, mv: 5965, energy: 200, concerto: 0 }] });
-const DETONATE_PRISM = sanhuaAction("Forte - Ice Burst (Prism)", { node: Node.Normal, type: Type.Skill, bullets: [{ hitFrame: 0, mv: 7953, energy: 700 }], castConcerto: 1500 });
-const DETONATE_GLACIER = sanhuaAction("Forte - Ice Burst (Glacier)", { node: Node.Normal, type: Type.Skill, bullets: [{ hitFrame: 0, mv: 13917, energy: 700 }], castConcerto: 1500 });
+const DETONATE_THORN = sanhuaAction("Forte - Ice Burst (Thorn)", { node: Node.Normal, type: Type.Skill, bullets: [{ hitFrame: 75, mv: 5965, energy: 200, concerto: 0 }] });
+const DETONATE_PRISM = sanhuaAction("Forte - Ice Burst (Prism)", { node: Node.Normal, type: Type.Skill, bullets: [{ hitFrame: 62, mv: 7953, energy: 700, concerto: 1500 }], });
+const DETONATE_GLACIER = sanhuaAction("Forte - Ice Burst (Glacier)", { node: Node.Normal, type: Type.Skill, bullets: [{ hitFrame: 75, mv: 13917, energy: 700, concerto: 1500 }], });
 
 /* ------------------------------------------------------------------------------------ buffs */
 
@@ -256,11 +257,11 @@ const SANHUA_RESONATOR = new Resonator({
 
 const SH_ROTATION_S5 = new Rotation([
   SWAPIN, BA23,
-  Intro, Skill.cancel(), Liberation, FHA, ACTION_HERON.instaSwap(), Outro,
+  Intro, Skill.cancel(), Liberation, FHA, HERON.instaSwap(), Outro,
 ]);
 const SH_ROTATION = new Rotation([
-  SWAPIN, BA234.cancel(), Skill, Liberation, FHA, ACTION_HERON.instaSwap(), Outro,
-  Intro, FHA, Skill.cancel(), Liberation, FHA, ACTION_HERON.instaSwap(), Outro,
+  SWAPIN, BA234.cancel(), Skill, Liberation, FHA, HERON.instaSwap(), Outro,
+  Intro, FHA, Skill.cancel(), Liberation, FHA, HERON.instaSwap(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
@@ -270,9 +271,9 @@ const SH_ROTATION = new Rotation([
 export const SANHUA = new Loadout({
   id: 11021,
   resonator: SANHUA_RESONATOR,
-  weapons: [BLAZING_BRILLIANCE, EMERALD_OF_GENESIS, OVERTURE, LUMINGLOSS, FEATHER_EDGE],
+  weapons: [EMERALD_OF_GENESIS, BLAZING_BRILLIANCE, OVERTURE, LUMINGLOSS, FEATHER_EDGE],
   echoes: new Echoes({
-    sets: [new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC)],
+    sets: [new EchoLoadout(HERON_MAINSLOT, MOONLIT_CLOUDS_5PC)],
     mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
     substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation),
     highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation, Substat.Heavy),

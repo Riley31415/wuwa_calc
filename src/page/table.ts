@@ -28,6 +28,8 @@ import {
   syncHash,
   MATRIX_RESONATORS,
   pinnedRows,
+  memberLabel,
+  weaponHue,
 } from "./model.js";
 import type { ResonatorFilter, OptionKind, TeamRow } from "./model.js";
 import type { SearchKind, SearchHit } from "./filterbar.js";
@@ -114,18 +116,6 @@ function redrawPins(): void {
   }
   setVisibleRows(rows);
   renderComparison();
-}
-
-/** Turn a resonator's Matrix on or off. Not an axis: it opens no column and adds no row — every
- *  team fielding them simply runs with the Matrix on, so the old build is replaced, not compared. */
-function setMatrix(name: string): void {
-  withRowCap(() => {
-    const before = [...filters.matrix];
-    const at = filters.matrix.indexOf(name);
-    if (at < 0) filters.matrix.push(name);
-    else filters.matrix.splice(at, 1);
-    return () => { filters.matrix = before; };
-  });
 }
 
 /** Toggle one filter: same mode clears it, a different mode switches it. */
@@ -307,28 +297,6 @@ export function showMenu(x: number, y: number, items: MenuItem[], onClose?: () =
 
 /* ------------------------------------------------------------------------------ the table */
 
-/** A member's name cell: the resonator, then `S?R?` — the name cell's menu offers the level and
- *  rank as filter lines of its own (`openNameMenu`). `inCell`: a Weapon cell on this row carries the rank. */
-function memberLabel(m: Member, combo: Combo, inCell: boolean): string {
-  return [m.mainDps ? loadoutName(m.loadout) : m.name, combo.matrix ? "(Matrix)" : "", `${seqToken(m, combo)}${rankToken(m, combo, inCell)}`]
-    .filter(Boolean).join(" ");
-}
-/** Any level above S0 is named — the one a chain comes with, and the one a cost mode hands out —
- *  and every level is once the chain is compared, so an S0 row reads S0 beside its S1. */
-const seqToken = (m: Member, combo: Combo): string =>
-  combo.sequence > 0 || axisOpen(m, filters, "sequences") ? `S${combo.sequence}` : "";
-/** "" while a Weapon cell carries the rank. A signature, any weapon while refines are compared or a
- *  rank of it is shown, and any rank above R1 read their rank — a rank above R1 is one the loadout pinned itself
- *  (`BLOODPACTS_PLEDGE[4]`), which is the only way a build runs one. Everything else is at R1 off
- *  its whole refinement list, where only a signature costs anything: a craftable or a standard
- *  weapon there is the "no signature" build and reads R0. */
-const rankToken = (m: Member, combo: Combo, inCell: boolean): string =>
-  inCell ? ""
-  : compares(m, filters, "refines", combo) || combo.weapon.refinement > 1 || combo.weapon.tier === Tier.Limited
-    || shownRanks(m, filters).some(([w, , s]) => weaponBase(m.loadout.weapons[w]!) === weaponBase(combo.weapon)
-      && s === combo.sequence) ? `R${combo.weapon.refinement}`
-  : "R0";
-
 const PIN_MARK = `<svg class="pinmark" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 9V4h1a1 1 0 0 0 0-2H7a1 1 0 0 0 0 2h1v5a3 3 0 0 1-3 3v2h5.97v7l1 1 1-1v-7H19v-2a3 3 0 0 1-3-3z"/></svg>`;
 /** The row's Pin toggle: lit while the row is pinned (`pinnedRows`). */
 const pinCell = (key: string): string => {
@@ -340,7 +308,8 @@ const pinCell = (key: string): string => {
 /** A gear pick cell; `data-kind`/`data-value` are what the click handlers filter on. Empty when
  *  the axis is open at this position but not for this member. */
 function optionCell(kind: OptionKind, value: string, color: string, lines: string[] = [value], resonator = ""): string {
-  const style = `--mem:${color}`;
+  // a weapon reads in its own colour (`weaponHue`), as a resonator's name does in hers
+  const style = kind === "weapon" && value ? `--mem:${color};color:${color}` : `--mem:${color}`;
   if (!value) return `<div class="c option" style="${style}"></div>`;
   return `<div class="c option" data-kind="${kind}" data-value="${esc(value)}"${resonator ? ` data-resonator="${esc(resonator)}"` : ""} style="${style}">${lines.map(esc).join("<br>")}</div>`;
 }
@@ -645,7 +614,7 @@ function comparisonTable(rows: TeamRow[]): string {
       const gear = GEAR_AXES.map((axis) => {
         if (!openAt[axis][i]) return "";
         const open = axis === "weapons" ? inCell : showsRow(m, axis, combo);
-        const cell = axis === "weapons" ? optionCell("weapon", open ? combo.weapon.name : "", m.color, [combo.weapon.name], m.name)
+        const cell = axis === "weapons" ? optionCell("weapon", open ? combo.weapon.name : "", open ? weaponHue(combo.weapon) : m.color, [combo.weapon.name], m.name)
           : axis === "echoes" ? optionCell("echo", open ? echoLabel(m.loadout, combo.echo) : "", m.color, open ? echoLines(m.loadout, combo.echo) : [], m.name)
           // Neither a main-stat roll nor a substat spread is ever filtered on — they reach nobody
           // but their own wearer, so "every team using this roll" says nothing. Their cells carry
@@ -1306,6 +1275,16 @@ document.addEventListener("change", (e) => {
     return () => { filters.cost = was; select.value = was; };
   });
 });
+/** The Matrix Buffs box: every kit with a Matrix runs it, replacing the old build rather than adding rows. */
+document.addEventListener("change", (e) => {
+  const box = e.target as HTMLInputElement;
+  if (box.id !== "matrixToggle") return;
+  withRowCap(() => {
+    const was = filters.matrix;
+    filters.matrix = box.checked ? [...MATRIX_RESONATORS] : [];
+    return () => { filters.matrix = was; box.checked = was.length > 0; };
+  });
+});
 /* A double press needs no machinery of its own: a menu opens at the pointer with its first line
  * under the cursor, so the second press simply lands on that line. Left presses it, right runs its
  * `alt` — which on "Show X teams" is the hide. Any speed: there is no interval to beat. */
@@ -1348,11 +1327,6 @@ const openNameMenu = (el: HTMLElement, x: number, y: number): void => {
     // with no weapon compare the row's own weapon takes its other ranks from here
     ...(row && !axisOpen(row.run.members[row.pos]!, filters, "weapons") ? rankItems(row.run, row.pos) : []),
     ...scopedBlock(el.dataset.refine, "refine", el.dataset.refGate ?? "", refineFilters),
-    // last of all, and only for a kit that has a Matrix at all
-    ...(MATRIX_RESONATORS.has(resonator) ? [{
-      label: `${filters.matrix.includes(resonator) ? "Disable" : "Enable"} ${resonator} matrix buffs`,
-      run: () => setMatrix(resonator),
-    }] : []),
   ];
   showMenu(x, y, items);
 };
@@ -1451,7 +1425,6 @@ document.addEventListener("contextmenu", openStatMenu);
 // include pool. Both are undone on the chip it makes, never from here.
 const applySearchHit = (hit: SearchHit): void => {
   if (hit.kind === "compare") { if (hit.resonator && hit.axis) setCompare(hit.resonator, hit.axis); return; }
-  if (hit.kind === "matrix") { if (hit.resonator) setMatrix(hit.resonator); return; }
   setFilter(hit.kind === "resonator" ? resonatorFilters : OPTION_FILTER_MAPS[hit.kind], hit.value, "include");
 };
 const searchPick = (e: Event): SearchHit | undefined => {
@@ -1492,8 +1465,6 @@ const removeChip = (e: Event): void => {
   e.preventDefault();
   const axis = chip.dataset.axis as Axis | undefined;
   if (axis) { setCompare(chip.dataset.resonator ?? "", axis); return; }
-  const matrix = chip.dataset.matrix;
-  if (matrix) { setMatrix(matrix); return; }
   const pin = chip.dataset.pin;
   if (pin) {
     togglePin(pin);
@@ -1525,16 +1496,13 @@ document.addEventListener("click", (e) => {
     const kept = maps.map((map) => [...map]);
     const compares = AXES.map((axis) => [...filters[axis]]);
     const scoped = [...filters.scoped];
-    const matrix = [...filters.matrix];
     for (const map of maps) map.clear();
     for (const axis of AXES) filters[axis] = [];
     filters.scoped = [];
-    filters.matrix = [];
     return () => {
       maps.forEach((map, i) => { for (const [n, mode] of kept[i]!) map.set(n, mode); });
       AXES.forEach((axis, i) => { filters[axis] = compares[i]!; });
       filters.scoped = scoped;
-      filters.matrix = matrix;
     };
   });
 });
@@ -1556,7 +1524,7 @@ document.addEventListener("click", (e) => {
  *  and the two Clear buttons have none of their own. */
 const chipSig = (el: HTMLElement): string => (el.classList.contains("clearall") ? "clearall"
   : el.classList.contains("clearpins") ? "clearpins"
-  : [el.dataset.axis, el.dataset.scoped, el.dataset.matrix, el.dataset.pin, el.dataset.kind, el.dataset.resonator, el.dataset.value].join("\0"));
+  : [el.dataset.axis, el.dataset.scoped, el.dataset.pin, el.dataset.kind, el.dataset.resonator, el.dataset.value].join("\0"));
 /** Where to put the focus once the next redraw is done (`renderComparison`): a bubble by its own
  *  `chipSig`, null for the search bar, undefined to leave the focus wherever it already is. Only
  *  the bar's own flows book one — a checkbox toggled or a filter set from a table menu redraws

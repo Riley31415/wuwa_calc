@@ -49,12 +49,12 @@ import {
   sendOthersOff,
   addStatAs,
 } from "../../engine/context.js";
-import { Action, Rotation, DODGE } from "../../engine/rotation.js";
+import { Action, Rotation, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
 import { gainShield } from "../../shared/status.js";
 import { THUNDERFLARE_DOMINION, VERDANT_SUMMIT } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { AUTUMNTRACE, AUREATE_ZENITH } from "../../weapons/battlepass.js";
-import { FALSE_SOVEREIGN, COV_3PC, ACTION_FALSE_SOVEREIGN } from "../../echoes/septimont.js";
+import { FALSE_SOVEREIGN_MAINSLOT, COV_3PC, FALSE_SOVEREIGN } from "../../echoes/septimont.js";
 import { VOID_THUNDER_2PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
@@ -74,18 +74,18 @@ const LEAP_WINDOW = new Buff({ name: "Augusta: Undying Sunlight: Leap Window" })
 const PLUNGE_WINDOW = new Buff({ name: "Augusta: Undying Sunlight: Plunge Window" });
 
 // --- basics, mid-air, dodge counter (Hunter's Path)
-const BA1 = augustaAction("Basic - Hunter's Path 1", { animFrames: 26, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 12, mv: 5746, energy: 73, concerto: 145, offtune: 2312, forte1: 99, forte2: 74 }]});
+const BA1 = augustaAction("Basic - Hunter's Path 1", { notAfter: () => [BA1, BA2, BA3, HA], animFrames: 26, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 12, mv: 5746, energy: 73, concerto: 145, offtune: 2312, forte1: 99, forte2: 74 }]});
 // "Press Normal Attack shortly after performing Heavy Attack to perform Basic Attack Stage 2"
-const BA2 = augustaAction("Basic - Hunter's Path 2", { chains: () => [BA1, HA], animFrames: 51, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA2 = augustaAction("Basic - Hunter's Path 2", { after: () => [BA1, HA], animFrames: 51, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 6700, energy: 85, concerto: 169, offtune: 2696, forte1: 115, forte2: 86 },
     { hitFrame: 33, mv: 6700, energy: 85, concerto: 169, offtune: 2696, forte1: 115, forte2: 86 },
   ]});
-const BA3 = augustaAction("Basic - Hunter's Path 3", { chains: [BA2], animFrames: 62, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = augustaAction("Basic - Hunter's Path 3", { after: [BA2], animFrames: 62, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 6561, energy: 83, concerto: 165, offtune: 2640, forte1: 112, forte2: 84 },
     { hitFrame: 25, mv: 6561, energy: 83, concerto: 165, offtune: 2640, forte1: 112, forte2: 84 },
     { hitFrame: 54, mv: 6561, energy: 83, concerto: 165, offtune: 2640, forte1: 112, forte2: 84 },
   ]});
-const BA4 = augustaAction("Basic - Hunter's Path 4", { chains: [BA3], animFrames: 62, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA4 = augustaAction("Basic - Hunter's Path 4", { after: [BA3], animFrames: 62, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 37, mv: 6463, energy: 82, concerto: 163, offtune: 2601, forte1: 111, forte2: 83 },
     { hitFrame: 42, mv: 6463, energy: 82, concerto: 163, offtune: 2601, forte1: 111, forte2: 83 },
     { hitFrame: 44, mv: 6463, energy: 82, concerto: 163, offtune: 2601, forte1: 111, forte2: 83 },
@@ -94,11 +94,11 @@ const MA = augustaAction("Mid-air - Hunter's Path Plunge", { castPosition: Posit
     { hitFrame: 26, mv: 5965, energy: 75, concerto: 150, offtune: 2400, forte1: 25, forte2: 77 },
     { hitFrame: 45, mv: 5965, energy: 75, concerto: 150, offtune: 2400, forte1: 25, forte2: 77 },
   ]});
-const DC = augustaAction("Dodge Counter - Hunter's Path 2", { chains: [DODGE], animFrames: 51, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const DC = augustaAction("Dodge Counter - Hunter's Path 2", { after: [SUCCESSFUL_DODGE], animFrames: 51, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 6700, energy: 85, concerto: 169, offtune: 2696, forte1: 115, forte2: 86 },
     { hitFrame: 33, mv: 6700, energy: 85, concerto: 169, offtune: 2696, forte1: 115, forte2: 86 },
   ], castConcerto: 1000});
-const MDC = augustaAction("Dodge Counter - Hunter's Path (Mid-Air)", { chains: [DODGE], castPosition: Position.Midair, endPosition: Position.Grounded, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 11930, energy: 150, concerto: 1200, offtune: 7200, forte1: 50, forte2: 154 }] });
+const MDC = augustaAction("Dodge Counter - Hunter's Path (Mid-Air)", { after: [SUCCESSFUL_DODGE], castPosition: Position.Midair, endPosition: Position.Grounded, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 11930, energy: 150, concerto: 1200, offtune: 7200, forte1: 50, forte2: 154 }] });
 
 // heavy attack: Steelclash, base cast; at full Prowess it's replaced by Backstep -> Spinslash
 const HA = augustaAction("Heavy - Hunter's Path", { animFrames: 45, animPriority: { 0: 4, 45: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
@@ -109,7 +109,7 @@ const HA = augustaAction("Heavy - Hunter's Path", { animFrames: 45, animPriority
 const FHA1 = augustaAction("Heavy - Thunderoar: Backstep", { minForte1: 660, animFrames: 34, animPriority: { 0: 4, 34: 2 }, castPriority: 4, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 16, mv: 5368, energy: 50, concerto: 100, offtune: 1600, forte2: 50 }], resetForte1: true,
   updateBuffs: () => applyCurrent(SPINSLASH_WINDOW, 1),
 });
-const FHA2 = augustaAction("Heavy - Thunderoar: Spinslash", { chains: [FHA1], requireBuff: SPINSLASH_WINDOW, animFrames: 67, animPriority: { 0: 4, 67: 2 }, castPriority: 4, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+const FHA2 = augustaAction("Heavy - Thunderoar: Spinslash", { after: [FHA1], requireBuff: SPINSLASH_WINDOW, animFrames: 67, animPriority: { 0: 4, 67: 2 }, castPriority: 4, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 24, mv: 14172, energy: 149, concerto: 297, offtune: 4752, forte2: 248 },
     { hitFrame: 45, mv: 14172, energy: 149, concerto: 297, offtune: 4752, forte2: 248 },
     { hitFrame: 53, commitFrame: 45, mv: 14172, energy: 149, concerto: 297, offtune: 4752, forte2: 248 },
@@ -132,7 +132,7 @@ const FSkill1 = augustaAction("Forte Skill - Undying Sunlight: Strike", { endPos
     { hitFrame: 27, mv: 13917, energy: 250, concerto: 350, offtune: 9120 },
     { hitFrame: 39, mv: 13917, energy: 250, concerto: 350, offtune: 9120 },
   ], updateBuffs: () => applyCurrent(LEAP_WINDOW, 1) });
-const FSkill2 = augustaAction("Forte Skill - Undying Sunlight: Leap", { chains: [FSkill1], castPosition: Position.Midair, requireBuff: LEAP_WINDOW, animFrames: 66, animPriority: { 66: 4 }, castPriority: 6, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, bullets: [
+const FSkill2 = augustaAction("Forte Skill - Undying Sunlight: Leap", { after: [FSkill1], castPosition: Position.Midair, requireBuff: LEAP_WINDOW, animFrames: 66, animPriority: { 66: 4 }, castPriority: 6, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 6, mv: 22267, energy: 400, concerto: 560, offtune: 8960 },
     { hitFrame: 17, mv: 2784, energy: 50, concerto: 70, offtune: 1120 },
     { hitFrame: 58, mv: 2784, energy: 50, concerto: 70, offtune: 1120 },
@@ -144,7 +144,7 @@ const FSkill2 = augustaAction("Forte Skill - Undying Sunlight: Leap", { chains: 
 });
 /** Consumes all Ascendancy, counts as Heavy Attack DMG; its last hit grants a stack of Majesty. */
 const FSkill3 = augustaAction("Forte Skill - Undying Sunlight: Plunge", {
-  chains: [FSkill2], castPosition: Position.Midair, endPosition: Position.Grounded,
+  after: [FSkill2], castPosition: Position.Midair, endPosition: Position.Grounded,
   animFrames: 80, castPriority: 6, requireBuff: PLUNGE_WINDOW,
   node: Node.Forte, cast: Cast.Skill, type: Type.Heavy, bullets: [{ hitFrame: 38, mv: 8659, energy: 110, offtune: 2400 }, { hitFrame: 69, mv: 77924, energy: 990, offtune: 21600, forte3: 1 }], castConcerto: 700, resetForte2: true,
   updateBuffs: () => revokeCurrent(PLUNGE_WINDOW),
@@ -164,7 +164,7 @@ const Lib1 = augustaAction("Liberation - Sword of Eternal Oath", { animFrames: 1
 /** Held instead of released once Majesty reaches 2 stacks — costs both rather than Energy. Nine
  *  Sunborne hits, then Everbright Protector from 389: the finisher ends Sworn Allegiance and spends
  *  every stack of Crown of Wills. */
-const Lib2 = augustaAction("Liberation - Sublime is the Sun", {
+const Lib2 = augustaAction("Liberation - Sublime is the Sun", { heldInput: true,
   animFrames: 503, castPriority: 10, timestop: [0, 503], motionStop: [0, 503], cooldown: 60 * 25, minForte3: 2, castForte3: -2,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Heavy, bullets: [
     { hitFrame: 100, mv: 11929, concerto: 200, offtune: 7200 },
@@ -362,7 +362,7 @@ const AG_SEQUENCES = [AG_S1, AG_S2, AG_S3, AG_S4, AG_S5, AG_S6];
 
 const AG_ROTATION = new Rotation([
   Intro, FHA1, FHA2, Skill, FHA1, FHA2, HA.cancel(), Lib1, HA.cancel(),
-  FSkill1, FSkill2, FSkill3.holdCancel(), Lib2, FJump, ACTION_FALSE_SOVEREIGN.instaSwap(), Outro,
+  FSkill1, FSkill2, FSkill3.holdCancel(), Lib2, FJump, FALSE_SOVEREIGN.instaSwap(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
@@ -374,7 +374,7 @@ export const AUGUSTA = new Loadout({
   resonator: AUGUSTA_RESONATOR,
   weapons: [THUNDERFLARE_DOMINION, NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR, VERDANT_SUMMIT, AUTUMNTRACE, AUREATE_ZENITH],
   echoes: new Echoes({
-    sets: [new EchoLoadout(FALSE_SOVEREIGN, COV_3PC, VOID_THUNDER_2PC)],
+    sets: [new EchoLoadout(FALSE_SOVEREIGN_MAINSLOT, COV_3PC, VOID_THUNDER_2PC)],
     mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
     substats: substats(Substat.CritDmg, Substat.CritRate, Substat.Heavy, Substat.AtkPct, Substat.FlatAtk, Substat.Skill),
     highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Heavy, Substat.AtkPct, Substat.FlatAtk, Substat.Skill, Substat.Basic),

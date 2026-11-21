@@ -2,10 +2,12 @@
  * The filter aside: the option/help boxes, the chips, and the search bar with its own UI state.
  * Filter *actions* (what a search hit or chip does) live in table.ts beside the table's handlers.
  */
+import { README } from "./readme.js";
+import { costBox, matrixBox } from "./options.js";
 import { TUNE_BREAK_ENEMY } from "../shared/tunebreak.js";
 import { eligibleWeapons, sequenceLevels, scopedKey, axisUsed, weaponBase, echoLabel, echoPicks, axisOpen, AXES } from "../solve/solver.js";
 import type { Axis, TeamCost, ScopedCompare } from "../solve/solver.js";
-import { TEAMS, RESONATOR_HUE, filters, resonatorFilters, OPTION_FILTER_MAPS, sequenceTagsOf, tagOwner, weaponTag, weaponOwner, comparable, MATRIX_RESONATORS, pinnedRows, rowFromKey } from "./model.js";
+import { TEAMS, RESONATOR_HUE, filters, resonatorFilters, OPTION_FILTER_MAPS, sequenceTagsOf, tagOwner, weaponTag, weaponOwner, comparable, pinnedRows, rowFromKey } from "./model.js";
 import type { ResonatorFilter, OptionKind } from "./model.js";
 import { esc, CLICK } from "./panels.js";
 
@@ -18,10 +20,9 @@ let searchText = "";
  *  the highlight, where the first hit is what Enter takes anyway. Reset by every keystroke, since
  *  the list is rebuilt. */
 let searchAt = -1;
-export type SearchKind = "resonator" | OptionKind | "compare" | "matrix";
+export type SearchKind = "resonator" | OptionKind | "compare";
 /** One offer in the list. `axis`/`resonator` are the compares' own — what `setCompare` needs, since
- *  their `value` is the chip's wording ("Qingxiao Sequences") rather than anything to filter on. A
- *  `matrix` offer carries the `resonator` alone, its value being that bubble's wording the same way. */
+ *  their `value` is the chip's wording ("Qingxiao Sequences") rather than anything to filter on. */
 export interface SearchHit { kind: SearchKind; value: string; axis?: Axis; resonator?: string }
 
 export function focusSearch(): void {
@@ -76,8 +77,6 @@ function searchCandidates(): SearchHit[] {
       if (axis === "refines" || filters[axis].includes(name) || !comparable(name, axis)) continue;
       add("compare", `${name} ${AXIS_LABEL[axis]}`, { axis, resonator: name });
     }
-    // and their Matrix, on the same terms: only a kit that has one, and only while it is off
-    if (MATRIX_RESONATORS.has(name) && !filters.matrix.includes(name)) add("matrix", `${name} Matrix`, { resonator: name });
   }
   return out;
 }
@@ -138,13 +137,13 @@ function searchResults(): string {
   if (!searchText.trim()) return "";
   const KIND_LABEL: Record<SearchKind, string> = {
     resonator: "Resonator", weapon: "Weapon", echo: "Echo", sequence: "Sequence", refine: "Refine",
-    compare: "Compare", matrix: "Matrix",
+    compare: "Compare",
   };
   const hits = searchHits();
   if (!hits.length) return `<div class="sresult none">no matches</div>`;
   return hits.map(({ kind, value, axis, resonator }, i) => {
     const hue = (kind === "resonator" ? RESONATOR_HUE.get(value)
-      : kind === "compare" || kind === "matrix" ? RESONATOR_HUE.get(resonator ?? "")
+      : kind === "compare" ? RESONATOR_HUE.get(resonator ?? "")
       : kind === "sequence" ? RESONATOR_HUE.get(tagOwner(value)) : undefined) ?? TUNE_BREAK_ENEMY.color;
     // one target, not two halves: a result is only ever added to the pool, and the chip it makes
     // is where it is taken back off
@@ -153,7 +152,6 @@ function searchResults(): string {
       + (resonator ? ` data-resonator="${esc(resonator)}"` : "")
       + ` style="--mem:${hue}"`
       + ` title="${kind === "compare" ? `Compare ${esc(resonator ?? "")}'s ${esc(AXIS_LABEL[axis!].toLowerCase())}`
-        : kind === "matrix" ? `Run ${esc(resonator ?? "")}'s Matrix in every team they field`
         : `Add ${esc(value)} to the filters`}. The chip it makes is where it comes back off.">`
       + `<span class="sact inc"><span class="sname">${esc(value)}<span class="skind">${KIND_LABEL[kind]}</span></span></span></button>`;
   }).join("");
@@ -164,46 +162,10 @@ function searchResults(): string {
 
 /* ---------------------------------------------------------------------------- filter aside */
 
-const COST_HELP = [
-  "s0r0 all - Limited resonators are S0 and use the best standard or 4* weapon available at R1. Rover and 4* resonators are S6.",
-  "s0r1 mdps +r0 supports - Each team gets a single signature weapon at R1, on whichever of its main DPS gives the best DPR increase — never a support. Dual DPS teams still only get one signature weapon.",
-  "s0r1 all - All limited resonators get their best signature weapon, while Rover and 4* supports may still use standard or 4* weapons.",
-  "s2r1 / s3r1 / s6r1 mdps +r1 supports - One main DPS per team runs that many sequence nodes, whichever gives the best DPR increase — never a support. Everyone else stays S0 on their own signature at R1.",
-  "s6r1 mdps +s2r1 supports - As above at S6, with everyone else at S2 on their own signature at R1.",
-  "s6r5 mdps +s0r1 supports - One main DPS per team is S6 with their signature at R5, whichever gives the best DPR increase — never a support. Everyone else stays S0 on their own signature at R1.",
-  "s6r5 all - Every resonator is S6 with their best weapon at R5.",
-];
-/** Shown on the Matrix bubble and on the name menu's own line — the box this used to describe is
- *  gone, the option is per resonator now. */
-export const MATRIX_HELP = "Enables matrix exclusive buffs for older characters, scaled down to a neutral environment. Lucy also activates 1 stack of her boss kill inherent.";
-/** Markup, not text: a line with a style wears it as its own class (index.css `.readme-*`). */
-const README = [
-  `<span class="readme-beta">Beta calculations are subject to change!</span>`,
-  `<span class="readme-warn">DPR comparisons do not account for rotation time!</span>`,
-  "Feedback & Bugs: message me on discord @rileyy._.",
-  "Enemy lv100, 20% res, Resonator lv 90, Nodes lv10",
-];
-
 /** Which boxes show their description; survives redraws. The README starts open. */
 const openHelp = new Set<string>(["readme"]);
 
 export function comparisonFilters(): string {
-  const costBox = (): string => {
-    const open = openHelp.has("cost");
-    const option = (value: TeamCost, label: string) => `<option value="${value}"${filters.cost === value ? " selected" : ""}>${label}</option>`;
-    return `<div class="tcopt${open ? " open" : ""}">`
-      + `<div class="tcopt-head">`
-      + `<button type="button" class="tcopt-name" data-help="cost" aria-expanded="${open}">Team Cost<span class="arrow">›</span></button>`
-      + `<select id="cost" class="tcselect" aria-label="Team Cost" title="Team Cost">`
-      + option("s0r0", "s0r0 all") + option("s0r1mdps", "s0r1 mdps +r0 supports") + option("s0r1", "s0r1 all")
-      + option("s2r1mdps", "s2r1 mdps +r1 supports")
-      + option("s3r1mdps", "s3r1 mdps +r1 supports") + option("s6r1mdps", "s6r1 mdps +r1 supports")
-      + option("s6r1mdps_s2r1", "s6r1 mdps +s2r1 supports") + option("s6r5mdps", "s6r5 mdps +s0r1 supports")
-      + option("s6r5", "s6r5 all")
-      + `</select></div>`
-      + `<div class="tcopt-desc"${open ? "" : " hidden"}><ul>${COST_HELP.map((l) => `<li>${esc(l)}</li>`).join("")}</ul></div>`
-      + `</div>`;
-  };
   // `extra` is markup of its own at the end of the list, which only the README has: the line that
   // starts the tutorial over (page/tutorial.ts listens for it)
   const note = (id: string, label: string, lines: string[], extra = "") => {
@@ -217,7 +179,8 @@ export function comparisonFilters(): string {
   return `<div class="tcfilters">
     <div class="tcfilter-row note">
       ${note("readme", "README", README, `<li><button type="button" class="tutstart">How do I use this website? ${CLICK} here.</button></li>`)}
-      ${costBox()}
+      ${matrixBox(filters.matrix.length > 0, openHelp.has("matrix"))}
+      ${costBox(filters.cost, openHelp.has("cost"))}
       <div class="tcsearchrow">
         <div class="tcsearch">
           <input id="optionSearch" type="search" placeholder="Add resonator or comparison..."
@@ -273,12 +236,6 @@ function resonatorChips(): string {
       + ` title="Comparing ${esc(scopedLabel(s))}'s ${AXIS_LABEL[s.axis].toLowerCase()}. ${CLICK} to remove.">`
       + `${esc(scopedLabel(s))} ${AXIS_LABEL[s.axis]}</button>`);
   }
-  for (const name of filters.matrix) {
-    inc.push(`<button type="button" class="rchip" data-matrix="${esc(name)}"`
-      + ` style="--mem:${RESONATOR_HUE.get(name) ?? TUNE_BREAK_ENEMY.color}"`
-      + ` title="${esc(name)} runs their Matrix in every team. ${esc(MATRIX_HELP)} ${CLICK} to remove.">`
-      + `${esc(name)} Matrix</button>`);
-  }
   for (const axis of AXES) {
     for (const name of filters[axis]) {
       inc.push(`<button type="button" class="rchip" data-axis="${axis}" data-resonator="${esc(name)}"`
@@ -295,7 +252,7 @@ function resonatorChips(): string {
     const lead = row.members.find((m) => m.mainDps) ?? row.members[0]!;
     const builds = row.members.map((m, i) => {
       const c = row.combo[i]!;
-      return `${m.name} S${c.sequence}${c.matrix ? " (Matrix)" : ""}: ${weaponBase(c.weapon)} R${c.weapon.refinement}, ${echoLabel(m.loadout, c.echo)}`;
+      return `${m.name} S${c.sequence}: ${weaponBase(c.weapon)} R${c.weapon.refinement}, ${echoLabel(m.loadout, c.echo)}`;
     });
     pins.push(`<button type="button" class="rchip" data-pin="${esc(key)}" style="--mem:${lead.color}"`
       + ` title="${esc(builds.join("\n"))}\nShown whatever the other filters say. ${CLICK} to unpin.">`

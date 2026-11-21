@@ -19,8 +19,7 @@ export const enum Stat {
   FlatHp,
   FlatDef,
 
-  /** The combat %: everything an `applyStats`/`convertStats` pays, summed and floored once off Base.
-   *  A constant one is a panel entry instead (state.ts's `PANEL_INDEX`). */
+  /** Every ATK%/HP%/DEF%, constant or combat, summed and floored once off Base. */
   BonusAtk,
   BonusHp,
   BonusDef,
@@ -214,19 +213,60 @@ export const enum Tier {
   Standard,
   Free,
   FreeS2,
+  /** A free standard 5-star (Encore, Lingyang): an account starts with them, costed from S0. */
+  FreeS0,
 }
 
 /** Who a `Grant` puts its buff on: the wielder (the default), the whole team, the target, or
  *  whoever intros next (an outro handoff, `queueOutro`). */
 export const enum BuffTarget { Self, Team, Enemy, Next }
 
-/** Cast identities with no damage type of their own (a Dodge Counter deals whatever `type` says);
- *  kept out of `Type` so they can't be reached for `type`/`subtype` by mistake. */
-/** Frames an animation runs on past the point it was cut: an insta cut's (an insta swap's too) and
- *  a plain (dodge, jump, on-hit, swap cancel) cancel's — and the handoff a plain swap or an Outro
- *  costs the resonator coming in. `HOLD_DELAY` and `MASH_DELAY` are the least a hold and a mash
- *  cancel play of their press before letting go. */
-export const INSTA_DELAY = 6, MASH_DELAY = 6, HOLD_DELAY = 15, CANCEL_DELAY = 12, SWAP_DELAY = 12;
+/** Input timings, in frames. A cut press runs on past its cut: a plain (dodge, jump, on-hit) cancel for
+ *  `cancel`, an insta cut or insta swap for `insta`, a swap cancel for `swap` — and a plain SWAP written after a
+ *  press played out hands over `swap` later too. A hold cancel lets go the moment the next press can come out,
+ *  never inside its `hold` minimum; a mash cancel's input lands `mash` after that moment, and a mash swap swaps
+ *  out `mash` after its no-swap frames end. */
+export interface Delays { cancel: number; insta: number; hold: number; mash: number }
+let BASE_DELAYS: Delays = { cancel: 9, insta: 6, mash: 3, hold: 0 };
+/** The set in effect — the defaults, or a rotation's own while its member presses (`useDelays()`) — one
+ *  object per set, so a cache made under one can tell it no longer stands; and each of it by name. */
+export let DELAYS: Delays = BASE_DELAYS;
+export let CANCEL_DELAY = BASE_DELAYS.cancel, INSTA_DELAY = BASE_DELAYS.insta;
+export let HOLD_MINIMUM = BASE_DELAYS.hold, MASH_DELAY = BASE_DELAYS.mash;
+/** How long ahead a held input may be pressed and still come out: unused for now. */
+export const HOLD_BUFFER = 16;
+
+/** The defaults with `d` laid over them, a key left undefined keeping its default: a rotation's own set
+ *  (`Rotation.withDelays()`). */
+export const delaysWith = (d: Partial<Delays>): Delays =>
+  ({ ...BASE_DELAYS, ...Object.fromEntries(Object.entries(d).filter(([, v]) => v !== undefined)) });
+/** A member's delays: their rotation's own, else the defaults. */
+export const delaysOf = (d: Delays | null): Delays => d ?? BASE_DELAYS;
+/** Replace the defaults for a test run (`setDelays({ cancel: 1, insta: 1 })`). Call it before the kits load:
+ *  an insta or on-hit cut keeps the bullets committed by its delay when its rotation is built. */
+export function setDelays(d: Partial<Delays>): void {
+  BASE_DELAYS = delaysWith(d);
+  useDelays(null);
+}
+/** Put `d` in effect, or the defaults for null: the engine does as each member presses, by their rotation's. */
+export function useDelays(d: Delays | null): void {
+  const at = delaysOf(d);
+  if (at === DELAYS) return;
+  DELAYS = at;
+  ({ cancel: CANCEL_DELAY, insta: INSTA_DELAY, hold: HOLD_MINIMUM, mash: MASH_DELAY } = at);
+}
+/** `f` with `d` in effect, the set before it put back after: what reads a press's cut after its run (the
+ *  page's frames) or ahead of it (a visit planned at a handoff). */
+export function atDelays<T>(d: Delays | null, f: () => T): T {
+  const was = DELAYS;
+  useDelays(d);
+  try {
+    return f();
+  } finally {
+    useDelays(was);
+  }
+}
+
 /** Frames a resonator stays in the world past the end of their last press (OFF_FIELD ones aside)
  *  with nothing pressed since: then they despawn, their position gone. */
 export const DESPAWN_TIME = 18;
@@ -253,9 +293,8 @@ export enum ActionTag {
   Default = "",
   OffField = "off field",
   Cancel = "cancel",
-  
-  MashCancel = "mash cancel", // a hold cancel mashed in: coming out once the next press can be cast
-  HoldCancel = "hold cancel", // the next press held through it, coming out once it can be cast
+  MashCancel = "mash cancel", // the next press, not a held one, mashed in: out the moment it can be cast
+  HoldCancel = "hold cancel", // the next press, a held one, held through it: out the moment it can be cast
   DodgeCancel = "dodge cancel",
   JumpCancel = "jump cancel",
   SwapCancel = "swap cancel", // swapped out of at its last commit, never inside its no-swap frames
@@ -271,6 +310,8 @@ export enum ActionTag {
   JumpOnHit = "jump on hit",
 }
 
+/** Cast identities with no damage type of their own (a Dodge Counter deals whatever `type` says);
+ *  kept out of `Type` so they can't be reached for `type`/`subtype` by mistake. */
 export const enum Cast {
   DodgeCounter,
   Basic,

@@ -10,4 +10,7 @@ dist/*
 # the same reason
 !dist/solves/
 
-tuning/out/
+src/tuning/out/
+# the explorer's patched copy of dist/ and its results
+src/explorer/build/
+src/explorer/out/

@@ -30,11 +30,11 @@ import {
   elapsed,
   addGain,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, ActionField, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, ActionField, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
 import { STATIC_MIST, CADENZA, NEW_STD_PISTOL } from "../../weapons/standard.js";
-import { HERON, STONEWALL_BRACER, MOONLIT_CLOUDS_5PC, ACTION_HERON, ACTION_STONEWALL_BRACER_1 } from "../../echoes/jinzhou.js";
+import { HERON_MAINSLOT, STONEWALL_BRACER_MAINSLOT, MOONLIT_CLOUDS_5PC, HERON, STONEWALL_BRACER_1 } from "../../echoes/jinzhou.js";
 import { JINGRAN_RESONATOR } from "./jingran.js";
-import { EMPYREAN_ANTHEM_5PC, HECATE, ACTION_HECATE } from "../../echoes/rinascita.js";
+import { EMPYREAN_ANTHEM_5PC, HECATE_MAINSLOT, HECATE } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -49,13 +49,13 @@ function mortefiAction(id: string, def: object): Action {
 
 // --- basics, mid-air, dodge counter, heavy (Impromptu Show) — BA2/BA4 fold multiple hits into
 //     one action, same as their own mv already did
-const BA1 = mortefiAction("Basic - Impromptu Show 1", { animFrames: 21, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 12, mv: 4830, energy: 86, concerto: 277, offtune: 2800, forte1: 5 }]});
-const BA2 = mortefiAction("Basic - Impromptu Show 2", { chains: [BA1], animFrames: 35, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = mortefiAction("Basic - Impromptu Show 1", { notAfter: () => [BA1, BA2, BA3], animFrames: 21, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 12, mv: 4830, energy: 86, concerto: 277, offtune: 2800, forte1: 5 }]});
+const BA2 = mortefiAction("Basic - Impromptu Show 2", { after: [BA1], animFrames: 35, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 10, mv: 4078, energy: 73, concerto: 234, offtune: 2360, forte1: 5 },
     { hitFrame: 18, mv: 4078, energy: 73, concerto: 234, offtune: 2360, forte1: 5 },
   ]});
-const BA3 = mortefiAction("Basic - Impromptu Show 3", { chains: [BA2], animFrames: 40, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 24, mv: 10730, energy: 192, concerto: 616, offtune: 6160, forte1: 10 }]});
-const BA4 = mortefiAction("Basic - Impromptu Show 4", { chains: [BA3], animFrames: 91, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = mortefiAction("Basic - Impromptu Show 3", { after: [BA2], animFrames: 40, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 24, mv: 10730, energy: 192, concerto: 616, offtune: 6160, forte1: 10 }]});
+const BA4 = mortefiAction("Basic - Impromptu Show 4", { after: [BA3], animFrames: 91, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 18, mv: 2102, energy: 37, concerto: 120, offtune: 1200, forte1: 2 },
     { hitFrame: 24, mv: 2102, energy: 37, concerto: 120, offtune: 1200, forte1: 2 },
     { hitFrame: 30, mv: 2102, energy: 37, concerto: 120, offtune: 1200, forte1: 2 },
@@ -64,9 +64,9 @@ const BA4 = mortefiAction("Basic - Impromptu Show 4", { chains: [BA3], animFrame
   ]});
 
 const HA = mortefiAction("Heavy - Impromptu Show", { castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 16701, energy: 240, concerto: 768, offtune: 9600 }] });
-const MA1 = mortefiAction("Mid-air - Impromptu Show 1", { castPosition: Position.Midair, animFrames: 11, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 2325, energy: 41, concerto: 100, offtune: 1360, forte1: 2 }]});
-const MA2 = mortefiAction("Mid-air - Impromptu Show 2", { chains: [MA1], castPosition: Position.Midair, animFrames: 11, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 2325, energy: 41, concerto: 100, offtune: 1360, forte1: 2 }]});
-const DC = mortefiAction("Dodge Counter - Impromptu Show", { chains: [DODGE], animFrames: 48, animPriority: { 7: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 32, mv: 19498, energy: 350, concerto: 640, offtune: 6400, forte1: 20 }], castConcerto: 1000});
+const MA1 = mortefiAction("Mid-air - Impromptu Show 1", { notAfter: () => [MA1], castPosition: Position.Midair, animFrames: 11, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 2325, energy: 41, concerto: 100, offtune: 1360, forte1: 2 }]});
+const MA2 = mortefiAction("Mid-air - Impromptu Show 2", { after: [MA1], castPosition: Position.Midair, animFrames: 11, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 2325, energy: 41, concerto: 100, offtune: 1360, forte1: 2 }]});
+const DC = mortefiAction("Dodge Counter - Impromptu Show", { after: [SUCCESSFUL_DODGE], animFrames: 48, animPriority: { 7: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 32, mv: 19498, energy: 350, concerto: 640, offtune: 6400, forte1: 20 }], castConcerto: 1000});
 
 // --- resonance skill: Passionate Variation. Elemental DMG reads 0, so concerto is the flat
 //     Concerto Regen (18) instead, same treatment as every other such row.
@@ -295,7 +295,7 @@ const MO_ROTATION = new Rotation([
   BA1234.cancel(),
   FSkill.cancel(),
   Liberation,
-  ACTION_HERON.instaSwap(), ACTION_STONEWALL_BRACER_1.instaSwap(), ACTION_HECATE.instaSwap(), Outro,
+  HERON.instaSwap(), STONEWALL_BRACER_1.instaSwap(), HECATE.instaSwap(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
@@ -308,10 +308,10 @@ export const MORTEFI = new Loadout({
   weapons: [STATIC_MIST, CADENZA, NEW_STD_PISTOL, THE_LAST_DANCE, THUNDERBOLT, SOLAR_FLAME],
   echoes: new Echoes({
     sets: [
-    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
+    new EchoLoadout(HERON_MAINSLOT, MOONLIT_CLOUDS_5PC),
     // worn for the shield, which Jingran's Trace the Vestige feeds on
-    new EchoLoadout(STONEWALL_BRACER, MOONLIT_CLOUDS_5PC).requires(JINGRAN_RESONATOR),
-    new EchoLoadout(HECATE, EMPYREAN_ANTHEM_5PC),
+    new EchoLoadout(STONEWALL_BRACER_MAINSLOT, MOONLIT_CLOUDS_5PC).requires(JINGRAN_RESONATOR),
+    new EchoLoadout(HECATE_MAINSLOT, EMPYREAN_ANTHEM_5PC),
   ],
     mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
     substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),

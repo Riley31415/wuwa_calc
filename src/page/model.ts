@@ -6,11 +6,12 @@
 import { Tier, Stat } from "../engine/stats.js";
 import { menuStats } from "../engine/context.js";
 import { baseSequence } from "../engine/gear.js";
+import type { Weapon } from "../engine/gear.js";
 import { teamCode, readTeamCode } from "./teamcode.js";
 import { TUNE_BREAK_ENEMY } from "../shared/tunebreak.js";
 import { buildReport } from "./display.js";
 import type { Report } from "./display.js";
-import { member, comboOf, eligibleWeapons, refineLevels, shownRanks, shownWeapons, sequenceLevels, scopedKey, axisUsed, weaponBase, echoLabel, echoPicks, defaultFilters, bestKey, picksKey, axisOpen, filterSignature, AXES } from "../solve/solver.js";
+import { member, comboOf, eligibleWeapons, refineLevels, shownRanks, shownWeapons, sequenceLevels, scopedKey, axisUsed, weaponBase, echoLabel, echoPicks, defaultFilters, bestKey, picksKey, axisOpen, filterSignature, loadoutName, compares, AXES } from "../solve/solver.js";
 import type { Member, Combo, Pick, Filters, Solved, SolveSave, Axis, TeamCost, ScopedCompare } from "../solve/solver.js";
 import { runTeam, runFromScore, erRollsFor } from "../solve/teamrun.js";
 import type { TeamRun } from "../solve/teamrun.js";
@@ -52,6 +53,24 @@ export const RESONATOR_HUE = new Map(
   ALL_TEAMS.flatMap((t) => t.loadouts).map((l) => [l.resonator.name, l.resonator.color] as const),
 );
 export const FALLBACK_HUE = "#ff0000";
+
+/** A signature weapon's owner's colour: the first loadout to list it as its own best weapon, else the
+ *  first to list it at all � pinned for an owner with no team on the page (their kit's own colour). */
+const SIGNATURE_HUE = new Map<string, string>([["Blazing Brilliance", "#f38b68"], ["Verity's Handle", "#6b74e8"]]);
+for (const pass of [true, false]) {
+  for (const l of ALL_TEAMS.flatMap((t) => t.loadouts)) {
+    for (const w of pass ? l.weapons.slice(0, 1) : l.weapons) {
+      if (w.tier === Tier.Limited && !SIGNATURE_HUE.has(weaponBase(w))) SIGNATURE_HUE.set(weaponBase(w), l.resonator.color);
+    }
+  }
+}
+/** A weapon's colour: a signature its resonator's, a 5-star standard (or Rover's) white, a 4-star
+ *  (battlepass, concerto) purple � the star read off its base ATK (5-stars 500+). */
+export function weaponHue(w: Weapon): string {
+  if (w.tier === Tier.Limited) return SIGNATURE_HUE.get(weaponBase(w)) ?? FALLBACK_HUE;
+  const atk = w.decl.stats.find((line) => line[0] === Stat.BaseAtk)?.[1] ?? 0;
+  return atk >= 500 ? "#ffffff" : "#b07cff";
+}
 
 /** Everyone whose kit carries a Matrix — the only names the Matrix filter offers, and what a
  *  legacy `f=x` link (Matrix Mode, when it was one box for the whole table) reads as. */
@@ -461,7 +480,7 @@ export function picksOfKey(key: string): Pick[] | null {
   return picks;
 }
 
-/** A row straight from its key (team + per-member combo keys), for a `#team=` link with no table
+/** A row straight from its key (team + per-member combo keys), for a `/team#t=` link with no table
  *  build. `null` for a stale key. */
 export function rowFromKey(key: string): TeamRow | null {
   const teamKey = key.split("-")[0];
@@ -523,6 +542,29 @@ function energyNeeds(run: TeamRun): Map<string, EnergyNeed> {
     return [m.name, { bar: worst > 0 ? worst : null, minEr: m.loadout.minEr, constant, gen }];
   }));
 }
+
+/** A member's name cell: the resonator, then `S?R?` — the name cell's menu offers the level and
+ *  rank as filter lines of its own (`openNameMenu`). `inCell`: a Weapon cell on this row carries the rank;
+ *  `showMode`: the Resonance Mode follows the name, the table's own main DPS alone. */
+export function memberLabel(m: Member, combo: Combo, inCell: boolean, showMode = m.mainDps): string {
+  return [showMode ? loadoutName(m.loadout) : m.name, `${seqToken(m, combo)}${rankToken(m, combo, inCell)}`]
+    .filter(Boolean).join(" ");
+}
+/** Any level above S0 is named — the one a chain comes with, and the one a cost mode hands out —
+ *  and every level is once the chain is compared, so an S0 row reads S0 beside its S1. */
+const seqToken = (m: Member, combo: Combo): string =>
+  combo.sequence > 0 || axisOpen(m, filters, "sequences") ? `S${combo.sequence}` : "";
+/** "" while a Weapon cell carries the rank. A signature, any weapon while refines are compared or a
+ *  rank of it is shown, and any rank above R1 read their rank — a rank above R1 is one the loadout pinned itself
+ *  (`BLOODPACTS_PLEDGE[4]`), which is the only way a build runs one. Everything else is at R1 off
+ *  its whole refinement list, where only a signature costs anything: a craftable or a standard
+ *  weapon there is the "no signature" build and reads R0. */
+const rankToken = (m: Member, combo: Combo, inCell: boolean): string =>
+  inCell ? ""
+  : compares(m, filters, "refines", combo) || combo.weapon.refinement > 1 || combo.weapon.tier === Tier.Limited
+    || shownRanks(m, filters).some(([w, , s]) => weaponBase(m.loadout.weapons[w]!) === weaponBase(combo.weapon)
+      && s === combo.sequence) ? `R${combo.weapon.refinement}`
+  : "R0";
 
 /* --------------------------------------------------------------- solves kept across reloads */
 
@@ -671,10 +713,10 @@ export function saveSolves(): void {
 
 /* --------------------------------------------------------------------------- state in the URL */
 
-/** The whole page state lives in the hash as a query string: `mx=` the Matrix list, `tc=` cost, `cw=`...
+/** The whole page state lives in the hash as a query string: `mx=true` every Matrix on, `tc=` cost, `cw=`...
  *  compares, `cs=` scoped compares, `r`/`x` + `wr`/`wx`... include/exclude lists, `pin=` the pinned
- *  rows' tags, `team=` the row's
- *  own hex tag (`teamTag()`). Absent params read as defaults, so an old bare `#team=` link still
+ *  rows' tags, `t=` the row's
+ *  own hex tag (`teamTag()`), `c=` its detail page's chosen figure. Absent params read as defaults, so an old bare `#team=` link still
  *  works and one carrying the Teams box's `ts=` is simply read without it. */
 export const hashParams = (): URLSearchParams => new URLSearchParams(location.hash.replace(/^#/, ""));
 
@@ -699,12 +741,10 @@ export function applyHash(): boolean {
   let changed = false;
 
   {
-    // `mx` names the resonators running their Matrix. An older link carries `f=x` instead — the
-    // one box that turned it on table-wide — which reads as every kit that has one.
+    // `mx=true` runs every kit's Matrix. An older link naming resonators there, or carrying `f=x`
+    // (the box that once turned it on table-wide), reads the same.
     const legacy = (params.get("f") ?? "").split(",").filter(Boolean);
-    const next = params.has("mx")
-      ? (params.get("mx") ?? "").split(",").filter(Boolean).map((n) => RESONATOR_NAME_BY_COMPACT.get(n) ?? n)
-      : legacy.includes("x") || legacy.includes("matrix") ? [...MATRIX_RESONATORS] : [];
+    const next = params.get("mx") || legacy.includes("x") || legacy.includes("matrix") ? [...MATRIX_RESONATORS] : [];
     const cur = filters.matrix;
     if (next.length !== cur.length || next.some((n) => !cur.includes(n))) { filters.matrix = next; changed = true; }
   }
@@ -766,7 +806,7 @@ function optimalGear(teamKey: string, picks: Pick[], f: Filters = filters): Pick
 /** Every team by its loadouts' ids in slot order. */
 const TEAM_BY_LOADOUTS = new Map(ALL_TEAMS.map((t, i): [string, string] => [t.loadouts.map((l) => l.id).join("."), teamKey(i)]));
 
-/** The `team=` tag: a row key as its team code (teamcode.ts), each member's gear named only where it
+/** The `t=` tag: a row key as its team code (teamcode.ts), each member's gear named only where it
  *  isn't the solver's own pick for the rest of the build — or always, `full`, for a pin that has to
  *  read back with nothing solved. A key the code can't hold is written out plain; `hashTeam()`
  *  reads both. */
@@ -790,7 +830,8 @@ export function teamTag(key: string, full = false): string {
 
 /** The hash's team as a row key (`keyOfTag()`). */
 export function hashTeam(): string | null {
-  const tag = hashParams().get("team");
+  // `team=` is the name an older link gave it
+  const tag = hashParams().get("t") ?? hashParams().get("team");
   return tag ? keyOfTag(tag) : tag;
 }
 
@@ -843,46 +884,55 @@ function keyOfTag(tag: string): string {
   return [teamKey, ...picks.map((p, i) => comboOf(members[i]!.loadout, p).key)].join("-");
 }
 
-/** Write the state back into the URL. `replaceState` by default, so a filter flip never fires
- *  `hashchange` and never buries the page under Back entries — every caller routes for itself.
- *  `push` is for opening a detail view, which is a navigation of its own: it goes on the history
- *  stack so the browser's own Back button comes back out of it (index.ts's `hashchange`). */
-export function syncHash(team: string | null = knownTeam(), push = false): void {
+/** Write the state back into the URL. `replaceState`, so a filter flip never fires `hashchange` and
+ *  never buries the page under Back entries — every caller routes for itself. */
+export function syncHash(team: string | null = knownTeam()): void {
   const next = hashOf(team);
   if (next === location.hash) return;
-  const url = `${location.pathname}${location.search}${next}`;
-  // the marker rides along on a replace, so a filter flip inside a detail view keeps it
-  if (push) history.pushState({ detail: true }, "", url);
-  else history.replaceState(history.state, "", url);
+  history.replaceState(history.state, "", `${location.pathname}${location.search}${next}`);
 }
 
-/** A detail page swapped for another under new filters: the entry under it becomes the table on those
- *  filters, so Back lands on a table that can show the new row, and the new row goes on top. */
+/** The team page's own team swapped for another under new filters, in place of the entry it stands on. */
 export function reopenDetail(team: string): void {
-  const url = (hash: string): string => `${location.pathname}${location.search}${hash}`;
-  history.replaceState(null, "", url(hashOf(null)));
-  history.pushState({ detail: true }, "", url(hashOf(team)));
+  history.replaceState(history.state, "", `${location.pathname}${location.search}${hashOf(team)}`);
 }
 
-/** The whole page state as the hash `syncHash()` writes, `team` the detail page open over it. */
-function hashOf(team: string | null): string {
+/** The Team Cost alone into the URL (`#tc=`, none at s0r1), for a page whose other filters are its
+ *  own fixed ones (value.ts). */
+export function syncCost(): void {
+  const hash = filters.cost === "s0r1" ? "" : `#tc=${COST_CODE[filters.cost]}`;
+  if (hash !== location.hash) history.replaceState(history.state, "", `${location.pathname}${location.search}${hash}`);
+}
+
+/** Where a page lives with the filters as they stand: the comparison page, or `team`'s own. */
+export const pageUrl = (team: string | null): string => `${team ? "./team" : "./"}${hashOf(team)}`;
+
+/** The detail page's chosen DPR figure into the URL as `c=` (panels.ts's row and column digits), null
+ *  for the default one. */
+export function syncCell(cell: string | null): void {
+  history.replaceState(history.state, "", `${location.pathname}${location.search}${hashOf(knownTeam(), cell)}`);
+}
+
+/** The whole page state as the hash `syncHash()` writes, `team` the detail page open over it and `cell`
+ *  its chosen figure — the hash's own while that team stays open, dropped on any other. */
+function hashOf(team: string | null, cell = team && team === hashTeam() ? hashParams().get("c") : null): string {
   const named = (map: Map<string, ResonatorFilter>, mode: ResonatorFilter): string => [...map]
     // a resonator's spaces are dropped (`ElectroRover`); gear names keep theirs
     .filter(([, m]) => m === mode).map(([name]) => encodeURIComponent(map === resonatorFilters ? name.replace(/ /g, "") : name)).join(",");
-  const compact = (n: string): string => encodeURIComponent(n.replace(/ /g, ""));
   // the resonator and gear filters first, then the matrix and cost, then the compares
   const parts: string[] = [];
   for (const { include, exclude, map } of FILTER_GROUPS) {
     if (named(map, "include")) parts.push(`${include}=${named(map, "include")}`);
     if (named(map, "exclude")) parts.push(`${exclude}=${named(map, "exclude")}`);
   }
-  if (filters.matrix.length) parts.push(`mx=${filters.matrix.map(compact).join(",")}`);
+  if (filters.matrix.length) parts.push("mx=true");
   if (filters.cost !== "s0r1") parts.push(`tc=${COST_CODE[filters.cost]}`);
   for (const axis of AXES) {
     if (filters[axis].length) parts.push(`${COMPARE_PARAM[axis]}=${filters[axis].map((n) => encodeURIComponent(n.replace(/ /g, ""))).join(",")}`);
   }
   if (filters.scoped.length) parts.push(`${SCOPED_PARAM}=${filters.scoped.map((s) => encodeURIComponent(scopedKey(s))).join(",")}`);
-  if (team) parts.push(`team=${teamTag(team)}`);
+  if (team) parts.push(`t=${teamTag(team)}`);
+  if (team && cell) parts.push(`c=${cell}`);
   // last of all, being the longest: a pin names its whole build, so it reads back with nothing solved
   if (pinnedRows.size) parts.push(`pin=${[...pinnedRows].map((key) => teamTag(key, true)).join(",")}`);
   return parts.length ? `#${parts.join("&")}` : "";

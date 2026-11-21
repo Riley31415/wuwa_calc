@@ -58,11 +58,11 @@ import {
   addGain,
   addStatAs,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
 import { RED_SPRING } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
-import { NM_CROWNLESS, HAVOC_ECLIPSE_5PC, ACTION_NM_CROWNLESS } from "../../echoes/jinzhou.js";
+import { NM_CROWNLESS_MAINSLOT, HAVOC_ECLIPSE_5PC, NM_CROWNLESS } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -95,138 +95,139 @@ const TWINING = new Buff({ name: "Camellya: Twining" });
 /** S6: "within 15s after casting Ephemeral" the Skill can become Perennial, which spends the window. */
 const PERENNIAL_WINDOW = new Buff({ name: "Camellya S6: Perennial Window", duration: 60 * 15 });
 
-// --- basics, mid-air, dodge counter (Burgeoning), outside Blossom Mode
-const BA1 = camellyaAction("Basic - Burgeoning 1", { animFrames: 19, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 9, mv: 6253, energy: 93, concerto: 185, offtune: 2960 }], castForte1: -615});
-const BA2 = camellyaAction("Basic - Burgeoning 2", { chains: [BA1], animFrames: 33, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 8, mv: 4648, energy: 69, concerto: 138, offtune: 2200 },
-    { hitFrame: 21, mv: 4648, energy: 69, concerto: 138, offtune: 2200 },
-  ], castForte1: -914}); // 46.48% x2
-const BA3 = camellyaAction("Basic - Burgeoning 3", { chains: [BA2], animFrames: 62, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 6, mv: 5070, energy: 75, concerto: 150, offtune: 2400 },
-    { hitFrame: 33, mv: 5070, energy: 75, concerto: 150, offtune: 2400 },
-    { hitFrame: 45, mv: 5070, energy: 75, concerto: 150, offtune: 2400 },
-  ], castForte1: -1494}); // 50.70% x3
+// --- basics, mid-air, dodge counter (Burgeoning), outside Blossom Mode: "Basic Attack and Heavy Attack
+// Pruning are replaced by ... Vining Waltz", "Dodge Counter is replaced by Dodge Counter Atonement"
+const BA1 = camellyaAction("Basic - Burgeoning 1", { notAfter: () => [BA1, BA2, BA3, BA4], forbidBuff: BLOSSOM_MODE, animFrames: 19, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 9, mv: 6253, energy: 93, concerto: 185, offtune: 2960, forte1: -615 }], });
+const BA2 = camellyaAction("Basic - Burgeoning 2", { after: [BA1], forbidBuff: BLOSSOM_MODE, animFrames: 33, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 8, mv: 4648, energy: 69, concerto: 138, offtune: 2200, forte1: -457 },
+    { hitFrame: 21, mv: 4648, energy: 69, concerto: 138, offtune: 2200, forte1: -457 },
+  ], }); // 46.48% x2
+const BA3 = camellyaAction("Basic - Burgeoning 3", { after: [BA2], forbidBuff: BLOSSOM_MODE, animFrames: 62, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 6, mv: 5070, energy: 75, concerto: 150, offtune: 2400, forte1: -498 },
+    { hitFrame: 33, mv: 5070, energy: 75, concerto: 150, offtune: 2400, forte1: -498 },
+    { hitFrame: 45, mv: 5070, energy: 75, concerto: 150, offtune: 2400, forte1: -498 },
+  ], }); // 50.70% x3
 /** Chain Basic Attack — hold Normal Attack after Stage 3 to keep striking, 20 hits. "After performing
  *  Basic Attack Stage 3 or Heavy Attack Pruning, hold Normal Attack". */
-const BA4 = camellyaAction("Basic - Burgeoning 4 (Hold)", { chains: () => [BA3, HA], animFrames: 148, animPriority: { 51: 1 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 14, mv: 2470, energy: 27, concerto: 54, offtune: 864 },
-    { hitFrame: 22, mv: 2470, energy: 27, concerto: 54, offtune: 864 },
-    { hitFrame: 30, mv: 2470, energy: 27, concerto: 54, offtune: 864 },
-    { hitFrame: 38, mv: 2470, energy: 27, concerto: 54, offtune: 864 },
-    { hitFrame: 46, mv: 2470, energy: 27, concerto: 54, offtune: 864 },
-    { hitFrame: 54, mv: 2470, energy: 27, concerto: 54, offtune: 864 },
-    { hitFrame: 61, mv: 2470, energy: 27, concerto: 54, offtune: 864 },
-    { hitFrame: 69, mv: 2470, energy: 27, concerto: 54, offtune: 864 },
-    { hitFrame: 76, mv: 2470, energy: 27, concerto: 54, offtune: 864 },
-    { hitFrame: 82, mv: 2470, energy: 27, concerto: 54, offtune: 864 },
-    { hitFrame: 88, mv: 2470, energy: 27, concerto: 54, offtune: 864 },
-    { hitFrame: 95, mv: 2470, energy: 27, concerto: 54, offtune: 864 },
-    { hitFrame: 101, mv: 2470, energy: 27, concerto: 54, offtune: 864 },
-    { hitFrame: 107, mv: 2470, energy: 27, concerto: 54, offtune: 864 },
-    { hitFrame: 113, mv: 2470, energy: 27, concerto: 54, offtune: 864 },
-    { hitFrame: 119, mv: 2470, energy: 27, concerto: 54, offtune: 864 },
-    { hitFrame: 126, mv: 2470, energy: 27, concerto: 54, offtune: 864 },
-    { hitFrame: 132, mv: 2470, energy: 27, concerto: 54, offtune: 864 },
-    { hitFrame: 138, mv: 2470, energy: 27, concerto: 54, offtune: 864 },
-    { hitFrame: 144, mv: 2470, energy: 27, concerto: 54, offtune: 864 },
-  ], castForte1: -3600}); // 24.70% x20
-const BA5 = camellyaAction("Basic - Burgeoning 5", { chains: [BA4], animFrames: 94, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 3, mv: 4817, energy: 72, concerto: 143, offtune: 2280 },
-    { hitFrame: 42, mv: 4817, energy: 72, concerto: 143, offtune: 2280 },
-    { hitFrame: 50, mv: 4817, energy: 72, concerto: 143, offtune: 2280 },
-    { hitFrame: 83, commitFrame: 50, mv: 4817, energy: 72, concerto: 143, offtune: 2280 },
-  ], castForte1: -1896}); // 48.17% x4
+const BA4 = camellyaAction("Basic - Burgeoning 4 (Hold)", { heldInput: true, after: () => [BA3, HA], forbidBuff: BLOSSOM_MODE, animFrames: 148, animPriority: { 51: 1 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 14, mv: 2470, energy: 27, concerto: 54, offtune: 864, forte1: -180 },
+    { hitFrame: 22, mv: 2470, energy: 27, concerto: 54, offtune: 864, forte1: -180 },
+    { hitFrame: 30, mv: 2470, energy: 27, concerto: 54, offtune: 864, forte1: -180 },
+    { hitFrame: 38, mv: 2470, energy: 27, concerto: 54, offtune: 864, forte1: -180 },
+    { hitFrame: 46, mv: 2470, energy: 27, concerto: 54, offtune: 864, forte1: -180 },
+    { hitFrame: 54, mv: 2470, energy: 27, concerto: 54, offtune: 864, forte1: -180 },
+    { hitFrame: 61, mv: 2470, energy: 27, concerto: 54, offtune: 864, forte1: -180 },
+    { hitFrame: 69, mv: 2470, energy: 27, concerto: 54, offtune: 864, forte1: -180 },
+    { hitFrame: 76, mv: 2470, energy: 27, concerto: 54, offtune: 864, forte1: -180 },
+    { hitFrame: 82, mv: 2470, energy: 27, concerto: 54, offtune: 864, forte1: -180 },
+    { hitFrame: 88, mv: 2470, energy: 27, concerto: 54, offtune: 864, forte1: -180 },
+    { hitFrame: 95, mv: 2470, energy: 27, concerto: 54, offtune: 864, forte1: -180 },
+    { hitFrame: 101, mv: 2470, energy: 27, concerto: 54, offtune: 864, forte1: -180 },
+    { hitFrame: 107, mv: 2470, energy: 27, concerto: 54, offtune: 864, forte1: -180 },
+    { hitFrame: 113, mv: 2470, energy: 27, concerto: 54, offtune: 864, forte1: -180 },
+    { hitFrame: 119, mv: 2470, energy: 27, concerto: 54, offtune: 864, forte1: -180 },
+    { hitFrame: 126, mv: 2470, energy: 27, concerto: 54, offtune: 864, forte1: -180 },
+    { hitFrame: 132, mv: 2470, energy: 27, concerto: 54, offtune: 864, forte1: -180 },
+    { hitFrame: 138, mv: 2470, energy: 27, concerto: 54, offtune: 864, forte1: -180 },
+    { hitFrame: 144, mv: 2470, energy: 27, concerto: 54, offtune: 864, forte1: -180 },
+  ], }); // 24.70% x20
+const BA5 = camellyaAction("Basic - Burgeoning 5", { after: [BA4], forbidBuff: BLOSSOM_MODE, animFrames: 94, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 3, mv: 4817, energy: 72, concerto: 143, offtune: 2280, forte1: -474 },
+    { hitFrame: 42, mv: 4817, energy: 72, concerto: 143, offtune: 2280, forte1: -474 },
+    { hitFrame: 50, mv: 4817, energy: 72, concerto: 143, offtune: 2280, forte1: -474 },
+    { hitFrame: 83, commitFrame: 50, mv: 4817, energy: 72, concerto: 143, offtune: 2280, forte1: -474 },
+  ], }); // 48.17% x4
 
 const MA = camellyaAction("Mid-air - Plunging Attack", { castPosition: Position.Midair, endPosition: Position.Grounded, animFrames: 63, animPriority: { 47: 5, 62: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 29, mv: 6561, energy: 83, concerto: 165, offtune: 2640 },
     { hitFrame: 38, mv: 6561, energy: 83, concerto: 165, offtune: 2640 },
-  ], castForte1: -1096}); // 65.61% x2
-const DC = camellyaAction("Dodge Counter - Burgeoning", { chains: [DODGE], animFrames: 62, castPriority: 2, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
-    { hitFrame: 6, mv: 9940, energy: 75, concerto: 150, offtune: 2400 },
-    { hitFrame: 33, mv: 9940, energy: 75, concerto: 150, offtune: 2400 },
-    { hitFrame: 45, mv: 9940, energy: 75, concerto: 150, offtune: 2400 },
-  ], castForte1: -2490, castConcerto: 1000}); // 99.40% x3
+  ], castForte1: -1096 }); // 65.61% x2
+const DC = camellyaAction("Dodge Counter - Burgeoning", { after: [SUCCESSFUL_DODGE], forbidBuff: BLOSSOM_MODE, animFrames: 62, castPriority: 2, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+    { hitFrame: 6, mv: 9940, energy: 75, concerto: 150, offtune: 2400, forte1: -830 },
+    { hitFrame: 33, mv: 9940, energy: 75, concerto: 150, offtune: 2400, forte1: -830 },
+    { hitFrame: 45, mv: 9940, energy: 75, concerto: 150, offtune: 2400, forte1: -830 },
+  ], castConcerto: 1000 }); // 99.40% x3
 /** Considered Basic Attack DMG per Seedbed's own text. */
-const HA = camellyaAction("Heavy - Pruning", { animFrames: 87, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Basic, bullets: [
-    { hitFrame: 32, mv: 8814, energy: 111, concerto: 222, offtune: 3547 },
-    { hitFrame: 43, mv: 8814, energy: 111, concerto: 222, offtune: 3547 },
-    { hitFrame: 72, mv: 8814, energy: 111, concerto: 222, offtune: 3547 },
-  ], castForte1: -2208}); // 88.14% x3
+const HA = camellyaAction("Heavy - Pruning", { forbidBuff: BLOSSOM_MODE, animFrames: 87, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Basic, bullets: [
+    { hitFrame: 32, mv: 8814, energy: 111, concerto: 222, offtune: 3547, forte1: -736 },
+    { hitFrame: 43, mv: 8814, energy: 111, concerto: 222, offtune: 3547, forte1: -736 },
+    { hitFrame: 72, mv: 8814, energy: 111, concerto: 222, offtune: 3547, forte1: -736 },
+  ], }); // 88.14% x3
 
 // Crimson Blossom opens Blossom Mode; Vining Waltz/Blazing Waltz/Vining Ronde/Atonement replace
 // Basic/Dodge Counter/Jump while it's up; Floral Ravage (Skill replacement) ends it.
 const CrimsonBlossom = camellyaAction("Skill - Crimson Blossom", {
-  animFrames: 85, animPriority: { 84: 2 }, castPriority: 4, cooldown: 60 * 4,
+  forbidBuff: BLOSSOM_MODE, animFrames: 85, animPriority: { 84: 2 }, castPriority: 4, cooldown: 60 * 4,
   node: Node.Skill, cast: Cast.Skill, type: Type.Basic, bullets: [
-    { hitFrame: 10, mv: 11362, energy: 159, offtune: 5080 },
-    { hitFrame: 35, mv: 11362, energy: 159, offtune: 5080 },
-  ], castForte1: -2110, castConcerto: 700, // 113.62% x2
+    { hitFrame: 10, mv: 11362, energy: 159, offtune: 5080, forte1: -1055 },
+    { hitFrame: 35, mv: 11362, energy: 159, offtune: 5080, forte1: -1055 },
+  ], castConcerto: 700, // 113.62% x2
   updateBuffs: () => applyCurrent(BLOSSOM_MODE, 1),
 });
 
-const VW1 = camellyaAction("Basic - Vining Waltz 1", { requireBuff: BLOSSOM_MODE, animFrames: 37, castPriority: 2, node: Node.Skill, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 20, mv: 9633, energy: 143, concerto: 285, offtune: 4560 }], castForte1: -947});
-const VW2 = camellyaAction("Basic - Vining Waltz 2", { chains: [VW1], requireBuff: BLOSSOM_MODE, animFrames: 36, castPriority: 2, node: Node.Skill, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 19, mv: 4563, energy: 68, concerto: 135, offtune: 2160 },
-    { hitFrame: 30, mv: 4563, energy: 68, concerto: 135, offtune: 2160 },
-  ], castForte1: -898}); // 45.63% x2
-const VW3 = camellyaAction("Basic - Vining Waltz 3", { chains: [VW2], requireBuff: BLOSSOM_MODE, animFrames: 71, castPriority: 2, node: Node.Skill, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 28, mv: 2195, energy: 24, concerto: 48, offtune: 768 },
-    { hitFrame: 34, mv: 2195, energy: 24, concerto: 48, offtune: 768 },
-    { hitFrame: 40, mv: 2195, energy: 24, concerto: 48, offtune: 768 },
-    { hitFrame: 46, mv: 2195, energy: 24, concerto: 48, offtune: 768 },
-    { hitFrame: 52, mv: 2195, energy: 24, concerto: 48, offtune: 768 },
-    { hitFrame: 58, mv: 2195, energy: 24, concerto: 48, offtune: 768 },
-  ], castForte1: -960}); // 21.95% x6
+const VW1 = camellyaAction("Basic - Vining Waltz 1", { notAfter: () => [VW1, VW2, VW3, BlazingWaltz], requireBuff: BLOSSOM_MODE, animFrames: 37, castPriority: 2, node: Node.Skill, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 20, mv: 9633, energy: 143, concerto: 285, offtune: 4560, forte1: -947 }], });
+const VW2 = camellyaAction("Basic - Vining Waltz 2", { after: [VW1], requireBuff: BLOSSOM_MODE, animFrames: 36, castPriority: 2, node: Node.Skill, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 19, mv: 4563, energy: 68, concerto: 135, offtune: 2160, forte1: -449 },
+    { hitFrame: 30, mv: 4563, energy: 68, concerto: 135, offtune: 2160, forte1: -449 },
+  ], }); // 45.63% x2
+const VW3 = camellyaAction("Basic - Vining Waltz 3", { after: [VW2], requireBuff: BLOSSOM_MODE, animFrames: 71, castPriority: 2, node: Node.Skill, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 28, mv: 2195, energy: 24, concerto: 48, offtune: 768, forte1: -160 },
+    { hitFrame: 34, mv: 2195, energy: 24, concerto: 48, offtune: 768, forte1: -160 },
+    { hitFrame: 40, mv: 2195, energy: 24, concerto: 48, offtune: 768, forte1: -160 },
+    { hitFrame: 46, mv: 2195, energy: 24, concerto: 48, offtune: 768, forte1: -160 },
+    { hitFrame: 52, mv: 2195, energy: 24, concerto: 48, offtune: 768, forte1: -160 },
+    { hitFrame: 58, mv: 2195, energy: 24, concerto: 48, offtune: 768, forte1: -160 },
+  ], }); // 21.95% x6
 /** Blazing Waltz — hold Normal Attack on Vining Waltz Stage 3 before it auto-continues to Stage
  *  4. Shares Vining Waltz 3's own per-hit row, multiplied out to its own real *19 hit count. */
-const BlazingWaltz = camellyaAction("Basic - Blazing Waltz", { chains: [VW3], requireBuff: BLOSSOM_MODE, animFrames: 117, animPriority: { 0: 1 }, castPriority: 2, node: Node.Skill, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 0, mv: 2195, energy: 24, concerto: 48, offtune: 768 },
-    { hitFrame: 6, mv: 2195, energy: 24, concerto: 48, offtune: 768 },
-    { hitFrame: 12, mv: 2195, energy: 24, concerto: 48, offtune: 768 },
-    { hitFrame: 18, mv: 2195, energy: 24, concerto: 48, offtune: 768 },
-    { hitFrame: 24, mv: 2195, energy: 24, concerto: 48, offtune: 768 },
-    { hitFrame: 30, mv: 2195, energy: 24, concerto: 48, offtune: 768 },
-    { hitFrame: 36, mv: 2195, energy: 24, concerto: 48, offtune: 768 },
-    { hitFrame: 42, mv: 2195, energy: 24, concerto: 48, offtune: 768 },
-    { hitFrame: 48, mv: 2195, energy: 24, concerto: 48, offtune: 768 },
-    { hitFrame: 54, mv: 2195, energy: 24, concerto: 48, offtune: 768 },
-    { hitFrame: 60, mv: 2195, energy: 24, concerto: 48, offtune: 768 },
-    { hitFrame: 66, mv: 2195, energy: 24, concerto: 48, offtune: 768 },
-    { hitFrame: 72, mv: 2195, energy: 24, concerto: 48, offtune: 768 },
-    { hitFrame: 78, mv: 2195, energy: 24, concerto: 48, offtune: 768 },
-    { hitFrame: 84, mv: 2195, energy: 24, concerto: 48, offtune: 768 },
-    { hitFrame: 90, mv: 2195, energy: 24, concerto: 48, offtune: 768 },
-    { hitFrame: 96, mv: 2195, energy: 24, concerto: 48, offtune: 768 },
-    { hitFrame: 102, mv: 2195, energy: 24, concerto: 48, offtune: 768 },
-    { hitFrame: 108, mv: 2195, energy: 24, concerto: 48, offtune: 768 },
-  ], castForte1: -3040}); // 21.95% x19
+const BlazingWaltz = camellyaAction("Basic - Blazing Waltz", { after: [VW3], requireBuff: BLOSSOM_MODE, animFrames: 117, animPriority: { 0: 1 }, castPriority: 2, node: Node.Skill, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 0, mv: 2195, energy: 24, concerto: 48, offtune: 768, forte1: -160 },
+    { hitFrame: 6, mv: 2195, energy: 24, concerto: 48, offtune: 768, forte1: -160 },
+    { hitFrame: 12, mv: 2195, energy: 24, concerto: 48, offtune: 768, forte1: -160 },
+    { hitFrame: 18, mv: 2195, energy: 24, concerto: 48, offtune: 768, forte1: -160 },
+    { hitFrame: 24, mv: 2195, energy: 24, concerto: 48, offtune: 768, forte1: -160 },
+    { hitFrame: 30, mv: 2195, energy: 24, concerto: 48, offtune: 768, forte1: -160 },
+    { hitFrame: 36, mv: 2195, energy: 24, concerto: 48, offtune: 768, forte1: -160 },
+    { hitFrame: 42, mv: 2195, energy: 24, concerto: 48, offtune: 768, forte1: -160 },
+    { hitFrame: 48, mv: 2195, energy: 24, concerto: 48, offtune: 768, forte1: -160 },
+    { hitFrame: 54, mv: 2195, energy: 24, concerto: 48, offtune: 768, forte1: -160 },
+    { hitFrame: 60, mv: 2195, energy: 24, concerto: 48, offtune: 768, forte1: -160 },
+    { hitFrame: 66, mv: 2195, energy: 24, concerto: 48, offtune: 768, forte1: -160 },
+    { hitFrame: 72, mv: 2195, energy: 24, concerto: 48, offtune: 768, forte1: -160 },
+    { hitFrame: 78, mv: 2195, energy: 24, concerto: 48, offtune: 768, forte1: -160 },
+    { hitFrame: 84, mv: 2195, energy: 24, concerto: 48, offtune: 768, forte1: -160 },
+    { hitFrame: 90, mv: 2195, energy: 24, concerto: 48, offtune: 768, forte1: -160 },
+    { hitFrame: 96, mv: 2195, energy: 24, concerto: 48, offtune: 768, forte1: -160 },
+    { hitFrame: 102, mv: 2195, energy: 24, concerto: 48, offtune: 768, forte1: -160 },
+    { hitFrame: 108, mv: 2195, energy: 24, concerto: 48, offtune: 768, forte1: -160 },
+  ], }); // 21.95% x19
 // Blazing Waltz is "automatically" followed by Stage 4
-const VW4 = camellyaAction("Basic - Vining Waltz 4", { chains: [VW3, BlazingWaltz], requireBuff: BLOSSOM_MODE, animFrames: 82, castPriority: 2, node: Node.Skill, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 25, mv: 6759, energy: 100, concerto: 200, offtune: 3200 },
-    { hitFrame: 30, mv: 6759, energy: 100, concerto: 200, offtune: 3200 },
-    { hitFrame: 63, commitFrame: 30, mv: 6759, energy: 100, concerto: 200, offtune: 3200 },
-  ], castForte1: -1992}); // 67.59% x3
+const VW4 = camellyaAction("Basic - Vining Waltz 4", { after: [VW3, BlazingWaltz], requireBuff: BLOSSOM_MODE, animFrames: 82, castPriority: 2, node: Node.Skill, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 25, mv: 6759, energy: 100, concerto: 200, offtune: 3200, forte1: -664 },
+    { hitFrame: 30, mv: 6759, energy: 100, concerto: 200, offtune: 3200, forte1: -664 },
+    { hitFrame: 63, commitFrame: 30, mv: 6759, energy: 100, concerto: 200, offtune: 3200, forte1: -664 },
+  ], }); // 67.59% x3
 
 /** Jump's own replacement in Blossom Mode, ends it. Never placed in the rotation below (she
  *  never jumps into one there), exported for completeness. */
 const ViningRonde = camellyaAction("Basic - Vining Ronde", { requireBuff: BLOSSOM_MODE, animFrames: 68, animPriority: { 2: 5, 67: 2 }, castPriority: 7, node: Node.Skill, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 14, mv: 5295, energy: 79, concerto: 157, offtune: 2507 },
-    { hitFrame: 22, mv: 5295, energy: 79, concerto: 157, offtune: 2507 },
-    { hitFrame: 54, mv: 5295, energy: 79, concerto: 157, offtune: 2507 },
-  ], castForte1: -1563}); // 52.95% x3
-const Atonement = camellyaAction("Dodge Counter - Atonement", { chains: [DODGE], requireBuff: BLOSSOM_MODE, animFrames: 39, animPriority: { 40: 1 }, castPriority: 2, node: Node.Skill, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+    { hitFrame: 14, mv: 5295, energy: 79, concerto: 157, offtune: 2507, forte1: -521 },
+    { hitFrame: 22, mv: 5295, energy: 79, concerto: 157, offtune: 2507, forte1: -521 },
+    { hitFrame: 54, mv: 5295, energy: 79, concerto: 157, offtune: 2507, forte1: -521 },
+  ], }); // 52.95% x3
+const Atonement = camellyaAction("Dodge Counter - Atonement", { after: [SUCCESSFUL_DODGE], requireBuff: BLOSSOM_MODE, animFrames: 39, animPriority: { 40: 1 }, castPriority: 2, node: Node.Skill, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 19, mv: 11333, energy: 68, concerto: 135, offtune: 2160 },
     { hitFrame: 31, mv: 11333, energy: 68, concerto: 135, offtune: 2160 },
-  ], castForte1: -1894, castConcerto: 1000}); // 113.33% x2
+  ], castForte1: -1894, castConcerto: 1000 }); // 113.33% x2
 
 /** The Skill replacement in Blossom Mode, ends it. Considered Basic Attack DMG. */
 const FloralRavage = camellyaAction("Skill - Floral Ravage", { requireBuff: BLOSSOM_MODE, cooldown: 60 * 4, animFrames: 96, animPriority: { 95: 2 }, castPriority: 4, node: Node.Skill, cast: Cast.Skill, type: Type.Basic, bullets: [
-    { hitFrame: 14, mv: 5261, energy: 74, offtune: 2352 },
-    { hitFrame: 24, mv: 5261, energy: 74, offtune: 2352 },
-    { hitFrame: 32, mv: 5261, energy: 74, offtune: 2352 },
-    { hitFrame: 63, mv: 5261, energy: 74, offtune: 2352 },
-    { hitFrame: 71, mv: 5261, energy: 74, offtune: 2352 },
-  ], castForte1: -2445, castConcerto: 700}); // 52.61% x5
+    { hitFrame: 14, mv: 5261, energy: 74, offtune: 2352, forte1: -489 },
+    { hitFrame: 24, mv: 5261, energy: 74, offtune: 2352, forte1: -489 },
+    { hitFrame: 32, mv: 5261, energy: 74, offtune: 2352, forte1: -489 },
+    { hitFrame: 63, mv: 5261, energy: 74, offtune: 2352, forte1: -489 },
+    { hitFrame: 71, mv: 5261, energy: 74, offtune: 2352, forte1: -489 },
+  ], castConcerto: 700 }); // 52.61% x5
 
 /** At full Crimson Pistil/Concerto — considered Basic Attack DMG, enters Budding Mode, genuinely
  *  recovers Crimson Pistil to a hard 100, and spends 70 Concerto off a hard-clamped-to-100
@@ -269,7 +270,7 @@ const Intro = camellyaAction("Intro - Everblooming", { endPosition: Position.Gro
 });
 /** No handoff buff is described on her own kit page, unlike most other kits' outros — left as a
  *  plain damage hit. The Ephemeral-boosted variant isn't separately placed. */
-const Outro = camellyaAction("Outro - Twining", { cast: Cast.Outro, type: Type.Outro, bullets: [{ hitFrame: 0, mv: 32924 }], minConcerto: 10000, castConcerto: -10000});
+const Outro = camellyaAction("Outro - Twining", { cast: Cast.Outro, type: Type.Outro, bullets: [{ hitFrame: 0, mv: 32924 }], minConcerto: 10000, castConcerto: -10000 });
 /** After Ephemeral the next Twining deals 459.02% more, its second hit 37 frames in (wuwalab). */
 const OutroEphemeral = Outro.variant("Outro - Twining (Ephemeral)", {
   bullets: [{ hitFrame: 0, mv: 32924 }, { hitFrame: 37, commitFrame: 0, mv: 45902 }], requireBuff: TWINING,
@@ -365,9 +366,9 @@ const CAMELLYA_RESONATOR = new Resonator({
   forteScale: [0.01, 1, 1, 1, 1],
   maxForte1: 10000,
 
-  // any gauge-spending cast of hers is a Crimson Pistil consumption, counted as the cast spends it
+  // any gauge-spending press of hers is a Crimson Pistil consumption, counted whole as it is cast: its hits pay it
   updateBuffs: () => {
-    const spent = currentCast().castForte[0]!;
+    const spent = currentCast().castForte[0]! + currentCast().bullets.reduce((n, h) => n + h.forte1, 0);
     if (spent >= 0) return;
     const before = forte1();
     // a bud per full 10 *consumed* from the 100 top — the first lands at 90 or less, so a
@@ -444,48 +445,53 @@ const CM_SEQUENCES = [CM_S1, CM_S2, CM_S3, CM_S4, CM_S5, CM_S6];
 const VW1234 = new ActionGroup("Basic - Vining Waltz 123H4", [VW1, VW2, VW3, BlazingWaltz, VW4]);
 
 const CM_ROTATION_16s = new Rotation([
-  Intro, CrimsonBlossom.cancel(), ACTION_NM_CROWNLESS.instaDodge(), VW1234, 
+  Intro, CrimsonBlossom.cancel(), NM_CROWNLESS.instaDodge(), VW1234, 
   Liberation, VW1, Ephemeral, VW1234,
   FloralRavage.instaSwap(), OutroEphemeral,
 ]);
 const CM_ROTATION_16s_S6 = new Rotation([
-  Intro, CrimsonBlossom.cancel(), ACTION_NM_CROWNLESS, VW1234, 
+  Intro, CrimsonBlossom.cancel(), NM_CROWNLESS, VW1234, 
   Liberation, VW1, Ephemeral, VW1234,
   FloralRavage, Perennial.instaSwap(),
 ]);
 
+// disabled: the pre-visit casts Heavy and Burgeoning 4 inside Blossom Mode
+/*
 const CM_ROTATION_DOUBLE = new Rotation([
-  Intro.doubleIntro(), CrimsonBlossom.cancel(), ACTION_NM_CROWNLESS,
+  Intro.doubleIntro(), CrimsonBlossom.cancel(), NM_CROWNLESS,
   HA, BA4, FloralRavage.instaSwap(),
 
   Intro, 
   Liberation, Ephemeral, CrimsonBlossom,
-  VW1234, FloralRavage, ACTION_NM_CROWNLESS.instaSwap(),
+  VW1234, FloralRavage, NM_CROWNLESS.instaSwap(),
   OutroEphemeral,
 ]);
 const CM_ROTATION_DOUBLE_FAST_SUP = new Rotation([
-  Intro.doubleIntro(), CrimsonBlossom.cancel(), ACTION_NM_CROWNLESS,
+  Intro.doubleIntro(), CrimsonBlossom.cancel(), NM_CROWNLESS,
   HA, BA4, FloralRavage.instaSwap(),
 
   Intro, 
   Liberation, Ephemeral, CrimsonBlossom,
-  VW1234, ACTION_NM_CROWNLESS.instaDodge(), VW1234, FloralRavage, ACTION_NM_CROWNLESS.instaSwap(),
+  VW1234, NM_CROWNLESS.instaDodge(), VW1234, FloralRavage, NM_CROWNLESS.instaSwap(),
   OutroEphemeral,
 ]);
 const CM_ROTATION_DOUBLE_S6 = new Rotation([
-  Intro.doubleIntro(), CrimsonBlossom.cancel(), ACTION_NM_CROWNLESS,
+  Intro.doubleIntro(), CrimsonBlossom.cancel(), NM_CROWNLESS,
   HA, BA4, FloralRavage.instaSwap(),
   
   Intro, 
   Liberation, Ephemeral, CrimsonBlossom,
-  VW1234, ACTION_NM_CROWNLESS.instaDodge(), VW1, Perennial, VW1234, FloralRavage,
+  VW1234, NM_CROWNLESS.instaDodge(), VW1, Perennial, VW1234, FloralRavage,
   OutroEphemeral,
 ]);
+*/
 
 
 /* ----------------------------------------------------------------------------------- loadout */
 
 
+// disabled with its Double rotations
+/*
 // her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat
 export const CAMELLYA_DOUBLE_ALWAYS = new Loadout({
@@ -493,7 +499,7 @@ export const CAMELLYA_DOUBLE_ALWAYS = new Loadout({
   resonator: CAMELLYA_RESONATOR,
   weapons: [RED_SPRING, EMERALD_OF_GENESIS, LUMINGLOSS, FEATHER_EDGE],
   echoes: new Echoes({
-    sets: [new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC)],
+    sets: [new EchoLoadout(NM_CROWNLESS_MAINSLOT, HAVOC_ECLIPSE_5PC)],
     mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
     substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
     highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation, Substat.Skill),
@@ -501,7 +507,10 @@ export const CAMELLYA_DOUBLE_ALWAYS = new Loadout({
   rotation: { 0: CM_ROTATION_DOUBLE_FAST_SUP, 6: CM_ROTATION_DOUBLE_S6 },
   sequences: CM_SEQUENCES,
 });
+*/
 
+// disabled with its Double rotation
+/*
 // her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat
 export const CAMELLYA_DOUBLE_123S6 = new Loadout({
@@ -509,7 +518,7 @@ export const CAMELLYA_DOUBLE_123S6 = new Loadout({
   resonator: CAMELLYA_RESONATOR,
   weapons: [RED_SPRING, EMERALD_OF_GENESIS, LUMINGLOSS, FEATHER_EDGE],
   echoes: new Echoes({
-    sets: [new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC)],
+    sets: [new EchoLoadout(NM_CROWNLESS_MAINSLOT, HAVOC_ECLIPSE_5PC)],
     mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
     substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
     highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation, Substat.Skill),
@@ -517,6 +526,7 @@ export const CAMELLYA_DOUBLE_123S6 = new Loadout({
   rotation: { 0: CM_ROTATION_DOUBLE, 6: CM_ROTATION_16s_S6 },
   sequences: CM_SEQUENCES,
 });
+*/
 
 
 // her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
@@ -526,11 +536,11 @@ export const CAMELLYA_123_ALWAYS_OUTRO = new Loadout({
   resonator: CAMELLYA_RESONATOR,
   weapons: [RED_SPRING, EMERALD_OF_GENESIS, LUMINGLOSS, FEATHER_EDGE],
   echoes: new Echoes({
-    sets: [new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC)],
+    sets: [new EchoLoadout(NM_CROWNLESS_MAINSLOT, HAVOC_ECLIPSE_5PC)],
     mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
     substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
     highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation, Substat.Skill),
   }),
-  rotation: { 0: CM_ROTATION_16s },
+  rotation: { 0: CM_ROTATION_16s, 6: CM_ROTATION_16s_S6 },
   sequences: CM_SEQUENCES,
 });

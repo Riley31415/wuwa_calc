@@ -5,7 +5,7 @@
 import type { Gear } from "../engine/gear.js";
 import { State } from "../engine/state.js";
 import type { HitRecord, PieceSwap } from "../engine/state.js";
-import { withTeam, equip, equipEnemy, setTracing, menuStats } from "../engine/context.js";
+import { withTeam, equip, equipEnemy, setTracing, menuStats, isCast } from "../engine/context.js";
 import type { ChainGroup, Result, ResolvedSnapshot } from "../engine/evaluate.js";
 import { ER_SHORT, settleGauges } from "../engine/evaluate.js";
 import { runRotations } from "../engine/rotation.js";
@@ -13,7 +13,7 @@ import type { ActionField } from "../engine/rotation.js";
 import { TUNE_BREAK_ENEMY } from "../shared/tunebreak.js";
 import { erRollValue, ER_TOLERANCE } from "../shared/substats.js";
 import type { Spread } from "../shared/substats.js";
-import { Stat } from "../engine/stats.js";
+import { Stat, Cast } from "../engine/stats.js";
 import { ctx } from "../engine/runtime.js";
 import type { Report } from "../page/display.js";
 import type { EnergyNeed } from "../page/model.js";
@@ -89,17 +89,29 @@ const toLine = (snap: Result, spill = false): ChainGroup<Result> =>
  */
 function toLines(snaps: Result[]): ChainGroup<Result>[] {
   const lines: ChainGroup<Result>[] = [];
-  for (let i = 0; i < snaps.length;) {
+  const taken = new Set<number>();
+  for (let i = 0; i < snaps.length; i++) {
+    if (taken.has(i)) continue;
     const head = snaps[i]!;
-    if (!head.group) { lines.push(toLine(head)); i++; continue; }
+    if (!head.group) { lines.push(toLine(head)); continue; }
     const parts: ChainGroup<Result>["parts"] = [];
-    const members: Result[] = [], extras: Result[] = [];
-    let mv = 0, avg = 0, j = i, ended = false;
-    for (; j < snaps.length; j++) {
+    const members: Result[] = [], extras: Result[] = [], folded: Result[] = [];
+    // a group folds what its own presses queued (Shorekeeper's Flare Stars), one landing past its close too
+    const ownQueued = (snap: Result): boolean => snap.member === head.member
+      && members.some((m) => m.action.name === snap.source?.name);
+    let mv = 0, avg = 0, ended = false;
+    for (let j = i; j < snaps.length; j++) {
+      if (taken.has(j)) continue;
       const snap = snaps[j]!;
       // `groupEnd` separates a second press of the same group from more of the first
       const member = !ended && snap.group === head.group;
-      if (!member && snap.groupSpill !== head.group) break;
+      if (!member && snap.groupSpill !== head.group && (snap.group || !ownQueued(snap))) {
+        // another queued hit landing among them (Phrolova's Hecate between Lucilla's Oblivions) is
+        // passed by, left for a line of its own; the next press ends the group
+        if (snap.queued && !snap.group) continue;
+        break;
+      }
+      taken.add(j);
       const dmg = { avg: snap.avg };
       parts.push({ snap, dmg });
       if (member) {
@@ -107,6 +119,10 @@ function toLines(snaps: Result[]): ChainGroup<Result>[] {
         mv += snap.mv;
         avg += dmg.avg;
         if (snap.groupEnd) ended = true;
+      } else if (ownQueued(snap)) {
+        folded.push(snap);
+        mv += snap.mv;
+        avg += dmg.avg;
       } else extras.push(snap);
     }
     // the row reads the member its group names (a dash group's cut press, not the dash), and a
@@ -114,10 +130,9 @@ function toLines(snaps: Result[]): ChainGroup<Result>[] {
     const trailing = members[members.length - 1]!.dashDropped ? 0 : head.group.trailing;
     const shown = members[Math.max(0, members.length - 1 - trailing)]!;
     // a group left with one press (a summon echo's dash group, whose dash never came) is just that press
-    if (members.length === 1) lines.push(toLine(shown));
-    else lines.push({ id: head.group.name || shown.action.name, isChain: true, parts, members, snap: shown, mv, avg });
+    if (members.length === 1 && !folded.length) lines.push(toLine(shown));
+    else lines.push({ id: head.group.name || shown.action.name, isChain: true, parts, members: [...members, ...folded], snap: shown, mv, avg });
     for (const snap of extras) lines.push(toLine(snap, true));
-    i = j;
   }
   return collapseRepeats(lines);
 }
@@ -523,8 +538,11 @@ function askedOf(teamKey: string, members: Member[], combo: Combo[], i: number, 
 
 /** @param trace  keep per-entry traces and the resolved lines (the detail page); off for the bulk pass.
  *  @param variants  per member, combos differing from `combo` in that member's main stat alone, to
- *  score as engine variants of it (not with `trace`). */
-export function runTeam(teamKey: string, members: Member[], combo: Combo[], trace = false, variants: (Combo[] | null)[] | null = null): TeamRun {
+ *  score as engine variants of it (not with `trace`).
+ *  @param sections  how many rotations the fight plays: 1 is the opener alone (a timing bench). */
+export function runTeam(teamKey: string, members: Member[], combo: Combo[], trace = false, variants: (Combo[] | null)[] | null = null, sections = 4): TeamRun {
+  // a solo team only benches an opener: past it, its Outro hands back to someone who never left
+  if (members.length < 2 && sections > 1) throw new Error(`${teamKey}: a team of one plays its opener alone, not ${sections} rotations`);
   // restored, not cleared: `erRollsFor` probes a team by running it, and that run sits *inside* the
   // traced one that triggered it — clearing here would leave the outer run untraced from then on
   const outer = ctx.tracing;
@@ -548,7 +566,7 @@ export function runTeam(teamKey: string, members: Member[], combo: Combo[], trac
       const guard = members.map((m, i) => !combo[i]!.highSubs && worn[i]! < top(m));
       let run: TeamRun;
       try {
-        run = runTeamInner(teamKey, members, combo, trace, variants, worn, guard);
+        run = runTeamInner(teamKey, members, combo, trace, variants, worn, guard, false, sections);
       } catch (e) {
         if (e !== ER_SHORT) throw e;
         // the cast that gave up says what it wanted; raise that member and equip again
@@ -702,7 +720,7 @@ const shownErOf = (m: Member, need: number, worn: number): number => {
   return need > 0 && at < worn ? at : -1;
 };
 
-function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace: boolean, variants: (Combo[] | null)[] | null, erRolls = erRollsFor(teamKey, members, combo), guard: boolean[] = [], replay = false): TeamRun {
+function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace: boolean, variants: (Combo[] | null)[] | null, erRolls = erRollsFor(teamKey, members, combo), guard: boolean[] = [], replay = false, count = 4): TeamRun {
   const state = new State(members.map((m) => m.name));
   // this combo's requirement as known now, read once for every member's variants
   let own: number[] | undefined;
@@ -736,10 +754,10 @@ function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace:
   // the enemy is equipped like a member: the Tune Break resonator fires the break itself (tunebreak.ts)
   withTeam(state, () => equipEnemy(TUNE_BREAK_ENEMY));
 
-  // one continuous fight of four rotations, whatever the team, the opener the first of them
-  const { sections, starts, end: frames, blind } = runRotations(state, members.map((m, i) => m.loadout.rotationAt(combo[i]!.sequence)), 4);
+  // one continuous fight of `count` rotations (four for a score), the opener the first of them
+  const { sections, starts, end: frames, blind } = runRotations(state, members.map((m, i) => m.loadout.rotationAt(combo[i]!.sequence)), count);
   // a handoff that went blind is played again, every visit's successor known by now
-  if (blind && !replay) return runTeamInner(teamKey, members, combo, trace, variants, erRolls, guard, true);
+  if (blind && !replay) return runTeamInner(teamKey, members, combo, trace, variants, erRolls, guard, true, count);
   if (trace) settleGauges(sections.flat() as ResolvedSnapshot[]);
   const complete = sections.length;
   // the report's lines, which only a traced run hands back
@@ -749,14 +767,16 @@ function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace:
   // a rotation's damage is the hits landing inside its frames, swap to swap, whatever row shows them
   const hits: HitRecord[][] = starts.map(() => []);
   for (const h of state.hits) {
-    if (h.at > frames) {
+    // an Outro's own hits land past the handoff it makes: the next rotation's, or none for the last
+    const outro = !!h.res && isCast(h.res.action, Cast.Outro);
+    if (h.at > frames || (outro && h.at === frames)) {
       h.res = null;
       continue;
     }
     let k = 0;
     while (k + 1 < starts.length && h.at >= starts[k + 1]!) k++;
-    // a hit on the very frame a rotation closes (its closing Intro's last frame) stays in that rotation
-    if (k > 0 && h.at === starts[k] && h.res?.section === k - 1) k--;
+    // any other hit on the very frame a rotation closes (its closing handoff) stays in that rotation
+    if (k > 0 && h.at === starts[k] && !outro && h.res?.section === k - 1) k--;
     h.res = null;
     hits[k]!.push(h);
   }

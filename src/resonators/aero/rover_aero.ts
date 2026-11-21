@@ -28,16 +28,16 @@ import {
   addStat,
   asSource,
 } from "../../engine/context.js";
-import { Action, Rotation, SWAPIN, DODGE } from "../../engine/rotation.js";
+import { Action, Rotation, SWAPIN, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
 import { AERO_EROSION, SPECTRO_FRAZZLE, HAVOC_BANE, FUSION_BURST, GLACIO_CHAFE, ELECTRO_FLARE, HEALS, heal } from "../../shared/status.js";
 import { BLOODPACTS_PLEDGE, BLOODPACT_AERO_AMP } from "../../weapons/standard.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
-import { REJUV_5PC, HERON, MOONLIT_CLOUDS_5PC, BELL_BORNE_GEOCHELONE, ACTION_FALLACY, ACTION_BELL_BORNE, ACTION_HERON } from "../../echoes/jinzhou.js";
-import { FALLACY } from "../../echoes/jinzhou.js";
+import { REJUV_5PC, HERON_MAINSLOT, MOONLIT_CLOUDS_5PC, BELL_BORNE_GEOCHELONE_MAINSLOT, FALLACY, BELL_BORNE_GEOCHELONE, HERON } from "../../echoes/jinzhou.js";
+import { FALLACY_MAINSLOT } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
-import { FLEURDELYS, WINDWARD_5PC, ACTION_FLEURDELYS } from "../../echoes/rinascita.js";
+import { FLEURDELYS_MAINSLOT, WINDWARD_5PC, FLEURDELYS } from "../../echoes/rinascita.js";
 import { tuneBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -52,13 +52,13 @@ const CLOUDBURST_READY = new Buff({ name: "Aero Rover: Cloudburst Dance Ready" }
 
 // --- basics, heavies, mid-air, dodge counter. Basic 3/4 and Dodge Counter are the small
 //     Windstring (forte1) sources; the mid-air rows are the plain plunge, not Cloudburst Dance.
-const BA1 = roverAction("Basic - Wind Cutter 1", { animFrames: 19, castPriority: 2, bullets: [{ hitFrame: 7, mv: 3531, energy: 76, concerto: 241, offtune: 2408 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
-const BA2 = roverAction("Basic - Wind Cutter 2", { chains: [BA1], animFrames: 44, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = roverAction("Basic - Wind Cutter 1", { notAfter: () => [BA1, BA2, BA3, HA, MA], animFrames: 19, castPriority: 2, bullets: [{ hitFrame: 7, mv: 3531, energy: 76, concerto: 241, offtune: 2408 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
+const BA2 = roverAction("Basic - Wind Cutter 2", { after: [BA1], animFrames: 44, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 15, mv: 4305, energy: 92, concerto: 294, offtune: 2936 },
     { hitFrame: 31, mv: 4305, energy: 92, concerto: 294, offtune: 2936 },
   ]});
 // the Heavy: "Press Normal Attack right after casting the skill to perform Basic Attack Stage 3 directly"
-const BA3 = roverAction("Basic - Wind Cutter 3", { chains: () => [BA2, HA], animFrames: 56, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = roverAction("Basic - Wind Cutter 3", { after: () => [BA2, HA], animFrames: 56, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 12, mv: 5505, energy: 224, concerto: 715, offtune: 7144, forte1: 10 },
     { hitFrame: 36, mv: 199 },
     { hitFrame: 40, mv: 199 },
@@ -87,7 +87,7 @@ const BA3 = roverAction("Basic - Wind Cutter 3", { chains: () => [BA2, HA], anim
     { hitFrame: 132, mv: 199 },
   ]});
 // the plunge: "Press Normal Attack shortly after landing to cast Basic Attack Stage 4"
-const BA4 = roverAction("Basic - Wind Cutter 4", { chains: () => [BA3, MA], animFrames: 44, castPriority: 2, bullets: [{ hitFrame: 23, mv: 7672, energy: 164, concerto: 524, offtune: 5232, forte1: 10 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
+const BA4 = roverAction("Basic - Wind Cutter 4", { after: () => [BA3, MA], animFrames: 44, castPriority: 2, bullets: [{ hitFrame: 23, mv: 7672, energy: 164, concerto: 524, offtune: 5232, forte1: 10 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
 const HA = roverAction("Heavy - Wind Cutter", { animFrames: 31, animPriority: { 30: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 2, mv: 1791, energy: 39, concerto: 123, offtune: 1222 },
     { hitFrame: 11, commitFrame: 2, mv: 1791, energy: 39, concerto: 123, offtune: 1222 },
@@ -95,40 +95,39 @@ const HA = roverAction("Heavy - Wind Cutter", { animFrames: 31, animPriority: { 
   ]});
 // "Hold Normal Attack after casting Basic Attack Stage 3, Dodge Counter, or Heavy Attack"; Cloudburst
 // Dance (a Mid-air Attack) follows it "right after", so it leaves him airborne
-const RazorWind = roverAction("Heavy - Razor Wind", { chains: () => [BA3, DC, HA], endPosition: Position.Midair, animFrames: 38, castPriority: 4, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy,
+const RazorWind = roverAction("Heavy - Razor Wind", { after: () => [BA3, DC, HA], endPosition: Position.Midair, animFrames: 38, castPriority: 4, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy,
   updateBuffs: () => applyCurrent(CLOUDBURST_READY, 1), bullets: [
     { hitFrame: 8, mv: 3637, energy: 78, concerto: 249, offtune: 2481 },
     { hitFrame: 20, mv: 4446, energy: 95, concerto: 304, offtune: 3032 },
   ]});
 const MA = roverAction("Mid-air - Wind Cutter Plunge", { castPosition: Position.Midair, endPosition: Position.Grounded, animFrames: 50, animPriority: { 50: 2 }, castPriority: 6, bullets: [{ hitFrame: 38, mv: 14076, energy: 52, concerto: 960, offtune: 9600 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
-// PLACEHOLDER FRAMES
-const DC = roverAction("Dodge Counter - Wind Cutter", { chains: [DODGE], castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
-    { hitFrame: 0, mv: 12543, energy: 374, concerto: 1195, offtune: 11944 },
-    { hitFrame: 0, mv: 199 },
-    { hitFrame: 0, mv: 199 },
-    { hitFrame: 0, mv: 199 },
-    { hitFrame: 0, mv: 199 },
-    { hitFrame: 0, mv: 199 },
-    { hitFrame: 0, mv: 199 },
-    { hitFrame: 0, mv: 199 },
-    { hitFrame: 0, mv: 199 },
-    { hitFrame: 0, mv: 199 },
-    { hitFrame: 0, mv: 199 },
-    { hitFrame: 0, mv: 199 },
-    { hitFrame: 0, mv: 199 },
-    { hitFrame: 0, mv: 199 },
-    { hitFrame: 0, mv: 199 },
-    { hitFrame: 0, mv: 199 },
-    { hitFrame: 0, mv: 199 },
-    { hitFrame: 0, mv: 199 },
-    { hitFrame: 0, mv: 199 },
-    { hitFrame: 0, mv: 199 },
-    { hitFrame: 0, mv: 199 },
-    { hitFrame: 0, mv: 199 },
-    { hitFrame: 0, mv: 199 },
-    { hitFrame: 0, mv: 199 },
-    { hitFrame: 0, mv: 199 },
-    { hitFrame: 0, mv: 199, forte1: 10 },
+const DC = roverAction("Dodge Counter - Wind Cutter", { animFrames: 56, animPriority: { 0: 8, 36: 2 }, after: [SUCCESSFUL_DODGE], castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+    { hitFrame: 12, mv: 12543, energy: 374, concerto: 1195, offtune: 11944 },
+    { hitFrame: 36, mv: 199 },
+    { hitFrame: 40, mv: 199 },
+    { hitFrame: 44, mv: 199 },
+    { hitFrame: 48, mv: 199 },
+    { hitFrame: 52, mv: 199 },
+    { hitFrame: 56, mv: 199 },
+    { hitFrame: 60, mv: 199 },
+    { hitFrame: 64, mv: 199 },
+    { hitFrame: 68, mv: 199 },
+    { hitFrame: 72, mv: 199 },
+    { hitFrame: 76, mv: 199 },
+    { hitFrame: 80, mv: 199 },
+    { hitFrame: 84, mv: 199 },
+    { hitFrame: 88, mv: 199 },
+    { hitFrame: 92, mv: 199 },
+    { hitFrame: 96, mv: 199 },
+    { hitFrame: 100, mv: 199 },
+    { hitFrame: 104, mv: 199 },
+    { hitFrame: 108, mv: 199 },
+    { hitFrame: 112, mv: 199 },
+    { hitFrame: 116, mv: 199 },
+    { hitFrame: 120, mv: 199 },
+    { hitFrame: 124, mv: 199 },
+    { hitFrame: 128, mv: 199 },
+    { hitFrame: 132, mv: 199, forte1: 10 },
   ], castConcerto: 1000});
 
 // --- resonance skill: Awakening Gale on the ground, Skyfall Severance from mid-air, which trades
@@ -166,19 +165,19 @@ const SkyfallSeverance = roverAction("Skill - Skyfall Severance", {
 //     main Windstring source), then Unbound Flow, which replaces Awakening Gale at max gauge and
 //     spends 60 Windstrings a stage.
 // "Press Normal Attack right after casting Resonance Skill Awakening Gale / Intro Skill / Heavy Attack Razor Wind"
-const Cloudburst1 = roverAction("Mid-air - Cloudburst Dance 1", { chains: () => [Skill, Intro, RazorWind], castPosition: Position.Midair, animFrames: 25, castPriority: 4, requireBuff: CLOUDBURST_READY,
+const Cloudburst1 = roverAction("Mid-air - Cloudburst Dance 1", { after: () => [Skill, Intro, RazorWind], notAfter: () => [Cloudburst1], castPosition: Position.Midair, animFrames: 25, castPriority: 4, requireBuff: CLOUDBURST_READY,
   updateBuffs: () => revokeCurrent(CLOUDBURST_READY), bullets: [
     // the team heal lands as the press starts (wuwalab), ahead of the hit
     { hitFrame: 0, element: null, type: null, subtype: null, updateDebuffs: () => applyCurrent(HEALS, 1) },
     { hitFrame: 11, mv: 12880, energy: 92, concerto: 293, offtune: 2928, forte1: 25 },
   ], node: Node.Forte, cast: Cast.Basic, type: Type.Skill});
-const Cloudburst2 = roverAction("Mid-air - Cloudburst Dance 2", { chains: [Cloudburst1], castPosition: Position.Midair, animFrames: 27, animPriority: { 25: 2 }, castPriority: 4, bullets: [
+const Cloudburst2 = roverAction("Mid-air - Cloudburst Dance 2", { after: [Cloudburst1], castPosition: Position.Midair, animFrames: 27, animPriority: { 25: 2 }, castPriority: 4, bullets: [
     { hitFrame: 0, element: null, type: null, subtype: null, updateDebuffs: () => applyCurrent(HEALS, 1) },
     { hitFrame: 16, mv: 14147, energy: 101, concerto: 322, offtune: 3216, forte1: 25 },
   ], node: Node.Forte, cast: Cast.Basic, type: Type.Skill});
 // Unbound Flow itself heals nothing: wuwalab's "Unbound Flow (Healing)" (20% ATK, on-field) is S2's
 // heal over time, its first at 0f of the cast that opens it
-const UnboundFlow1 = roverAction("Forte Skill - Unbound Flow 1", { animFrames: 63, castPriority: 4, minForte1: 120, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, bullets: [
+const UnboundFlow1 = roverAction("Forte Skill - Unbound Flow 1", { notAfter: () => [UnboundFlow1], animFrames: 63, castPriority: 4, minForte1: 120, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 0, element: null, type: null, subtype: null, updateDebuffs: () => {
       if (!isHeld(AR_S2)) return;
       applyCurrent(HEALS, 1);
@@ -192,7 +191,7 @@ const UnboundFlow1 = roverAction("Forte Skill - Unbound Flow 1", { animFrames: 6
     { hitFrame: 22, commitFrame: 6, mv: 3430, energy: 200, offtune: 5970 },
     { hitFrame: 27, commitFrame: 6, mv: 3430, energy: 200, offtune: 5970 },
   ], castConcerto: 2000, castForte1: -60});
-const UnboundFlow2 = roverAction("Forte Skill - Unbound Flow 2", { chains: [UnboundFlow1], animFrames: 36, animPriority: { 34: 2 }, castPriority: 4, bullets: [{ hitFrame: 12, mv: 72303, energy: 2000, offtune: 28288 }], node: Node.Forte, cast: Cast.Skill, type: Type.Skill, castConcerto: 2000, castForte1: -60});
+const UnboundFlow2 = roverAction("Forte Skill - Unbound Flow 2", { after: [UnboundFlow1], animFrames: 36, animPriority: { 34: 2 }, castPriority: 4, bullets: [{ hitFrame: 12, mv: 72303, energy: 2000, offtune: 28288 }], node: Node.Forte, cast: Cast.Skill, type: Type.Skill, castConcerto: 2000, castForte1: -60});
 
 // --- liberation / intro / outro. Storm's Echo hands the whole team Aeolian Realm (see below).
 const Liberation = roverAction("Liberation - Omega Storm", { animFrames: 211, castPriority: 10, timestop: [0, 211], motionStop: [0, 211], cooldown: 60 * 24, node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [
@@ -330,7 +329,7 @@ export const ROVER_AERO_RESONATOR = new Resonator({
 const AR_ROTATION = new Rotation([
   SWAPIN, BA1.instaCancel(), Skill,
   Intro, Cloudburst1, Cloudburst2, SkyfallSeverance,  MA, BA4,
-  ACTION_FALLACY.instaCancel(), ACTION_BELL_BORNE.instaCancel(), ACTION_HERON.instaDodge(), ACTION_FLEURDELYS.instaCancel(),
+  FALLACY.instaCancel(), BELL_BORNE_GEOCHELONE.instaCancel(), HERON.instaDodge(), FLEURDELYS.instaCancel(),
   Liberation,
   Skill, Cloudburst1, Cloudburst2, MA, BA4,
   UnboundFlow1, UnboundFlow2.instaSwap(), Outro,
@@ -347,11 +346,11 @@ export const ROVER_AERO = new Loadout({
   weapons: [BLOODPACTS_PLEDGE[4]!, LUMINGLOSS, FEATHER_EDGE], // the craftable at its real R5, the one rank they are ever run at
   echoes: new Echoes({
     sets: [
-    new EchoLoadout(FALLACY, REJUV_5PC),
-    new EchoLoadout(BELL_BORNE_GEOCHELONE, REJUV_5PC),
-    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
-    new EchoLoadout(BELL_BORNE_GEOCHELONE, MOONLIT_CLOUDS_5PC),
-    new EchoLoadout(FLEURDELYS, WINDWARD_5PC),
+    new EchoLoadout(FALLACY_MAINSLOT, REJUV_5PC),
+    new EchoLoadout(BELL_BORNE_GEOCHELONE_MAINSLOT, REJUV_5PC),
+    new EchoLoadout(HERON_MAINSLOT, MOONLIT_CLOUDS_5PC),
+    new EchoLoadout(BELL_BORNE_GEOCHELONE_MAINSLOT, MOONLIT_CLOUDS_5PC),
+    new EchoLoadout(FLEURDELYS_MAINSLOT, WINDWARD_5PC),
   ],
     mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
     substats: substats(Substat.CritRate, Substat.CritDmg, Substat.Skill, Substat.AtkPct, Substat.FlatAtk, Substat.Liberation),

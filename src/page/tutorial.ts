@@ -94,10 +94,10 @@ function added(now: string[], before: Set<string>): boolean {
 }
 const showing = (): boolean => added(shownNow(), shownBefore);
 const comparing = (): boolean => added(comparedNow(), comparedBefore);
-/** The page as the bare link opens it: nothing filtered and nothing compared, whatever the cost mode
- *  is set to — the same set the filter bar draws a chip for (filterbar.ts's `resonatorChips`). */
+/** The page as the bare link opens it: nothing filtered and nothing compared, whatever the cost and matrix boxes
+ *  are set to — the same set the filter bar draws a chip for (filterbar.ts's `resonatorChips`). */
 const atBasePage = (): boolean =>
-  AXES.every((axis) => filters[axis].length === 0) && !filters.scoped.length && !filters.matrix.length
+  AXES.every((axis) => filters[axis].length === 0) && !filters.scoped.length
   && [resonatorFilters, weaponFilters, echoFilters, sequenceFilters, refineFilters].every((m) => m.size === 0);
 const firstChip = (): HTMLElement | null => document.querySelector(".tcchips .rchip");
 

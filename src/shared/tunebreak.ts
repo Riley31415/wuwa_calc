@@ -97,8 +97,8 @@ function anyShifting(): boolean {
 }
 
 /** Whether a full bar breaks behind `behind`, whatever cut it: every gate but the cut's own, which
- *  a press's end and a plain dodge's place each read their own way. Only reads. */
-function breakReady(behind: Readonly<Action>): boolean {
+ *  a press's end and a plain dodge's place each read their own way (`dodged`: it takes a dodge's). Only reads. */
+function breakReady(behind: Readonly<Action>, dodged = false): boolean {
   if (currentTeam().offtune < ENEMY_MAX_OFFTUNE || stacksOfEnemy(TUNE_BREAK_QUEUED) || stacksOfEnemy(BREAK_HELD)) return false;
   // a team that can shift the target waits for one of theirs to be on it
   if (stacksOfEnemy(TUNE_SHIFTABLE) && !anyShifting()) return false;
@@ -115,13 +115,20 @@ function breakReady(behind: Readonly<Action>): boolean {
   // ...nor inside a time stop, standing or still to come: the first press ending past it fires it
   if (currentTeam().frozenAhead() !== 0) return false;
   // ...nor where the next press is chained to the press before it and a break isn't among those,
-  // or the first press after it needing a position (past ones that leave it be) isn't where the
-  // break leaves them
-  const tb = breakPress(), at = tb.endPosition ?? currentMember().position;
-  let first = true;
+  // or its `notAfter` bars a break (in a dodge's place, the press after the dodge), or the first
+  // press after it needing a position (past ones that leave it be) isn't where the break leaves them
+  // ...nor while the on-field resonator's own break is barred
+  const tb = breakPress();
+  if (!tb) return false;
+  const at = tb.endPosition ?? currentMember().position;
+  let first = true, barring = true;
   for (const next of nextPresses()) {
     if (first && next.chained && !next.follows(tb)) return false;
     first = false;
+    if (barring && !(dodged && isCast(next, Cast.Dodge))) {
+      if (next.barredAfter(tb)) return false;
+      barring = false;
+    }
     if (next.castPosition !== null) return next.castPosition === at;
     if (next.endPosition !== null || isCast(next, Cast.Outro)) return true;
   }
@@ -175,7 +182,8 @@ export const TUNE_BREAK_ENEMY = new Resonator({
   // whether a break is castable on the frame a press is cut, ahead of its bullets still to land
   atCut: (behind, cut) => {
     revokeEnemy(READY_AT_CUT);
-    if (BREAK_CUTS.has(cut) && breakReady(behind)) applyEnemy(READY_AT_CUT, 1);
+    const dodged = cut === ActionTag.DodgeCancel || cut === ActionTag.InstaDodge || cut === ActionTag.DodgeOnHit;
+    if (BREAK_CUTS.has(cut) && breakReady(behind, dodged)) applyEnemy(READY_AT_CUT, 1);
   },
   // A break castable on that cut frame plays once the cut's delay is out — in a plain dodge's place,
   // or ahead of the next step after a swap form or a plain cancel — mid-group or not: the cut
@@ -185,8 +193,8 @@ export const TUNE_BREAK_ENEMY = new Resonator({
     revokeEnemy(READY_AT_CUT);
     if (!plain || !ready || stacksOfEnemy(TUNE_BREAK_QUEUED) || currentTeam().offtune < ENEMY_MAX_OFFTUNE) return;
     // ...where it cuts in over what the press still holds on that frame
-    const c = behind.cost(cut as ActionTag);
-    if ((breakPress().castPriority ?? 0) <= behind.priorityAt(c.action + c.global)) return;
+    const c = behind.cost(cut as ActionTag), tb = breakPress();
+    if (!tb || (tb.castPriority ?? 0) <= behind.priorityAt(c.action + c.global)) return;
     applyEnemy(TUNE_BREAK_QUEUED, 1);
     replaceCut(plain);
     queueEvent(TUNE_BREAK_PRESS);
@@ -235,7 +243,7 @@ export function midairBreak(tb: Action): Action {
 }
 
 /** Each weapon class's own Tune Break (wuwalab's "Tune Break Skill", the class's usual one). */
-const CLASS_TUNE_BREAK: Record<WeaponType, Action> = {
+export const CLASS_TUNE_BREAK: Record<WeaponType, Action> = {
   [WeaponType.Sword]: tuneBreak(90, 90, [0, 90], [0, 70], SWORD_BREAK),
   [WeaponType.Broadblade]: tuneBreak(94, 94, [0, 94], [0, 64], BROADBLADE_BREAK),
   [WeaponType.Rectifier]: tuneBreak(90, 90, [0, 90], [0, 54], [[56, 160000]]),
@@ -244,11 +252,12 @@ const CLASS_TUNE_BREAK: Record<WeaponType, Action> = {
 };
 
 /** What a full bar queues: resolved when reached to the on-field resonator's own break — their kit's
- *  (`ResonatorDef.tuneBreak`, itself resolved where it has one), else their weapon class's. */
-function breakPress(): Action {
+ *  (`ResonatorDef.tuneBreak`), else their weapon class's. A kit's returning null bars the break in
+ *  that state (Phrolova commanding Hecate): the bar waits full. */
+function breakPress(): Action | null {
   const resonator = currentMember().resonator;
   const own = resonator?.tuneBreak;
-  if (own) return own.resolveFn ? own.resolveFn()! : own;
+  if (own) return own();
   return resonator ? CLASS_TUNE_BREAK[resonator.weapon] : TUNE_BREAK;
 }
 const TUNE_BREAK_PRESS = new Action("Tune Break Placeholder", { resolve: breakPress });

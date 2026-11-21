@@ -59,16 +59,16 @@ import {
   runningAnyOf,
   addGain,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, START_LAST, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, START_LAST, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
 import { applyStrain, TUNE_BREAK, TUNE_STRAIN_SHIFTING, TUNE_STRAIN_INTERFERED, TUNE_SHIFTABLE, strainPayout, tuneBreak } from "../../shared/tunebreak.js";
 import { GLINT_OF_CLOUDS, RED_SPRING } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS, NEW_STD_SWORD } from "../../weapons/standard.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
-import { CALAMITY_EFFIGY, HEART_OF_EVILS_PURGE_5PC, ACTION_CALAMITY_EFFIGY } from "../../echoes/mengzhou.js";
+import { CALAMITY_EFFIGY_MAINSLOT, HEART_OF_EVILS_PURGE_5PC, CALAMITY_EFFIGY } from "../../echoes/mengzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
-import { NM_KELPIE, WINDWARD_5PC, ACTION_NM_KELPIE } from "../../echoes/rinascita.js";
+import { NM_KELPIE_MAINSLOT, WINDWARD_5PC, NM_KELPIE } from "../../echoes/rinascita.js";
 import { CARTETHYIA_RESONATOR } from "./cartethyia.js";
 import { CIACCONA_RESONATOR } from "./ciaccona.js";
 import { ROVER_AERO_RESONATOR } from "./rover_aero.js";
@@ -96,30 +96,30 @@ const ASCENDANT_WINDOW = new Buff({
 //     chain and the dodge counter are Drawn Stance (Sword Cadence, forte2). Gauge gains at their
 //     plain rate, doubled by HEAVENS_CLARITY; everything else is the same row either way.
 //     Sword Flight is airborne ("Exit ... by returning to the ground"): what enters it leaves her mid-air.
-const BA1 = qxAction("Basic - Stringblade 1", { animFrames: 29, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = qxAction("Basic - Stringblade 1", { notAfter: () => [BA1, BA2, BA3, MA3, Plunge, TUNE_BREAK, DC, Skill], animFrames: 29, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 15, mv: 3013, energy: 55, concerto: 109, offtune: 1732, forte1: 487 },
     { hitFrame: 22, mv: 3013, energy: 55, concerto: 109, offtune: 1732, forte1: 487 },
   ]});
-const BA2 = qxAction("Basic - Stringblade 2", { chains: [BA1], animFrames: 37, castPriority: 2, updateBuffs: () => applyCurrent(ASCENDANT_WINDOW, 1), node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA2 = qxAction("Basic - Stringblade 2", { after: [BA1], animFrames: 37, castPriority: 2, updateBuffs: () => applyCurrent(ASCENDANT_WINDOW, 1), node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 12, mv: 3709, energy: 67, concerto: 134, offtune: 2132, forte2: 356 },
     { hitFrame: 28, mv: 3709, energy: 67, concerto: 134, offtune: 2132, forte2: 356 },
   ]});
 // Stage 3 also follows landing from Mid-air Stage 3, the Plunging Attack and her Tune Break
-const BA3 = qxAction("Basic - Stringblade 3", { chains: () => [BA2, MA3, Plunge, TUNE_BREAK], animFrames: 48, castPriority: 2, updateBuffs: () => applyCurrent(ASCENDANT_WINDOW, 1), node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = qxAction("Basic - Stringblade 3", { after: () => [BA2, MA3, Plunge, TUNE_BREAK], animFrames: 48, castPriority: 2, updateBuffs: () => applyCurrent(ASCENDANT_WINDOW, 1), node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 6, mv: 2436, energy: 44, concerto: 88, offtune: 1400, forte2: 234 },
     { hitFrame: 12, mv: 2436, energy: 44, concerto: 88, offtune: 1400, forte2: 234 },
     { hitFrame: 18, mv: 2436, energy: 44, concerto: 88, offtune: 1400, forte2: 234 },
     { hitFrame: 20, mv: 2436, energy: 44, concerto: 88, offtune: 1400, forte2: 234 },
   ]});
 // Stage 4 also follows the Dodge Counter and Severing Note: Judgement
-const BA4 = qxAction("Basic - Stringblade 4", { chains: () => [BA3, DC, Skill], animFrames: 52, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA4 = qxAction("Basic - Stringblade 4", { after: () => [BA3, DC, Skill], animFrames: 52, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 17, mv: 8673, energy: 156, concerto: 312, offtune: 4986, forte1: 1402 },
     { hitFrame: 32, mv: 543, energy: 10, concerto: 20, offtune: 312, forte1: 88 },
     { hitFrame: 36, mv: 543, energy: 10, concerto: 20, offtune: 312, forte1: 88 },
     { hitFrame: 39, mv: 543, energy: 10, concerto: 20, offtune: 312, forte1: 88 },
     { hitFrame: 42, mv: 543, energy: 10, concerto: 20, offtune: 312, forte1: 88 },
   ]});
-const MA1 = qxAction("Mid-air - Stringblade 1", { castPosition: Position.Midair, animFrames: 42, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MA1 = qxAction("Mid-air - Stringblade 1", { notAfter: () => [MA1], castPosition: Position.Midair, animFrames: 42, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 0, mv: 724, energy: 13, concerto: 26, offtune: 416, forte2: 70 },
     { hitFrame: 6, commitFrame: 0, mv: 724, energy: 13, concerto: 26, offtune: 416, forte2: 70 },
     { hitFrame: 12, commitFrame: 0, mv: 724, energy: 13, concerto: 26, offtune: 416, forte2: 70 },
@@ -127,7 +127,7 @@ const MA1 = qxAction("Mid-air - Stringblade 1", { castPosition: Position.Midair,
     { hitFrame: 24, commitFrame: 0, mv: 724, energy: 13, concerto: 26, offtune: 416, forte2: 70 },
     { hitFrame: 30, commitFrame: 0, mv: 5428, energy: 98, concerto: 195, offtune: 3120, forte2: 521 },
   ]});
-const MA2 = qxAction("Mid-air - Stringblade 2", { chains: [MA1], castPosition: Position.Midair, animFrames: 45, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MA2 = qxAction("Mid-air - Stringblade 2", { after: [MA1], castPosition: Position.Midair, animFrames: 45, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 12, mv: 4489, energy: 81, concerto: 162, offtune: 2580, forte2: 431 },
     { hitFrame: 18, mv: 2245, energy: 41, concerto: 81, offtune: 1290, forte2: 216 },
     { hitFrame: 23, mv: 2245, energy: 41, concerto: 81, offtune: 1290, forte2: 216 },
@@ -144,7 +144,7 @@ const MA3 = qxAction("Mid-air - Stringblade 3", { castPosition: Position.Midair,
   ]});
 // "While in the Sword Flight state, Jump is replaced by Plunging Attack"
 const Plunge = qxAction("Mid-air - Plunging Attack", { castPosition: Position.Midair, endPosition: Position.Grounded, animFrames: 63, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 39, mv: 8629, energy: 155, concerto: 310, offtune: 4960 }]});
-const DC = qxAction("Dodge Counter - Stringblade", { chains: [DODGE], animFrames: 48, castPriority: 2, updateBuffs: () => applyCurrent(ASCENDANT_WINDOW, 1), node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const DC = qxAction("Dodge Counter - Stringblade", { after: [SUCCESSFUL_DODGE], animFrames: 48, castPriority: 2, updateBuffs: () => applyCurrent(ASCENDANT_WINDOW, 1), node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 6, mv: 4523, energy: 82, concerto: 163, offtune: 2600, forte2: 434 },
     { hitFrame: 12, mv: 4523, energy: 82, concerto: 163, offtune: 2600, forte2: 434 },
     { hitFrame: 18, mv: 4523, energy: 82, concerto: 163, offtune: 2600, forte2: 434 },
@@ -182,7 +182,7 @@ const Skill = qxAction("Skill - Severing Note: Judgement", { castPosition: Posit
     { hitFrame: 80, element: null, type: null, subtype: null, forte1: 4500 },
   ]});
 // "While casting Basic Attack - Stringblade Stage 2, Stage 3, or Dodge Counter - Stringblade"
-const Ascendant = qxAction("Skill - Severing Note: Ascendant", { chains: () => [BA2, BA3, DC], castPosition: Position.Grounded, endPosition: Position.Midair, animFrames: 64, animPriority: { 49: 0 }, castPriority: 5, requireBuff: ASCENDANT_WINDOW, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+const Ascendant = qxAction("Skill - Severing Note: Ascendant", { after: () => [BA2, BA3, DC], castPosition: Position.Grounded, endPosition: Position.Midair, animFrames: 64, animPriority: { 49: 0 }, castPriority: 5, requireBuff: ASCENDANT_WINDOW, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 16, mv: 3313, energy: 60, concerto: 119, offtune: 1904, forte2: 318 },
     { hitFrame: 16, mv: 2840, energy: 51, concerto: 102, offtune: 1632, forte2: 273 },
     { hitFrame: 25, commitFrame: 16, mv: 3313, energy: 60, concerto: 119, offtune: 1904, forte2: 318 },
@@ -193,14 +193,14 @@ const Ascendant = qxAction("Skill - Severing Note: Ascendant", { chains: () => [
 //     applyStats. Heaven's Reckoning spends it all and ends the state. Stage 1 is nanoka's
 //     44.89%+22.45%*2. Both dodge counters carry +10 Concerto (CLAUDE.md). All of them enter
 //     Sword Flight, as do Heavy Attack - Stringblade, Ascendant and the Intro.
-const FBA1 = qxAction("Basic - Ephemeral Transcendence 1", { endPosition: Position.Midair, animFrames: 40, castPriority: 2, requireBuff: EPHEMERAL, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
+const FBA1 = qxAction("Basic - Ephemeral Transcendence 1", { notAfter: () => [FBA1, FBA2, FBA3], endPosition: Position.Midair, animFrames: 40, castPriority: 2, requireBuff: EPHEMERAL, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 12, mv: 4489, energy: 81, concerto: 162, offtune: 2580, forte1: 1022 },
     { hitFrame: 16, mv: 2245, energy: 41, concerto: 81, offtune: 1290, forte1: 511 },
     { hitFrame: 19, mv: 2245, energy: 41, concerto: 81, offtune: 1290, forte1: 511 },
   ],
   applyStats: () => { if (forte1() < 10000) addStat(Stat.MulMv, 100); }
 });
-const FBA2 = qxAction("Basic - Ephemeral Transcendence 2", { chains: [FBA1], endPosition: Position.Midair, animFrames: 58, castPriority: 2, requireBuff: EPHEMERAL, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
+const FBA2 = qxAction("Basic - Ephemeral Transcendence 2", { after: [FBA1], endPosition: Position.Midair, animFrames: 58, castPriority: 2, requireBuff: EPHEMERAL, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 2311, energy: 42, concerto: 83, offtune: 1328, forte1: 527 },
     { hitFrame: 17, mv: 2311, energy: 42, concerto: 83, offtune: 1328, forte1: 527 },
     { hitFrame: 20, mv: 2311, energy: 42, concerto: 83, offtune: 1328, forte1: 527 },
@@ -209,7 +209,7 @@ const FBA2 = qxAction("Basic - Ephemeral Transcendence 2", { chains: [FBA1], end
   ],
 applyStats: () => { if (forte1() < 10000) addStat(Stat.MulMv, 100); }
 });
-const FBA3 = qxAction("Basic - Ephemeral Transcendence 3", { chains: [FBA2], endPosition: Position.Midair, animFrames: 57, castPriority: 2, requireBuff: EPHEMERAL, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
+const FBA3 = qxAction("Basic - Ephemeral Transcendence 3", { after: [FBA2], endPosition: Position.Midair, animFrames: 57, castPriority: 2, requireBuff: EPHEMERAL, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 10, mv: 2088, energy: 38, concerto: 75, offtune: 1200, forte1: 476 },
     { hitFrame: 20, mv: 3132, energy: 57, concerto: 113, offtune: 1800, forte1: 714 },
     { hitFrame: 30, mv: 2088, energy: 38, concerto: 75, offtune: 1200, forte1: 476 },
@@ -218,7 +218,7 @@ const FBA3 = qxAction("Basic - Ephemeral Transcendence 3", { chains: [FBA2], end
   ],
 applyStats: () => { if (forte1() < 10000) addStat(Stat.MulMv, 100); }
 });
-const FBA4 = qxAction("Basic - Ephemeral Transcendence 4", { chains: [FBA3], endPosition: Position.Midair, animFrames: 87, castPriority: 2, requireBuff: EPHEMERAL, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
+const FBA4 = qxAction("Basic - Ephemeral Transcendence 4", { after: [FBA3], endPosition: Position.Midair, animFrames: 87, castPriority: 2, requireBuff: EPHEMERAL, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 10, mv: 1810, energy: 33, concerto: 65, offtune: 1040, forte1: 412 },
     { hitFrame: 23, mv: 1810, energy: 33, concerto: 65, offtune: 1040, forte1: 412 },
     { hitFrame: 32, mv: 1810, energy: 33, concerto: 65, offtune: 1040, forte1: 412 },
@@ -227,7 +227,8 @@ const FBA4 = qxAction("Basic - Ephemeral Transcendence 4", { chains: [FBA3], end
   ],
 applyStats: () => { if (forte1() < 10000) addStat(Stat.MulMv, 100); }
 });
-const FDC = qxAction("Dodge Counter - Ephemeral Transcendence", { chains: [DODGE], endPosition: Position.Midair, animFrames: 87, castPriority: 2, requireBuff: EPHEMERAL, node: Node.Forte, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+// wuwalab's "Ephemeral Transcendence 4 (Dodge Counter)": stage 4's counter form, so Basic after it restarts at FBA1
+const FDC = qxAction("Dodge Counter - Ephemeral Transcendence", { after: [SUCCESSFUL_DODGE], endPosition: Position.Midair, animFrames: 87, castPriority: 2, requireBuff: EPHEMERAL, node: Node.Forte, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 10, mv: 2645, energy: 48, concerto: 95, offtune: 1520, forte1: 603 },
     { hitFrame: 23, mv: 2645, energy: 48, concerto: 95, offtune: 1520, forte1: 603 },
     { hitFrame: 32, mv: 2645, energy: 48, concerto: 95, offtune: 1520, forte1: 603 },
@@ -557,10 +558,10 @@ const MA123 = new ActionGroup("Mid-air - Stringblade 123", [MA1, MA2, MA3]);
 const BA34 = new ActionGroup("Basic - Stringblade 34", [BA3, BA4]);
 
 const QX_ROTATION = new Rotation([
-  START_LAST, BA1.instaCancel(), Liberation, ACTION_CALAMITY_EFFIGY.instaSwap(),
+  START_LAST, BA1.instaCancel(), Liberation, CALAMITY_EFFIGY.instaSwap(),
   Intro, MA123, BA34, Skill, HA,
   FBA1234.holdCancel(), FHA,
-  Liberation, ACTION_CALAMITY_EFFIGY.instaSwap(), Outro,
+  Liberation, CALAMITY_EFFIGY.instaSwap(), Outro,
 ]);
 
 export const QINGXIAO = new Loadout({
@@ -568,9 +569,9 @@ export const QINGXIAO = new Loadout({
   resonator: QINGXIAO_RESONATOR,
   weapons: [GLINT_OF_CLOUDS, EMERALD_OF_GENESIS, NEW_STD_SWORD, RED_SPRING, LUMINGLOSS, FEATHER_EDGE],
   echoes: new Echoes({
-    sets: [new EchoLoadout(CALAMITY_EFFIGY, HEART_OF_EVILS_PURGE_5PC),
+    sets: [new EchoLoadout(CALAMITY_EFFIGY_MAINSLOT, HEART_OF_EVILS_PURGE_5PC),
       // Windward's 5pc needs Aero Erosion on the target, which only these three inflict
-      new EchoLoadout(NM_KELPIE, WINDWARD_5PC).requires(CARTETHYIA_RESONATOR, CIACCONA_RESONATOR, ROVER_AERO_RESONATOR),],
+      new EchoLoadout(NM_KELPIE_MAINSLOT, WINDWARD_5PC).requires(CARTETHYIA_RESONATOR, CIACCONA_RESONATOR, ROVER_AERO_RESONATOR),],
     mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
     substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.FlatAtk, Substat.Heavy, Substat.Liberation),
     highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.FlatAtk, Substat.Heavy, Substat.Liberation, Substat.Basic),

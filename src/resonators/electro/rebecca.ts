@@ -61,14 +61,14 @@ import {
   saveChain,
   previousPress,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, ActionField } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, ActionField, JUMP } from "../../engine/rotation.js";
 import { applied, inflicting } from "../../engine/context.js";
 import { applyHack, tuneHackResponse, TUNE_HACK_SHIFTING, TUNE_SHIFTABLE } from "../../shared/tunebreak.js";
 import { SKULL_THRASHER } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
 import { THUNDERBOLT, SOLAR_FLAME } from "../../weapons/battlepass.js";
-import { HERON, STONEWALL_BRACER, MOONLIT_CLOUDS_5PC, LINGERING_TUNES_2PC, VOID_THUNDER_2PC, MOONLIT_CLOUDS_2PC, ACTION_HERON, ACTION_STONEWALL_BRACER_1 } from "../../echoes/jinzhou.js";
-import { ADAM_SMASHER, SHATTERED_DREAMS_1PC, HYVATIA, NEONLIGHT_LEAP_5PC, REEL_2PC, ACTION_ADAM_SMASHER_REBECCA, ACTION_HYVATIA } from "../../echoes/lahairoi.js";
+import { HERON_MAINSLOT, STONEWALL_BRACER_MAINSLOT, MOONLIT_CLOUDS_5PC, LINGERING_TUNES_2PC, VOID_THUNDER_2PC, MOONLIT_CLOUDS_2PC, HERON, STONEWALL_BRACER_1 } from "../../echoes/jinzhou.js";
+import { ADAM_SMASHER_MAINSLOT, SHATTERED_DREAMS_1PC, HYVATIA_MAINSLOT, NEONLIGHT_LEAP_5PC, REEL_2PC, ADAM_SMASHER_REBECCA, HYVATIA } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -94,31 +94,31 @@ const MK31_HMG = new Buff({ name: "Rebecca: Mk. 31 HMG", duration: 60 * 9.5 });
 
 // --- Mix-'n'-Match, the Huntress half. Heavy Attack - Huntress is the held burst, which counts as
 //     Basic Attack DMG; releasing it turns into Eat Lead!, which does not.
-const HBA1 = rebeccaAction("Basic - Huntress 1", { requireBuff: HUNTRESS, animFrames: 26, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const HBA1 = rebeccaAction("Basic - Huntress 1", { notAfter: () => [HBA1, HBA2], requireBuff: HUNTRESS, animFrames: 26, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 8, mv: 3676, energy: 55, concerto: 109, offtune: 1740, forte1: 353 },
     { hitFrame: 22, mv: 3676, energy: 55, concerto: 109, offtune: 1740, forte1: 353 },
   ]});
-const HBA2 = rebeccaAction("Basic - Huntress 2", { chains: [HBA1], requireBuff: HUNTRESS, animFrames: 40, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const HBA2 = rebeccaAction("Basic - Huntress 2", { after: [HBA1], requireBuff: HUNTRESS, animFrames: 40, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 12, mv: 1913, energy: 29, concerto: 57, offtune: 906, forte1: 184 },
     { hitFrame: 13, commitFrame: 12, mv: 1913, energy: 29, concerto: 57, offtune: 906, forte1: 184 },
     { hitFrame: 14, commitFrame: 12, mv: 1913, energy: 29, concerto: 57, offtune: 906, forte1: 184 },
     { hitFrame: 16, commitFrame: 12, mv: 1913, energy: 29, concerto: 57, offtune: 906, forte1: 184 },
     { hitFrame: 30, mv: 1913, energy: 29, concerto: 57, offtune: 906, forte1: 184 },
   ]});
-const HBA3 = rebeccaAction("Basic - Huntress 3", { chains: [HBA2], requireBuff: HUNTRESS, animFrames: 42, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 18, mv: 10985, energy: 163, concerto: 325, offtune: 5200, forte1: 1054 }]});
+const HBA3 = rebeccaAction("Basic - Huntress 3", { after: [HBA2], requireBuff: HUNTRESS, animFrames: 42, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 18, mv: 10985, energy: 163, concerto: 325, offtune: 5200, forte1: 1054 }]});
 const HHA = rebeccaAction("Heavy - Huntress", { requireBuff: HUNTRESS, animFrames: 32, castPriority: 4, node: Node.Normal, cast: Cast.Heavy, type: Type.Basic, bullets: [
     { hitFrame: 26, mv: 1690, energy: 25, concerto: 50, offtune: 800, forte1: 179 },
     { hitFrame: 32, mv: 1690, energy: 25, concerto: 50, offtune: 800, forte1: 179 },
   ]});
 // released out of the held Heavy Attack - Huntress
-const EatLead = rebeccaAction("Heavy - Eat Lead!: Huntress", { chains: [HHA], requireBuff: HUNTRESS, animFrames: 36, animPriority: { 36: 1 }, castPriority: 4, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+const EatLead = rebeccaAction("Heavy - Eat Lead!: Huntress", { after: [HHA], requireBuff: HUNTRESS, animFrames: 36, animPriority: { 36: 1 }, castPriority: 4, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 0, mv: 6084, energy: 90, concerto: 180, offtune: 2880, forte1: 584 },
     { hitFrame: 13, mv: 6084, energy: 90, concerto: 180, offtune: 2880, forte1: 584 },
   ]});
 const HMA = rebeccaAction("Mid-air - Huntress Plunge", { castPosition: Position.Midair, endPosition: Position.Grounded, requireBuff: HUNTRESS, animFrames: 43, animPriority: { 0: 6, 32: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 34, mv: 13604, energy: 202, concerto: 403, offtune: 6440, forte1: 1305 }]});
 // "Can be cast during the following actions (while on the ground)": those presses, any Skill or Intro
 const HTD: Action = rebeccaAction("Dodge - Tactical Dodge: Huntress", {
-  chains: () => [HBA1, HBA2, HBA3, HHA, EatLead, CominInHot, HTD, Skill, ESkill, Intro, EIntro], castPosition: Position.Grounded, requireBuff: HUNTRESS, animFrames: 36, animPriority: { 36: 2 }, castPriority: 7, node: Node.Normal, cast: Cast.Dodge, type: Type.Basic, bullets: [
+  after: () => [HBA1, HBA2, HBA3, HHA, EatLead, CominInHot, HTD, Skill, ESkill, Intro, EIntro], castPosition: Position.Grounded, requireBuff: HUNTRESS, animFrames: 36, animPriority: { 36: 2 }, castPriority: 7, node: Node.Normal, cast: Cast.Dodge, type: Type.Basic, bullets: [
     { hitFrame: 6, mv: 1690, energy: 25, concerto: 50, offtune: 800, forte1: 179 },
     { hitFrame: 10, mv: 1690, energy: 25, concerto: 50, offtune: 800, forte1: 179 },
     { hitFrame: 16, mv: 1690, energy: 25, concerto: 50, offtune: 800, forte1: 179 },
@@ -128,16 +128,16 @@ const HTD: Action = rebeccaAction("Dodge - Tactical Dodge: Huntress", {
 // the somersault: no damage row of its own on nanoka and no gauges anywhere, and the one thing it
 // grants — the Heavy Attack - Huntress held out of it costing no STA — is stamina, which is unmodelled.
 // Pressed "when close to the ground" after Come 'n' Get Me!: "Somersault in mid-air and land"
-const CominInHot = rebeccaAction("Basic - Comin' in Hot!: Huntress", { chains: () => [ESkill, EIntro], castPosition: Position.Midair, endPosition: Position.Grounded, castPriority: 2, requireBuff: HUNTRESS, node: Node.Normal, cast: Cast.Basic });
+const CominInHot = rebeccaAction("Basic - Comin' in Hot!: Huntress", { after: () => [ESkill, EIntro], castPosition: Position.Midair, endPosition: Position.Grounded, castPriority: 2, requireBuff: HUNTRESS, node: Node.Normal, cast: Cast.Basic });
 
 // --- the Guts half: fewer, heavier shots, and its Heavy Attack is a real Heavy.
 // custom frames for first hit
-const GBA1 = rebeccaAction("Basic - Guts 1", { requireBuff: GUTS, animFrames: 56, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const GBA1 = rebeccaAction("Basic - Guts 1", { notAfter: () => [GBA1, GBA2], requireBuff: GUTS, animFrames: 56, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 6169, energy: 92, concerto: 183, offtune: 2920, forte1: 681 },
     { hitFrame: 31, mv: 6169, energy: 92, concerto: 183, offtune: 2920, forte1: 681 },
   ]});
-const GBA2 = rebeccaAction("Basic - Guts 2", { chains: [GBA1], requireBuff: GUTS, animFrames: 33, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 11, mv: 8450, energy: 125, concerto: 250, offtune: 4000, forte1: 932 }]});
-const GBA3 = rebeccaAction("Basic - Guts 3", { chains: [GBA2], requireBuff: GUTS, animFrames: 85, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const GBA2 = rebeccaAction("Basic - Guts 2", { after: [GBA1], requireBuff: GUTS, animFrames: 33, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 11, mv: 8450, energy: 125, concerto: 250, offtune: 4000, forte1: 932 }]});
+const GBA3 = rebeccaAction("Basic - Guts 3", { after: [GBA2], requireBuff: GUTS, animFrames: 85, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 13, mv: 3377, energy: 50, concerto: 100, offtune: 1599, forte1: 373 },
     { hitFrame: 23, mv: 3377, energy: 50, concerto: 100, offtune: 1599, forte1: 373 },
     { hitFrame: 58, mv: 15757, energy: 234, concerto: 467, offtune: 7460, forte1: 1738 },
@@ -147,7 +147,7 @@ const GMA = rebeccaAction("Mid-air - Guts Plunge", { castPosition: Position.Mida
 // cast out of its own list of ground presses, and it "does not reset [the] Basic Attack ... attack
 // cycle": the Basic before it stays the one the next follows
 const GTD: Action = rebeccaAction("Dodge - Tactical Dodge: Guts", {
-  chains: () => [GBA1, GBA2, GBA3, GTD, Skill, ESkill, Intro, EIntro], castPosition: Position.Grounded,
+  after: () => [GBA1, GBA2, GBA3, GTD, Skill, ESkill, Intro, EIntro], castPosition: Position.Grounded,
   requireBuff: GUTS, animFrames: 40, animPriority: { 40: 2 }, castPriority: 7, node: Node.Normal, cast: Cast.Dodge, type: Type.Basic, bullets: [{ hitFrame: 6, mv: 10140, energy: 150, concerto: 300, offtune: 4800, forte1: 973 }],
   updateBuffs: () => saveChain(previousPress()),
 });
@@ -221,7 +221,7 @@ const Lib1 = rebeccaAction("Liberation - Party 'til Dawn!", {
   updateBuffs: () => applyCurrent(MK31_HMG, 1),
 });
 // the tiers in order: firing starts on the mode, each enhancement "after Rebecca starts firing"
-const Lib2 = rebeccaAction("Liberation - Mk. 31 HMG x5", { chains: [Lib1], requireBuff: MK31_HMG,
+const Lib2 = rebeccaAction("Liberation - Mk. 31 HMG x5", { after: [Lib1], requireBuff: MK31_HMG,
   animFrames: 0, castPriority: 10, 
   node: Node.Liberation, type: Type.Basic, cast: Cast.Liberation, bullets: [
     { hitFrame: 0, mv: 2430, concerto: 56, offtune: 1609 },
@@ -231,7 +231,7 @@ const Lib2 = rebeccaAction("Liberation - Mk. 31 HMG x5", { chains: [Lib1], requi
     { hitFrame: 0, mv: 2430, concerto: 56, offtune: 1609 },
   ],
 });
-const Lib3 = rebeccaAction("Liberation - Mk. 31 HMG 1st Enhancement x5", { chains: [Lib2], requireBuff: MK31_HMG,
+const Lib3 = rebeccaAction("Liberation - Mk. 31 HMG 1st Enhancement x5", { after: [Lib2], requireBuff: MK31_HMG,
   animFrames: 0, castPriority: 10,
   node: Node.Liberation, type: Type.Basic, cast: Cast.Liberation, bullets: [
     { hitFrame: 0, mv: 4860, concerto: 112, offtune: 3218 },
@@ -241,7 +241,7 @@ const Lib3 = rebeccaAction("Liberation - Mk. 31 HMG 1st Enhancement x5", { chain
     { hitFrame: 0, mv: 4860, concerto: 112, offtune: 3218 },
   ],
 });
-const Lib4 = rebeccaAction("Liberation - Mk. 31 HMG 2nd Enhancement x10", { chains: [Lib3], requireBuff: MK31_HMG,
+const Lib4 = rebeccaAction("Liberation - Mk. 31 HMG 2nd Enhancement x10", { after: [Lib3], requireBuff: MK31_HMG,
   animFrames: 0, castPriority: 10, 
   node: Node.Liberation, type: Type.Basic, cast: Cast.Liberation, bullets: [
     { hitFrame: 0, mv: 7290, concerto: 167, offtune: 4826 },
@@ -257,10 +257,10 @@ const Lib4 = rebeccaAction("Liberation - Mk. 31 HMG 2nd Enhancement x10", { chai
   ],
 });
 const Boom = rebeccaAction("Liberation - BOOM! Fireworks!", { requireBuff: MK31_HMG,
-  animFrames: 133, animPriority: { 133: 2 }, castPriority: 11,
+  animFrames: 138, animPriority: { 0: 11, 138: 2 }, castPriority: 11,
   node: Node.Liberation, type: Type.Basic, cast: Cast.Liberation, bullets: [
-    { hitFrame: 66, mv: 6362, energy: 200, concerto: 100, offtune: 3103 },
-    { hitFrame: 79, mv: 57258, energy: 1800, concerto: 900, offtune: 27922 },
+    { hitFrame: 70, mv: 6362, energy: 200, concerto: 100, offtune: 3103 },
+    { hitFrame: 83, mv: 57258, energy: 1800, concerto: 900, offtune: 27922 },
   ],
   ...hacksEvery3s("BOOM! Fireworks!"),
   updateBuffs: () => revokeCurrent(MK31_HMG),
@@ -579,31 +579,31 @@ const RB_ROTATION = new Rotation([
   GHA.holdCancel(), 
   FHAGuts, 
   GHA.cancel(),
-  ACTION_ADAM_SMASHER_REBECCA.instaCancel(), ACTION_HYVATIA.instaCancel(), ACTION_HERON.instaDodge(), ACTION_STONEWALL_BRACER_1.instaDodge(),Lib1234, Boom.instaSwap(), Outro,
+  ADAM_SMASHER_REBECCA.instaCancel(), HYVATIA.instaCancel(), HERON.instaDodge(), STONEWALL_BRACER_1.instaDodge(),Lib1234, Boom.instaSwap(), Outro,
 
-  Intro.jumpCancel(), EIntro.jumpCancel(), HMA, // cancel is too slow
-  Skill.hitDodge(),
+  Intro.mashCancel(), EIntro.mashCancel(), JUMP, HMA, // cancel is too slow
+  Skill.dodgeCancel(),
   GBA1.cancel(),
   FHAGuts, 
   GHA.cancel(),
-  ACTION_ADAM_SMASHER_REBECCA.instaCancel(), ACTION_HYVATIA.instaCancel(), ACTION_HERON.instaDodge(), ACTION_STONEWALL_BRACER_1.instaDodge(),Lib1234, Boom.instaSwap(), Outro,
+  ADAM_SMASHER_REBECCA.instaCancel(), HYVATIA.instaCancel(), HERON.instaDodge(), STONEWALL_BRACER_1.instaDodge(),Lib1234, Boom.instaSwap(), Outro,
 ]);
 
 /** Adam Smasher carries its own 1pc set, so the other four echoes run two ordinary 2-piece sets
  *  instead of a 5pc — ATK and Electro. The other two builds are the classic handoff sets, which
  *  she can run instead since everything she gives Lucy is a handoff anyway. */
 const RB_ECHOES = [
-  new EchoLoadout(ADAM_SMASHER, SHATTERED_DREAMS_1PC, LINGERING_TUNES_2PC, VOID_THUNDER_2PC),
-  new EchoLoadout(ADAM_SMASHER, SHATTERED_DREAMS_1PC, LINGERING_TUNES_2PC, REEL_2PC),
-  new EchoLoadout(ADAM_SMASHER, SHATTERED_DREAMS_1PC, SWORN_VIGIL_2PC, VOID_THUNDER_2PC),
+  new EchoLoadout(ADAM_SMASHER_MAINSLOT, SHATTERED_DREAMS_1PC, LINGERING_TUNES_2PC, VOID_THUNDER_2PC),
+  new EchoLoadout(ADAM_SMASHER_MAINSLOT, SHATTERED_DREAMS_1PC, LINGERING_TUNES_2PC, REEL_2PC),
+  new EchoLoadout(ADAM_SMASHER_MAINSLOT, SHATTERED_DREAMS_1PC, SWORN_VIGIL_2PC, VOID_THUNDER_2PC),
 
-  new EchoLoadout(ADAM_SMASHER, SHATTERED_DREAMS_1PC, LINGERING_TUNES_2PC, MOONLIT_CLOUDS_2PC),
-  new EchoLoadout(ADAM_SMASHER, SHATTERED_DREAMS_1PC, MOONLIT_CLOUDS_2PC, VOID_THUNDER_2PC),
+  new EchoLoadout(ADAM_SMASHER_MAINSLOT, SHATTERED_DREAMS_1PC, LINGERING_TUNES_2PC, MOONLIT_CLOUDS_2PC),
+  new EchoLoadout(ADAM_SMASHER_MAINSLOT, SHATTERED_DREAMS_1PC, MOONLIT_CLOUDS_2PC, VOID_THUNDER_2PC),
 
-  new EchoLoadout(HYVATIA, NEONLIGHT_LEAP_5PC),
-  new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
+  new EchoLoadout(HYVATIA_MAINSLOT, NEONLIGHT_LEAP_5PC),
+  new EchoLoadout(HERON_MAINSLOT, MOONLIT_CLOUDS_5PC),
   // worn for the shield, which Jingran's Trace the Vestige feeds on
-  new EchoLoadout(STONEWALL_BRACER, MOONLIT_CLOUDS_5PC).requires(JINGRAN_RESONATOR),
+  new EchoLoadout(STONEWALL_BRACER_MAINSLOT, MOONLIT_CLOUDS_5PC).requires(JINGRAN_RESONATOR),
 ];
 
 export const REBECCA = new Loadout({

@@ -15,14 +15,14 @@ import { PseudoTransformEcho, SummonEcho, TransformEcho } from "./echo.js";
 
 /** Myriad Snare, Jingran's own mainslot echo — flat Fusion/Heavy Attack DMG Bonus for whoever
  *  wears it, no trigger. */
-export const MYRIAD_SNARE = new Mainslot({
+export const MYRIAD_SNARE_MAINSLOT = new Mainslot({
   id: 6000217,
   name: "Myriad Snare: Rustfire Chassis",
   cost: 4,
   stats: [[Stat.DmgBonus, 12, Attribute.Fusion], [Stat.DmgBonus, 12, Type.Heavy]],
 });
-export const ACTION_MYRIAD_SNARE = new SummonEcho("Echo - Myriad Snare", {
-  mainslot: MYRIAD_SNARE, cooldown: 60 * 20,
+export const MYRIAD_SNARE = new SummonEcho("Echo - Myriad Snare", {
+  mainslot: MYRIAD_SNARE_MAINSLOT, cooldown: 60 * 20,
   element: Attribute.Fusion, scaling: Scaling.Hp, type: Type.Echo,
   // the impact, then wuwalab's five crushes (the text's "up to 19")
   bullets: [{ hitFrame: 24, commitFrame: 0, mv: 1020, energy: 380 }, ...[24, 30, 36, 65, 67].map((f) => ({ hitFrame: f, commitFrame: 0, mv: 37 }))],
@@ -38,7 +38,7 @@ export const LAMP_STACKS = new Buff({
   stats: [[Stat.CritRate, 5]], perStack: true,
   applyStats: () => { if (frozenStacks() >= 4) addStat(Stat.DmgBonus, 15, Attribute.Fusion); },
 });
-export const LAMP_2PC = new Sonata2pc({ id: 35, name: "Lamp of Nether Road 2pc", echoes: () => [MYRIAD_SNARE, CALAMITY_EFFIGY, FORBIDDEN_BASTION], stats: [[Stat.BonusHp, 10]] });
+export const LAMP_2PC = new Sonata2pc({ id: 35, name: "Lamp of Nether Road 2pc", echoes: () => [MYRIAD_SNARE_MAINSLOT, CALAMITY_EFFIGY_MAINSLOT, FORBIDDEN_BASTION_MAINSLOT], stats: [[Stat.BonusHp, 10]] });
 export const LAMP_5PC = new Sonata({
   id: 35,
   name: "Lamp of Nether Road 5pc",
@@ -56,16 +56,16 @@ export const CALAMITY_EFFIGY_STRAIN = new Buff({
   duration: 60 * 15,
   stats: [[Stat.DmgBonus, 10, Attribute.Aero]],
 });
-export const CALAMITY_EFFIGY = new Mainslot({
+export const CALAMITY_EFFIGY_MAINSLOT = new Mainslot({
   id: 6000221,
   name: "Calamity Effigy",
   cost: 4,
   stats: [[Stat.DmgBonus, 10, Attribute.Aero]],
   grants: [{ on: onInflict(TUNE_STRAIN_SHIFTING), buff: CALAMITY_EFFIGY_STRAIN }],
 });
-export const ACTION_CALAMITY_EFFIGY = new TransformEcho("Echo - Calamity Effigy", {
-  mainslot: CALAMITY_EFFIGY, endPosition: Position.Grounded, animFrames: 124,
-  bullets: [{ hitFrame: 80, mv: 40500, energy: 562 }],
+export const CALAMITY_EFFIGY = new TransformEcho("Echo - Calamity Effigy", {
+  mainslot: CALAMITY_EFFIGY_MAINSLOT, endPosition: Position.Grounded, animFrames: 124,
+  bullets: [{ hitFrame: 80, commitFrame: 61, mv: 40500, energy: 562 }],
   cooldown: 60 * 25,
   element: Attribute.Aero, scaling: Scaling.Atk, type: Type.Echo,
 });
@@ -73,7 +73,7 @@ export const ACTION_CALAMITY_EFFIGY = new TransformEcho("Echo - Calamity Effigy"
 /** Heart of Evil's Purge, Calamity Effigy's own sonata. 2pc: +10% Aero DMG Bonus flat. 5pc:
  *  inflicting Tune Strain - Shifting grants +20% Crit. DMG and +30% Aero DMG Bonus for 15s — the
  *  wearer's own short window. */
-export const HEART_OF_EVILS_PURGE_2PC = new Sonata2pc({ id: 34, name: "Heart of Evil's Purge 2pc", echoes: () => [MYRIAD_SNARE, CALAMITY_EFFIGY, FORBIDDEN_BASTION], stats: [[Stat.DmgBonus, 10, Attribute.Aero]] });
+export const HEART_OF_EVILS_PURGE_2PC = new Sonata2pc({ id: 34, name: "Heart of Evil's Purge 2pc", echoes: () => [MYRIAD_SNARE_MAINSLOT, CALAMITY_EFFIGY_MAINSLOT, FORBIDDEN_BASTION_MAINSLOT], stats: [[Stat.DmgBonus, 10, Attribute.Aero]] });
 export const HEART_OF_EVILS_PURGE_5PC = new Sonata({
   id: 34,
   name: "Heart of Evil's Purge 5pc",
@@ -94,27 +94,27 @@ export const HEART_OF_EVILS_PURGE_BUFF = new Buff({
  *  Chisa's Thread of Bane hands out off the wearer's swing is hers and spends no blade. The four
  *  blades are one action, its hits its own bullets at the blade's 1s cooldown — the wearer's kit
  *  inflicts Bane often enough to spend each the moment it is ready. */
-export const THOUSAND_PUPPET_PAVILION = new Mainslot({
+export const THOUSAND_PUPPET_PAVILION_MAINSLOT = new Mainslot({
   id: 6000218,
   name: "Thousand-Puppet Pavilion",
   cost: 4,
   stats: [[Stat.DmgBonus, 12, Attribute.Havoc], [Stat.DmgBonus, 12, Type.Heavy]],
 });
-export const ACTION_THOUSAND_PUPPET_PAVILION = new PseudoTransformEcho("Echo - Thousand-Puppet Pavilion", {
-  mainslot: THOUSAND_PUPPET_PAVILION, castPosition: Position.Grounded, endPosition: Position.Grounded, cooldown: 60 * 20, animFrames: 4,
-  // wuwalab's 41.04% hit at 2 is a blade's, ACTION_BLADE_OF_THOUSAND_MEMORIES below
-  element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 4, commitFrame: 0, mv: 10944, energy: 152 }],
+export const THOUSAND_PUPPET_PAVILION = new PseudoTransformEcho("Echo - Thousand-Puppet Pavilion", {
+  mainslot: THOUSAND_PUPPET_PAVILION_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, cooldown: 60 * 20, animFrames: 4,
+  // its own hit; the blades' 41.04% ticks are BLADE_OF_THOUSAND_MEMORIES below
+  element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 47, commitFrame: 0, mv: 10944, energy: 152 }],
   // one set of blades at a time: a fresh summon cuts off whatever the last had left
   updateBuffs: () => {
     cancelHits(BLADES_OF_THOUSAND_MEMORIES);
-    queue(ACTION_BLADE_OF_THOUSAND_MEMORIES);
+    queue(BLADE_OF_THOUSAND_MEMORIES);
   },
 });
-export const ACTION_BLADE_OF_THOUSAND_MEMORIES = new Action("Echo - Blade of Thousand Memories", {
+export const BLADE_OF_THOUSAND_MEMORIES = new Action("Echo - Blade of Thousand Memories", {
   element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo,
   bullets: Array.from({ length: 4 }, (_, k) => ({ hitFrame: 60 * (k + 1), mv: 4104, energy: 57 })),
 });
-const BLADES_OF_THOUSAND_MEMORIES = new Set<Action>([ACTION_BLADE_OF_THOUSAND_MEMORIES]);
+const BLADES_OF_THOUSAND_MEMORIES = new Set<Action>([BLADE_OF_THOUSAND_MEMORIES]);
 
 /** Song of Feathered Trace, Thousand-Puppet Pavilion's own sonata. 2pc: +10% Energy Regen flat.
  *  5pc has one branch per Negative Status, and a wearer only ever reaches one of them: inflicting
@@ -126,7 +126,7 @@ const BLADES_OF_THOUSAND_MEMORIES = new Set<Action>([ACTION_BLADE_OF_THOUSAND_ME
  *  Starry Radiance takes its. Both branches are "when *you* inflict" payouts (`onInflict`), so a
  *  stack one of the markers that inflict off somebody else's cast adds (Chisa's Thread of Bane,
  *  Lucilla's Film Roll) belongs to that marker's owner, not to the wearer. */
-export const FEATHERED_TRACE_2PC = new Sonata2pc({ id: 33, name: "Song of Feathered Trace 2pc", echoes: () => [THOUSAND_PUPPET_PAVILION, FORBIDDEN_BASTION], stats: [[Stat.ER, 10]] });
+export const FEATHERED_TRACE_2PC = new Sonata2pc({ id: 33, name: "Song of Feathered Trace 2pc", echoes: () => [THOUSAND_PUPPET_PAVILION_MAINSLOT, FORBIDDEN_BASTION_MAINSLOT], stats: [[Stat.ER, 10]] });
 export const FEATHERED_TRACE_5PC = new Sonata({
   id: 33,
   name: "Song of Feathered Trace 5pc",
@@ -154,14 +154,14 @@ export const CHONGMINGS_FEATHER = new Buff({
  *  (statuses.ts's own note on Healing Bonus). It carries no sonata of its own; Suisui pairs it
  *  with Song of Feathered Trace above, whose Chongming's Feather branch is written for exactly her
  *  — Glacio Chafe into an Energy-Regen-scaled team ATK buff. */
-export const FORBIDDEN_BASTION = new Mainslot({
+export const FORBIDDEN_BASTION_MAINSLOT = new Mainslot({
   id: 6000216,
   name: "Forbidden Bastion",
   cost: 3,
   stats: [[Stat.HealingBonus, 10]],
 });
-export const ACTION_FORBIDDEN_BASTION = new SummonEcho("Echo - Forbidden Bastion", {
-  mainslot: FORBIDDEN_BASTION, cooldown: 60 * 20,
+export const FORBIDDEN_BASTION = new SummonEcho("Echo - Forbidden Bastion", {
+  mainslot: FORBIDDEN_BASTION_MAINSLOT, cooldown: 60 * 20,
   element: Attribute.Glacio, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 34, commitFrame: 0, mv: 23760, energy: 330 }],
 });
 
@@ -181,23 +181,23 @@ export const SUHSIN_BUFF = new Buff({
   stats: [[Stat.DmgBonus, 10, Attribute.Electro]],
 });
 const SUHSIN_BUFF_GRANTS = [{ on: either(onInflict(ELECTRO_FLARE), gainedUnison, unisonResponse), buff: SUHSIN_BUFF }];
-export const STAY_TUNED = new Mainslot({
+export const SUHSIN_MAINSLOT = new Mainslot({
   id: 6000225,
   name: "Reminiscence: Suhsin",
   cost: 4,
   stats: [[Stat.DmgBonus, 10, Attribute.Electro]],
   grants: SUHSIN_BUFF_GRANTS,
 });
-export const ACTION_SUHSIN = new SummonEcho("Echo - Reminiscence: Suhsin", {
-  mainslot: STAY_TUNED, cooldown: 60 * 20,
+export const SUHSIN = new SummonEcho("Echo - Reminiscence: Suhsin", {
+  mainslot: SUHSIN_MAINSLOT, cooldown: 60 * 20,
   element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
-  bullets: [...[0, 1, 2, 3].map(() => ({ hitFrame: 0, mv: 2736, energy: 38 })), { hitFrame: 0, mv: 16416, energy: 228 }],
+  bullets: [...[14, 19, 23, 29].map((f) => ({ hitFrame: f, commitFrame: 0, mv: 2736, energy: 38 })), { hitFrame: 48, commitFrame: 0, mv: 16416, energy: 228 }],
 });
 /** Hsin's own form of it. */
-export const ACTION_SUHSIN_HSIN = new SummonEcho("Echo - Reminiscence: Suhsin (Hsin)", {
-  mainslot: STAY_TUNED, cooldown: 60 * 20,
+export const SUHSIN_HSIN = new SummonEcho("Echo - Reminiscence: Suhsin (Hsin)", {
+  mainslot: SUHSIN_MAINSLOT, cooldown: 60 * 20,
   element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
-  bullets: [...[0, 1, 2, 3, 4].map(() => ({ hitFrame: 0, mv: 820, energy: 11 })), { hitFrame: 0, mv: 23256, energy: 323 }],
+  bullets: [...[11, 14, 21, 24, 31].map((f) => ({ hitFrame: f, commitFrame: 0, mv: 1368, energy: 19 })), { hitFrame: 54, commitFrame: 0, mv: 23256, energy: 323 }],
 });
 
 /** Soulfrayer (6000224, the 3-cost "Stay tuned"), Electro Rover's own mainslot: three
@@ -205,13 +205,13 @@ export const ACTION_SUHSIN_HSIN = new SummonEcho("Echo - Reminiscence: Suhsin (H
  *  incoming resonator's +12% Electro DMG Bonus for 15s, long enough to outlast their own visit
  *  (gear.ts's `handoff`). encore lists the hit once; wuwalab has all three, and a summon. Its
  *  frames and cooldown are blank there, so the 8f summon cast and 20s stay. */
-export const SOULFRATER = new Mainslot({
+export const SOULFRAYER_MAINSLOT = new Mainslot({
   id: 6000224,
   name: "Soulfrayer",
   cost: 3,
 });
-export const ACTION_SOULFRAYER = new SummonEcho("Echo - Soulfrayer", {
-  mainslot: SOULFRATER, castPosition: Position.Grounded, endPosition: Position.Grounded, cooldown: 60 * 20,
+export const SOULFRAYER = new SummonEcho("Echo - Soulfrayer", {
+  mainslot: SOULFRAYER_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, cooldown: 60 * 20,
   element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo, bullets: [0, 1, 2].map(() => ({ hitFrame: 0, mv: 9118, energy: 126 })),
   updateBuffs: () => queueOutro(SOULFRAYER_OUTRO),
 });
@@ -221,7 +221,7 @@ export const SOULFRAYER_OUTRO = handoff("Soulfrayer: Outro", () => addStat(Stat.
  *  obtaining Unison or triggering Unison Response grants +15% Crit. Rate and +22.5% Electro DMG
  *  Bonus for 30s — permanent once granted. `onInflict`: a "when *you* inflict" payout, so a
  *  stack one of the markers adds off the wearer's swing pays nothing here. */
-export const SWORN_VIGIL_2PC = new Sonata2pc({ id: 36, name: "Heart of Sworn Vigil 2pc", echoes: () => [STAY_TUNED, FORMRENDER, SOULFRATER], stats: [[Stat.DmgBonus, 10, Attribute.Electro]] });
+export const SWORN_VIGIL_2PC = new Sonata2pc({ id: 36, name: "Heart of Sworn Vigil 2pc", echoes: () => [SUHSIN_MAINSLOT, FORMRENDER_MAINSLOT, SOULFRAYER_MAINSLOT], stats: [[Stat.DmgBonus, 10, Attribute.Electro]] });
 export const SWORN_VIGIL_5PC = new Sonata({
   id: 36,
   name: "Heart of Sworn Vigil 5pc",
@@ -238,7 +238,7 @@ export const SWORN_VIGIL_BUFF = new Buff({
  *  grants +10% Electro DMG Bonus for 15s — and an
  *  Outro cast while it stands hands the incoming resonator +25% Electro DMG Bonus for 15s, the
  *  Impermanence Heron-style handoff that outlasts their own visit. */
-export const ELECTRIC_REFLECTION_2PC = new Sonata2pc({ id: 37, name: "Flash of Electric Reflection 2pc", echoes: [STAY_TUNED, SOULFRATER], stats: [[Stat.DmgBonus, 10, Attribute.Electro]] });
+export const ELECTRIC_REFLECTION_2PC = new Sonata2pc({ id: 37, name: "Flash of Electric Reflection 2pc", echoes: [SUHSIN_MAINSLOT, SOULFRAYER_MAINSLOT], stats: [[Stat.DmgBonus, 10, Attribute.Electro]] });
 export const ELECTRIC_REFLECTION_5PC = new Sonata({
   id: 37,
   name: "Flash of Electric Reflection 5pc",
@@ -257,15 +257,15 @@ export const ELECTRIC_REFLECTION_HANDOFF = handoff("Flash of Electric Reflection
  *  mainslot: one 273.60% Fusion hit ("Molten" DMG in the CN translation — unconfirmed against EN
  *  text), and +10% Energy Regen for whoever wears it. Pairs with Flower of Tinged Yearning below.
  *  Summon by its text ("summon the Formless Demon"). */
-export const FORMRENDER = new Mainslot({
+export const FORMRENDER_MAINSLOT = new Mainslot({
   id: 6000223,
   name: "Formrender",
   cost: 3,
   stats: [[Stat.ER, 10]],
 });
-export const ACTION_FORMRENDER = new SummonEcho("Echo - Formrender", {
-  mainslot: FORMRENDER, cooldown: 60 * 20,
-  element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 27360, energy: 380 }],
+export const FORMRENDER = new SummonEcho("Echo - Formrender", {
+  mainslot: FORMRENDER_MAINSLOT, cooldown: 60 * 20,
+  element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 39, commitFrame: 0, mv: 27360, energy: 380 }],
 });
 
 /** Flower of Tinged Yearning. 2pc: +10% Healing Bonus flat. 5pc: healing a teammate grants the
@@ -274,7 +274,7 @@ export const ACTION_FORMRENDER = new SummonEcho("Echo - Formrender", {
  *  Response gains a further +15% ATK of their own — watched from the team buff itself, so it
  *  lands on whoever is acting, not on the wearer; no duration of its own is stated, so it is
  *  taken as the team effect's — permanent once granted. */
-export const TINGED_YEARNING_2PC = new Sonata2pc({ id: 38, name: "Flower of Tinged Yearning 2pc", echoes: [THOUSAND_PUPPET_PAVILION, FORMRENDER], stats: [[Stat.HealingBonus, 10]] });
+export const TINGED_YEARNING_2PC = new Sonata2pc({ id: 38, name: "Flower of Tinged Yearning 2pc", echoes: [THOUSAND_PUPPET_PAVILION_MAINSLOT, FORMRENDER_MAINSLOT], stats: [[Stat.HealingBonus, 10]] });
 export const TINGED_YEARNING_5PC = new Sonata({
   id: 38,
   name: "Flower of Tinged Yearning 5pc",

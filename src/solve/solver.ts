@@ -521,7 +521,7 @@ function bestMainstats(teamKey: string, members: Member[], picks: Pick[], who: n
  * every bar fills wins; a climb from one build to the next can stall on a build the team cannot fund,
  * and a repair after it fixes one member at a time, so the whole space is walked instead.
  */
-export function optimizeTeam(teamKey: string, members: Member[], filters: Filters): Pick[] {
+export function optimizeTeam(teamKey: string, members: Member[], filters: Filters): Pick[] | null {
   const one = grantToOne(filters.cost);
   /** Whether every member can fill their Energy bar on `trial` — one member's set can be what funds
    *  another's Liberation, so a build is judged whole. */
@@ -567,7 +567,14 @@ export function optimizeTeam(teamKey: string, members: Member[], filters: Filter
       if (!best || (fills && !best.fills) || (fills === best.fills && total > best.total)) best = { picks, total, fills };
     }
   }
-  const picks = best!.picks;
+  // a member with no build here (a rotation only written from S3 up, with the box closed below it)
+  // leaves nothing to search: expected, so the team just has no rows
+  if (!best) {
+    const without = members.filter((m) => !hasBuild(m, filters)).map((m) => m.name);
+    console.warn(`${teamKey}: no build for ${without.length ? without.join(", ") : "a member"} under these filters, so no rows`);
+    return null;
+  }
+  const picks = best.picks;
   const canFill = (i: number): boolean => shortOf(teamKey, members, picks.map((p, j) => comboOf(members[j]!.loadout, p)))[i] === null;
   // Nothing this member owns fills their bar: three ER rolls is as far as a spread goes, so the
   // Energy has to come off an ER 3-cost main stat — and this kit has none to wear. The team is not
@@ -773,6 +780,7 @@ export function solveTeam(
 ): Solved {
   useTeam(teamKey);
   const picks = known ?? optimizeTeam(teamKey, members, filters);
+  if (!picks) return { picks: [], rows: [], scores: [], hidden: [], hiddenScores: [] };
   const { rows, hidden } = rowPicks(teamKey, members, picks, filters, (s) => onProgress?.(s / 2));
   const score = (row: Pick[]): RowScore => {
     const combo = members.map((m, i) => comboOf(m.loadout, row[i]!));

@@ -44,9 +44,9 @@ import { HECATE_ACTIONS } from "./phrolova.js";
 import { LETHEAN_ELEGY, RIME_DRAPED_SPROUTS, STRINGMASTER, WHISPERS_OF_SIRENS } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { AUGMENT, RADIANT_DAWN } from "../../weapons/battlepass.js";
-import { HERON, MOONLIT_CLOUDS_5PC, REJUV_5PC, NM_CROWNLESS, HAVOC_ECLIPSE_5PC, ACTION_FALLACY, ACTION_HERON, ACTION_NM_CROWNLESS } from "../../echoes/jinzhou.js";
-import { FALLACY } from "../../echoes/jinzhou.js";
-import { MIDNIGHT_VEIL_5PC, EMPYREAN_ANTHEM_5PC, NM_HERON, HECATE, ACTION_NM_HERON, ACTION_HECATE } from "../../echoes/rinascita.js";
+import { HERON_MAINSLOT, MOONLIT_CLOUDS_5PC, REJUV_5PC, NM_CROWNLESS_MAINSLOT, HAVOC_ECLIPSE_5PC, FALLACY, HERON, NM_CROWNLESS } from "../../echoes/jinzhou.js";
+import { FALLACY_MAINSLOT } from "../../echoes/jinzhou.js";
+import { MIDNIGHT_VEIL_5PC, EMPYREAN_ANTHEM_5PC, NM_HERON_MAINSLOT, HECATE_MAINSLOT, NM_HERON, HECATE } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -66,25 +66,25 @@ const MIRAGE: Buff = new Buff({
   afterAction: () => { if (forte1() <= 0) revokeCurrent(MIRAGE); },
 });
 
-const BA1 = cantaAction("Basic - Illusion Collapse 1", { animFrames: 27, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 14, mv: 7953, energy: 100, concerto: 200, offtune: 3200 }]});
-const BA2 = cantaAction("Basic - Illusion Collapse 2", { chains: [BA1], animFrames: 45, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = cantaAction("Basic - Illusion Collapse 1", { notAfter: () => [BA1, BA2, Intro], animFrames: 27, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 14, mv: 7953, energy: 100, concerto: 200, offtune: 3200 }]});
+const BA2 = cantaAction("Basic - Illusion Collapse 2", { after: [BA1], animFrames: 45, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 16, mv: 3644, energy: 46, concerto: 92, offtune: 1466 },
     { hitFrame: 23, mv: 3644, energy: 46, concerto: 92, offtune: 1466 },
     { hitFrame: 29, mv: 3644, energy: 46, concerto: 92, offtune: 1466 },
     { hitFrame: 35, mv: 3644, energy: 46, concerto: 92, offtune: 1466 },
   ]}); // 36.44%x4
 // Ripple: "Press Normal Attack shortly after casting this skill to start the Basic Attack combo from Basic Attack Stage 3"
-const BA3 = cantaAction("Basic - Illusion Collapse 3", { chains: () => [BA2, Intro], animFrames: 50, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = cantaAction("Basic - Illusion Collapse 3", { after: () => [BA2, Intro], animFrames: 50, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 4, mv: 7257, energy: 92, concerto: 183, offtune: 2920, forte1: 1 },
     { hitFrame: 19, mv: 7257, energy: 92, concerto: 183, offtune: 2920 },
   ]}); // 72.57%x2
 
 // custom single hit with different frames
-const BA3hit1 = cantaAction("Basic - Illusion Collapse 3", { chains: () => [BA2, Intro], animFrames: 50, castPriority: 2, bullets: [{ hitFrame: 4, mv: 14514/2, energy: 184/2, concerto: 366/2, offtune: 5840/2, forte1: 1 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic}); // 72.57%x2
+const BA3hit1 = cantaAction("Basic - Illusion Collapse 3", { after: () => [BA2, Intro], animFrames: 50, castPriority: 2, bullets: [{ hitFrame: 4, mv: 14514/2, energy: 184/2, concerto: 366/2, offtune: 5840/2, forte1: 1 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic}); // 72.57%x2
 
 // "When Cantarella has Trance, Heavy Attack becomes Delusive Dive"
 const EHA = cantaAction("Heavy - Delusive Dive", {
-  minForte1: 1, animFrames: 43, animPriority: { 43: 1 }, castPriority: 5,
+  endPosition: Position.Midair, minForte1: 1, animFrames: 43, animPriority: { 43: 1 }, castPriority: 5,
   node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 10, mv: 5305, energy: 84, concerto: 167, offtune: 2668 },
     { hitFrame: 20, mv: 5305, energy: 84, concerto: 167, offtune: 2668 },
@@ -92,16 +92,16 @@ const EHA = cantaAction("Heavy - Delusive Dive", {
   updateBuffs: () => applyCurrent(MIRAGE, 1),
 });
 
-const FBA1 = cantaAction("Forte Basic - Phantom Sting 1", { minForte1: 1, requireBuff: MIRAGE, animFrames: 47, animPriority: { 0: 5, 34: 4, 37: 2 }, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
+const FBA1 = cantaAction("Forte Basic - Phantom Sting 1", { notAfter: () => [FBA1, FBA2], minForte1: 1, requireBuff: MIRAGE, animFrames: 47, animPriority: { 0: 5, 34: 4, 37: 2 }, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 10, mv: 3533, energy: 45, concerto: 89, offtune: 1422, forte2: 1, updateDebuffs: () => applyCurrent(HEALS, 1), forte1: -1 },
     { hitFrame: 21, mv: 3533, energy: 45, concerto: 89, offtune: 1422 },
     { hitFrame: 28, mv: 3533, energy: 45, concerto: 89, offtune: 1422 },
   ]}); // 35.33%x3
-const FBA2 = cantaAction("Forte Basic - Phantom Sting 2", { chains: [FBA1], minForte1: 1, requireBuff: MIRAGE, animFrames: 41, animPriority: { 0: 5, 24: 4, 30: 2 }, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
+const FBA2 = cantaAction("Forte Basic - Phantom Sting 2", { after: [FBA1], minForte1: 1, requireBuff: MIRAGE, animFrames: 41, animPriority: { 0: 5, 24: 4, 30: 2 }, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 16, mv: 6293, energy: 80, concerto: 159, offtune: 2532, forte2: 1, updateDebuffs: () => applyCurrent(HEALS, 1), forte1: -1 },
     { hitFrame: 32, mv: 6293, energy: 80, concerto: 159, offtune: 2532 },
   ]}); // 62.93%x2
-const FBA3 = cantaAction("Forte Basic - Phantom Sting 3", { chains: [FBA2], minForte1: 1, requireBuff: MIRAGE, animFrames: 82, animPriority: { 0: 5, 48: 2 }, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
+const FBA3 = cantaAction("Forte Basic - Phantom Sting 3", { after: [FBA2], minForte1: 1, requireBuff: MIRAGE, animFrames: 82, animPriority: { 0: 5, 48: 2 }, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 19, commitFrame: 0, mv: 6462, energy: 82, concerto: 163, offtune: 2600, forte2: 1, subtype: Subtype.Coordinated, updateDebuffs: () => applyCurrent(HEALS, 1), forte1: -1 },
     { hitFrame: 25, commitFrame: 8, mv: 6462, energy: 82, concerto: 163, offtune: 2600, subtype: Subtype.Coordinated },
     { hitFrame: 27, commitFrame: 15, mv: 6462, energy: 82, concerto: 163, offtune: 2600, subtype: Subtype.Coordinated },
@@ -334,13 +334,13 @@ const BA123 = new ActionGroup("Basic - Illusion Collapse 123", [BA1, BA2, BA3]);
 // Liberation lays and leaves its own for Phantom Sting, two Jolts a loop
 
 const CA_ROTATION = new Rotation([
-  Intro, BA3hit1.instaCancel(), Skill.instaCancel(), ACTION_NM_HERON.instaDodge(), ACTION_FALLACY.instaCancel(), ACTION_HERON.instaDodge(), ACTION_HECATE.instaCancel(), ACTION_NM_CROWNLESS.instaDodge(), Liberation, 
-  EHA, FBA1.cancel(), ESkill, FBA1, FBA2.mashCancel(), FSkill, FBA1, FBA2.instaSwap(), Outro,
+  Intro, BA3hit1.instaCancel(), Skill.instaCancel(), NM_HERON.instaDodge(), FALLACY.instaCancel(), HERON.instaDodge(), HECATE.instaCancel(), NM_CROWNLESS.instaDodge(), Liberation, 
+  EHA, FBA1.mashCancel(), ESkill, FBA1, FBA2.mashCancel(), FSkill, FBA1, FBA2.instaSwap(), Outro,
 ]);
 
 const CA_ROTATION_MDPS = new Rotation([
-  Intro, BA3hit1.instaCancel(), Skill.instaCancel(), ACTION_NM_HERON, ACTION_FALLACY, ACTION_HERON, ACTION_HECATE, ACTION_NM_CROWNLESS, Liberation,
-  EHA, FBA123.cancel(), FSkill, ACTION_NM_HERON, ACTION_FALLACY, ACTION_HERON, ACTION_HECATE, ACTION_NM_CROWNLESS, ESkill, // TODO check if fskill cancelled by echo
+  Intro, BA3hit1.instaCancel(), Skill.instaCancel(), NM_HERON, FALLACY.instaCancel(), HERON, HECATE.instaCancel(), NM_CROWNLESS, Liberation,
+  EHA, FBA123.cancel(), FSkill, NM_HERON, FALLACY, HERON, HECATE, NM_CROWNLESS, ESkill, // TODO check if fskill cancelled by echo
   FBA1, FBA2, BA123.cancel(), Skill.instaSwap(), Outro,
 ]);
 
@@ -356,11 +356,11 @@ export const CANTARELLA = new Loadout({
   weapons: [WHISPERS_OF_SIRENS, COSMIC_RIPPLES, NEW_STD_RECTIFIER, STRINGMASTER, LETHEAN_ELEGY, RIME_DRAPED_SPROUTS, AUGMENT, RADIANT_DAWN],
   echoes: new Echoes({
     sets: [
-    new EchoLoadout(NM_HERON, MIDNIGHT_VEIL_5PC),
-    new EchoLoadout(FALLACY, REJUV_5PC),
-    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
-    new EchoLoadout(HECATE, EMPYREAN_ANTHEM_5PC),
-        new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC),
+    new EchoLoadout(NM_HERON_MAINSLOT, MIDNIGHT_VEIL_5PC),
+    new EchoLoadout(FALLACY_MAINSLOT, REJUV_5PC),
+    new EchoLoadout(HERON_MAINSLOT, MOONLIT_CLOUDS_5PC),
+    new EchoLoadout(HECATE_MAINSLOT, EMPYREAN_ANTHEM_5PC),
+        new EchoLoadout(NM_CROWNLESS_MAINSLOT, HAVOC_ECLIPSE_5PC),
   ],
     mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
     substats: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Skill),
@@ -382,13 +382,13 @@ export const CANTARELLA_MDPS = new Loadout({
   weapons: [WHISPERS_OF_SIRENS, COSMIC_RIPPLES, NEW_STD_RECTIFIER, STRINGMASTER, LETHEAN_ELEGY, RIME_DRAPED_SPROUTS, AUGMENT, RADIANT_DAWN],
   echoes: new Echoes({
     sets: [
-    new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC),
+    new EchoLoadout(NM_CROWNLESS_MAINSLOT, HAVOC_ECLIPSE_5PC),
   ],
     mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
     substats: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Skill),
     highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Skill, Substat.Heavy),
   }),
   // same ER 3-cost her support build carries: her own bar wants more than a spread holds
-  rotation: CA_ROTATION_MDPS,
+  rotation: {1: CA_ROTATION_MDPS},
   sequences: CA_SEQUENCES,
 });

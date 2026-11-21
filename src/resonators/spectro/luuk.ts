@@ -47,7 +47,7 @@ import {
   runningAnyOf,
   saveChain,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, START_LAST, DODGE, SWAP } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, START_LAST, SWAP, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
 import { applied } from "../../engine/context.js";
 import { TUNE_STRAIN_SHIFTING, tuneBreak, midairBreak } from "../../shared/tunebreak.js";
 import { applyStrain, TUNE_BREAK, TUNE_STRAIN_INTERFERED, TUNE_SHIFTABLE, strainPayout } from "../../shared/tunebreak.js";
@@ -55,7 +55,7 @@ import { DAYBREAKERS_SPINE } from "../../weapons/gauntlet.js";
 import { NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
 import { STONARD, AETHER_STRIKE } from "../../weapons/battlepass.js";
 import {
-  NEBULOUS_CANNON,
+  NEBULOUS_CANNON_MAINSLOT,
   GILDED_REVELATION_5PC,
 } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
@@ -91,16 +91,16 @@ function luukAction(id: string, def: object): Action {
 
 // --- Such is Light, the ground chain. Stage 3 hurls a whirling blade (5.02% x30, taken at the
 //     table's own full count); Stage 4 is what replaces Resonance Skill with Aureole of Execution.
-const BA1 = luukAction("Basic - Such is Light 1", { animFrames: 31, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = luukAction("Basic - Such is Light 1", { notAfter: () => [BA1, BA2, BA3, DC, Ring, Breach], animFrames: 31, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 10, mv: 4056, energy: 60, concerto: 120, offtune: 1920, forte1: 600 },
     { hitFrame: 21, mv: 4056, energy: 60, concerto: 120, offtune: 1920, forte1: 600 },
   ]});
-const BA2 = luukAction("Basic - Such is Light 2", { chains: [BA1], animFrames: 56, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA2 = luukAction("Basic - Such is Light 2", { after: [BA1], animFrames: 56, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 8, mv: 6016, energy: 89, concerto: 178, offtune: 2848, forte1: 890 },
     { hitFrame: 51, mv: 9024, energy: 134, concerto: 267, offtune: 4272, forte1: 1335 },
   ]});
 // the ground Dodge Counter: "Press Normal Attack right after casting this skill to cast Basic Attack Stage 3"
-const BA3 = luukAction("Basic - Such is Light 3", { chains: () => [BA2, DC], animFrames: 56, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = luukAction("Basic - Such is Light 3", { after: () => [BA2, DC], animFrames: 56, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 33, commitFrame: 21, mv: 502, energy: 8, concerto: 15, offtune: 237, forte1: 75 },
     { hitFrame: 35, commitFrame: 21, mv: 502, energy: 8, concerto: 15, offtune: 237, forte1: 75 },
     { hitFrame: 40, commitFrame: 21, mv: 502, energy: 8, concerto: 15, offtune: 237, forte1: 75 },
@@ -132,22 +132,22 @@ const BA3 = luukAction("Basic - Such is Light 3", { chains: () => [BA2, DC], ani
     { hitFrame: 196, commitFrame: 21, mv: 502, energy: 8, concerto: 15, offtune: 237, forte1: 75 },
     { hitFrame: 202, commitFrame: 21, mv: 502, energy: 8, concerto: 15, offtune: 237, forte1: 75 },
   ]});
-const BA4 = luukAction("Basic - Such is Light 4", { chains: [BA3], ...ARM_AUREOLE, animFrames: 39, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 21, mv: 9633, energy: 143, concerto: 285, offtune: 4560, forte1: 1425 }]});
+const BA4 = luukAction("Basic - Such is Light 4", { after: [BA3], ...ARM_AUREOLE, animFrames: 39, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 21, mv: 9633, energy: 143, concerto: 285, offtune: 4560, forte1: 1425 }]});
 // "Hold [LeftMouseButton] on the ground and consume STA to jump to the air"
 const HA = luukAction("Heavy - Such is Light", { castPosition: Position.Grounded, endPosition: Position.Midair, animFrames: 60, animPriority: { 34: 0 }, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 24, mv: 9126, energy: 135, concerto: 270, offtune: 4320, forte1: 1350 }]});
-const DC = luukAction("Dodge Counter - Such is Light", { chains: [DODGE], castPosition: Position.Grounded, animFrames: 56, animPriority: { 0: 5 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 50, mv: 25180, energy: 224, concerto: 1746, offtune: 7120, forte1: 1113 }]});
+const DC = luukAction("Dodge Counter - Such is Light", { after: [SUCCESSFUL_DODGE], castPosition: Position.Grounded, animFrames: 56, animPriority: { 0: 5 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 50, mv: 25180, energy: 224, concerto: 1746, offtune: 7120, forte1: 1113 }]});
 
 // --- the mid-air chain. Stage 2 and 3 come in two forms by input: Scythe: Dissection (Normal
 //     Attack) or Scythe: Resection (Jump), the latter inflicting Tune Strain - Shifting. Stage 3
 //     of either is what replaces Resonance Skill with Aureole of Execution.
-const MA1 = luukAction("Mid-air - Such is Light 1", { castPosition: Position.Midair, animFrames: 37, animPriority: { 25: 0 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 10, mv: 5746, energy: 85, concerto: 170, offtune: 2720, forte1: 850 }]});
+const MA1 = luukAction("Mid-air - Such is Light 1", { notAfter: () => [MA1, MA2, MA2R, MA3, MA3R, Intro, Ring, Breach, Glare], castPosition: Position.Midair, animFrames: 37, animPriority: { 25: 0 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 10, mv: 5746, energy: 85, concerto: 170, offtune: 2720, forte1: 850 }]});
 // either input picks each of Stage 2 and 3, and the Intro opens the chain at Stage 2
-const MA2 = luukAction("Mid-air - Scythe: Dissection 2", { chains: () => [MA1, Intro], castPosition: Position.Midair, animFrames: 27, animPriority: { 32: 0 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MA2 = luukAction("Mid-air - Scythe: Dissection 2", { after: () => [MA1, Intro], castPosition: Position.Midair, animFrames: 27, animPriority: { 32: 0 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 11, mv: 2823, energy: 42, concerto: 75, offtune: 1200, forte1: 375 },
     { hitFrame: 17, mv: 2823, energy: 42, concerto: 75, offtune: 1200, forte1: 375 },
     { hitFrame: 27, mv: 3763, energy: 56, concerto: 100, offtune: 1600, forte1: 500 },
   ]});
-const MA3 = luukAction("Mid-air - Scythe: Dissection 3", { chains: () => [MA2, MA2R], castPosition: Position.Midair, animFrames: 72, animPriority: { 0: 5, 52: 0 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MA3 = luukAction("Mid-air - Scythe: Dissection 3", { after: () => [MA2, MA2R], castPosition: Position.Midair, animFrames: 72, animPriority: { 0: 5, 52: 0 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 8, mv: 4293, energy: 82, concerto: 119, offtune: 1896, forte1: 593 },
     { hitFrame: 18, mv: 4293, energy: 82, concerto: 119, offtune: 1896, forte1: 593 },
     { hitFrame: 64, mv: 5724, energy: 109, concerto: 158, offtune: 2528, forte1: 790 },
@@ -169,17 +169,18 @@ const aureole = (next: Buff | null, impale: boolean) => ({
     if (impale) applyCurrent(IMPALE_READY, 1);
   },
 });
-const MA2R = luukAction("Mid-air - Scythe: Resection 2", { chains: () => [MA1, Intro], castPosition: Position.Midair, animFrames: 30, animPriority: { 34: 0 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MA2R = luukAction("Mid-air - Scythe: Resection 2", { after: () => [MA1, Intro], castPosition: Position.Midair, animFrames: 30, animPriority: { 34: 0 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 13, mv: 5042, energy: 75, concerto: 135, offtune: 2160, forte1: 675 },
     { hitFrame: 30, mv: 5042, energy: 75, concerto: 135, offtune: 2160, forte1: 675 },
   ], ...STRAIN });
-const MA3R = luukAction("Mid-air - Scythe: Resection 3", { chains: [MA2, MA2R], castPosition: Position.Midair, animFrames: 66, animPriority: { 0: 5, 55: 2, 66: 0 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MA3R = luukAction("Mid-air - Scythe: Resection 3", { after: [MA2, MA2R], castPosition: Position.Midair, animFrames: 66, animPriority: { 0: 5, 55: 2, 66: 0 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 7492, energy: 141, concerto: 208, offtune: 3320, forte1: 1038 },
     { hitFrame: 47, mv: 7492, energy: 141, concerto: 208, offtune: 3320, forte1: 1038 },
   ], ...STRAIN, ...ARM_AUREOLE });
 // "Stage 4 is a Plunging Attack", also held in mid-air at any point, so it follows anything
 const MA4 = luukAction("Mid-air - Such is Light 4 Plunge", { castPosition: Position.Midair, endPosition: Position.Grounded, animFrames: 60, animPriority: { 2: 3, 38: 3 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 40, mv: 10478, energy: 155, concerto: 100, offtune: 4960, forte1: 1550 }]});
-const MDC = luukAction("Dodge Counter - Such is Light (Mid-Air)", { chains: [DODGE], castPosition: Position.Midair, animPriority: { 0: 5 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 25687, energy: 230, concerto: 760, offtune: 7360, forte1: 2300 }], castConcerto: 1000,
+// wuwalab disagrees (7.5 Concerto against 7.6); encore's row matches this — to check another time
+const MDC = luukAction("Dodge Counter - Such is Light (Mid-Air)", { animFrames: 69, after: [SUCCESSFUL_DODGE], castPosition: Position.Midair, animPriority: { 0: 5 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 37, mv: 25687, energy: 230, concerto: 760, offtune: 7360, forte1: 2300 }], castConcerto: 1000,
   updateBuffs: () => revokeCurrent(IMPALE_READY),
 });
 
@@ -541,17 +542,17 @@ const Jump23 = new ActionGroup("Mid-air - Scythe: Resection 23", [MA2R, MA3R]);
 
 const LK_ROTATION = new Rotation([
   // start lib costs too much ER
-  Intro, Jump23.cancel(), Ring, GoldenImpale,
-  Jump123.cancel(), Breach, GoldenImpale,
-  Jump123.cancel(), Glare.mashCancel(), Gavel.cancel(),
+  Intro, Jump23.mashCancel(), Ring, GoldenImpale,
+  Jump123.mashCancel(), Breach, GoldenImpale,
+  Jump123.mashCancel(), Glare.mashCancel(), Gavel.cancel(),
   Liberation, Skill.instaSwap(), Outro,
 ]);
 
 const LK_ROTATION_16s = new Rotation([
-  Intro, Jump23.cancel(), Ring, GoldenImpale,
-  Jump123.cancel(), Breach, GoldenImpale,
-  Jump123.cancel(), Glare.mashCancel(), Gavel.cancel(),
-  Liberation, Jump123.cancel(), Ring.instaSwap(), Outro,
+  Intro, Jump23.mashCancel(), Ring, GoldenImpale,
+  Jump123.mashCancel(), Breach, GoldenImpale,
+  Jump123.mashCancel(), Glare.mashCancel(), Gavel.cancel(),
+  Liberation, Jump123.mashCancel(), Ring.instaSwap(), Outro,
 ]);
 
 export const LUUK = new Loadout({
@@ -560,7 +561,7 @@ export const LUUK = new Loadout({
   weapons: [DAYBREAKERS_SPINE, NEW_STD_GAUNTLET, ABYSS_SURGES, STONARD, AETHER_STRIKE],
   echoes: new Echoes({
     sets: [
-  new EchoLoadout(NEBULOUS_CANNON, GILDED_REVELATION_5PC),
+  new EchoLoadout(NEBULOUS_CANNON_MAINSLOT, GILDED_REVELATION_5PC),
 ],
     mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
     substats: substats(Substat.CritDmg, Substat.CritRate, Substat.Basic, Substat.AtkPct, Substat.FlatAtk, Substat.Skill),
@@ -575,7 +576,7 @@ export const LUUK_16s = new Loadout({
   weapons: [DAYBREAKERS_SPINE, NEW_STD_GAUNTLET, ABYSS_SURGES, STONARD, AETHER_STRIKE],
   echoes: new Echoes({
     sets: [
-  new EchoLoadout(NEBULOUS_CANNON, GILDED_REVELATION_5PC),
+  new EchoLoadout(NEBULOUS_CANNON_MAINSLOT, GILDED_REVELATION_5PC),
 ],
     mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
     substats: substats(Substat.CritDmg, Substat.CritRate, Substat.Basic, Substat.AtkPct, Substat.FlatAtk, Substat.Skill),

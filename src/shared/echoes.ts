@@ -1,12 +1,11 @@
 /**
  * A loadout's echoes: the set picks (a mainslot and its sonatas), the main-stat builds and both
  * substat spreads, and the five echoes one combination of them makes. Each echo is a piece of gear
- * of its own wearing its main stat, its secondary and the substats dealt to it, so its ATK%/HP%/DEF%
- * is one panel entry, floored once (context.ts's `panelEntry`).
+ * of its own wearing its main stat, its secondary and the substats dealt to it.
  */
 import { Gear, EchoLoadout, Mainslot } from "../engine/gear.js";
 import type { StatLine } from "../engine/gear.js";
-import { addStat, asSource, panelEntry } from "../engine/context.js";
+import { addStat, asSource } from "../engine/context.js";
 import { scopedStat } from "../engine/stats.js";
 import type { Stat, StatKey, Tag } from "../engine/stats.js";
 import { MainstatBuild, costOf, mainLines, slotName } from "./mainstats.js";
@@ -107,11 +106,11 @@ function echoesOf(build: MainstatBuild, spread: Spread, mainslot: Mainslot): Ech
     };
     const echo = new Echo({
       name: slotName(key),
-      constantStats: () => panelEntry(() => {
+      constantStats: () => {
         asSource(asMain, add(main));
         asSource(asSubs, add(rolled));
         if (own) asSource(mainslot, own);
-      }),
+      },
     });
     echo.sources = [asMain, asSubs];
     return echo;

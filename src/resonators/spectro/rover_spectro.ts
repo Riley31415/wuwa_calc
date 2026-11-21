@@ -24,14 +24,14 @@ import {
   addEnemyStat,
   queue,
 } from "../../engine/context.js";
-import { Action, Rotation, SWAPIN, ActionGroup, Cooldown, DODGE } from "../../engine/rotation.js";
+import { Action, Rotation, SWAPIN, ActionGroup, Cooldown, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
 import { tuneBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
 import { SPECTRO_FRAZZLE, SHIMMER, HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { BLAZING_BRILLIANCE, RED_SPRING } from "../../weapons/sword.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
-import { REJUV_5PC, HERON, MOONLIT_CLOUDS_5PC, ACTION_FALLACY, ACTION_HERON } from "../../echoes/jinzhou.js";
-import { FALLACY } from "../../echoes/jinzhou.js";
+import { REJUV_5PC, HERON_MAINSLOT, MOONLIT_CLOUDS_5PC, FALLACY, HERON } from "../../echoes/jinzhou.js";
+import { FALLACY_MAINSLOT } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -54,18 +54,19 @@ function roverAction(id: string, def: object): Action {
 
 // --- basics, heavies, mid-air, dodge counter. Every Normal Attack banks a little Diminutive
 //     Sound (forte1); Heavy Attack Aftertune is the big one at 45.
-const BA1 = roverAction("Basic - Vibration Manifestation 1", { animFrames: 21, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 10, mv: 5915, energy: 50, concerto: 200, offtune: 2800, forte1: 3 }]});
-const BA2 = roverAction("Basic - Vibration Manifestation 2", { chains: [BA1], animFrames: 25, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 12, mv: 7605, energy: 100, concerto: 400, offtune: 3600, forte1: 5 }]});
-const BA3 = roverAction("Basic - Vibration Manifestation 3", { chains: [BA2], animFrames: 24, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+// Resonance and Aftertune are Basic-button presses, so they (and Resonating Echoes) bar Stage 1
+const BA1 = roverAction("Basic - Vibration Manifestation 1", { notAfter: () => [BA1, BA2, BA3, HA1, HA2, DC, FSkill1], animFrames: 21, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 10, mv: 5915, energy: 50, concerto: 200, offtune: 2800, forte1: 3 }]});
+const BA2 = roverAction("Basic - Vibration Manifestation 2", { after: [BA1], animFrames: 25, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 12, mv: 7605, energy: 100, concerto: 400, offtune: 3600, forte1: 5 }]});
+const BA3 = roverAction("Basic - Vibration Manifestation 3", { after: [BA2], animFrames: 24, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 1521, energy: 30, concerto: 80, offtune: 720, forte1: 1 },
     { hitFrame: 20, commitFrame: 14, mv: 1521, energy: 30, concerto: 80, offtune: 720, forte1: 1 },
     { hitFrame: 26, commitFrame: 14, mv: 1521, energy: 30, concerto: 80, offtune: 720, forte1: 1 },
     { hitFrame: 32, commitFrame: 14, mv: 1521, energy: 30, concerto: 80, offtune: 720, forte1: 1 },
     { hitFrame: 38, commitFrame: 14, mv: 1521, energy: 30, concerto: 80, offtune: 720, forte1: 1 },
   ], updateBuffs: () => applyCurrent(RESONANCE_READY, 1)});
-const BA4 = roverAction("Basic - Vibration Manifestation 4", { chains: [BA3], animFrames: 49, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 20, mv: 13013, energy: 200, concerto: 600, offtune: 6160, forte1: 7 }]});
+const BA4 = roverAction("Basic - Vibration Manifestation 4", { after: [BA3], animFrames: 49, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 20, mv: 13013, energy: 200, concerto: 600, offtune: 6160, forte1: 7 }]});
 const MA = roverAction("Mid-air - Vibration Manifestation Plunge", { castPosition: Position.Midair, endPosition: Position.Grounded, animFrames: 54, animPriority: { 43: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 39, mv: 10478, energy: 51, concerto: 100, offtune: 4960, forte1: 5 }]});
-const DC = roverAction("Dodge Counter - Vibration Manifestation", { chains: [DODGE], animFrames: 27, animPriority: { 17: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const DC = roverAction("Dodge Counter - Vibration Manifestation", { after: [SUCCESSFUL_DODGE], animFrames: 27, animPriority: { 17: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 17, mv: 19534, energy: 262, concerto: 360, offtune: 3600, updateDebuffs: () => applyCurrent(AFTERTUNE_READY, 1) },
   ], castConcerto: 1000});
 
@@ -77,13 +78,13 @@ const HA1 = roverAction("Heavy - Vibration Manifestation", { animFrames: 33, cas
     { hitFrame: 36, commitFrame: 12, mv: 1927, energy: 28, concerto: 91, offtune: 4560, forte1: 1 },
   ], updateBuffs: () => applyCurrent(RESONANCE_READY, 1)});
 const HA2 = roverAction("Heavy - Resonance", {
-  chains: [BA3, HA1], requireBuff: RESONANCE_READY,
+  after: [BA3, HA1], requireBuff: RESONANCE_READY,
   updateBuffs: () => revokeCurrent(RESONANCE_READY),
   animFrames: 27, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
     { hitFrame: 17, mv: 7605, energy: 112, concerto: 360, offtune: 3600, updateDebuffs: () => applyCurrent(AFTERTUNE_READY, 1) },
   ],
 });
-const HA3 = roverAction("Heavy - Aftertune", { chains: [HA2, DC], requireBuff: AFTERTUNE_READY, updateBuffs: () => revokeCurrent(AFTERTUNE_READY), animFrames: 41, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [{ hitFrame: 12, commitFrame: 0, mv: 12675, energy: 187, concerto: 600, offtune: 6000, forte1: 45 }]});
+const HA3 = roverAction("Heavy - Aftertune", { after: [HA2, DC], requireBuff: AFTERTUNE_READY, updateBuffs: () => revokeCurrent(AFTERTUNE_READY), animFrames: 41, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [{ hitFrame: 12, commitFrame: 0, mv: 12675, energy: 187, concerto: 600, offtune: 6000, forte1: 45 }]});
 const HA123 = new ActionGroup("Heavy - Attack + Resonance + Aftertune", [HA1, HA2, HA3]);
 
 // --- resonance skill, and the forte circuit that replaces it at 50 Diminutive Sound: Resonating
@@ -115,7 +116,7 @@ const FSkill1 = roverAction("Forte Skill - Resonating Spin", {
 });
 const ResonatingWhirl = roverAction("Forte Skill - Resonating Whirl", { node: Node.Forte, type: Type.Skill, bullets: [{ hitFrame: 0, mv: 3977, energy: 200 }] });
 // "After Resonance Skill Resonating Spin ends, follow up with Basic Attack"
-const FBA = roverAction("Basic - Resonating Echoes", { chains: [FSkill1], requireBuff: ECHOES_READY, updateBuffs: () => revokeCurrent(ECHOES_READY), animFrames: 60, animPriority: { 60: 2 }, castPriority: 3, node: Node.Forte, cast: Cast.Basic, type: Type.Skill, bullets: [
+const FBA = roverAction("Basic - Resonating Echoes", { after: [FSkill1], requireBuff: ECHOES_READY, updateBuffs: () => revokeCurrent(ECHOES_READY), animFrames: 60, animPriority: { 60: 2 }, castPriority: 3, node: Node.Forte, cast: Cast.Basic, type: Type.Skill, bullets: [
     { hitFrame: 9, mv: 7953, energy: 50, concerto: 300, offtune: 2400 },
     { hitFrame: 36, mv: 15905, energy: 200, concerto: 500, offtune: 4800 },
   ]});
@@ -246,11 +247,11 @@ const ROVER_SPECTRO_RESONATOR = new Resonator({
 const SPR_ROTATION = new Rotation([
   SWAPIN, BA1, HA123, FSkill1, Liberation, 
   HA123, HA123, FSkill1,
-  ACTION_FALLACY.instaSwap(), ACTION_HERON.instaSwap(), Outro,
+  FALLACY.instaSwap(), HERON.instaSwap(), Outro,
 
   Intro, FSkill1, FBA.cancel(), Liberation, 
   HA123, HA123, FSkill1,
-  ACTION_FALLACY.instaSwap(), ACTION_HERON.instaSwap(), Outro,
+  FALLACY.instaSwap(), HERON.instaSwap(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
@@ -260,11 +261,11 @@ const SPR_ROTATION = new Rotation([
 export const ROVER_SPECTRO = new Loadout({
   id: 15011,
   resonator: ROVER_SPECTRO_RESONATOR,
-  weapons: [BLAZING_BRILLIANCE, EMERALD_OF_GENESIS, RED_SPRING, LUMINGLOSS, FEATHER_EDGE],
+  weapons: [EMERALD_OF_GENESIS, BLAZING_BRILLIANCE, RED_SPRING, LUMINGLOSS, FEATHER_EDGE],
   echoes: new Echoes({
     sets: [
-    new EchoLoadout(FALLACY, REJUV_5PC),
-    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
+    new EchoLoadout(FALLACY_MAINSLOT, REJUV_5PC),
+    new EchoLoadout(HERON_MAINSLOT, MOONLIT_CLOUDS_5PC),
   ],
     mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
     substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Skill),

@@ -19,11 +19,18 @@ import { ALL_TEAMS, teamKey } from "../resonators/teams.js";
 import { teamFromKey, solveTeam, defaultFilters, bestKey, picksKey, filterSignature, hasBuild, TEAM_COSTS } from "./solver.js";
 import type { Filters, Pick, Solved } from "./solver.js";
 
-/** The states the site ships: every Team Cost, and nothing else. Anything a filter opens — a
- *  compare axis, a resonator's Matrix — solves in the browser. Built off `TEAM_COSTS` rather than
- *  written out, so a cost mode added to the type ships without anyone remembering this list. */
-const STATES: Record<string, Partial<Filters>> = Object.fromEntries(TEAM_COSTS.map((cost) =>
-  [cost === defaultFilters().cost ? "default" : cost, { cost }]));
+/** Every resonator whose kit carries a Matrix: the set the pages turn on all at once (`mx=true`, and
+ *  the value page always) — page/model.ts's `MATRIX_RESONATORS`, built the same way. */
+const MATRIX = [...new Set(ALL_TEAMS.flatMap((t) => t.loadouts).filter((l) => l.resonator.matrix).map((l) => l.resonator.name))];
+
+/** The states the site ships: every Team Cost, each with no Matrix and with every Matrix on (`_mx`).
+ *  Anything else a filter opens — a compare axis, one resonator's Matrix — solves in the browser.
+ *  Built off `TEAM_COSTS` rather than written out, so a cost mode added to the type ships without
+ *  anyone remembering this list. A team with no Matrix kit keys alike in both and is solved once. */
+const STATES: Record<string, Partial<Filters>> = Object.fromEntries(TEAM_COSTS.flatMap((cost) => {
+  const name = cost === defaultFilters().cost ? "default" : cost;
+  return [[name, { cost }], [`${name}_mx`, { cost, matrix: MATRIX }]];
+}));
 
 const filtersFor = (state: string): Filters => ({ ...defaultFilters(), ...STATES[state] });
 

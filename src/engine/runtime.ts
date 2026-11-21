@@ -61,10 +61,8 @@ export const ctx: {
   /** Set while a stat hook (applyStats, convertStats, lateConvertStats, constantStats) runs: none may
    *  change a buff, a gauge or the queue, only write stats. */
   inStats: boolean;
-  /** Set while constantStats run: a constant ATK%/HP%/DEF% is a panel entry, floored on its own. */
+  /** Set while constantStats run. */
   inConst: boolean;
-  /** An echo's own panel entries while it adds them (`panelEntry()`), summed before the one floor. */
-  panelGroup: number[] | null;
   /** Set while a marker resolves (an Intro Resolver, an echo): it picks a cast and may only read. */
   inResolve: boolean;
   /** Set while a handoff plans the visit it opens, ahead of its Outro: what that Outro moves hasn't. */
@@ -130,6 +128,8 @@ export const ctx: {
   /** evaluate.ts's `bankLoose()`, set where it is defined: context.ts importing it would close an
    *  import cycle (gear -> context -> evaluate -> rotation -> gear) that leaves `Gear` undefined. */
   bankLoose: (state: State, slot: TeamMember, gain: Gain) => void;
+  /** rotation.ts's `waitFor()`, set where it is defined: evaluate.ts may only reference rotation.ts as types. */
+  waitFor: (frames: number, what: string, gameWait?: boolean) => Action;
   /** What a hold cancel holds into once the steps run out: the press the next loop would cast after
    *  the Intro a fight ends on, which it never plays (rotation.ts's `finish()`). */
   holdBeyond: Action | null;
@@ -162,7 +162,6 @@ export const ctx: {
   mutHash: 0,
   inStats: false,
   inConst: false,
-  panelGroup: null,
   inResolve: false,
   handoffPending: false,
   inCast: false,
@@ -188,6 +187,9 @@ export const ctx: {
   nextPresses: () => [],
   bankLoose: () => {
     throw new Error("bankLoose() before evaluate.ts loaded");
+  },
+  waitFor: () => {
+    throw new Error("waitFor() before rotation.ts loaded");
   },
   holdBeyond: null,
   rowSlot: null,

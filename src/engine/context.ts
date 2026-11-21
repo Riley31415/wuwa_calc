@@ -3,14 +3,14 @@
  * `addStat`, the `applied`/`consumed` questions, the forte gauges and concerto, every
  * grant/spend/revoke path, and the queues. All of it reads `ctx` for whose turn it is.
  */
-import { Stat, EnemyStat, Attribute, Type, Subtype, Cast, scopedStat, splitStat, tagBand, SUBTYPE_BITS } from "./stats.js";
+import { Stat, EnemyStat, Attribute, Type, Subtype, Cast, scopedStat, tagBand, SUBTYPE_BITS } from "./stats.js";
 import type { Tag, StatKey } from "./stats.js";
 import { foldStat } from "./damage.js";
 import type { Action, Bullet, Cooldown } from "./rotation.js";
 import { ctx, noteMutation, recordConsumed, pendingQueue, tagWord, recordWrite, recordRead, moved, applied as appliedRecord, consumed as consumedRecord, noteBackground } from "./runtime.js";
-import { Gear, Buff, Debuff, Resonator, Mainslot, Weapon } from "./gear.js";
+import { Gear, Buff, Debuff, Resonator, Mainslot } from "./gear.js";
 import type { Trigger, StatLine } from "./gear.js";
-import { State, TeamMember, StatEntry, HeldBuff, insertByDue, sortByDue, timedEntry, SUBTYPE_AMP_INDEX, SUBTYPE_CRIT_RATE_INDEX, SUBTYPE_CRIT_DMG_INDEX, SUBTYPE_TOTAL_DMG_INDEX, SUBTYPE_DAMAGE_TAKEN_INDEX, BASIC_DMG_BONUS_INDEX, PANEL_INDEX } from "./state.js";
+import { State, TeamMember, StatEntry, HeldBuff, insertByDue, sortByDue, timedEntry, SUBTYPE_AMP_INDEX, SUBTYPE_CRIT_RATE_INDEX, SUBTYPE_CRIT_DMG_INDEX, SUBTYPE_TOTAL_DMG_INDEX, SUBTYPE_DAMAGE_TAKEN_INDEX, BASIC_DMG_BONUS_INDEX } from "./state.js";
 import type { StatRow } from "./state.js";
 
 /** The three pools a phase reads — the acting slot's own, then team-wide, then enemy — as the
@@ -406,17 +406,6 @@ function write(effective: StatRow, index: number, value: number): void {
 
 function pushStat(stat: Stat | EnemyStat, tag: Tag | undefined, value: number): void {
   const slot = ctx.slot!;
-  // a constant ATK%/HP%/DEF% is a panel entry: floored on its own, or summed into the echo adding it
-  // and traced as its own line under whichever piece added it (`panelEntry`)
-  if (ctx.inConst && stat >= Stat.BonusAtk && stat <= Stat.BonusDef) {
-    const i = stat - Stat.BonusAtk;
-    if (!ctx.panelGroup) panelWrite(slot, i, value);
-    else {
-      ctx.panelGroup[i] = ctx.panelGroup[i]! + value;
-      if (ctx.tracing) traceEntry(slot, stat, value);
-    }
-    return;
-  }
 
   // The formula-facing total: an unscoped contribution always counts, a scoped one only when its
   // own tag is the action's in that band — `ctx.tagWord` masked to the tag's six bits is the
@@ -461,11 +450,11 @@ export function compileLines(lines: readonly StatLine[]): CompiledLines {
   return out;
 }
 /** `addStat()` for each of `lines` (times `n` where `perStack`): the very additions in the very order,
- *  with the checks a held buff's own lines never need made once — the generic path while tracing, or
- *  in a constant pass, which a panel entry needs. Run on every hit a buff pays on. */
+ *  with the checks a held buff's own lines never need made once — the generic path while tracing.
+ *  Run on every hit a buff pays on. */
 export function payLines(lines: CompiledLines, perStack: boolean, n: number): void {
   const { stats, values, tags, bands } = lines;
-  if (ctx.tracing || ctx.inConst) {
+  if (ctx.tracing) {
     for (let i = 0; i < stats.length; i++) pushStat(stats[i]!, tags[i]! || undefined, perStack ? values[i]! * n : values[i]!);
     return;
   }
@@ -490,31 +479,6 @@ function traceEntry(slot: TeamMember, key: StatKey, value: number): void {
     gear: ctx.buff ?? null,
   });
   slot.totals.set(key, (slot.totals.get(key) ?? 0) + value);
-}
-
-/** One panel entry of `pct` ATK%/HP%/DEF% (`i` 0, 1, 2): `floor(PanelBase x pct)` points into the
- *  row's panel share, the panel base being the resonator's floored base plus the weapon's unfloored
- *  one. Traced as the % it is, unless its parts already were (`panelEntry`). */
-function panelWrite(slot: TeamMember, i: number, pct: number, trace = true): void {
-  write(slot.effective, PANEL_INDEX + i, Math.floor((Math.floor(slot.charBase[i]!) + slot.weaponBase[i]!) * pct / 100));
-  if (trace && ctx.tracing) traceEntry(slot, Stat.BonusAtk + i, pct);
-}
-
-/** One echo's constant stats as one panel entry: every ATK%/HP%/DEF% `fn` adds is summed, then floored
- *  once — each part traced as it is added, under the piece adding it. Constant stats only. */
-export function panelEntry(fn: () => void): void {
-  if (!ctx.inConst) throw new Error(`${ctx.buff?.name ?? "?"}: panelEntry() outside constantStats`);
-  const group = [0, 0, 0];
-  ctx.panelGroup = group;
-  try { fn(); } finally { ctx.panelGroup = null; }
-  for (let i = 0; i < 3; i++) if (group[i]) panelWrite(ctx.slot!, i, group[i]!, false);
-}
-
-/** Banks a resonator's or weapon's own Base ATK/HP/DEF lines on `slot`, kept apart for the panel base. */
-function noteBase(slot: TeamMember, gear: Gear): void {
-  if (!(gear instanceof Resonator) && !(gear instanceof Weapon)) return;
-  const into: number[] = gear instanceof Weapon ? slot.weaponBase : slot.charBase;
-  for (const [stat, value] of gear.decl.stats) if (stat <= Stat.BaseDef) into[stat] = into[stat]! + value;
 }
 
 /** Contribute a personal stat — optionally scoped (`addStat(Stat.DmgBonus, 12, Attribute.Havoc)`).
@@ -573,20 +537,28 @@ export function menuStats(gear: Gear[]): StatEntry[] {
   ctx.inConst = true;
   // the wearer, for a piece paying by who wears it (Adam Smasher's crit)
   slot.resonator = gear.find((g): g is Resonator => g instanceof Resonator) ?? null;
-  for (const g of gear) noteBase(slot, g);
   const passes = ALL_TYPES.length;
-  // an unscoped call lands on every pass, so past the first only the scoped ones are kept: two lines
-  // of one stat on one piece stay two entries
+  // every line is traced on every pass whatever its tag, and a conditional one only on its own: each
+  // is kept as often as any one pass wrote it, so two lines of one stat on one piece stay two entries
   const kept: StatEntry[] = [];
   for (const g of gear) {
     if (!g.constantStatsFn) continue;
     ctx.buff = g;
+    const most = new Map<string, StatEntry[]>();
     for (let i = 0; i < passes; i++) {
       ctx.tagWord = (ALL_ATTRIBUTES[i] ?? 0) | ALL_TYPES[i]! | (ALL_SUBTYPES[i] ?? 0);
       const from = slot.entries.length;
       g.constantStatsFn();
-      for (let k = from; k < slot.entries.length; k++) if (i === 0 || splitStat(slot.entries[k]!.stat)[1] !== null) kept.push(slot.entries[k]!);
+      const pass = new Map<string, StatEntry[]>();
+      for (let k = from; k < slot.entries.length; k++) {
+        const e = slot.entries[k]!, key = `${e.stat}|${e.value}`;
+        const same = pass.get(key);
+        if (same) same.push(e);
+        else pass.set(key, [e]);
+      }
+      for (const [key, es] of pass) if (es.length > (most.get(key)?.length ?? 0)) most.set(key, es);
     }
+    for (const es of most.values()) kept.push(...es);
   }
   Object.assign(ctx, saved);
   return kept;
@@ -605,7 +577,6 @@ export function finalStat(base: Stat.BaseAtk | Stat.BaseHp | Stat.BaseDef): numb
   const bonus = Stat.BonusAtk + base, flat = Stat.FlatAtk + base;
   if (ctx.recording) {
     recordRead(base);
-    recordRead(PANEL_INDEX + base);
     recordRead(bonus);
     recordRead(flat);
   }
@@ -618,7 +589,6 @@ export function panelStats(gear: Gear[]): { hp: number; atk: number; def: number
   const saved = { slot: ctx.slot, state: ctx.state, buff: ctx.buff, stacks: ctx.stacks, tagWord: ctx.tagWord, tracing: ctx.tracing, inConst: ctx.inConst, recording: ctx.recording };
   Object.assign(ctx, { slot, state: new State([]), stacks: 1, tagWord: 0, tracing: false, inConst: true, recording: false });
   slot.resonator = gear.find((g): g is Resonator => g instanceof Resonator) ?? null;
-  for (const g of gear) noteBase(slot, g);
   for (const g of gear) {
     if (!g.constantStatsFn) continue;
     ctx.buff = g;
@@ -799,7 +769,6 @@ export function equip(gear: Gear, n = 1): number {
   attribute(gear);
   const result = ctx.slot!.addStack(gear, n);
   ctx.slot!.equipped.add(gear);
-  noteBase(ctx.slot!, gear);
   if (gear instanceof Mainslot) ctx.slot!.mainslot = gear;
   // as `ctx.buff` for the call, same as every other hook: what combatStart() grants inherits
   // this gear's own source, and maxStackIncrease() can name it

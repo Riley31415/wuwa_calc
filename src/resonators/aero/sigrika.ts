@@ -40,11 +40,11 @@ import {
   lostOnSwap,
   saveChain,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, ActionTag, START_LAST, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, ActionTag, START_LAST, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
 import { SOLSWORN_CIPHERS } from "../../weapons/gauntlet.js";
 import { NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
 import { STONARD, AETHER_STRIKE } from "../../weapons/battlepass.js";
-import { NAMELESS_EXPLORER, SOUND_OF_TRUE_NAME_5PC, ACTION_NAMELESS_EXPLORER } from "../../echoes/lahairoi.js";
+import { NAMELESS_EXPLORER_MAINSLOT, SOUND_OF_TRUE_NAME_5PC, NAMELESS_EXPLORER } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -71,22 +71,22 @@ const RUNE_ANSWER = { forte1: 1, updateDebuffs: () => gainRune(2, null) };
 
 // --- basics, mid-air, dodge counter (One, Two, Three) — Stage 4 opens Decipher
 // "with at least 50 points of Full Stop, her Basic Attack cycle starts from Stage 2"
-const BA1 = sigrikaAction("Basic - One, Two, Three 1", { animFrames: 22, castPriority: 2, maxForte2: 49, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 14, mv: 5297, energy: 84, concerto: 167, offtune: 2664 }]});
+const BA1 = sigrikaAction("Basic - One, Two, Three 1", { notAfter: () => [BA1, BA2, BA3, HA, MA, MDC, Intro, Skill, DC], animFrames: 22, castPriority: 2, maxForte2: 49, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 14, mv: 5297, energy: 84, concerto: 167, offtune: 2664 }]});
 // "Press Normal Attack shortly after casting" the Heavy, the Plunging Attack, the Mid-air Dodge Counter
 // or the Intro "to cast Basic Attack Stage 2" (at 50 Full Stop the cycle starts here: SIGRIKA_RESONATOR)
-const BA2 = sigrikaAction("Basic - One, Two, Three 2", { chains: () => [BA1, HA, MA, MDC, Intro], animFrames: 41, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA2 = sigrikaAction("Basic - One, Two, Three 2", { after: () => [BA1, HA, MA, MDC, Intro], animFrames: 41, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 18, mv: 5034, energy: 80, concerto: 159, offtune: 2532 },
     { hitFrame: 30, mv: 5034, energy: 80, concerto: 159, offtune: 2532 },
   ]});
 // BOOMY BOOM!: "Press Normal Attack shortly after casting BOOMY BOOM! to cast Basic Attack Stage 3"
-const BA3 = sigrikaAction("Basic - One, Two, Three 3", { chains: () => [BA2, Skill], animFrames: 44, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = sigrikaAction("Basic - One, Two, Three 3", { after: () => [BA2, Skill], animFrames: 44, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 8, mv: 3341, energy: 53, concerto: 105, offtune: 1680 },
     { hitFrame: 16, mv: 3341, energy: 53, concerto: 105, offtune: 1680 },
     { hitFrame: 34, mv: 4454, energy: 70, concerto: 140, offtune: 2240 },
   ]});
 // the Dodge Counter: "Press Normal Attack shortly after casting Dodge Counter to cast Basic Attack Stage 4"
 const BA4 = sigrikaAction("Basic - One, Two, Three 4", {
-  chains: () => [BA3, DC], animFrames: 78, animPriority: { 72: 1 }, castPriority: 2,
+  after: () => [BA3, DC], animFrames: 78, animPriority: { 72: 1 }, castPriority: 2,
   node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 22, mv: 4136, energy: 65, concerto: 130, offtune: 2080 },
     { hitFrame: 28, mv: 5170, energy: 82, concerto: 163, offtune: 2600 },
@@ -98,9 +98,9 @@ const BA4 = sigrikaAction("Basic - One, Two, Three 4", {
 });
 const MA = sigrikaAction("Mid-air - One, Two, Three Plunge", { castPosition: Position.Midair, endPosition: Position.Grounded, animFrames: 44, animPriority: { 36: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 38, mv: 10478, energy: 155, concerto: 310, offtune: 4960 }]});
 // "after a successful Dodge in mid-air"; Basic Attack Stage 2 follows it, so it lands
-const MDC = sigrikaAction("Dodge Counter - One, Two, Three (Mid-Air)", { chains: [DODGE], castPosition: Position.Midair, endPosition: Position.Grounded, animFrames: 44, animPriority: { 0: 6, 36: 2 }, castPriority: 8, bullets: [{ hitFrame: 38, mv: 20617, energy: 305, concerto: 610, offtune: 9920 }], node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, castConcerto: 1000});
+const MDC = sigrikaAction("Dodge Counter - One, Two, Three (Mid-Air)", { after: [SUCCESSFUL_DODGE], castPosition: Position.Midair, endPosition: Position.Grounded, animFrames: 44, animPriority: { 0: 6, 36: 2 }, castPriority: 8, bullets: [{ hitFrame: 38, mv: 20617, energy: 305, concerto: 610, offtune: 9920 }], node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, castConcerto: 1000});
 // "after a successful Dodge on the ground"
-const DC = sigrikaAction("Dodge Counter - One, Two, Three", { chains: [DODGE], castPosition: Position.Grounded, animFrames: 42, animPriority: { 0: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const DC = sigrikaAction("Dodge Counter - One, Two, Three", { after: [SUCCESSFUL_DODGE], castPosition: Position.Grounded, animFrames: 42, animPriority: { 0: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 8, mv: 6591, energy: 98, concerto: 195, offtune: 3008 },
     { hitFrame: 16, mv: 6591, energy: 98, concerto: 195, offtune: 3008 },
     { hitFrame: 34, mv: 8788, energy: 130, concerto: 260, offtune: 4010 },
@@ -120,7 +120,7 @@ const EBA = sigrikaAction("Basic - Elucidated", { castPosition: Position.Grounde
     { hitFrame: 24, mv: 6156, energy: 52, concerto: 104, offtune: 1652 },
     { hitFrame: 66, commitFrame: 26, mv: 12311, energy: 104, concerto: 207, offtune: 3303 },
   ]});
-const EDC = sigrikaAction("Dodge Counter - Decipher", { chains: [DODGE], castPosition: Position.Grounded, animFrames: 66, animPriority: { 66: 2 }, castPriority: 8, requireBuff: DECIPHER, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Echo, bullets: [
+const EDC = sigrikaAction("Dodge Counter - Decipher", { after: [SUCCESSFUL_DODGE], castPosition: Position.Grounded, animFrames: 66, animPriority: { 66: 2 }, castPriority: 8, requireBuff: DECIPHER, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Echo, bullets: [
     { hitFrame: 8, mv: 6156, energy: 52, concerto: 104, offtune: 1652, ...RUNE_TRUST ,
        },
     { hitFrame: 16, mv: 6156, energy: 52, concerto: 104, offtune: 1652 },
@@ -250,12 +250,12 @@ function spendRunes(follow: Action): void {
 /** Learn My True Name: at 100 Full Stop, spends it all. */
 
 // NOTE: manaully set to 140/146 frames because last hit is after animation ends, dont want to cancel it early.
-const FSkill = sigrikaAction("Forte Skill - Learn My True Name", { minForte2: 100,
-   animFrames: 146, noSwapFrames: 132, 
+const FSkill = sigrikaAction("Forte Skill - Learn My True Name", { heldInput: true, minForte2: 100,
+   animFrames: 140, noSwapFrames: 140, 
    animPriority: { 0: 10, 132: 9, 138: 2 }, castPriority: 5, cooldown: 60 * 25,
    node: Node.Forte, cast: Cast.Skill, type: Type.Echo, bullets: [
-     { hitFrame: 88, mv: 30287, energy: 136, concerto: 500, offtune: 25334 },
-     { hitFrame: 140, commitFrame: 88, mv: 90861, energy: 407, concerto: 1500, offtune: 76002 },
+     { hitFrame: 86, mv: 30287, energy: 136, concerto: 500, offtune: 25334 },
+     { hitFrame: 140, commitFrame: 86, mv: 90861, energy: 407, concerto: 1500, offtune: 76002 },
    ], castConcerto: 1000, castForte2: -100,
   // the Full Stop it spends leaves the store, the Runes after it moving up
   updateBuffs: () => {
@@ -505,10 +505,10 @@ const BA234 = new ActionGroup("Basic - One, Two, Three 234", [BA2, BA3, BA4]);
 const BA34 = new ActionGroup("Basic - One, Two, Three 34", [BA3, BA4]);
 
 const SR_ROTATION = new Rotation([
-  Intro, ACTION_NAMELESS_EXPLORER, 
+  Intro, NAMELESS_EXPLORER, 
   BA234, EBASIC.cancel(), FHA.cancel(), Liberation,
   BA234, EBASIC.cancel(), FHA.holdCancel(), FSkill,
-  Skill, BA34, EBASIC.cancel(),
+  Skill, BA34, EBASIC,
   Outro,
 ]);
 
@@ -516,7 +516,7 @@ const SR_ROTATION_DOUBLE = new Rotation([
   START_LAST, BA1.instaCancel(), Liberation, 
   Skill, BA34, EBASIC.instaSwap(),
 
-  Intro.inLastSlot(), ACTION_NAMELESS_EXPLORER, FHA.dodgeCancel(),
+  Intro.inLastSlot(), NAMELESS_EXPLORER, FHA.dodgeCancel(),
   BA234, ESKILL, BA234, EBASIC.cancel(),
   FHA.holdCancel(), FSkill, Liberation, 
   Skill, BA34, EBASIC.cancel(),
@@ -526,7 +526,7 @@ const SR_ROTATION_DOUBLE = new Rotation([
 // TODO s2+ rotation
 
 const SR_ROTATION_FAST = new Rotation([
-  Intro, ACTION_NAMELESS_EXPLORER, 
+  Intro, NAMELESS_EXPLORER, 
   BA234, EBASIC.cancel(), FHA.cancel(), Liberation,
   BA234, EBASIC.cancel(), FHA.holdCancel(), FSkill,
   Outro,
@@ -541,7 +541,7 @@ export const SIGRIKA_EBA = new Loadout({
   resonator: SIGRIKA_RESONATOR,
   weapons: [SOLSWORN_CIPHERS, NEW_STD_GAUNTLET, ABYSS_SURGES, STONARD, AETHER_STRIKE],
   echoes: new Echoes({
-    sets: [new EchoLoadout(NAMELESS_EXPLORER, SOUND_OF_TRUE_NAME_5PC)],
+    sets: [new EchoLoadout(NAMELESS_EXPLORER_MAINSLOT, SOUND_OF_TRUE_NAME_5PC)],
     mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ER3, Mainstat.ATK1),
     substats: substats(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
     highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.AtkPct, Substat.FlatAtk, Substat.Basic, Substat.Skill),
@@ -554,7 +554,7 @@ export const SIGRIKA_DOUBLE = new Loadout({
   resonator: SIGRIKA_RESONATOR,
   weapons: [SOLSWORN_CIPHERS, NEW_STD_GAUNTLET, ABYSS_SURGES, STONARD, AETHER_STRIKE],
   echoes: new Echoes({
-    sets: [new EchoLoadout(NAMELESS_EXPLORER, SOUND_OF_TRUE_NAME_5PC)],
+    sets: [new EchoLoadout(NAMELESS_EXPLORER_MAINSLOT, SOUND_OF_TRUE_NAME_5PC)],
     mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ER3, Mainstat.ATK1),
     substats: substats(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
     highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.AtkPct, Substat.FlatAtk, Substat.Basic, Substat.Skill),
@@ -569,7 +569,7 @@ export const SIGRIKA_FAST = new Loadout({
   resonator: SIGRIKA_RESONATOR,
   weapons: [SOLSWORN_CIPHERS, NEW_STD_GAUNTLET, ABYSS_SURGES, STONARD, AETHER_STRIKE],
   echoes: new Echoes({
-    sets: [new EchoLoadout(NAMELESS_EXPLORER, SOUND_OF_TRUE_NAME_5PC)],
+    sets: [new EchoLoadout(NAMELESS_EXPLORER_MAINSLOT, SOUND_OF_TRUE_NAME_5PC)],
     mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ER3, Mainstat.ATK1),
     substats: substats(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
     highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.AtkPct, Substat.FlatAtk, Substat.Basic, Substat.Skill),

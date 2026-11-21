@@ -2,10 +2,10 @@
  * Hover panels: the markup every popover is built from (stat traces, action info, held buffs,
  * damage breakdowns, loadouts, the DPR table) and `wireSourcePanels`, which opens them.
  */
-import { Stat, Attribute, Type, Subtype, Cast, scopedStat, splitStat, isPercent, statLabel, TAG_NAME, NODE_NAME, statDisplayScale, splitStop } from "../engine/stats.js";
+import { Stat, Attribute, Type, Subtype, Cast, scopedStat, splitStat, isPercent, statLabel, TAG_NAME, NODE_NAME, statDisplayScale, splitStop, atDelays } from "../engine/stats.js";
 import type { StatKey, Tag } from "../engine/stats.js";
 import type { StatEntry } from "../engine/state.js";
-import { Sonata } from "../engine/gear.js";
+import { Sonata, Weapon } from "../engine/gear.js";
 import type { Buff, Gear } from "../engine/gear.js";
 import { menuStats, panelStats } from "../engine/context.js";
 import { substatRollBuffs, litStats } from "../shared/substats.js";
@@ -21,7 +21,7 @@ import type { Member, Combo } from "../solve/solver.js";
 import { loadoutName } from "../solve/solver.js";
 import { hitsOf } from "../solve/teamrun.js";
 import type { TeamRun } from "../solve/teamrun.js";
-import { results, FALLBACK_HUE } from "./model.js";
+import { results, FALLBACK_HUE, hashParams, syncCell, weaponHue } from "./model.js";
 import { ActionTag } from "../engine/rotation.js";
 import type { Action } from "../engine/rotation.js";
 
@@ -195,7 +195,8 @@ export function framesPopover(snaps: ResolvedSnapshot[]): string {
     const press = s.hitAt !== undefined ? s.action.castPart() : s.action;
     const fast = s.tag === ActionTag.MashCancel;
     const hold = (s.tag === ActionTag.HoldCancel || fast) && s.holdPaid >= 0;
-    const cost = hold ? press.holdCost(s.holdCut) : press.cost(s.tag);
+    // at the delays it played at: its own rotation's, not the defaults standing now
+    const cost = atDelays(s.delays, () => (hold ? press.holdCost(s.holdCut) : press.cost(s.tag)));
     total += cost.total - s.timestopBanked;
     const insta = s.tag === ActionTag.InstaCancel || s.tag === ActionTag.InstaDodge || s.tag === ActionTag.InstaJump || s.tag === ActionTag.InstaSwap;
     // every press is listed at the frames it played but an insta cut, which lists only what it cost;
@@ -216,6 +217,11 @@ export function framesPopover(snaps: ResolvedSnapshot[]): string {
       const own = Math.min(s.holdPaid, cost.action);
       if (own) rows.push(line(`${s.action.name} (c)`, own));
       if (cost.action > own) rows.push(line(fast ? "Mash Input" : "Hold Input", cost.action - own));
+    } else if (s.tag === ActionTag.MashSwap) {
+      // a mash swap is charged as one stretch: its no-swap frames played, then the swap's own delay
+      const own = Math.min(s.action.noSwapFrames, cost.action);
+      rows.push(line(`${s.action.name} (c)`, own));
+      if (cost.action > own) rows.push(line("Swap Delay", cost.action - own));
     } else if (!insta) rows.push(line(`${s.action.name}${cut ? " (c)" : ""}`, cost.action));
     // the world stood still for part of it: the clock takes it back off
     if (cost.timestop) rows.push(line("Timestop", -cost.timestop));
@@ -531,7 +537,9 @@ export function loadoutTable(run: TeamRun, needs?: Map<string, Map<string, strin
   const gearCell = (owner: string, g: Gear | null, pieces?: Gear[], picks = ""): string => {
     if (!g) return `<div class="c"></div>`;
     const hover = piecePopover(run, pieces ?? [g], owner, slotHue);
-    return `<div class="c${hover ? " has" : ""}"${hover}${picks}>${esc(g.name)}</div>`;
+    // a weapon reads in its own colour (`weaponHue`)
+    const hue = g instanceof Weapon ? ` style="--mem:${weaponHue(g)};color:${weaponHue(g)}"` : "";
+    return `<div class="c${hover ? " has" : ""}"${hover}${picks}${hue}>${esc(g.name)}</div>`;
   };
 
   const rows: string[] = [];
@@ -595,8 +603,11 @@ export function dprTable(run: TeamRun, lines?: ChainGroup[][]): string {
   // the sections, named once over for both the column headings and the breakdowns' titles
   const sections = ["Opener", ...Array.from({ length: whole - 1 }, (_, i) => `Loop ${i + 1}`), "4 Rots"];
   const ownTotal = (slot: string): number => run.fightBySlot.get(slot) ?? 0;
-  // the row opens on the team's own Total, which is the figure the table is read for
-  const selected = flat ? `${TEAM_ROW}|${whole}` : "";
+  // the row opens on the URL's figure (`c=`, row and column digits), else the team's own Total
+  if (lines) distRows = [...slots, TEAM_ROW];
+  const cell = lines ? /^(\d)(\d)$/.exec(hashParams().get("c") ?? "") : null;
+  const selected = !flat ? "" : cell && distRows[+cell[1]!] && +cell[2]! <= whole
+    ? `${distRows[+cell[1]!]}|${cell[2]}` : `${TEAM_ROW}|${whole}`;
   if (lines) distCells = new Map([
     ...slots.flatMap((slot) => [...lines.slice(0, whole), lines.flat()]
       .map((sec, i): [string, DistCell] => [`${slot}|${i}`,
@@ -1140,7 +1151,7 @@ function teamCell(sections: ChainGroup[][], section: string, slotHue: Map<string
         // real frames, time stop and all: a press played off field (an Outro, a summon) runs its whole
         // animation, the rest their time on field — a swap form to its swap, a hold or mash where it let go
         const off = !snap.active || snap.tag === ActionTag.OffField;
-        const cost = snap.action.cost(snap.tag);
+        const cost = atDelays(snap.delays, () => snap.action.cost(snap.tag));
         let root = snap.action;
         while (root.cancelOf ?? root.formOf) root = root.cancelOf ?? root.formOf!;
         const frames = off ? root.animFrames : snap.holdCut >= 0 ? snap.holdCut : cost.action + cost.global;
@@ -1204,6 +1215,8 @@ let shownChart: Extract<DistCell, { kind: "team" }> | null = null;
  *  the last `dprTable` that had a rotation to read — the detail page's own, the comparison table's
  *  hover passing none — and read back by `wireDistribution` when a figure is clicked. */
 let distCells = new Map<string, DistCell>();
+/** The rows `distCells` keys on, in table order: the index is the URL's `c=` row digit. */
+let distRows: string[] = [];
 
 /** The row itself, already showing the figure `selected` names — one cell across the whole table,
  *  the two pies splitting it down the middle. */
@@ -1324,6 +1337,8 @@ export function wireDistribution(root: HTMLElement): void {
     const cell = table.querySelector(`.c[data-dist="${key}"]`);
     for (const c of table.querySelectorAll(".c[data-dist]")) c.classList.toggle("sel", c === cell);
     body.innerHTML = distBody(distCells.get(key));
+    const [slot, col] = key.split("|");
+    syncCell(slot === TEAM_ROW && col === table.dataset.totalCol ? null : `${distRows.indexOf(slot!)}${col}`);
   });
   wireBarHover(body);
 }

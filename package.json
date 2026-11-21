@@ -9,7 +9,7 @@
     "watch": "tsc --watch",
     "dev": "python dev.py",
     "precompute": "\"%USERPROFILE%\\tools\\node-v24.21.0-win-x64\\node.exe\" dist/src/solve/precompute.js",
-    "bundle": "node -e \"require('node:fs').rmSync('dist/bundle',{recursive:true,force:true})\" && esbuild dist/src/page/index.js dist/src/solve/solver.js --bundle --splitting --format=esm --outdir=dist/bundle --entry-names=[name]"
+    "bundle": "node -e \"require('node:fs').rmSync('dist/bundle',{recursive:true,force:true})\" && esbuild dist/src/page/index.js dist/src/page/value.js dist/src/page/team.js dist/src/page/tierlist.js dist/src/solve/solver.js --bundle --splitting --format=esm --outdir=dist/bundle --entry-names=[name]"
   },
   "repository": {
     "type": "git",

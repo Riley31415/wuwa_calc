@@ -188,8 +188,8 @@ const FEEDS: Record<string, (action: Action) => StatKey[]> = {
   // energy/concerto/offtune are running totals — `rowValues()` builds their panels by hand
 };
 
-/** Panel section per stat: atk/hp/def fold `base x (1 + bonus%) + flat` (damage.ts's `foldStat`
- *  floors each panel entry on its own), and the two DEF ignores stack differently from the enemy's
+/** Panel section per stat: atk/hp/def fold `base x (1 + bonus%) + flat` (damage.ts's `foldStat`),
+ *  and the two DEF ignores stack differently from the enemy's
  *  own reduce, so each gets its own heading. */
 const SECTION_OF: Partial<Record<Stat | EnemyStat, string>> = {
   [Stat.BaseAtk]: "Base ATK", [Stat.BonusAtk]: "Bonus ATK", [Stat.FlatAtk]: "Flat ATK",
@@ -841,8 +841,11 @@ export function buildReport(lines: ChainGroup[]): Report {
     raw.action = line.id;
     // a group is cut where its last press is
     if (tagOf(snap)) raw["tag:action"] = tagOf(snap);
-    // a group or a field's run ends when its last press does, whatever snap the row reads
-    const end = Math.max(...(line.members?.length ? line.members : [snap]).map(endOf));
+    // a group or a field's run ends when its last press does, whatever snap the row reads — its last
+    // untriggered one, unless every press was triggered
+    const members = line.members?.length ? line.members : [snap];
+    const pressed = members.filter((m) => !isShort(m));
+    const end = pressed.length ? endOf(pressed[pressed.length - 1]!) : Math.max(...members.map(endOf));
     raw.time = clockAt(end);
     raw["end:time"] = end;
     // a group stood where its member's first press of it was cast

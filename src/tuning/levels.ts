@@ -1,7 +1,7 @@
 /**
- * Each tuner budget's builds side by side (tuning/out/levels.md), off the runs best.ts left in
- * tuning/out/best-<n>k/ (`budget=9000 dir=best-9k`, ...). Like table.ts it imports nothing of the engine.
- * `npx tsc && node dist/tuning/levels.js`
+ * Each tuner budget's builds side by side (src/tuning/out/levels.md), off the runs best.ts left in
+ * src/tuning/out/best-<n>k/ (`budget=9000 dir=best-9k`, ...). Like table.ts it imports nothing of the engine.
+ * `npx tsc && node dist/src/tuning/levels.js`
  */
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { OUT, bestOf, buildOf } from "./table.js";

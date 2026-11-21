@@ -371,7 +371,7 @@ export class Sequence extends Gear {}
  *  — the baseline every other level is compared against. See `Tier` for why each is what it is.
  *  Capped by however many nodes the loadout actually declares. */
 export const baseSequence = (r: Resonator): number =>
-  ({ [Tier.Limited]: 0, [Tier.Standard]: 0, [Tier.Free]: 6, [Tier.FreeS2]: 2 })[r.tier];
+  ({ [Tier.Limited]: 0, [Tier.Standard]: 0, [Tier.Free]: 6, [Tier.FreeS2]: 2, [Tier.FreeS0]: 0 })[r.tier];
 
 /** A resonator's own Resonance Mode — a fixed stance a loadout commits to for the whole fight
  *  (Lucilla's Echo/Glacio Chafe split), not something toggled mid-rotation. Other pieces of that
@@ -793,9 +793,9 @@ export interface ResonatorDef extends GearDef {
    *  as `intro`, a function where it depends on state. */
   swapIn?: Action | (() => Action);
   swapInAir?: Action | (() => Action);
-  /** This resonator's own Tune Break, where it isn't their weapon class's (Qingxiao's) — an Intro
-   *  Resolver-style `resolve` where it depends on their form. Unset is the class's (tunebreak.ts). */
-  tuneBreak?: Action;
+  /** This resonator's own Tune Break, where it isn't their weapon class's (Qingxiao's) — as `intro`, a
+   *  function where it depends on their form, null where no break is allowed. Unset is the class's (tunebreak.ts). */
+  tuneBreak?: Action | (() => Action | null);
   /** The dash this resonator makes, where it has one of its own (Jingran's Shadow Step) — or the
    *  one it makes cutting `after` short, read when the dash is reached (Hiyuki's Iai Stance flash);
    *  null, or unset, is the plain DODGE. */
@@ -861,7 +861,7 @@ export class Resonator extends Gear {
   /** `ResonatorDef.swapIn`/`swapInAir`, read as a swap-in reaches them. */
   swapIn?: () => Action;
   swapInAir?: () => Action;
-  tuneBreak?: Action;
+  tuneBreak?: () => Action | null;
   dodgeFn?: (after: Action) => Action | null;
   jumpFn?: (after: Action) => Action | null;
   holdFn?: (next: Action) => Action | null;
@@ -914,11 +914,11 @@ export class Resonator extends Gear {
     const scale = def.forteScale ?? 1;
     this.forteScale = Array.isArray(scale) ? scale : [scale, scale, scale, scale, scale];
     this.color = def.color;
-    const { intro, dodge, jump, swapIn, swapInAir } = def;
+    const { intro, dodge, jump, swapIn, swapInAir, tuneBreak } = def;
     this.intro = typeof intro === "function" ? intro : intro && (() => intro);
     this.swapIn = typeof swapIn === "function" ? swapIn : swapIn && (() => swapIn);
     this.swapInAir = typeof swapInAir === "function" ? swapInAir : swapInAir && (() => swapInAir);
-    this.tuneBreak = def.tuneBreak;
+    this.tuneBreak = typeof tuneBreak === "function" ? tuneBreak : tuneBreak && (() => tuneBreak);
     this.dodgeFn = typeof dodge === "function" ? dodge : dodge && (() => dodge);
     this.holdFn = def.holdBefore;
     this.sentOff = def.sentOff;
@@ -941,8 +941,8 @@ export interface MainslotDef extends GearDef {
  *  it is worn. */
 export class Mainslot extends Gear {
   cost: 4 | 3;
-  /** Its constant stats, run by the build's echo it is (shared/echoes.ts) so they join that echo's
-   *  panel entry; the mainslot itself carries none. */
+  /** Its constant stats, run by the build's echo it is (shared/echoes.ts); the mainslot itself
+   *  carries none. */
   echoStatsFn?: () => void;
   constructor(def: MainslotDef) {
     super(def);

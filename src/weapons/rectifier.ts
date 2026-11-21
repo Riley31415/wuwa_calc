@@ -11,6 +11,7 @@ import {
   applyCurrent,
   applyTeam,
   revokeCurrent,
+  revokeTeam,
   casting,
   isType,
   isActive,
@@ -27,7 +28,7 @@ import {
 } from "../engine/context.js";
 import { GLACIO_CHAFE, FUSION_BURST, HEALS, ELECTRO_FLARE, SPECTRO_FRAZZLE } from "../shared/status.js";
 import { TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
-import { unisonResponse } from "../shared/unison.js";
+import { unisonResponse, consumedConcerto } from "../shared/unison.js";
 
 /** Rime-Draped Sprouts, Zhezhi's sig. +12% ATK flat. On field, Resonance Skill grants +12%
  *  Basic Attack DMG Bonus a stack, up to 3, 6s. At 3+ stacks, her Outro spends them all for
@@ -157,7 +158,7 @@ export const SK_SIG = refinements((r, rank) => {
   /** The charge the Liberation spends — the same shape as Ceaseless Aria's: held from the moment
    *  the weapon is equipped, gone the cast it pays for, back on the wielder's own Outro. */
   const SK_SIG_CHARGE: Buff = new Buff({
-    name: `Stellar Symphony: Astral Evolvement${rank}`,
+    name: `Stellar Symphony: Astral Evolvement${rank} (ready)`,
     updateBuffs: () => {
       if (!casting(Cast.Liberation)) return;
       addGain({ concerto: [800, 1000, 1200, 1400, 1600][r]! });
@@ -243,7 +244,7 @@ export const FIRSTLIGHTS_HERALD = refinements((r, rank) => {
   /** The charge the Liberation spends — the same shape as Ceaseless Aria's: held from the moment
    *  the weapon is equipped, gone the cast it pays for, back on the wielder's own Outro. */
   const SPRING_WREATH: Buff = new Buff({
-    name: `Firstlight's Herald: Spring Wreath${rank}`,
+    name: `Firstlight's Herald: Spring Wreath${rank} (ready)`,
     updateBuffs: () => {
       if (!casting(Cast.Liberation)) return;
       addGain({ concerto: [800, 1000, 1200, 1400, 1600][r]! });
@@ -300,5 +301,42 @@ export const BLOOMING_JADEHAVEN = refinements((r, rank) => {
       { on: either(onInflict(ELECTRO_FLARE), unisonResponse), buff: HUNDREDFOLD_ARTIFICE },
       { on: either(onInflict(ELECTRO_FLARE), unisonResponse), buff: HUNDREDFOLD_ARTIFICE_FLARE },
     ],
+  });
+});
+
+/** Anna Sig � Unspoken Rue (Suoming's) made Fusion for Anna: her Liberation (where Suoming gains
+ *  Unison) grants Locked Thunder to her and Binding Mind to the team and ends Yearning Mind;
+ *  spending Concerto grants Yearning Mind and ends the team's Binding Mind. */
+export const ANNA_SIG = refinements((r, rank) => {
+  const LOCKED_THUNDER = new Buff({
+    name: `Anna Sig: Locked Thunder, Trapped Rain${rank}`,
+    duration: 60 * 30,
+    stats: [[Stat.DmgBonus, [30, 37.5, 45, 52.5, 60][r]!, Attribute.Fusion]],
+  });
+  const BINDING_MIND = new Buff({
+    name: `Anna Sig: Binding Mind${rank}`,
+    duration: 60 * 30,
+    stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Attribute.Fusion]],
+  });
+  const YEARNING_MIND = new Buff({
+    name: `Anna Sig: Yearning Mind${rank}`, lostOnSwap: true,
+    duration: 60 * 14,
+    stats: [[Stat.DmgBonus, [40, 50, 60, 70, 80][r]!, Attribute.Fusion]],
+  });
+  return new Weapon({
+    id: 21050126,
+    weaponType: WeaponType.Rectifier, name: `Anna Sig${rank}`,
+    stats: [[Stat.BaseAtk, 587.5], [Stat.CritRate, 24.3], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
+    updateBuffs: () => {
+      if (casting(Cast.Liberation)) {
+        applyCurrent(LOCKED_THUNDER, 1);
+        applyTeam(BINDING_MIND, 1);
+        revokeCurrent(YEARNING_MIND);
+      }
+      if (consumedConcerto()) {
+        applyCurrent(YEARNING_MIND, 1);
+        revokeTeam(BINDING_MIND);
+      }
+    },
   });
 });

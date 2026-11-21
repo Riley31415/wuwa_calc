@@ -4,7 +4,7 @@
  * over it — no phase running, no ambient pointers of its own.
  */
 import { STAT_COUNT } from "./stats.js";
-import type { StatKey, Position } from "./stats.js";
+import type { StatKey, Position, Delays } from "./stats.js";
 import type { Action, ActionField, Cooldown } from "./rotation.js";
 import type { Result, HoldWatch } from "./evaluate.js";
 import { ctx, dryLog, undoDry, noteMutation, recordApplied, MEMBERS } from "./runtime.js";
@@ -66,13 +66,10 @@ export const SUBTYPE_CRIT_DMG_INDEX = STAT_COUNT + 3;
  *  only "deals N% more" / "takes N% more" a dot row reads, split off exactly as the amp above. */
 export const SUBTYPE_TOTAL_DMG_INDEX = STAT_COUNT + 4;
 export const SUBTYPE_DAMAGE_TAKEN_INDEX = STAT_COUNT + 5;
-/** Three more, ATK/HP/DEF in `Stat.Base*` order: the panel's shares, in points — every constant
- *  ATK%/HP%/DEF% floored on its own off the panel base, which `pushStat()` writes in place of the %. */
-export const PANEL_INDEX = STAT_COUNT + 6;
 
 /** One stat row: every stat plus the split slots above, indexed by the stat itself. */
 export type StatRow = Float64Array;
-export const STAT_ROW_LENGTH = STAT_COUNT + 9;
+export const STAT_ROW_LENGTH = STAT_COUNT + 6;
 /** A fresh all-zero row. Untraced runs reuse each slot's rows, so only a traced run allocates per action. */
 export const statRow = (): StatRow => new Float64Array(STAT_ROW_LENGTH);
 /** What every action's own `effective` starts as; read-only. */
@@ -518,6 +515,8 @@ function gateOf(list: readonly VisitGate[], press: string, use: number): VisitGa
 /** Where every Gear's mutable facts actually live — never on the Gear itself. */
 export class TeamMember {
   name: string;
+  /** The delays their rotation plays at (`Rotation.withDelays()`), null for the defaults. */
+  delays: Delays | null = null;
   /** Position on the team — the enemy is last (`MEMBERS - 1`). What the grant records credit by. */
   index = 0;
   /** Whichever Resonator is actually equipped here — set once, by Resonator's own combatStart,
@@ -532,10 +531,6 @@ export class TeamMember {
   /** Gauges moved outside any row of this member's (a tick, a teammate's energy share), carried to
    *  their next one. Trace-only. */
   background: GainAdd[] = [];
-  /** The resonator's own Base ATK/HP/DEF and the weapon's, kept apart for the panel base
-   *  (`floor(character) + weapon`) every constant % is floored off. Set by `equip()`. */
-  charBase: [number, number, number] = [0, 0, 0];
-  weaponBase: [number, number, number] = [0, 0, 0];
   /** Generic forte gauges — a resonator assigns its own meaning onto whichever fits its kit
    *  (Jingran's Qi is forte 1, his Mingfire is forte 2). Real numeric bars, not stacking Buffs:
    *  nothing here caps at a Buff's own maxStacks, and there's no revoke-at-0 — a kit clamps its
@@ -553,12 +548,14 @@ export class TeamMember {
   cooldowns = new Map<Cooldown, { charges: number; next: number }>();
   /** The rotation chain this member is playing now (rotation.ts's `runChain`), null outside one. */
   visitChain: object | null = null;
-  /** This member's last press of the visit (OFF_FIELD ones aside), what the next one's `chains`
+  /** This member's last press of the visit (OFF_FIELD ones aside), what the next one's `after`
    *  reads — null on arriving. */
   lastPress: Action | null = null;
   /** Presses an effect lets this member's next ones follow as if just pressed (`saveChain()`): a
-   *  press whose `chains` its last press fails spends the first it follows. Emptied on arriving. */
+   *  press whose `after` its last press fails spends the first it follows. Emptied on arriving. */
   savedChains: Action[] = [];
+  /** Where in `savedChains` the ones the last press saved begin, which its next press's `notAfter` reads too. */
+  savedFrom = 0;
   /** Where they stand (`ActionDef.castPosition`), null while despawned; and the real frame their
    *  last press (OFF_FIELD ones aside) ends, `DESPAWN_TIME` past which they despawn. */
   position: Position | null = null;

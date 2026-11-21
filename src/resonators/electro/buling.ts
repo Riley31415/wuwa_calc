@@ -56,13 +56,13 @@ import {
   cancelHits,
   addStatAs,
 } from "../../engine/context.js";
-import { Action, ActionField, Cooldown, Rotation, SWAPIN, ActionGroup, DODGE } from "../../engine/rotation.js";
+import { Action, ActionField, Cooldown, Rotation, SWAPIN, ActionGroup, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
 import type { BulletDef } from "../../engine/rotation.js";
 import { HEALS, heal, inflictElectroFlare } from "../../shared/status.js";
 import { VARIATION } from "../../weapons/standard.js";
-import { REJUV_5PC, ACTION_FALLACY } from "../../echoes/jinzhou.js";
-import { FALLACY } from "../../echoes/jinzhou.js";
-import { FORMRENDER, TINGED_YEARNING_5PC, ACTION_FORMRENDER } from "../../echoes/mengzhou.js";
+import { REJUV_5PC, FALLACY } from "../../echoes/jinzhou.js";
+import { FALLACY_MAINSLOT } from "../../echoes/jinzhou.js";
+import { FORMRENDER_MAINSLOT, TINGED_YEARNING_5PC, FORMRENDER } from "../../echoes/mengzhou.js";
 import { JINHSI_RESONATOR } from "../spectro/jinhsi.js";
 import { SUOMING_RESONATOR } from "./suoming.js";
 import { HSIN_RESONATOR } from "./hsin.js";
@@ -91,24 +91,24 @@ const THUNDER = { updateDebuffs: () => gainTrigram(2) };
 
 // --- basics, mid-air, dodge counter (Hexagram Calls, Lightning Falls) — Stage 2 banks Trigram:
 //     Mountain, Stage 4 and Mid-air bank Trigram: Thunder
-const BA1 = bulingAction("Basic - Hexagram Calls, Lightning Falls 1", { animFrames: 28, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = bulingAction("Basic - Hexagram Calls, Lightning Falls 1", { notAfter: () => [BA1, BA2, BA3, Skill, DC], animFrames: 28, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 14, commitFrame: 8, mv: 2073, energy: 53, concerto: 167, offtune: 1668 },
     { hitFrame: 20, commitFrame: 8, mv: 2073, energy: 53, concerto: 167, offtune: 1668 },
   ]});
-const BA2 = bulingAction("Basic - Hexagram Calls, Lightning Falls 2", { chains: [BA1], animFrames: 45, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA2 = bulingAction("Basic - Hexagram Calls, Lightning Falls 2", { after: [BA1], animFrames: 45, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 8, commitFrame: 2, mv: 3345, energy: 85, concerto: 270, offtune: 2692,
       ...MOUNTAIN },
     { hitFrame: 15, commitFrame: 2, mv: 3345, energy: 85, concerto: 270, offtune: 2692 },
   ]});
-const BA3 = bulingAction("Basic - Hexagram Calls, Lightning Falls 3", { chains: [BA2], animFrames: 31, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = bulingAction("Basic - Hexagram Calls, Lightning Falls 3", { after: [BA2], animFrames: 31, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 1, mv: 2351, energy: 60, concerto: 190, offtune: 1892 },
     { hitFrame: 10, commitFrame: 1, mv: 2351, energy: 60, concerto: 190, offtune: 1892 },
   ]});
 // "Right after casting Resonance Skill, press Normal Attack to perform Basic Attack Stage 4", and the same after Dodge Counter
-const BA4 = bulingAction("Basic - Hexagram Calls, Lightning Falls 4", { chains: () => [BA3, Skill, DC], animFrames: 60, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 23, mv: 9364, energy: 236, concerto: 754, offtune: 7536 }], ...THUNDER });
+const BA4 = bulingAction("Basic - Hexagram Calls, Lightning Falls 4", { after: () => [BA3, Skill, DC], animFrames: 60, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 23, mv: 9364, energy: 236, concerto: 754, offtune: 7536 }], ...THUNDER });
 // the kit text calls it a plain "Mid-air Attack", no Plunging Attack, so it lands her nowhere
 const MA = bulingAction("Mid-air - Hexagram Calls, Lightning Falls Plunge", { castPosition: Position.Midair, animFrames: 46, animPriority: { 41: 3 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 39, mv: 7396, energy: 124, concerto: 496, offtune: 4960 }], ...THUNDER });
-const DC = bulingAction("Dodge Counter - Hexagram Calls, Lightning Falls 3", { chains: [DODGE], animFrames: 31, castPriority: 2, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const DC = bulingAction("Dodge Counter - Hexagram Calls, Lightning Falls 3", { after: [SUCCESSFUL_DODGE], animFrames: 31, castPriority: 2, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 1, mv: 2351, energy: 60, concerto: 190, offtune: 1892 },
     { hitFrame: 10, commitFrame: 1, mv: 2351, energy: 60, concerto: 190, offtune: 1892 },
   ], castConcerto: 1000});
@@ -402,7 +402,7 @@ const BULING_RESONATOR = new Resonator({
 const BL_ROTATION = new Rotation([
   SWAPIN, BA1.instaCancel(),
   Intro.mashCancel(),
-  Skill, BA4.jumpCancel(), MA, BA12.instaCancel(), HA, HA.cancel(), ACTION_FALLACY.instaCancel(), ACTION_FORMRENDER.instaCancel(), // TODO maybe cancel HA?
+  Skill, BA4.jumpCancel(), MA, BA12.instaCancel(), HA, HA.cancel(), FALLACY.instaCancel(), FORMRENDER.instaCancel(), // TODO maybe cancel HA?
   LIB, Outro,
 ]);
 
@@ -416,9 +416,9 @@ export const BULING = new Loadout({
   weapons: [VARIATION],
   echoes: new Echoes({
     sets: [
-    new EchoLoadout(FALLACY, REJUV_5PC),
+    new EchoLoadout(FALLACY_MAINSLOT, REJUV_5PC),
     // Tinged Yearning's extra ATK is for whoever obtains or responds to a Unison
-    new EchoLoadout(FORMRENDER, TINGED_YEARNING_5PC).requires(JINHSI_RESONATOR, SUOMING_RESONATOR, HSIN_RESONATOR),
+    new EchoLoadout(FORMRENDER_MAINSLOT, TINGED_YEARNING_5PC).requires(JINHSI_RESONATOR, SUOMING_RESONATOR, HSIN_RESONATOR),
   ],
     mainstats: [mainstats(Mainstat.CD4, Mainstat.ER3, Mainstat.ER3, Mainstat.ATK1, Mainstat.ATK1)],
     substats: substats(Substat.Er, Substat.CritRate, Substat.CritDmg, Substat.Liberation, Substat.AtkPct, Substat.Basic),

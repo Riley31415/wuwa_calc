@@ -28,9 +28,8 @@ const rollBuffsOf = (prefix: string, counts: Map<Substat, number>, p: number): B
 export enum Substat { CritRate, CritDmg, Er, AtkPct, FlatAtk, HpPct, FlatHp, DefPct, FlatDef, Basic, Heavy, Skill, Liberation }
 
 /** The value spread ATK%, HP% and the four dmg bonuses share, and the two weightings behind every
- *  spread: eight values out of 103, or crit's own eight out of 300 (Kuro's KR product info). The
- *  game shows a roll cut to one decimal, so every other tier here carries the 0.05 it hides. */
-const PCT = [6.4, 7.15, 7.9, 8.65, 9.4, 10.15, 10.9, 11.65];
+ *  spread: eight values out of 103, or crit's own eight out of 300 (Kuro's KR product info). */
+const PCT = [6.4, 7.1, 7.9, 8.6, 9.4, 10.1, 10.9, 11.6];
 const WEIGHTS = [7, 8, 21, 25, 18, 15, 6, 3];
 const CRIT_WEIGHTS = [70, 70, 70, 24, 24, 24, 9, 9];
 
@@ -44,7 +43,7 @@ const ROLL: Record<Substat, { stat: Stat; tag?: Tag; values: number[]; weights: 
   [Substat.FlatAtk]: { stat: Stat.FlatAtk, values: [30, 40, 50, 60], weights: [7, 54, 39, 3], label: "ATK" },
   [Substat.HpPct]: { stat: Stat.BonusHp, values: PCT, weights: WEIGHTS, label: "HP" },
   [Substat.FlatHp]: { stat: Stat.FlatHp, values: [320, 360, 390, 430, 470, 510, 540, 580], weights: WEIGHTS, label: "HP" },
-  [Substat.DefPct]: { stat: Stat.BonusDef, values: [8.1, 9.05, 10, 10.95, 11.9, 12.85, 13.8, 14.75], weights: WEIGHTS, label: "DEF" },
+  [Substat.DefPct]: { stat: Stat.BonusDef, values: [8.1, 9, 10, 10.9, 11.8, 12.8, 13.8, 14.7], weights: WEIGHTS, label: "DEF" },
   [Substat.FlatDef]: { stat: Stat.FlatDef, values: [40, 50, 60, 70], weights: [15, 46, 33, 9], label: "DEF" },
   [Substat.Basic]: { stat: Stat.DmgBonus, tag: Type.Basic, values: PCT, weights: WEIGHTS, label: "Basic" },
   [Substat.Heavy]: { stat: Stat.DmgBonus, tag: Type.Heavy, values: PCT, weights: WEIGHTS, label: "Heavy" },

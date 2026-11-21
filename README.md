@@ -40,6 +40,11 @@ first and stalls ~200ms on *every* connection.
 | `src/page/filterbar.ts` | the filter aside: option/help boxes, chips, the search bar |
 | `src/page/table.ts` | the comparison table, its scroll window, and every filter/menu handler |
 | `src/page/detail.ts` | the detail page: DPR/energy tables, the action log, column drag |
+| `src/page/team.ts` | the team page (`team.html`, served at `/team#t=<team code>`): one team's rotation and loadout; a missing or unknown code goes to the table |
+| `src/page/value.ts` | the Value page (`value.html`, `/value`): what each resonator is worth to the account the reader owns, packed by `src/solve/packing.ts` |
+| `src/page/tierlist.ts` | the Tier List page (`tierlist.html`, `/tierlist`): each resonator's best team DPR as main DPS, sub DPS (1 vigor) and support (2 vigor) |
+| `src/page/roster.ts` | what the Value and Tier List pages share: vigor, a team's figure, build, page and labels, the README-and-table shell |
+| `src/page/loading.ts` / `pool.ts` | the loading overlay and solve pass, and the worker pool, shared by the pages |
 
 `index.html` is the page itself and loads `./dist/bundle/index.js` plus `index.css`, `favicon.png`
 and `loading.gif` beside it; `dev.py` serves the repo root, so the source tree and `dist/` are

@@ -29,25 +29,16 @@ import { AERO_EROSION, FUSION_BURST, GLACIO_CHAFE, HAVOC_BANE } from "../shared/
  *  every 0.5s, and five on casting a Resonance Skill, up to 14, each +4% Resonance Skill DMG Bonus.
  *  Reaching 14 removes every stack 12s later. */
 export const BLAZING_BRILLIANCE = refinements((r, rank) => {
+  // unlimited below 14; the grant reaching 14 starts its 12s, and none lands while it runs
   const SEARING_FEATHER: Buff = new Buff({
     name: `Blazing Brilliance: Crimson Phoenix${rank}`, maxStacks: 14,
+    duration: (stacks) => (stacks >= 14 ? 60 * 12 : 0),
     stats: [[Stat.DmgBonus, [4, 5, 6, 7, 8][r]!, Type.Skill]], perStack: true,
   });
   const SEARING_GAP = new Buff({ duration: 30 });
-  // started at max stacks, it drops them all on its one tick 12s on
-  const SEARING_EXPIRY: Buff = new Buff({
-    tick: {
-      every: 60 * 12,
-      fire: () => {
-        revokeCurrent(SEARING_FEATHER);
-        revokeCurrent(SEARING_EXPIRY);
-      },
-    },
-  });
   const gain = (n: number): void => {
-    if (isHeld(SEARING_EXPIRY)) return;
+    if (stacksOf(SEARING_FEATHER) >= 14) return;
     applyCurrent(SEARING_FEATHER, n);
-    if (stacksOf(SEARING_FEATHER) >= 14) applyCurrent(SEARING_EXPIRY, 1);
   };
   return new Weapon({
     id: 21020016,

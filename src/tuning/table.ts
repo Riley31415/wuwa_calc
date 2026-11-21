@@ -1,7 +1,7 @@
 /**
- * The tuner budget table (tuning/out/best.md), off the runs best.ts left in tuning/out/ alone. It
+ * The tuner budget table (src/tuning/out/best.md), off the runs best.ts left in src/tuning/out/ alone. It
  * imports nothing of the engine, so it renders whatever state another session leaves the build in.
- * `npx tsc && node dist/tuning/table.js [dir=best]`
+ * `npx tsc && node dist/src/tuning/table.js [dir=best]`
  */
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -23,8 +23,8 @@ export interface Skipped { who: string; skipped: string }
 
 /** Off the working directory (the repo root), not this file: a run can go from a private copy of
  *  the build, out of reach of another session rebuilding dist/, and still land here. */
-export const OUT = new URL("tuning/out/", pathToFileURL(`${process.cwd()}/`));
-/** A set of runs' folder in tuning/out/: `best` unless best.ts was given another (`dir=`). */
+export const OUT = new URL("src/tuning/out/", pathToFileURL(`${process.cwd()}/`));
+/** A set of runs' folder in src/tuning/out/: `best` unless best.ts was given another (`dir=`). */
 export const bestOf = (dir: string): URL => new URL(`${dir}/`, OUT);
 
 /** The substat columns, in `Substat` order (a run's `subs` are indexed by it), and which are flat. */

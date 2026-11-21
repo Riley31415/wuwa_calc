@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- A plain static host may cache aggressively enough to serve a stale stylesheet or bundle off
+     an ordinary reload — which looks exactly like "the edit did nothing". dev.py sends no-store
+     itself; this covers every other host. -->
+<meta http-equiv="Cache-Control" content="no-store">
+<title>Riley Calcs - Value</title>
+<!-- The search snippet, then the shorter line the link embeds show; Twitter reads og:description.
+     The old name is kept at the end of the snippet so searches for it still land here. -->
+<meta name="description" content="How much each WuWa resonator adds to the best account that can be built from the roster, from Riley Calcs team damage calculations.">
+
+<meta property="og:title" content="Resonator Value - Riley Calcs">
+<meta property="og:description" content="What each resonator adds to the best account">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://riley31415.github.io/wuwa_calc/value">
+<meta property="og:image" content="https://riley31415.github.io/wuwa_calc/loading_upscale.gif">
+
+<meta name="twitter:card" content="summary">
+<meta name="theme-color" content="#f2074a">
+
+<link rel="icon" type="image/png" sizes="192x192" href="./favicon.png">
+<link rel="stylesheet" href="./index.css">
+</head>
+<body class="valuepage">
+
+<!--
+  The engine is TypeScript. tsc compiles src/**/*.ts into dist/src/ (mirroring this project one
+  level deeper), and esbuild then folds those ~70 modules into the two files that actually load
+  below — dist/bundle/index.js and the worker's dist/bundle/solver.js (see dev.py on why:
+  eight workers each fetching the whole module graph was most of a cold load's startup). A
+  source edit needs both passes before a refresh shows it. The page still has to be served
+  rather than opened off disk — browsers block module imports and fetch() on file:// URLs. From
+  this directory:
+
+      npm run build                     ->  tsc into dist/src/, then esbuild into dist/bundle/
+      python dev.py                     ->  tsc --watch + esbuild --watch + a no-store server
+                                            with hot reload, all in one; what the logon entry
+                                            runs, so normally this is already up
+
+  Use 127.0.0.1, not localhost — see dev.py's own header on the ~200ms-per-connection stall
+  "localhost" costs on Windows, paid on every request.
+-->
+
+<script>
+  // Hot reload, the page's half: poll dev.py's /__livereload endpoint and reload the moment it
+  // reports any watched .html/.css/.js file changed, so a fix on disk (or a `tsc` run finishing)
+  // reaches the screen with no manual refresh. Talks to that one path only; the first answer that
+  // isn't a stamp (a 404 off GitHub Pages, say) means "not on dev.py", and the polling stops.
+  (function poll() {
+    let last = null;
+    const tick = async () => {
+      try {
+        const res = await fetch("/__livereload", { cache: "no-store" });
+        // only a 404 means "not on dev.py"; any other miss is the server mid-restart, and one
+        // of those must not stop the tab polling for good
+        if (res.status === 404) { clearInterval(timer); return; }
+        if (!res.ok) return;
+        const v = await res.text();
+        if (last === null) { last = v; return; } // baseline on first successful poll, not a reload
+        if (v !== last) location.reload();
+      } catch { /* server mid-restart — try again next tick */ }
+    };
+    const timer = setInterval(tick, 500);
+    // a background tab's timers are throttled to once a minute; check the moment it is looked at
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) tick(); });
+  })();
+</script>
+
+<div id="app"></div>
+
+<!-- The loading state lives here rather than being written by the script, so it is on screen
+     while the module is still being fetched and parsed. It is an overlay over #app, not a page
+     of its own: boot() draws the empty table (filters, header, no rows) underneath first and
+     this floats above it, blurring it, while the teams actually run. boot() drives the fill and
+     the count in place and hides the whole thing when there is nothing left to run; it never
+     replaces this markup. -->
+<div id="loading">
+  <p class="loading-status">
+    <span class="status-text">Initializing…</span>
+    <span class="progress-count"></span>
+  </p>
+  <div class="progress-track"><div class="progress-fill"></div></div>
+  <!-- the sticker the favicon is cut from, whole, at its own size -->
+  <img class="loading-gif" src="./loading.gif" alt="" width="110" height="79">
+  <!-- and the one that takes its place the moment anything lands in the error box below. Empty,
+       with the sticker as its background: a page that comes up clean never fetches it. -->
+  <div class="error-gif" aria-hidden="true"></div>
+  <!-- anything that goes wrong while the page loads lands here, in full, rather than only in a
+       console nobody has open (the handlers below) -->
+  <pre class="loading-error" hidden></pre>
+</div>
+
+<script>
+  // Every error on the way up — a chunk that failed to fetch, a kit that threw at import, the
+  // boot itself — is written onto the loading screen, which is put back up if it had gone.
+  // Wired here, ahead of the module, so the module failing to load at all is caught too.
+  (function () {
+    function show(text) {
+      var box = document.querySelector("#loading .loading-error");
+      if (!box) return;
+      box.hidden = false;
+      box.textContent += (box.textContent ? "\n\n" : "") + text;
+      document.getElementById("loading").hidden = false;
+    }
+    addEventListener("error", function (e) {
+      var err = e.error;
+      show(err && err.stack ? err.stack : e.message ? e.message + (e.filename ? " (" + e.filename + ":" + e.lineno + ")" : "") : String(e));
+    });
+    addEventListener("unhandledrejection", function (e) {
+      var r = e.reason;
+      show(r && r.stack ? r.stack : String(r));
+    });
+    // A press anywhere on an error box takes the whole thing — selected, and on the clipboard, so
+    // a stack goes straight into a bug report. Delegated from here, ahead of the module, for the
+    // same reason the handlers above are: the module is what may have failed. It reaches the
+    // detail page's own `.error` box the same way, whenever the module renders one later.
+    // A selection the reader dragged out for themselves is left as it is.
+    document.addEventListener("click", function (e) {
+      var box = e.target && e.target.closest && e.target.closest(".loading-error, .error");
+      if (!box) return;
+      var sel = getSelection();
+      if (sel && !sel.isCollapsed) return;
+      var range = document.createRange();
+      range.selectNodeContents(box);
+      if (sel) { sel.removeAllRanges(); sel.addRange(range); }
+      // execCommand is the fallback off a secure context, where there is no clipboard API at all
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(box.innerText).catch(function () { document.execCommand("copy"); });
+      } else {
+        document.execCommand("copy");
+      }
+    });
+  })();
+</script>
+
+<!-- Loaded by hand with a fresh query string rather than a plain src: GitHub Pages serves every
+     file with max-age=600, and a bundle fetched under a name that never changes can be handed
+     back stale for ten minutes after a deploy — half a page on the new engine, half on the old.
+     A string nothing cached, and the chunks the bundle imports carry a content hash of their
+     own. index.ts busts the worker's own entry the same way. -->
+<script type="module">import(`./dist/bundle/value.js?v=${Date.now()}`);</script>
+</body>
+</html>

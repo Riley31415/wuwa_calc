@@ -3,20 +3,20 @@
  * the solver or precompute. One team at one solve, one member's own damage scored for any set of
  * rolled substat lines, everything else about the team held where the solve put it.
  */
-import type { Loadout } from "../src/engine/gear.js";
-import { runRotations } from "../src/engine/rotation.js";
-import { State } from "../src/engine/state.js";
-import type { ResolvedSnapshot } from "../src/engine/evaluate.js";
-import { withTeam, equip, equipEnemy, setTracing } from "../src/engine/context.js";
-import { damageFactors } from "../src/engine/damage.js";
-import { Stat, Scaling } from "../src/engine/stats.js";
-import { TUNE_BREAK_ENEMY } from "../src/shared/tunebreak.js";
-import { ALL_TEAMS, teamKey } from "../src/resonators/teams.js";
-import { teamFromKey, optimizeTeam, defaultFilters, comboOf } from "../src/solve/solver.js";
-import type { Member, Combo, Pick, TeamCost } from "../src/solve/solver.js";
-import { runTeam } from "../src/solve/teamrun.js";
-import { Substat, ErSpread, rollSpread, rolledPiece } from "../src/shared/substats.js";
-import { Echoes } from "../src/shared/echoes.js";
+import type { Loadout } from "../engine/gear.js";
+import { runRotations } from "../engine/rotation.js";
+import { State } from "../engine/state.js";
+import type { ResolvedSnapshot } from "../engine/evaluate.js";
+import { withTeam, equip, equipEnemy, setTracing } from "../engine/context.js";
+import { damageFactors } from "../engine/damage.js";
+import { Stat, Scaling } from "../engine/stats.js";
+import { TUNE_BREAK_ENEMY } from "../shared/tunebreak.js";
+import { ALL_TEAMS, teamKey } from "../resonators/teams.js";
+import { teamFromKey, optimizeTeam, defaultFilters, comboOf } from "../solve/solver.js";
+import type { Member, Combo, Pick, TeamCost } from "../solve/solver.js";
+import { runTeam } from "../solve/teamrun.js";
+import { Substat, ErSpread, rollSpread, rolledPiece } from "../shared/substats.js";
+import { Echoes } from "../shared/echoes.js";
 
 /** One substat line as it rolled. */
 export type Line = readonly [Substat, number];
@@ -305,6 +305,7 @@ export class Target {
     const slot = members.findIndex((m) => m.name === who);
     if (slot < 0) throw new Error(`${who} is not on ${names.join(" / ")}`);
     const picks = optimizeTeam(key, members, { ...defaultFilters(), cost });
+    if (!picks) throw new Error(`${names.join(" / ")} has no build at ${cost}`);
     const at = members[slot]!.loadout.mainstats.findIndex((x) => x.name === mainstat);
     if (at < 0) throw new Error(`${who} has no main stat named ${mainstat}`);
     picks[slot] = { ...picks[slot]!, mainstat: at };

@@ -6,22 +6,22 @@
  * tuners (refunds spent as they come) run out. Resonators under 100k personal damage on that team
  * are skipped.
  *
- * Everything lands in tuning/out/: the team solves (teams.json), each resonator's runs
+ * Everything lands in src/tuning/out/: the team solves (teams.json), each resonator's runs
  * (best/<name>.json) and the table (best.md), rendered from those files alone (table.ts, which
  * re-renders it without the engine) — a resonator already on file is not run again unless `fresh=1`.
  * `dir=` puts the runs and their table under another name than `best`, to keep another budget's apart.
- * `npx tsc && node dist/tuning/best.js [who=all|Name,Name] [runs=1000] [budget=15000] [seed=1] [er=4] [dir=best]
+ * `npx tsc && node dist/src/tuning/best.js [who=all|Name,Name] [runs=1000] [budget=15000] [seed=1] [er=4] [dir=best]
  *  [bonus=5] [fresh=1] [main=Name:<main stats>;...] [erfloor=Name:<ER>;...] [shards=<threads, every core by default>] [worth]`
  * `worth` fills in, for runs already on file, whether each is a main DPS and what each stat's lines are worth.
  */
 import { Worker, isMainThread, parentPort, workerData } from "node:worker_threads";
 import { cpus } from "node:os";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { Substat, spreadCounts, rollSpread } from "../src/shared/substats.js";
-import { ALL_TEAMS, teamKey, teamAt } from "../src/resonators/teams.js";
-import { teamFromKey, optimizeTeam, solveTeam, defaultFilters, comboOf, echoLabel } from "../src/solve/solver.js";
-import type { Pick } from "../src/solve/solver.js";
-import { runTeam } from "../src/solve/teamrun.js";
+import { Substat, spreadCounts, rollSpread } from "../shared/substats.js";
+import { ALL_TEAMS, teamKey, teamAt } from "../resonators/teams.js";
+import { teamFromKey, optimizeTeam, solveTeam, defaultFilters, comboOf, echoLabel } from "../solve/solver.js";
+import type { Pick } from "../solve/solver.js";
+import { runTeam } from "../solve/teamrun.js";
 import { Target, SUBSTATS } from "./target.js";
 import type { Line } from "./target.js";
 import { linesOf, maxOf, Batch, rng } from "./sim.js";
@@ -85,6 +85,7 @@ if (!isMainThread) {
       const members = teamFromKey(key);
       try {
         const picks = optimizeTeam(key, members, defaultFilters());
+        if (!picks) continue;
         const run = runTeam(key, members, picks.map((p, j) => comboOf(members[j]!.loadout, p)));
         solved.push({ key, names: members.map((m) => m.name), picks, total: run.total, own: Object.fromEntries(run.bySlot) });
       } catch {

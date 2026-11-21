@@ -54,7 +54,7 @@ DEFAULT_PORT = 8731
 # limit; bundled it is 18, and the search starts ~0.2s sooner. `--entry-names` keeps the worker at the
 # same relative path index.js finds it by (`new URL("./solver.js", import.meta.url)`).
 ESBUILD_ARGS = [
-    "dist/src/page/index.js", "dist/src/solve/solver.js", "--bundle", "--splitting", "--format=esm",
+    "dist/src/page/index.js", "dist/src/page/value.js", "dist/src/page/team.js", "dist/src/page/tierlist.js", "dist/src/solve/solver.js", "--bundle", "--splitting", "--format=esm",
     "--outdir=dist/bundle", "--entry-names=[name]", "--log-level=warning",
 ]
 
@@ -92,7 +92,7 @@ def _sweep_chunks() -> None:
     piles up ~750KB per edit. A chunk newer than the entries is left alone: mid-rebuild that is the
     incoming one, written before the index.js that will name it."""
     bundle = ROOT / "dist" / "bundle"
-    entries = [bundle / "index.js", bundle / "solver.js"]
+    entries = [bundle / "index.js", bundle / "value.js", bundle / "team.js", bundle / "tierlist.js", bundle / "solver.js"]
     try:
         named = "".join(e.read_text(encoding="utf-8") for e in entries)
         newest = max(e.stat().st_mtime for e in entries)
@@ -146,6 +146,10 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
+        # a static host serves value.html at /value (and team.html, tierlist.html alike); so does this
+        for page in ("/value", "/team", "/tierlist"):
+            if self.path.split("?")[0].split("#")[0] == page:
+                self.path = page + ".html" + self.path[len(page):]
         super().do_GET()
 
     def log_message(self, fmt, *args):

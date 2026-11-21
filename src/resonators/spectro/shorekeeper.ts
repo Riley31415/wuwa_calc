@@ -24,20 +24,22 @@ import {
   revokeTeam,
   addStat, addGain as addResource,
   casting,
+  queue,
+  revokeCurrent,
   handoffPending,
   applyOn,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, START_LAST, SWAPIN } from "../../engine/rotation.js";
+import { ActionGroup, Action, ActionTag, Rotation, START_LAST, SWAPIN, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
 import { HEALS, heal } from "../../shared/status.js";
 import { SK_SIG } from "../../weapons/rectifier.js";
 import { VARIATION } from "../../weapons/standard.js";
-import { REJUV_5PC, ACTION_FALLACY } from "../../echoes/jinzhou.js";
-import { FALLACY } from "../../echoes/jinzhou.js";
+import { REJUV_5PC, FALLACY } from "../../echoes/jinzhou.js";
+import { FALLACY_MAINSLOT } from "../../echoes/jinzhou.js";
 import { mainstats, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
-import { SPACETREK_EXPLORER, STARRY_RADIANCE_5PC, ACTION_SPACETREK } from "../../echoes/lahairoi.js";
-import { FORMRENDER, TINGED_YEARNING_5PC, ACTION_FORMRENDER } from "../../echoes/mengzhou.js";
+import { SPACETREK_EXPLORER_MAINSLOT, STARRY_RADIANCE_5PC, SPACETREK_EXPLORER } from "../../echoes/lahairoi.js";
+import { FORMRENDER_MAINSLOT, TINGED_YEARNING_5PC, FORMRENDER } from "../../echoes/mengzhou.js";
 import { JINGRAN_RESONATOR } from "../fusion/jingran.js";
 import { JINHSI_RESONATOR } from "./jinhsi.js";
 import { SUOMING_RESONATOR } from "../electro/suoming.js";
@@ -89,22 +91,71 @@ const REALM_HEALS: Buff = new Buff({
   },
 });
 
-// Empirical Data (forte1): 1 a stage, capped at 5 — the engine floors at 0 but imposes no
-// ceiling itself, so BA3's +2/MA's +1 landing on 5 relies on this loop never running a fourth
-// basic before Forte: Illation spends the whole gauge below.
-const BA1 = skAction("Basic - Origin Calculus 1", { animFrames: 23, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 15, mv: 3178, energy: 50, concerto: 160, offtune: 2664, forte1: 1 }]});
-// after the Plunging Attack or Chaos Theory, Basic Attack starts at Stage 2
-const BA2 = skAction("Basic - Origin Calculus 2", { chains: () => [BA1, MA, Skill], animFrames: 33, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 8, mv: 2386, energy: 38, concerto: 120, offtune: 2000, forte1: 1 },
-    { hitFrame: 20, mv: 2386, energy: 38, concerto: 120, offtune: 2000 },
+/** A Collapsed Core run out (6s on) or one past five: a butterfly firing on its own behind the fight. */
+const Butterfly = skAction("Forte - Flare Star Butterfly", { tag: ActionTag.OffField, node: Node.Forte, type: Type.Basic, bullets: [
+    { hitFrame: 36, commitFrame: 0, mv: 3729, energy: 59, concerto: 100 },
   ]});
-const BA3 = skAction("Basic - Origin Calculus 3", { chains: [BA2], animFrames: 47, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 20, mv: 2332, energy: 37, concerto: 118, offtune: 1955 },
+
+/** Collapsed Cores: five slots, each its own 6s clock, so every core keeps the time it was made. */
+const CORES: Buff[] = [1, 2, 3, 4, 5].map((n) => {
+  const core: Buff = new Buff({
+    name: `Collapsed Core ${n}`,
+    duration: 60 * 6,
+    // its butterfly, on the frame the duration runs out
+    tick: { every: 60 * 6, fire: () => queue(Butterfly) },
+  });
+  return core;
+});
+
+// Illation/Transmutation turn every core at once, the k-th riding wuwalab's k-th butterfly frame
+const CONSUMED_STARS = [42, 45, 48, 53, 56].map((hitFrame, k) => skAction(`Forte - Flare Star Butterfly ${k + 1}`, { tag: ActionTag.OffField, node: Node.Forte, type: Type.Basic, bullets: [
+    { hitFrame, commitFrame: 0, mv: 3729, energy: 59, concerto: 100 },
+  ]}));
+
+// queued from the forte press's cast, so each is cast on its frame 0, one per core held
+const turnCores = (): void => {
+  const held = CORES.filter((core) => isHeld(core));
+  held.forEach((core, k) => {
+    queue(CONSUMED_STARS[k]!);
+    revokeCurrent(core);
+  });
+};
+
+// a core at each of wuwalab's generate_collapsed_core events; with five already held, a butterfly instead
+const collapseCore = (): void => {
+  const free = CORES.find((core) => !isHeld(core));
+  if (free) applyCurrent(free, 1);
+  else queue(Butterfly);
+};
+
+// Empirical Data (forte1): 1 a stage (2 on Stage 3), capped at 5; Illation/Transmutation spend it whole.
+const BA1 = skAction("Basic - Origin Calculus 1", { notAfter: () => [BA1, BA2, BA3, MA, Transmutation, Skill], animFrames: 23, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 0, element: null, type: null, subtype: null, updateDebuffs: collapseCore }, // its core, on the cast
+    { hitFrame: 15, mv: 3178, energy: 50, concerto: 160, offtune: 2664, forte1: 1 },
+  ]});
+// after the Plunging Attack, Transmutation or Chaos Theory, Basic Attack starts at Stage 2
+const BA2 = skAction("Basic - Origin Calculus 2", { after: () => [BA1, MA, Transmutation, Skill], animFrames: 33, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 8, mv: 2386, energy: 38, concerto: 120, offtune: 2000, forte1: 1, updateDebuffs: collapseCore },
+    { hitFrame: 20, mv: 2386, energy: 38, concerto: 120, offtune: 2000, updateDebuffs: collapseCore },
+  ]});
+const BA3 = skAction("Basic - Origin Calculus 3", { after: [BA2], animFrames: 47, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 20, mv: 2332, energy: 37, concerto: 118, offtune: 1955, updateDebuffs: collapseCore },
     { hitFrame: 29, commitFrame: 20, mv: 2332, energy: 37, concerto: 118, offtune: 1955, forte1: 1 },
     { hitFrame: 38, commitFrame: 20, mv: 2332, energy: 37, concerto: 118, offtune: 1955, forte1: 1 },
   ]});
+const BA4 = skAction("Basic - Origin Calculus 4", { after: [BA3], animFrames: 51, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 25, mv: 7272, energy: 115, concerto: 366, offtune: 6096, forte1: 1, updateDebuffs: collapseCore },
+  ]});
 
-const MA = skAction("Mid-air - Origin Calculus Plunge", { castPosition: Position.Midair, endPosition: Position.Grounded, animFrames: 50, animPriority: { 50: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 46, mv: 7396, energy: 155, concerto: 500, offtune: 4960, forte1: 1 }]});
+const DC = skAction("Dodge Counter - Origin Calculus", { after: [SUCCESSFUL_DODGE], animFrames: 33, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+    { hitFrame: 8, mv: 8748, energy: 138, concerto: 440, offtune: 4400, forte1: 1, updateDebuffs: collapseCore },
+    { hitFrame: 20, mv: 8748, energy: 138, concerto: 440, offtune: 4400, updateDebuffs: collapseCore },
+  ], castConcerto: 1000});
+
+// at 5 Empirical Data the Mid-air Attack comes out as Transmutation instead
+const MA = skAction("Mid-air - Origin Calculus Plunge", { maxForte1: 4, castPosition: Position.Midair, endPosition: Position.Grounded, animFrames: 50, animPriority: { 0: 6, 50: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 46, mv: 7396, energy: 155, concerto: 500, offtune: 4960, forte1: 1, updateDebuffs: collapseCore },
+  ]});
 
 const Skill = skAction("Skill - Chaos Theory", { animFrames: 39, animPriority: { 0: 4, 39: 2 }, castPriority: 5, cooldown: 60 * 16, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 16, element: null, type: null, subtype: null, updateDebuffs: () => applyCurrent(HEALS, 1) }, // its heal, ahead of the hits
@@ -115,13 +166,22 @@ const Skill = skAction("Skill - Chaos Theory", { animFrames: 39, animPriority: {
     { hitFrame: 65, commitFrame: 17, mv: 3131, energy: 200, concerto: 200, offtune: 1050 },
   ], castConcerto: 2000});
 
-const FHA = skAction("Forte Heavy - Illation", { minForte1: 5, animFrames: 48, castPriority: 4, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
-    { hitFrame: 22, commitFrame: 5, mv: 5626, energy: 99, offtune: 1272 },
-    { hitFrame: 34, commitFrame: 5, mv: 5626, energy: 99, offtune: 1272 },
-    { hitFrame: 46, commitFrame: 5, mv: 5626, energy: 99, offtune: 1272 },
-    { hitFrame: 58, commitFrame: 5, mv: 5626, energy: 99, offtune: 1272 },
-    { hitFrame: 64, commitFrame: 5, mv: 5626, energy: 99, offtune: 1272 },
-  ], castConcerto: 1100, castForte1: -5});
+// both spend all 5 Empirical Data and turn every core into a butterfly (CONSUMED_STARS)
+const Illation = skAction("Forte Heavy - Illation", { minForte1: 5, animFrames: 48, animPriority: { 0: 4 }, castPriority: 4, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+    { hitFrame: 22, commitFrame: 5, mv: 1897, energy: 40, offtune: 1272 },
+    { hitFrame: 34, commitFrame: 5, mv: 1897, energy: 40, offtune: 1272 },
+    { hitFrame: 46, commitFrame: 5, mv: 1897, energy: 40, offtune: 1272 },
+    { hitFrame: 58, commitFrame: 5, mv: 1897, energy: 40, offtune: 1272 },
+    { hitFrame: 64, commitFrame: 5, mv: 1897, energy: 40, offtune: 1272 },
+  ], castConcerto: 600, castForte1: -5, updateBuffs: turnCores});
+
+const Transmutation = skAction("Forte Mid-air - Transmutation", { minForte1: 5, castPosition: Position.Midair, endPosition: Position.Grounded, animFrames: 50, animPriority: { 0: 6, 50: 2 }, castPriority: 6, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 46, mv: 7396, energy: 155, concerto: 500, offtune: 4960 },
+  ], castConcerto: 600, castForte1: -5, updateBuffs: turnCores});
+
+// one-press groups: the report folds the butterflies each queues into its row, a plain row with none
+const FHA = new ActionGroup("Forte Heavy - Illation", [Illation]);
+const FMA = new ActionGroup("Forte Mid-air - Transmutation", [Transmutation]);
 
 const Liberation = skAction("Liberation - End Loop", {
   animFrames: 207, castPriority: 10, timestop: [0, 207], motionStop: [0, 207], cooldown: 60 * 25,
@@ -301,36 +361,42 @@ const SHOREKEEPER_RESONATOR = new Resonator({
 // The loop is shorter than the opener; it generates just over the 100 concerto the outro spends.
 // SWAPIN ROTATIONS DO NOT HAVE AN INTRO
 
+const BA1234 = new ActionGroup("Basic - Origin Calculus 1234", [BA1, BA2, BA3, BA4]);
 const BA123 = new ActionGroup("Basic - Origin Calculus 123", [BA1, BA2, BA3]);
-
 const BA23 = new ActionGroup("Basic - Origin Calculus 23", [BA2, BA3]);
 const BA12 = new ActionGroup("Basic - Origin Calculus 12", [BA1, BA2]);
 
+/* How both rotations are optimized (src/explorer/sksearch.ts, `npx tsc && node dist/src/explorer/sksearch.js`):
+ * - every string is played through the engine at the default delays in a duo, Lily standing in for the team
+ * - an opener starts on Basic 1, a loop on her Intro; the Liberation goes in once, the echoes right before it
+ *   or as the swap, and the string runs to an Outro, which needs her 100 Concerto
+ * - cuts (no mash cancels): into Illation a hold, or a cancel or insta cut no earlier than the hold would let go; into the
+ *   Skill or the Liberation a cancel; Illation's own an insta cut (an insta jump into a plunge); a jump into
+ *   a plunge or Transmutation; Basic 1 played out or dodged into; the Liberation played out
+ * - a string is dropped where a press is cast outside its condition (forte read off her bar, not counted)
+ * - of two strings ending on the same press, one is dropped only where the other is no later and no worse on
+ *   Concerto landed, in hand as the last press is cast, and still to land past it (carried over a swap)
+ * - a loop must leave the forte it arrived with, and is played twice so it also stands behind itself */
+
+/** The fastest loop:
+ *  1. of the 200 fastest openers leaving exactly 1 forte, take the one carrying the most Concerto into the
+ *     next Intro (its last Illation's butterflies landing after the swap; the faster one on a tie)
+ *  2. search the fastest steady loop behind it
+ *  3. try that loop behind each of those openers: the fastest it plays behind as fast is the opener here */
 const SK_LOOP = new Rotation([
-  START_LAST, BA1.instaCancel(), Skill.cancel(), Liberation, ACTION_FALLACY.instaSwap(), ACTION_SPACETREK.instaSwap(), ACTION_FORMRENDER.instaSwap(),
+  SWAPIN,
+  BA12.cancel(), FALLACY.instaCancel(), SPACETREK_EXPLORER.instaCancel(), FORMRENDER.instaCancel(), Liberation,
+  BA123.jumpCancel(), FMA, BA23.cancel(), Skill, BA2.holdCancel(), FHA.instaJump(), MA.instaSwap(), Outro,
 
-  SWAPIN, 
-  BA123.jumpCancel(), MA, FHA.instaCancel(),
-  Skill, BA23.dodgeCancel(),
-  BA12.holdCancel(), FHA.instaCancel(), 
-  Liberation, ACTION_FALLACY.instaSwap(), ACTION_SPACETREK.instaSwap(), ACTION_FORMRENDER.instaSwap(), Outro,
+  Intro, EIntro,
+  BA12.cancel(), Skill.cancel(), FALLACY.instaCancel(), SPACETREK_EXPLORER.instaCancel(), FORMRENDER.instaCancel(), Liberation,
+  // Illation's butterflies land after the swap, into the next Intro's Concerto
+  BA12.holdCancel(), FHA.instaJump(), MA.instaSwap(), Outro,
 
-  Intro, EIntro, 
-  BA123.jumpCancel(), MA, FHA.instaCancel(), Skill.cancel(),
-  Liberation, ACTION_FALLACY.instaSwap(), ACTION_SPACETREK.instaSwap(), ACTION_FORMRENDER.instaSwap(), Outro,
-]);
-
-const SK_LOOP_S3 = new Rotation([
-  START_LAST, BA1.instaCancel(), Skill.cancel(), Liberation, ACTION_FALLACY.instaSwap(), ACTION_SPACETREK.instaSwap(), ACTION_FORMRENDER.instaSwap(),
-
-  SWAPIN, 
-  BA123.jumpCancel(), MA, FHA.instaCancel(),
-  Skill.cancel(),
-  Liberation, ACTION_FALLACY.instaSwap(), ACTION_SPACETREK.instaSwap(), ACTION_FORMRENDER.instaSwap(), Outro,
-
-  Intro, EIntro, BA1,
-  Skill,
-  Liberation, ACTION_FALLACY.instaSwap(), ACTION_SPACETREK.instaSwap(), ACTION_FORMRENDER.instaSwap(), Outro,
+  // a first arrival with no opener before it carries no forte in: Basic 3 makes up the 1
+  Intro.firstIntro(),
+  BA123.cancel(), Skill.cancel(), FALLACY.instaCancel(), SPACETREK_EXPLORER.instaCancel(), FORMRENDER.instaCancel(), Liberation,
+  BA12.holdCancel(), FHA.instaJump(), MA.instaSwap(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
@@ -345,12 +411,12 @@ export const SHOREKEEPER = new Loadout({
   weapons: [SK_SIG, VARIATION],
   echoes: new Echoes({
     sets: [
-    new EchoLoadout(FALLACY, REJUV_5PC),
+    new EchoLoadout(FALLACY_MAINSLOT, REJUV_5PC),
     // worn for Spacetrek's shield, which Jingran's Trace the Vestige feeds on; Tinged Yearning for a Unison
-    new EchoLoadout(SPACETREK_EXPLORER, STARRY_RADIANCE_5PC).requires(JINGRAN_RESONATOR),
-    new EchoLoadout(FORMRENDER, TINGED_YEARNING_5PC).requires(JINHSI_RESONATOR, SUOMING_RESONATOR, HSIN_RESONATOR),
-    //new EchoLoadout(BELL_BORNE_GEOCHELONE, MOONLIT_CLOUDS_5PC),
-    //new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
+    new EchoLoadout(SPACETREK_EXPLORER_MAINSLOT, STARRY_RADIANCE_5PC).requires(JINGRAN_RESONATOR),
+    new EchoLoadout(FORMRENDER_MAINSLOT, TINGED_YEARNING_5PC).requires(JINHSI_RESONATOR, SUOMING_RESONATOR, HSIN_RESONATOR),
+    //new EchoLoadout(BELL_BORNE_GEOCHELONE_MAINSLOT, MOONLIT_CLOUDS_5PC),
+    //new EchoLoadout(HERON_MAINSLOT, MOONLIT_CLOUDS_5PC),
   ],
     mainstats: [mainstats(Mainstat.HP4, Mainstat.ER3, Mainstat.ER3, Mainstat.HP1, Mainstat.HP1)],
     substats: substats(Substat.Er, Substat.CritDmg, Substat.CritRate, Substat.Liberation, Substat.HpPct, Substat.Heavy),
@@ -361,5 +427,9 @@ export const SHOREKEEPER = new Loadout({
     // which costs her ~7.2 Energy a window and half of that to whoever she is standing in front of
     // — enough to put twelve teams' Liberations out of reach. Re-point this at SK_LOOP_S3 once that
     // rotation is settled.
+    // TEMPORARY: the 1f rotations on view (SK_OPENER_PERFECT the other); back to SK_LOOP after
     rotation: SK_LOOP,
 });
+
+/** Her presses, for the rotation explorer (src/explorer/), which writes rotations out of them. */
+export const SHOREKEEPER_PRESSES = { BA1, BA2, BA3, BA4, MA, Skill, FHA, FMA, Liberation, Outro, Intro, EIntro, BA123, BA23, BA12 };

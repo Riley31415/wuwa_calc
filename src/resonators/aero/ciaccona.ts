@@ -34,18 +34,18 @@ import {
   saveChain,
   addStatAs,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, SWAPIN, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, SWAPIN, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
 import { tuneBreak } from "../../shared/tunebreak.js";
 import { AERO_EROSION, SPECTRO_FRAZZLE, gainShield } from "../../shared/status.js";
 import { WOODLAND_ARIA } from "../../weapons/pistol.js";
-import { NM_KELPIE, ACTION_NM_KELPIE } from "../../echoes/rinascita.js";
+import { NM_KELPIE_MAINSLOT, NM_KELPIE } from "../../echoes/rinascita.js";
 import { GUSTS_OF_WELKIN_5PC } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
 import { THUNDERBOLT, SOLAR_FLAME } from "../../weapons/battlepass.js";
-import { HERON, MOONLIT_CLOUDS_5PC, ACTION_HERON } from "../../echoes/jinzhou.js";
+import { HERON_MAINSLOT, MOONLIT_CLOUDS_5PC, HERON } from "../../echoes/jinzhou.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -55,16 +55,16 @@ function ciacconaAction(id: string, def: object): Action {
 
 // --- basics, heavy/aimed, mid-air, dodge counter. Stage 4 is the one that matters: it banks a
 //     segment of Musical Essence (forte1), inflicts Aero Erosion, and opens the Solo Concert.
-const BA1 = ciacconaAction("Basic - Quadruple Time Steps 1", { animFrames: 18, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 10, mv: 5706, energy: 88, concerto: 280, offtune: 2800 }]});
+const BA1 = ciacconaAction("Basic - Quadruple Time Steps 1", { notAfter: () => [BA1, BA2, BA3, Skill, Intro, DC, MA2], animFrames: 18, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 10, mv: 5706, energy: 88, concerto: 280, offtune: 2800 }]});
 // Harmonic Allegro: "Press Normal Attack in time to cast Basic Attack Stage 2"
-const BA2 = ciacconaAction("Basic - Quadruple Time Steps 2", { chains: () => [BA1, Skill], animFrames: 63, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA2 = ciacconaAction("Basic - Quadruple Time Steps 2", { after: () => [BA1, Skill], animFrames: 63, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 19, mv: 4891, energy: 75, concerto: 240, offtune: 2400 },
     { hitFrame: 41, mv: 2446, energy: 38, concerto: 120, offtune: 1200 },
     { hitFrame: 47, mv: 2446, energy: 38, concerto: 120, offtune: 1200 },
     { hitFrame: 56, mv: 6521, energy: 100, concerto: 320, offtune: 3200 },
   ]});
 // the Intro's "in time to cast Basic Attack Stage 3", and the input list's "Dodge Counter+LMB+LMB"
-const BA3 = ciacconaAction("Basic - Quadruple Time Steps 3", { chains: () => [BA2, Intro, DC], animFrames: 42, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = ciacconaAction("Basic - Quadruple Time Steps 3", { after: () => [BA2, Intro, DC], animFrames: 42, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 3302, energy: 51, concerto: 162, offtune: 1620 },
     { hitFrame: 28, mv: 3302, energy: 51, concerto: 162, offtune: 1620 },
     { hitFrame: 34, commitFrame: 28, mv: 3302, energy: 51, concerto: 162, offtune: 1620 },
@@ -74,7 +74,7 @@ const BA3 = ciacconaAction("Basic - Quadruple Time Steps 3", { chains: () => [BA
 const EROSION = { updateDebuffs: () => applyEnemy(AERO_EROSION, 1) };
 // "Press Normal Attack after Mid-air Attack Stage 2 to cast Basic Attack Stage 4"
 const BA4 = ciacconaAction("Basic - Quadruple Time Steps 4", {
-  chains: () => [BA3, MA2], animFrames: 90, animPriority: { 83: 0 }, castPriority: 2,
+  after: () => [BA3, MA2], animFrames: 90, animPriority: { 83: 0 }, castPriority: 2,
   node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 18, commitFrame: 0, mv: 6114, energy: 94, concerto: 300, offtune: 3000 },
     { hitFrame: 26, commitFrame: 0, mv: 6114, energy: 94, concerto: 300, offtune: 3000 },
@@ -96,17 +96,17 @@ const SoloConcertS6 = ciacconaAction("Basic - Solo Concert (S6)", { node: Node.N
 const HA = ciacconaAction("Heavy - Attack", { endPosition: Position.Midair, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 10760, energy: 165, concerto: 528, offtune: 5280 }] });
 const AimedShot = ciacconaAction("Heavy - Aimed Shot", { castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 3261, energy: 50, concerto: 160, offtune: 1600 }] });
 const ChargedShot = ciacconaAction("Heavy - Fully Charged Aimed Shot", { castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 7337, energy: 113, concerto: 360, offtune: 3600 }] });
-const MA1 = ciacconaAction("Mid-air - Attack 1", { castPosition: Position.Midair, animFrames: 33, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MA1 = ciacconaAction("Mid-air - Attack 1", { notAfter: () => [MA1], castPosition: Position.Midair, animFrames: 33, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 10, mv: 5543, energy: 85, concerto: 272, offtune: 2720 },
     { hitFrame: 26, mv: 5543, energy: 85, concerto: 272, offtune: 2720 },
   ] });
-const MA2 = ciacconaAction("Mid-air - Attack 2", { chains: [MA1], castPosition: Position.Midair, endPosition: Position.Grounded, animFrames: 43, animPriority: { 3: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MA2 = ciacconaAction("Mid-air - Attack 2", { after: [MA1], castPosition: Position.Midair, endPosition: Position.Grounded, animFrames: 43, animPriority: { 3: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 36, mv: 2446, energy: 38, concerto: 120, offtune: 1200 },
     { hitFrame: 41, commitFrame: 36, mv: 2446, energy: 38, concerto: 120, offtune: 1200 },
     { hitFrame: 48, commitFrame: 36, mv: 2446, energy: 38, concerto: 120, offtune: 1200 },
     { hitFrame: 53, commitFrame: 36, mv: 2446, energy: 38, concerto: 120, offtune: 1200 },
   ] });
-const DC = ciacconaAction("Dodge Counter - Quadruple Time Steps", { chains: [DODGE], animFrames: 42, animPriority: { 66: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const DC = ciacconaAction("Dodge Counter - Quadruple Time Steps", { after: [SUCCESSFUL_DODGE], animFrames: 42, animPriority: { 66: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 5717, energy: 51, concerto: 162, offtune: 1620 },
     { hitFrame: 28, mv: 5717, energy: 51, concerto: 162, offtune: 1620 },
     { hitFrame: 28, mv: 5717, energy: 51, concerto: 162, offtune: 1620 },
@@ -344,22 +344,22 @@ const BA234 = new ActionGroup("Basic - Quadruple Time Steps 234", [BA2, BA3, BA4
 const CI_ROTATION = new Rotation([
   SWAPIN, BA1.instaCancel(),
   Skill, BA234.instaJump(), MA12, BA4.instaJump(), MA12, BA4.holdCancel(), 
-  Downbeat.cancel(), ACTION_NM_KELPIE.instaDodge(), ACTION_HERON.instaDodge(), Liberation.swapCancel(), Outro,
+  Downbeat.cancel(), NM_KELPIE.instaDodge(), HERON.instaDodge(), Liberation.swapCancel(), Outro,
 
   Intro, BA34.instaJump(),
   MA12, BA4.instaCancel(),
-  Skill, Downbeat.cancel(), ACTION_NM_KELPIE.instaDodge(), ACTION_HERON.instaDodge(), Liberation.swapCancel(), Outro,
+  Skill, Downbeat.cancel(), NM_KELPIE.instaDodge(), HERON.instaDodge(), Liberation.swapCancel(), Outro,
 ]);
 
 /** The same loop with the yellow Tonic picked, for a Spectro Frazzle team. */
 const CI_ROTATION_YELLOW = new Rotation([
   SWAPIN, BA1.instaCancel(),
   Skill, BA234.instaJump(), MA12, BA4.instaJump(), MA12, BA4.holdCancel(),
-  Downbeat.cancel(), ACTION_NM_KELPIE.instaDodge(), ACTION_HERON.instaDodge(), LiberationYellow.swapCancel(), Outro,
+  Downbeat.cancel(), NM_KELPIE.instaDodge(), HERON.instaDodge(), LiberationYellow.swapCancel(), Outro,
 
   Intro, BA34.instaJump(),
   MA12, BA4.instaCancel(),
-  Skill, Downbeat.cancel(), ACTION_NM_KELPIE.instaDodge(), ACTION_HERON.instaDodge(), LiberationYellow.swapCancel(), Outro,
+  Skill, Downbeat.cancel(), NM_KELPIE.instaDodge(), HERON.instaDodge(), LiberationYellow.swapCancel(), Outro,
 ]);
 
 /** From S3 on Harmonic Allegro has two charges, so both go before the Downbeat; the second
@@ -367,10 +367,10 @@ const CI_ROTATION_YELLOW = new Rotation([
 const CI_ROTATION_S3 = new Rotation([
   SWAPIN, BA1.instaCancel(),
   Skill, BA234.instaJump(), MA12, BA4.instaCancel(), 
-  Skill, Downbeat.cancel(), ACTION_NM_KELPIE.instaDodge(), ACTION_HERON.instaDodge(), Liberation.swapCancel(), Outro,
+  Skill, Downbeat.cancel(), NM_KELPIE.instaDodge(), HERON.instaDodge(), Liberation.swapCancel(), Outro,
 
   Intro, BA34.instaCancel(),
-  Skill, Downbeat.cancel(), Skill, ACTION_NM_KELPIE.instaDodge(), ACTION_HERON.instaDodge(), Liberation.swapCancel(), Outro,
+  Skill, Downbeat.cancel(), Skill, NM_KELPIE.instaDodge(), HERON.instaDodge(), Liberation.swapCancel(), Outro,
 ]);
 /* ----------------------------------------------------------------------------------- loadout */
 
@@ -380,7 +380,7 @@ const CIACCONA_BUILD = {
   resonator: CIACCONA_RESONATOR,
   weapons: [WOODLAND_ARIA, NEW_STD_PISTOL, STATIC_MIST, THUNDERBOLT, SOLAR_FLAME],
   echoes: new Echoes({
-    sets: [new EchoLoadout(NM_KELPIE, GUSTS_OF_WELKIN_5PC), new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC)],
+    sets: [new EchoLoadout(NM_KELPIE_MAINSLOT, GUSTS_OF_WELKIN_5PC), new EchoLoadout(HERON_MAINSLOT, MOONLIT_CLOUDS_5PC)],
     mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.ER3, Mainstat.Aero3, Mainstat.ATK1),
     substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Heavy),
     highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Basic, Substat.Heavy),

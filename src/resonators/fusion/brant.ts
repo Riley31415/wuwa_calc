@@ -32,17 +32,17 @@ import {
   saveChain,
   pressCut,
 } from "../../engine/context.js";
-import { Action, Rotation, DODGE, SWAP } from "../../engine/rotation.js";
+import { Action, Rotation, DODGE, SWAP, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
 import { tuneBreak, midairBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
 import { HEALS, gainShield } from "../../shared/status.js";
 import { UNFLICKERING_VALOR } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS, NEW_STD_SWORD, BLOODPACTS_PLEDGE } from "../../weapons/standard.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
-import { DRAGON_OF_DIRGE, TIDEBREAKING_5PC, ACTION_DRAGON_OF_DIRGE } from "../../echoes/rinascita.js";
+import { DRAGON_OF_DIRGE_MAINSLOT, TIDEBREAKING_5PC, DRAGON_OF_DIRGE } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { Echoes } from "../../shared/echoes.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
-import { NM_INFERNO_RIDER, MOLTEN_RIFT_5PC, ACTION_NM_INFERNO_RIDER } from "../../echoes/jinzhou.js";
+import { NM_INFERNO_RIDER_MAINSLOT, MOLTEN_RIFT_5PC, NM_INFERNO_RIDER } from "../../echoes/jinzhou.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -127,19 +127,19 @@ const FSkill = brantAction("Forte Skill - Returned from Ashes", { minForte1: 100
 // --- ground Captain's Rhapsody: the 4-stage Basic chain, both Heavy Attacks (the table's only
 //     type=1 rows), Dodge Counter (hidden +10 concerto, per the standing rule) and the Plunging
 //     Attack the Skill tree carries as a type=0 (Basic) row. None sit in a rotation.
-const BA1 = brantAction("Basic - Captain's Rhapsody 1", { animFrames: 19, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 12, mv: 5053, energy: 75, concerto: 150, offtune: 2392, forte1: 130 }] });
-const BA2 = brantAction("Basic - Captain's Rhapsody 2", { chains: [BA1], animFrames: 37, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = brantAction("Basic - Captain's Rhapsody 1", { notAfter: () => [BA1, BA2, BA3, MA4], animFrames: 19, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 12, mv: 5053, energy: 75, concerto: 150, offtune: 2392, forte1: 130 }] });
+const BA2 = brantAction("Basic - Captain's Rhapsody 2", { after: [BA1], animFrames: 37, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 9, mv: 5070, energy: 75, concerto: 150, offtune: 2400, forte1: 131 },
     { hitFrame: 24, mv: 5070, energy: 75, concerto: 150, offtune: 2400, forte1: 131 },
   ]}); // 50.70%x2
-const BA3 = brantAction("Basic - Captain's Rhapsody 3", { chains: [BA2], animFrames: 55, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = brantAction("Basic - Captain's Rhapsody 3", { after: [BA2], animFrames: 55, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 13, mv: 2206, energy: 33, concerto: 66, offtune: 1044, forte1: 57 },
     { hitFrame: 19, commitFrame: 13, mv: 2206, energy: 33, concerto: 66, offtune: 1044, forte1: 57 },
     { hitFrame: 25, commitFrame: 13, mv: 2206, energy: 33, concerto: 66, offtune: 1044, forte1: 57 },
     { hitFrame: 38, mv: 3308, energy: 49, concerto: 98, offtune: 1566, forte1: 85 },
     { hitFrame: 46, mv: 3308, energy: 49, concerto: 98, offtune: 1566, forte1: 85 },
   ]}); // 22.06%x3+33.08%x2
-const BA4 = brantAction("Basic - Captain's Rhapsody 4", { chains: [BA3], animFrames: 70, animPriority: { 92: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA4 = brantAction("Basic - Captain's Rhapsody 4", { after: [BA3], animFrames: 70, animPriority: { 92: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 34, mv: 2802, energy: 42, concerto: 83, offtune: 1326, forte1: 72 },
     { hitFrame: 52, mv: 2242, energy: 34, concerto: 67, offtune: 1061, forte1: 58 },
     { hitFrame: 55, commitFrame: 52, mv: 2242, energy: 34, concerto: 67, offtune: 1061, forte1: 58 },
@@ -147,11 +147,11 @@ const BA4 = brantAction("Basic - Captain's Rhapsody 4", { chains: [BA3], animFra
     { hitFrame: 62, commitFrame: 52, mv: 2242, energy: 34, concerto: 67, offtune: 1061, forte1: 58 },
     { hitFrame: 65, commitFrame: 52, mv: 2242, energy: 34, concerto: 67, offtune: 1061, forte1: 58 },
   ]}); // 28.02%+22.42%x5
-const HA = brantAction("Heavy - Captain's Rhapsody", { animFrames: 47, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 14, mv: 19755, energy: 293, concerto: 585, offtune: 9352, forte1: 725 }] });
+const HA = brantAction("Heavy - Captain's Rhapsody", { notAfter: () => [BA2, BA4, MA4], animFrames: 47, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 14, mv: 19755, energy: 293, concerto: 585, offtune: 9352, forte1: 725 }] });
 // "After performing Basic Attack Stage 2 or Stage 4 ... After performing Mid-air Attack Stage 4"
-const HARiff = brantAction("Heavy - Rhapsodic Riff", { chains: () => [BA2, BA4, MA4], animFrames: 66, animPriority: { 60: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 53, mv: 16899, energy: 250, concerto: 500, offtune: 8000, forte1: 620 }] });
+const HARiff = brantAction("Heavy - Rhapsodic Riff", { after: () => [BA2, BA4, MA4], animFrames: 66, animPriority: { 60: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 53, mv: 16899, energy: 250, concerto: 500, offtune: 8000, forte1: 620 }] });
 // PLACEHOLDER FRAMES
-const DC = brantAction("Dodge Counter - Captain's Rhapsody", { chains: [DODGE], castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const DC = brantAction("Dodge Counter - Captain's Rhapsody", { after: [SUCCESSFUL_DODGE], castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 0, mv: 3803, energy: 57, concerto: 113, offtune: 1800 },
     { hitFrame: 0, mv: 3803, energy: 57, concerto: 113, offtune: 1800 },
     { hitFrame: 0, mv: 3803, energy: 57, concerto: 113, offtune: 1800 },
@@ -166,9 +166,9 @@ const Plunge = brantAction("Skill - Plunging Attack", { castPosition: Position.M
 //     missed-Grapple branch — present for completeness, never triggered). A stage played out to its
 //     end queues its own Flip there; cut, it has none. forte1 is the base (un-doubled) Bravo gain,
 //     AFLAME doubles it live. The Slash has no recorded Bravo value.
-const MA1 = brantAction("Mid-air - Captain's Rhapsody 1", { castPosition: Position.Midair, afterAction: () => { if (!pressCut()) queue(MAFlip1); }, animFrames: 16, castPriority: 3, bullets: [{ hitFrame: 13, mv: 12286, energy: 182, concerto: 364, offtune: 5816, forte1: 451 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
+const MA1 = brantAction("Mid-air - Captain's Rhapsody 1", { notAfter: () => [MA1, MA1C, MAFlip1, MA2, MA2C, MAFlip2, MA3, MAFlip3, DODGE], castPosition: Position.Midair, afterAction: () => { if (!pressCut()) queue(MAFlip1); }, animFrames: 16, castPriority: 3, bullets: [{ hitFrame: 13, mv: 12286, energy: 182, concerto: 364, offtune: 5816, forte1: 451 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
 // Stage 1 held: its own hit, then the continuous attacks
-const MA1C = brantAction("Mid-air - Captain's Rhapsody 1 (Charged)", { castPosition: Position.Midair, afterAction: () => { if (!pressCut()) queue(MAFlip1); }, animFrames: 155, animPriority: { 16: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MA1C = brantAction("Mid-air - Captain's Rhapsody 1 (Charged)", { notAfter: () => [MA1, MA1C, MAFlip1, MA2, MA2C, MAFlip2, MA3, MAFlip3, DODGE], castPosition: Position.Midair, afterAction: () => { if (!pressCut()) queue(MAFlip1); }, animFrames: 155, animPriority: { 16: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 13, mv: 12286, energy: 182, concerto: 364, offtune: 5816, forte1: 451 },
     { hitFrame: 51, mv: 3325, energy: 50, concerto: 99, offtune: 1574, forte1: 122 },
     { hitFrame: 66, mv: 4987, energy: 74, concerto: 148, offtune: 2360, forte1: 183 },
@@ -179,17 +179,17 @@ const MA1C = brantAction("Mid-air - Captain's Rhapsody 1 (Charged)", { castPosit
     { hitFrame: 133, mv: 4156, energy: 62, concerto: 123, offtune: 1967, forte1: 153 },
     { hitFrame: 146, mv: 4156, energy: 62, concerto: 123, offtune: 1967, forte1: 153 },
   ]}); // 122.86%+33.25%+49.87%+41.56%x6
-const MAFlip1 = brantAction("Mid-air - Captain's Rhapsody 1 (Flip)", { chains: [MA1, MA1C], castPosition: Position.Midair, animFrames: 31, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MAFlip1 = brantAction("Mid-air - Captain's Rhapsody 1 (Flip)", { after: [MA1, MA1C], castPosition: Position.Midair, animFrames: 31, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 8, mv: 3380, energy: 50, concerto: 100, offtune: 1600, forte1: 186 },
     { hitFrame: 20, mv: 5915, energy: 88, concerto: 175, offtune: 2800, forte1: 326 },
   ]}); // 33.80%+59.15%
 // "Press Normal Attack after each flip to perform the next stage of Mid-air Attack."
-const MA2 = brantAction("Mid-air - Captain's Rhapsody 2", { chains: [MA1, MA1C, MAFlip1], castPosition: Position.Midair, afterAction: () => { if (!pressCut()) queue(MAFlip2); }, animFrames: 54, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MA2 = brantAction("Mid-air - Captain's Rhapsody 2", { after: [MA1, MA1C, MAFlip1], castPosition: Position.Midair, afterAction: () => { if (!pressCut()) queue(MAFlip2); }, animFrames: 54, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 27, mv: 8492, energy: 126, concerto: 252, offtune: 4020, forte1: 312 },
     { hitFrame: 46, mv: 8492, energy: 126, concerto: 252, offtune: 4020, forte1: 312 },
   ]}); // 84.92%x2
 // Stage 2 held: its two hits, then the continuous attacks
-const MA2C = brantAction("Mid-air - Captain's Rhapsody 2 (Charged)", { chains: [MA1, MA1C, MAFlip1], castPosition: Position.Midair, afterAction: () => { if (!pressCut()) queue(MAFlip2); }, animFrames: 114, animPriority: { 54: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MA2C = brantAction("Mid-air - Captain's Rhapsody 2 (Charged)", { after: [MA1, MA1C, MAFlip1], castPosition: Position.Midair, afterAction: () => { if (!pressCut()) queue(MAFlip2); }, animFrames: 114, animPriority: { 54: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 27, mv: 8492, energy: 126, concerto: 252, offtune: 4020, forte1: 312 },
     { hitFrame: 46, mv: 8492, energy: 126, concerto: 252, offtune: 4020, forte1: 312 },
     { hitFrame: 56, mv: 3287, energy: 49, concerto: 98, offtune: 1556, forte1: 211 },
@@ -199,11 +199,11 @@ const MA2C = brantAction("Mid-air - Captain's Rhapsody 2 (Charged)", { chains: [
     { hitFrame: 96, mv: 3287, energy: 49, concerto: 98, offtune: 1556, forte1: 211 },
     { hitFrame: 106, mv: 3287, energy: 49, concerto: 98, offtune: 1556, forte1: 211 },
   ]}); // 84.92%x2+32.87%x6
-const MAFlip2 = brantAction("Mid-air - Captain's Rhapsody 2 (Flip)", { chains: [MA2, MA2C], castPosition: Position.Midair, animFrames: 29, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MAFlip2 = brantAction("Mid-air - Captain's Rhapsody 2 (Flip)", { after: [MA2, MA2C], castPosition: Position.Midair, animFrames: 29, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 8, mv: 3380, energy: 50, concerto: 100, offtune: 1600, forte1: 186 },
     { hitFrame: 20, mv: 5915, energy: 88, concerto: 175, offtune: 2800, forte1: 326 },
   ]}); // 33.80%+59.15%
-const MA3 = brantAction("Mid-air - Captain's Rhapsody 3", { chains: [MA2, MA2C, MAFlip2, DODGE], castPosition: Position.Midair, afterAction: () => { if (!pressCut()) queue(MAFlip3); }, animFrames: 55, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MA3 = brantAction("Mid-air - Captain's Rhapsody 3", { after: [MA2, MA2C, MAFlip2, DODGE], castPosition: Position.Midair, afterAction: () => { if (!pressCut()) queue(MAFlip3); }, animFrames: 55, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 2817, energy: 42, concerto: 84, offtune: 1333, forte1: 155 },
     { hitFrame: 20, mv: 2817, energy: 42, concerto: 84, offtune: 1333, forte1: 155 },
     { hitFrame: 26, mv: 2817, energy: 42, concerto: 84, offtune: 1333, forte1: 155 },
@@ -212,7 +212,7 @@ const MA3 = brantAction("Mid-air - Captain's Rhapsody 3", { chains: [MA2, MA2C, 
     { hitFrame: 44, mv: 2817, energy: 42, concerto: 84, offtune: 1333, forte1: 155 },
   ]}); // 28.17%x6
 // "Brant flips backward automatically after Mid-air Attack Stage 3"
-const MAFlip3 = brantAction("Mid-air - Captain's Rhapsody 3 (Flip)", { chains: [MA3], castPosition: Position.Midair, animFrames: 29, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MAFlip3 = brantAction("Mid-air - Captain's Rhapsody 3 (Flip)", { after: [MA3], castPosition: Position.Midair, animFrames: 29, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 8, mv: 3380, energy: 50, concerto: 100, offtune: 1600, forte1: 186 },
     { hitFrame: 20, mv: 5915, energy: 88, concerto: 175, offtune: 2800, forte1: 326 },
   ]}); // 33.80%+59.15%
@@ -223,7 +223,7 @@ const MASlash = brantAction("Mid-air - Captain's Rhapsody 1 Slash", { castPositi
     { hitFrame: 0, mv: 2817, energy: 42, concerto: 84, offtune: 1333 },
   ]}); // 28.17%x3
 // lands: Rhapsodic Riff is pressed "while landed following Mid-air Attack Stage 4"
-const MA4 = brantAction("Mid-air - Captain's Rhapsody 4", { chains: [MA3, MAFlip3], castPosition: Position.Midair, endPosition: Position.Grounded, animFrames: 73, animPriority: { 73: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MA4 = brantAction("Mid-air - Captain's Rhapsody 4", { after: [MA3, MAFlip3], castPosition: Position.Midair, endPosition: Position.Grounded, animFrames: 73, animPriority: { 73: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 42, mv: 10153, energy: 151, concerto: 301, offtune: 4806, forte1: 373 },
     { hitFrame: 66, commitFrame: 42, mv: 2539, energy: 38, concerto: 76, offtune: 1202, forte1: 94 },
     { hitFrame: 71, commitFrame: 42, mv: 2539, energy: 38, concerto: 76, offtune: 1202, forte1: 94 },
@@ -389,7 +389,7 @@ const BR_ROTATION = new Rotation([
 ]);
 
 const BR_ROTATION_MDPS = new Rotation([
-  Intro.doubleIntro(), MA2C, MA3.hitCancel(), ACTION_DRAGON_OF_DIRGE.instaDodge(), ACTION_NM_INFERNO_RIDER.instaDodge(), MA3, MA4, SWAP,
+  Intro.doubleIntro(), MA2C, MA3.hitCancel(), DRAGON_OF_DIRGE.instaDodge(), NM_INFERNO_RIDER.instaDodge(), MA3, MA4, SWAP,
   Intro, MA2.instaCancel(), FSkill.cancel(), Liberation, 
   MA1, MA2C, MA3, MA4.hitCancel(), 
   FSkill.swapCancel(), Outro,
@@ -406,8 +406,8 @@ export const BRANT = new Loadout({
   weapons: [UNFLICKERING_VALOR, EMERALD_OF_GENESIS, NEW_STD_SWORD, BLOODPACTS_PLEDGE[4]!, LUMINGLOSS, FEATHER_EDGE], // the craftable at its real R5
   echoes: new Echoes({
     sets: [
-    new EchoLoadout(DRAGON_OF_DIRGE, TIDEBREAKING_5PC),
-    new EchoLoadout(NM_INFERNO_RIDER, MOLTEN_RIFT_5PC),
+    new EchoLoadout(DRAGON_OF_DIRGE_MAINSLOT, TIDEBREAKING_5PC),
+    new EchoLoadout(NM_INFERNO_RIDER_MAINSLOT, MOLTEN_RIFT_5PC),
   ],
     mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.Fusion3, Mainstat.ATK1),
     substats: substats(Substat.CritDmg, Substat.CritRate, Substat.Er, Substat.Basic, Substat.AtkPct, Substat.FlatAtk),
@@ -428,8 +428,8 @@ export const BRANT_MDPS = new Loadout({
   weapons: [UNFLICKERING_VALOR, EMERALD_OF_GENESIS, NEW_STD_SWORD, BLOODPACTS_PLEDGE[4]!, LUMINGLOSS, FEATHER_EDGE], // the craftable at its real R5
   echoes: new Echoes({
     sets: [
-    new EchoLoadout(DRAGON_OF_DIRGE, TIDEBREAKING_5PC),
-    new EchoLoadout(NM_INFERNO_RIDER, MOLTEN_RIFT_5PC),
+    new EchoLoadout(DRAGON_OF_DIRGE_MAINSLOT, TIDEBREAKING_5PC),
+    new EchoLoadout(NM_INFERNO_RIDER_MAINSLOT, MOLTEN_RIFT_5PC),
   ],
     mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.Fusion3, Mainstat.ATK1),
     substats: substats(Substat.CritDmg, Substat.CritRate, Substat.Er, Substat.Basic, Substat.AtkPct, Substat.FlatAtk),

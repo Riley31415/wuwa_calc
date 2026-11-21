@@ -176,6 +176,12 @@ function partRows(
   }).join("");
 }
 
+/** Where a loop begins: a short row of the table's own columns, LOOP n centred in the action one. Not selectable (`.loop`). */
+const loopBar = (columns: Column[], n: number): string =>
+  `<div class="step loopbar" aria-hidden="true"><div class="r short loop">`
+  + columns.map((c) => cell(c, { cls: c.key === "action" ? ["action"] : [], html: c.key === "action" ? `LOOP ${n}` : "" })).join("")
+  + `</div></div>`;
+
 /** The whole team's rotation as one grid. A group's block holds its parts (shown open) and its
  *  spill follow-ups (shown closed); a field's summons swap with its summary row by a stylesheet
  *  keyed on the summary's checkbox, since they are scattered through the section. */
@@ -204,7 +210,7 @@ function rotationTable(report: Report, slotHue: Map<string, string>, gearByMembe
   const closeBlock = () => { if (spilling) { out.push("</div></div>"); spilling = false; } };
   report.rows.forEach((row, i) => {
     const loop = starts.get(i);
-    if (loop !== undefined) { closeBlock(); out.push(`<div class="loopline"><span>loop ${loop}</span></div>`); }
+    if (loop !== undefined) { closeBlock(); out.push(loopBar(columns, loop)); }
     const snap = row.line.snap;
     const hue = rowHue(snap, slotHue);
     const style = ` style="--m:${hue}"`;
@@ -738,6 +744,8 @@ function trackBlock(): void {
   let row = Math.min(Math.max(sel.fr, 0), sel.rows.length - 1);
   while (row < sel.rows.length - 1 && y > rowSpan(sel, row, g.top)[1]) row++;
   while (row > 0 && y < rowSpan(sel, row, g.top)[0]) row--;
+  // a loop bar cannot end a block: the pointer over one reads as the row before it going down, after it going up
+  if (sel.rows[row]!.classList.contains("loop")) row = Math.min(Math.max(row + (row > sel.ar ? -1 : 1), 0), sel.rows.length - 1);
   // the heading is reached wherever it is pinned, over whichever rows it hides
   const head = rect(sel.rows[0]!);
   if (py >= head.top && py < head.bottom) row = 0;
@@ -807,7 +815,7 @@ addEventListener("focusin", (e) => {
 /** A cell's text as copied: a cut's tag, drawn ahead of the action's name, follows it. */
 function copyText(c: HTMLElement): string {
   const tag = c.querySelector(".ctag");
-  const name = [...c.childNodes].filter((n) => n !== tag).map((n) => n.textContent ?? "").join("").replace("▸", "").trim();
+  const name = [...c.childNodes].filter((n) => n !== tag).map((n) => n.textContent ?? "").join("").replace(/[▸▾]/g, "").trim();
   return tag ? `${name} ${(tag.textContent ?? "").trim()}` : name;
 }
 
@@ -818,7 +826,7 @@ addEventListener("keydown", (e) => {
   const loose = getSelection();
   if (loose && !loose.isCollapsed) return;
   e.preventDefault();
-  copyBlock(blockCells(cellSel).map((row) => row.map(copyText)));
+  copyBlock(blockCells(cellSel).filter((row) => !row[0]?.parentElement?.classList.contains("loop")).map((row) => row.map(copyText)));
 });
 
 /** Pick a block of log cells with the table's gestures (cellpick.ts): a click or tap opens the cell's
@@ -881,10 +889,11 @@ function wireCellSelect(root: HTMLElement): void {
 
   grid.addEventListener("pointerdown", (e) => {
     const target = e.target as HTMLElement;
-    const cell = target.closest<HTMLElement>(".r:not(.head) > .c");
+    const cell = target.closest<HTMLElement>(".r:not(.head):not(.loop) > .c");
     // a cut's tag box is a panel of its own, not the start of a block: left uncaptured, its click
     // lands on the tag rather than the cell
-    if (e.button !== 0 || holding || !cell || target.closest(".ctag, .celldot")) return;
+    // the ▾ is left uncaptured too, so its click reaches its label and closes the group
+    if (e.button !== 0 || holding || !cell || target.closest(".ctag, .celldot, .uncaret")) return;
     const at = measure(cell);
     if (!at) return;
     closing = panelOpenOn(cell);
@@ -906,6 +915,32 @@ function wireCellSelect(root: HTMLElement): void {
     pressedAt = performance.now();
     pick(at, false);
     holding = true;
+  });
+
+  /** An open group's first row on screen, chain or field alike: a field's hits are scattered, so
+   *  its rows are found by mark, and only those not inside a closed group count. */
+  const firstRow = (tgl: HTMLInputElement): HTMLElement | undefined => {
+    const rows = tgl.id.startsWith("fg")
+      ? [...grid.querySelectorAll<HTMLElement>(`[data-fh="${tgl.id.slice(2)}"]`)].map((el) => el.matches(".r") ? el : el.querySelector<HTMLElement>(".r"))
+      : [...tgl.parentElement!.querySelectorAll<HTMLElement>(":scope > .parts > .r")];
+    return rows.find((r): r is HTMLElement => !!r?.offsetParent);
+  };
+
+  // every open group's first row on screen carries the ▾ that closes it, over the name cell's right side;
+  // opening a group selects that row's name, closing it selects the group's own again
+  grid.addEventListener("change", (e) => {
+    const tgl = e.target as HTMLInputElement;
+    if (!tgl.matches(".tgl")) return;
+    grid.querySelectorAll(".uncaret").forEach((u) => u.remove());
+    for (const open of grid.querySelectorAll<HTMLInputElement>(".tgl:checked")) {
+      firstRow(open)?.querySelector(".c.action, .c.name")
+        ?.insertAdjacentHTML("beforeend", `<label class="caret uncaret" for="${open.id}">▾</label>`);
+    }
+    const cell = tgl.checked
+      ? grid.querySelector<HTMLElement>(`.uncaret[for="${tgl.id}"]`)?.parentElement ?? null
+      : grid.querySelector<HTMLElement>(`label.r[for="${tgl.id}"] > .c.action`);
+    const at = cell && measure(cell);
+    if (at) pick(at, false);
   });
 
   grid.addEventListener("pointermove", (e) => {
