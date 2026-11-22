@@ -49,8 +49,8 @@ import {
 } from "../../engine/context.js";
 import { ActionGroup, Action, Cooldown, Rotation, START_LAST, SWAP, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
 import { applied } from "../../engine/context.js";
-import { TUNE_STRAIN_SHIFTING, tuneBreak, midairBreak } from "../../shared/tunebreak.js";
-import { applyStrain, TUNE_BREAK, TUNE_STRAIN_INTERFERED, TUNE_SHIFTABLE, strainPayout } from "../../shared/tunebreak.js";
+import { TUNE_STRAIN_SHIFTING, tuneBreak, midairBreak } from "../tunebreak.js";
+import { applyStrain, TUNE_BREAK, TUNE_STRAIN_INTERFERED, TUNE_SHIFTABLE, strainPayout } from "../tunebreak.js";
 import { DAYBREAKERS_SPINE } from "../../weapons/gauntlet.js";
 import { NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
 import { STONARD, AETHER_STRIKE } from "../../weapons/battlepass.js";
@@ -58,9 +58,9 @@ import {
   NEBULOUS_CANNON_MAINSLOT,
   GILDED_REVELATION_5PC,
 } from "../../echoes/lahairoi.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 

@@ -6,13 +6,13 @@ import {
   Stat, EnemyStat, Resource, Scaling,
   scopedStat, splitStat, statLabel, tagKind,
   TAG_NAME, CAST_NAME, NODE_NAME, SCALING_NAME, RESOURCE_NAME,
-  ActionTag, Cast, POSITION_NAME, Position,
+  ActionTag, Cast, POSITION_NAME,
   statDisplayScale, ENERGY_UNIT, CONCERTO_UNIT, MV_UNIT,
 } from "../engine/stats.js";
 import type { Type, Subtype, StatKey, Tag } from "../engine/stats.js";
 import { effectiveShred, defFactorOf, OWN_DEF, effectiveRes, damageFactors, RESONATOR_LEVEL, LEVEL_90_DOT, LEVEL_90_TUNE } from "../engine/damage.js";
 import type { DamageFactors } from "../engine/damage.js";
-import { BASE_RESISTANCE } from "../shared/tunebreak.js";
+import { BASE_RESISTANCE } from "../resonators/tunebreak.js";
 import type { Action, Bullet } from "../engine/rotation.js";
 import { hitDamage } from "../engine/evaluate.js";
 import type { ChainGroup, ResolvedSnapshot, HitDamage } from "../engine/evaluate.js";
@@ -101,12 +101,12 @@ export const fmtExact = (v: number | string | null | undefined): string =>
 
 const FORTE_GAUGES = [Resource.Forte1, Resource.Forte2, Resource.Forte3, Resource.Forte4, Resource.Forte5];
 
-/** A fight frame as the Time column reads it: the time since the fight began (m:ss.cc, truncated). */
+/** A fight frame as the Time column reads it: the time since the fight began, no leading zeros
+ *  ("5.12s", "1:05.00s"), truncated to hundredths. */
 export const clockAt = (frame: number): string => {
-  // hundredths of a second, truncated rather than rounded
   const cs = Math.floor((frame * 100) / 60);
-  const sec = String(Math.floor(cs / 100) % 60).padStart(2, "0");
-  return `${Math.floor(cs / 6000)}:${sec}.${String(cs % 100).padStart(2, "0")}`;
+  const min = Math.floor(cs / 6000), sec = Math.floor(cs / 100) % 60, frac = String(cs % 100).padStart(2, "0");
+  return min ? `${min}:${String(sec).padStart(2, "0")}.${frac}s` : `${sec}.${frac}s`;
 };
 
 /** Columns that always print their full digit count rather than trimming trailing zeros — the
@@ -381,7 +381,9 @@ export const ENERGY_REGEN = "Energy Regen";
 export const MV_MULTIPLIER = "MV Multiplier";
 
 /** The tag box a row wears — none for OFF_FIELD, which the row's dimming already says. */
-const tagOf = (snap: ResolvedSnapshot): string => (snap.tag === ActionTag.OffField ? "" : snap.tag);
+// a timed cut reads its frame: CANCEL @ 23f
+const tagOf = (snap: ResolvedSnapshot): string =>
+  (snap.tag === ActionTag.OffField ? "" : snap.tag === ActionTag.TimedCancel ? `cancel @ ${snap.action.timedAt}f` : snap.tag);
 
 /** The action's own gain as panel rows: one where it all comes from the cast or all from the hit,
  *  and the same action twice — its cast's share, then its hit's — where it has both. */
@@ -745,6 +747,8 @@ export interface Column {
   hideIfZero?: boolean;
   /** Character width, measured from what the report holds; page/detail.ts sizes grid tracks off it. */
   width?: number;
+  /** Room added past `width`, in characters, cell paddings and number paddings (page/detail.ts `colWidth`). */
+  pad?: { cw: number; cpad: number; npad: number };
 }
 
 export interface ReportRow {
@@ -776,12 +780,13 @@ export interface Report {
   total: number;
 }
 
-/** The forte gauges are shown under their generic names: the table holds a whole team. */
-export function buildReport(lines: ChainGroup[]): Report {
+/** The forte gauges are shown under their generic names: the table holds a whole team. The clock
+ *  reads from `origin`, the frame shown as 0.00s. */
+export function buildReport(lines: ChainGroup[], origin = 0): Report {
   const columns: Column[] = [
     { key: "member", label: "member", align: "left" },
     { key: "action", label: "action", align: "left" },
-    // the clock as the row's own press ends, counting up from 0:00.00 (`clockAt`)
+    // the clock as the row's own press ends, counting up from 0.00s (`clockAt`)
     { key: "time", label: "time", noTotal: true, full: "Time" },
     { key: "avg", label: "avg dmg", full: "Final Damage" },
     { key: "mv", label: "mv%", digits: 2, percent: true, full: "Motion Value" },
@@ -806,8 +811,6 @@ export function buildReport(lines: ChainGroup[]): Report {
       key: `gauge:${RESOURCE_NAME[key]}`, label: RESOURCE_NAME[key], digits: 2, hideIfZero: true,
       full: RESOURCE_NAME[key],
     })),
-    // where the row's member stood as its press was cast
-    { key: "position", label: "position", noTotal: true, full: "Position" },
   ];
 
   // a short row is one the engine queued rather than a rotation beat — the Tune Break itself excepted
@@ -817,7 +820,6 @@ export function buildReport(lines: ChainGroup[]): Report {
 
   // a press ends where its animation ran out, or was cut or swapped out of (the swap delay a swap out
   // charges it included); an Outro where its animation does; a triggered one, a field's, where its last hit landed
-  const positionOf = (s: ResolvedSnapshot): string => (s.position == null ? "Despawned" : s.position === Position.Grounded ? "Grounded" : "Mid-air");
   const endOf = (s: ResolvedSnapshot): number => (s.action.cast === Cast.Outro ? s.frame + s.action.animFrames
     : s.triggered && s.hitAt !== undefined ? s.hitAt : s.frame + s.frames + (s.swapFrames ?? 0));
   const partOf = (snap: ResolvedSnapshot, avg: number, shown: ResolvedSnapshot): ReportPart => {
@@ -825,9 +827,8 @@ export function buildReport(lines: ChainGroup[]): Report {
     part.raw.action = snap.action.name;
     if (tagOf(snap)) part.raw["tag:action"] = tagOf(snap);
     const end = endOf(snap);
-    part.raw.time = clockAt(end);
+    part.raw.time = clockAt(end - origin);
     part.raw["end:time"] = end;
-    part.raw.position = positionOf(snap);
     return {
       ...part,
       info: actionInfo(snap),
@@ -846,11 +847,10 @@ export function buildReport(lines: ChainGroup[]): Report {
     const members = line.members?.length ? line.members : [snap];
     const pressed = members.filter((m) => !isShort(m));
     const end = pressed.length ? endOf(pressed[pressed.length - 1]!) : Math.max(...members.map(endOf));
-    raw.time = clockAt(end);
+    raw.time = clockAt(end - origin);
     raw["end:time"] = end;
     // a group stood where its member's first press of it was cast
     const own = (line.members ?? []).filter((m) => m.member === snap.member);
-    raw.position = positionOf(own[0] ?? snap);
     return {
       line, raw, sources, buffed, hits,
       // `snap.type`, not `action.type`: the type it was actually evaluated as (typeOverride)

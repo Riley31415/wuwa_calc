@@ -10,13 +10,13 @@ import type { ResolvedSnapshot } from "../engine/evaluate.js";
 import { withTeam, equip, equipEnemy, setTracing } from "../engine/context.js";
 import { damageFactors } from "../engine/damage.js";
 import { Stat, Scaling } from "../engine/stats.js";
-import { TUNE_BREAK_ENEMY } from "../shared/tunebreak.js";
+import { TUNE_BREAK_ENEMY } from "../resonators/tunebreak.js";
 import { ALL_TEAMS, teamKey } from "../resonators/teams.js";
 import { teamFromKey, optimizeTeam, defaultFilters, comboOf } from "../solve/solver.js";
 import type { Member, Combo, Pick, TeamCost } from "../solve/solver.js";
 import { runTeam } from "../solve/teamrun.js";
-import { Substat, ErSpread, rollSpread, rolledPiece } from "../shared/substats.js";
-import { Echoes } from "../shared/echoes.js";
+import { Substat, ErSpread, rollSpread, rolledPiece } from "../echoes/substats.js";
+import { Echoes } from "../echoes/echoes.js";
 
 /** One substat line as it rolled. */
 export type Line = readonly [Substat, number];

@@ -6,7 +6,7 @@
  * Ice Prism (Skill), Glacier (Liberation, doubled by S5) — each a stackable marker buff Detonate's
  * own updateBuffs() reads and consumes.
  */
-import { Tier, Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, Position } from "../../engine/stats.js";
+import { Rarity, Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, Position } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   applyCurrent,
@@ -25,12 +25,12 @@ import {
   queueQTE,
 } from "../../engine/context.js";
 import { Action, Rotation, SWAPIN, ActionGroup } from "../../engine/rotation.js";
-import { tuneBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
+import { tuneBreak, SWORD_BREAK } from "../tunebreak.js";
 import { EMERALD_OF_GENESIS, OVERTURE } from "../../weapons/standard.js";
-import { HERON_MAINSLOT, MOONLIT_CLOUDS_5PC, HERON } from "../../echoes/jinzhou.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { HERON_MAINSLOT, MOONLIT_CLOUDS_5PC, HERON, BELL_BORNE_GEOCHELONE_MAINSLOT } from "../../echoes/jinzhou.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 import { BLAZING_BRILLIANCE } from "../../weapons/sword.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
 
@@ -246,7 +246,7 @@ const SANHUA_RESONATOR = new Resonator({
   swapInAir: MA,
   tuneBreak: tuneBreak(92, 92, [0, 92], [0, 70], SWORD_BREAK),
   maxEnergy: 12500,
-  tier: Tier.Free,
+  tier: Rarity.FreeS6,
 
   stats: [[Stat.BaseHp, 10062.5], [Stat.BaseAtk, 275], [Stat.BaseDef, 941.1094]],
 });
@@ -273,7 +273,7 @@ export const SANHUA = new Loadout({
   resonator: SANHUA_RESONATOR,
   weapons: [EMERALD_OF_GENESIS, BLAZING_BRILLIANCE, OVERTURE, LUMINGLOSS, FEATHER_EDGE],
   echoes: new Echoes({
-    sets: [new EchoLoadout(HERON_MAINSLOT, MOONLIT_CLOUDS_5PC)],
+    sets: [new EchoLoadout(HERON_MAINSLOT, MOONLIT_CLOUDS_5PC), new EchoLoadout(BELL_BORNE_GEOCHELONE_MAINSLOT, MOONLIT_CLOUDS_5PC)],
     mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
     substats: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation),
     highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation, Substat.Heavy),

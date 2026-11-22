@@ -5,6 +5,7 @@
  * Rows are banded into tiers of roughly equal size, cut per Team Cost on the solves without Matrix.
  * Clicking a Best Team DPR heading switches to Best Team DPS (plain DPS), ranked and tiered on that.
  */
+import { iconNamed } from "./icons.js";
 import { fmt } from "./display.js";
 import { defaultFilters, hasBuild, bestKey } from "../solve/solver.js";
 import type { Filters, TeamCost } from "../solve/solver.js";
@@ -101,7 +102,7 @@ function render(): void {
     const hue = RESONATOR_HUE.get(e.name) ?? FALLBACK_HUE;
     const figure = href ? `<a href="${esc(href)}">${fmt(e.dpr)}</a>` : fmt(e.dpr);
     // each block of a row its own box-less group, so a hover lights that block alone (index.css `.sec`)
-    return `${gap}<div class="sec"><div class="c name res${start}" style="--mem:${hue};color:${hue}"><span class="res-label">${esc(e.name)}</span></div>`
+    return `${gap}<div class="sec"><div class="c name res${start}" style="--mem:${hue};color:${hue}">${iconNamed(e.name)}<span class="res-label">${esc(e.name)}</span></div>`
       + `<div class="c num total${band}">${figure}</div></div>`;
   };
   // a band of rows per tier, as tall as its longest block, its name standing down the first column

@@ -49,15 +49,15 @@ import {
 } from "../../engine/context.js";
 import { ActionGroup, Action, ActionField, Rotation, ActionTag, START, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
 import { applied, applyTeam } from "../../engine/context.js";
-import { SHIELD, gainShield } from "../../shared/status.js";
+import { SHIELD, gainShield } from "../status.js";
 import { JINGRAN_SIG, THUNDERFLARE_DOMINION, VERDANT_SUMMIT } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { AUTUMNTRACE, AUREATE_ZENITH } from "../../weapons/battlepass.js";
 import { MYRIAD_SNARE_MAINSLOT, LAMP_5PC, LAMP_2PC, MYRIAD_SNARE } from "../../echoes/mengzhou.js";
-import { TUNE_BREAK, tuneBreak } from "../../shared/tunebreak.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { TUNE_BREAK, tuneBreak } from "../tunebreak.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 import { COV_3PC } from "../../echoes/septimont.js";
 
 /* ----------------------------------------------------------------------------------- actions */

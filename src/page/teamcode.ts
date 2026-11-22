@@ -7,8 +7,8 @@
  * straight off the game's own ids, so the widths below are the format.
  */
 import type { Loadout, Weapon, EchoLoadout } from "../engine/gear.js";
-import { Mainstat } from "../shared/mainstats.js";
-import type { MainstatBuild } from "../shared/mainstats.js";
+import { Mainstat } from "../echoes/mainstats.js";
+import type { MainstatBuild } from "../echoes/mainstats.js";
 
 /** The digits a code is written in — base64url (RFC 4648), YouTube's: six bits a digit, so a 12-digit
  *  code is exactly 9 bytes any base64url decoder reads. Case matters: copied, never typed. */

@@ -15,7 +15,7 @@
  *   (Calamity itself is never read, so it is just neither marker).
  * - The Rift Cleaver is the plain Resonance Skill in either state.
  *
- * **Unison** (shared/unison.ts): the Liberation grants it, 5s, once every 25s — one Liberation a
+ * **Unison** (resonators/unison.ts): the Liberation grants it, 5s, once every 25s — one Liberation a
  * loop, so always. Two ways to spend it, and a loadout takes one:
  *
  * - Rift Cleaver with Unison (Sunken Seal, Forged Lock) removes it and the Unison Boon stack she
@@ -64,15 +64,15 @@ import {
   saveChain,
 } from "../../engine/context.js";
 import { Action, ActionField, ActionGroup, Rotation, SWAPIN, ActionTag, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
-import { tuneBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
-import { NINE_SHADOWS, UNISON, UNISON_BOON, BOON_REACTOR, grantBoon, takeBoon, respondToUnison, unisonIntro, unisonOutro, unisonResponse } from "../../shared/unison.js";
+import { tuneBreak, SWORD_BREAK } from "../tunebreak.js";
+import { NINE_SHADOWS, UNISON, UNISON_BOON, BOON_REACTOR, grantBoon, takeBoon, respondToUnison, unisonIntro, unisonOutro, unisonResponse } from "../unison.js";
 import { RED_SPRING, UNSPOKEN_RUE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
 import { SUHSIN_MAINSLOT, SOULFRAYER_MAINSLOT, SWORN_VIGIL_5PC, SUHSIN, SOULFRAYER } from "../../echoes/mengzhou.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 import { HERON_MAINSLOT, MOONLIT_CLOUDS_5PC, HERON } from "../../echoes/jinzhou.js";
 
 /* ----------------------------------------------------------------------------------- states */
@@ -534,7 +534,7 @@ export const SUOMING_RESONATOR = new Resonator({
   updateBuffs: () => {
     if (unisonResponse()) grantBoon(BOON_RESPONSE);
   },
-  // she can trigger Unison Response, so she is a Unison Boon reactor (shared/unison.ts)
+  // she can trigger Unison Response, so she is a Unison Boon reactor (resonators/unison.ts)
   combatStart: () => {
     applyCurrent(BOON_REACTOR, 1);
     applyCurrent(AWAKENED_MIND, 1);
@@ -549,7 +549,7 @@ export const SUOMING_RESONATOR = new Resonator({
  *  brings her round again for the real visit: her Intro (its Unison form when the outro she
  *  answers carried one) banks 200 Delusion in Deep Mind, the Unfurled chain carries it past 800
  *  for Unforsaken Mind, and Engraved Heart spends the lot. */
-const BA123 = new ActionGroup("Basic - Furled Canopy 123", [BA1, BA2, BA3]);
+const BA12 = new ActionGroup("Basic - Furled Canopy 12", [BA1, BA2]);
 
 const UBA12UHA12 = new ActionGroup("Basic - Unfurled 12 + Whirling Thunder 12", [UBA1, UBA2, UHA1, UHA2]);
 const UBA234 = new ActionGroup("Basic - Unfurled Canopy 234", [UBA2, UBA3, UBA4]);
@@ -562,10 +562,13 @@ const UBA123 = new ActionGroup("Basic - Unfurled Canopy 123", [UBA1, UBA2, UBA3]
  *  kit's state calls for there. */
 
 const SM_ROTATION = new Rotation([
-  SWAPIN, BA123, BA123.cancel(), SealedDelusion,
-  IntroFlashRift.doubleIntro(), IntroSealedDelusion.doubleIntro(), IntroThunderRending.doubleIntro(), IntroWhirlingThunder.doubleIntro(), Liberation, OutroUnison,
+ 
+  SWAPIN, BA12.dodgeCancel(), BA12.dodgeCancel(), BA1.dodgeCancel(), BA1.cancel(), SealedDelusion,
+  IntroFlashRift.doubleIntro(), IntroSealedDelusion.doubleIntro(), IntroThunderRending.doubleIntro(), IntroWhirlingThunder.doubleIntro(),
+  Liberation, OutroUnison,
 
-  IntroFlashRift, IntroSealedDelusion, IntroThunderRending, IntroWhirlingThunder, UHA2.dodgeCancel(), UBA12.cancel(),
+  IntroFlashRift, IntroSealedDelusion, IntroThunderRending, IntroWhirlingThunder, 
+  UHA2.dodgeCancel(), UBA12.cancel(),
   UnforsakenMind, EngravedHeart.mashCancel(), HERON.instaSwap(), SUHSIN.instaSwap(), SOULFRAYER.instaSwap(), Outro,
 ]);
 

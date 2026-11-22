@@ -563,6 +563,11 @@ export class TeamMember {
   /** The frame the field was last handed to this member, and the visit that handed it — a repeating
    *  schedule always follows one visit with the same next one, so that visit names this one. */
   handoffAt = -1;
+  /** Game frame this member's transform stops holding 13+ priority: nobody swaps or intros into them before it. */
+  transformUntil = -Infinity;
+  /** Real frame (the timer runs through time stop) before which nobody swaps back into this member: 60f
+   *  from leaving the field, unless they left during their Intro; an Intro into them clears it. */
+  swapReadyAt = -Infinity;
   private handoffKey: object | null = null;
   /** Per handing visit, how long after the handoff each cooldown-gated press of this member's
    *  visit came up — first reached, before any wait — read at the next handoff from that visit to
@@ -785,7 +790,12 @@ export class TeamMember {
   /** Spend one charge of `cd` at frame `now`, starting its recharge if the count was full — for
    *  `frames` where the cast sets its own length on a shared cooldown. */
   /** The field is handed to this member at `now` by the visit `from` (null: none to learn from). */
+  /** A swap (not an Intro) into this member at real frame `now`: throws inside their swap cooldown. */
+  swappedInto(now: number): void {
+    if (now < this.swapReadyAt) throw new Error(`${this.name}: swapped back into at frame ${Math.round(now)}, ${Math.round(this.swapReadyAt - now)}f inside their 60f swap cooldown`);
+  }
   arrive(from: object | null, now: number): void {
+    if (now < this.transformUntil) throw new Error(`${this.name}: swapped or intro'd into at game frame ${Math.round(now)}, while their transform holds the field until ${Math.round(this.transformUntil)}`);
     this.handoffAt = now;
     this.handoffKey = from;
     this.gateSeen.clear();

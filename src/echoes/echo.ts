@@ -31,9 +31,10 @@ export class TransformEcho extends EchoAction {
 
 /** A pseudo-transform (wuwalab's semi_transform: Bell-Borne Geochelone, Mech Abomination, Threnodian -
  *  Leviathan, Thousand-Puppet Pavilion): 8 frames held at 4, cast at 5. */
+// basically transforms which can be cancelled by lib
 export class PseudoTransformEcho extends EchoAction {
   constructor(name: string, def: EchoDef) {
-    super(name, { cast: Cast.Echo, animFrames: 8, animPriority: { 0: 4 }, castPriority: 5, ...def });
+    super(name, { cast: Cast.Echo, animFrames: 30, animPriority: { 0: 5 }, castPriority: 5, ...def });
   }
 }
 
@@ -41,6 +42,6 @@ export class PseudoTransformEcho extends EchoAction {
  *  the one before (`castsWithNext`), held at 8 (a Liberation cuts it), and no break in its wearer's chain. */
 export class SummonEcho extends EchoAction {
   constructor(name: string, def: EchoDef) {
-    super(name, { cast: Cast.Echo, animFrames: 8, animPriority: { 0: 8 }, castPriority: 10, keepsChain: true, castsWithNext: true, ...def });
-  }
+    super(name, { cast: Cast.Echo, animFrames: 8, animPriority: { 0: 8 }, castPriority: 1, keepsChain: true, castsWithNext: true, ...def });
+  } // timestop moves can "cancel" it aka remov ethe time dilation
 }

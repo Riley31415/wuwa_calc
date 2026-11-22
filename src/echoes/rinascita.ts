@@ -7,7 +7,7 @@ import {
   onApplied, onCast, onType, onInflict, inflicting,
 } from "../engine/context.js";
 import { Action } from "../engine/rotation.js";
-import { AERO_EROSION, HELIACAL_EMBER, SPECTRO_FRAZZLE } from "../shared/status.js";
+import { AERO_EROSION, HELIACAL_EMBER, SPECTRO_FRAZZLE } from "../resonators/status.js";
 import { PseudoTransformEcho, SummonEcho, TransformEcho } from "./echo.js";
 
 /* ----------------------------------------------------------------------------- Carlotta, 2.0 */

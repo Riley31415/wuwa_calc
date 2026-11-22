@@ -3,7 +3,7 @@
  * a time until a goal stands, counting the tuners it took: the damage a target build deals, with
  * some of its stats' own sums met besides.
  */
-import { Substat, rollSpread, rollAt } from "../shared/substats.js";
+import { Substat, rollSpread, rollAt } from "../echoes/substats.js";
 import { SUBSTATS, DMG_SUBSTATS, totalsOf } from "./target.js";
 import type { Line, Target } from "./target.js";
 

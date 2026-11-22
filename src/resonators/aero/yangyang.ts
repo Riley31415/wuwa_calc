@@ -8,7 +8,7 @@
  * Numbers: MVs and per-hit gauges from wuwalab (character `yangyang`), checked against encore.moe's
  * 1402 rows — every hit's MV, energy, concerto and off-tune agree; flat Concerto Regen rows from encore.
  */
-import { Tier, Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, BuffTarget, Position } from "../../engine/stats.js";
+import { Rarity, Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, BuffTarget, Position } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   addGain,
@@ -22,12 +22,12 @@ import {
   runningAction,
 } from "../../engine/context.js";
 import { Action, ActionGroup, Rotation, SWAPIN, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
-import { tuneBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
+import { tuneBreak, SWORD_BREAK } from "../tunebreak.js";
 import { EMERALD_OF_GENESIS, OVERTURE } from "../../weapons/standard.js";
 import { HERON_MAINSLOT, MOONLIT_CLOUDS_5PC, HERON } from "../../echoes/jinzhou.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 import { FEATHER_EDGE, LUMINGLOSS } from "../../weapons/battlepass.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -239,7 +239,7 @@ const YANGYANG_RESONATOR = new Resonator({
   tuneBreak: tuneBreak(89, 89, [0, 90], [0, 70], SWORD_BREAK),
   maxEnergy: 10000,
   maxForte1: 3,
-  tier: Tier.Free,
+  tier: Rarity.FreeS6,
 
   stats: [[Stat.BaseHp, 10200], [Stat.BaseAtk, 250], [Stat.BaseDef, 1099.998]],
 });

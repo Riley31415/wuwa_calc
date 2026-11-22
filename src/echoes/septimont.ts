@@ -8,7 +8,7 @@ import {
   onCast, onType, onApplied,
 } from "../engine/context.js";
 import { Action, Cooldown } from "../engine/rotation.js";
-import { SHIELD, HAVOC_BANE } from "../shared/status.js";
+import { SHIELD, HAVOC_BANE } from "../resonators/status.js";
 import { PseudoTransformEcho, SummonEcho, TransformEcho } from "./echo.js";
 
 /* --------------------------------------------------------------------------------- Phrolova, 2.5 */

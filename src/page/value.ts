@@ -3,13 +3,14 @@
  * is read off the solves at the link's Team Cost with every Matrix on (solved here, on the shared
  * pool, where they aren't), and solve/packing.ts packs the best account out of what is owned.
  */
+import { iconNamed } from "./icons.js";
 import { fmt } from "./display.js";
 import { defaultFilters, hasBuild, bestKey } from "../solve/solver.js";
 import type { Member, Filters } from "../solve/solver.js";
 import { TEAMS, RESONATOR_HUE, FALLBACK_HUE, bestPicks, loadSolves, saveSolves, filters, MATRIX_RESONATORS, applyHash, syncCost } from "./model.js";
 import type { TeamCost } from "../solve/solver.js";
 import { costBox } from "./options.js";
-import { Tier } from "../engine/stats.js";
+import { Rarity } from "../engine/stats.js";
 import { paint } from "./pool.js";
 import { overlay, overlayPhase, showError, ensureBestPicks } from "./loading.js";
 import { accountGains } from "../solve/packing.js";
@@ -92,7 +93,7 @@ function prepare(teams: [string, Member[]][]): void {
   const id = new Map(names.map((name, i) => [name, i]));
   const rover = names.findIndex(isRover);
   const free = new Set(teams.flatMap(([, members]) => members
-    .filter((m) => m.loadout.resonator.tier === Tier.Free || m.loadout.resonator.tier === Tier.FreeS2 || m.loadout.resonator.tier === Tier.FreeS0).map((m) => m.name)));
+    .filter((m) => m.loadout.resonator.tier === Rarity.FreeS6 || m.loadout.resonator.tier === Rarity.FreeS2 || m.loadout.resonator.tier === Rarity.FreeS0).map((m) => m.name)));
   const best = new Map<string, { team: PackTeam; teamKey: string }>();
   for (const [teamKey, members] of teams) {
     const score = bestPicks.get(bestKey(teamKey, members, f))?.scores[0];
@@ -152,7 +153,7 @@ function render(): void {
     const figure = r.href ? `<a href="${esc(r.href)}">${fmt(gain)}</a>` : fmt(gain);
     // each half of a row its own box-less group, so a hover lights that half alone (index.css `.sec`)
     return `<div class="sec"><label class="c check${start}"><input type="checkbox" data-name="${esc(r.name)}" aria-label="Owned: ${esc(r.name)}"${r.owned ? " checked" : ""}></label>`
-      + `<div class="c name res" style="--mem:${hue};color:${hue}"><span class="res-label">${esc(r.label)}</span></div>`
+      + `<div class="c name res" style="--mem:${hue};color:${hue}">${iconNamed(r.name)}<span class="res-label">${esc(r.label)}</span></div>`
       + `<div class="c num total">${figure}</div></div>`;
   };
   // the unowned in the three columns on the left, the owned in the three on the right

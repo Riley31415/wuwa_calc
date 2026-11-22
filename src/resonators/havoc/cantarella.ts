@@ -39,7 +39,7 @@ import {
   addStatAs,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, ActionField, ActionTag } from "../../engine/rotation.js";
-import { HEALS } from "../../shared/status.js";
+import { HEALS } from "../status.js";
 import { HECATE_ACTIONS } from "./phrolova.js";
 import { LETHEAN_ELEGY, RIME_DRAPED_SPROUTS, STRINGMASTER, WHISPERS_OF_SIRENS } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
@@ -47,9 +47,9 @@ import { AUGMENT, RADIANT_DAWN } from "../../weapons/battlepass.js";
 import { HERON_MAINSLOT, MOONLIT_CLOUDS_5PC, REJUV_5PC, NM_CROWNLESS_MAINSLOT, HAVOC_ECLIPSE_5PC, FALLACY, HERON, NM_CROWNLESS } from "../../echoes/jinzhou.js";
 import { FALLACY_MAINSLOT } from "../../echoes/jinzhou.js";
 import { MIDNIGHT_VEIL_5PC, EMPYREAN_ANTHEM_5PC, NM_HERON_MAINSLOT, HECATE_MAINSLOT, NM_HERON, HECATE } from "../../echoes/rinascita.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 

@@ -9,7 +9,7 @@
  * encore.moe's 1104 rows — every hit's MV, energy, concerto and off-tune agree; flat Concerto Regen
  * rows (Intro 10, Liberation 20, Lion's Spirit 35) from encore.
  */
-import { Tier, Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, Position, BuffTarget } from "../../engine/stats.js";
+import { Rarity, Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, Position, BuffTarget } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   addGain,
@@ -28,12 +28,12 @@ import {
   setForte1,
 } from "../../engine/context.js";
 import { Action, Rotation, SWAPIN, SUCCESSFUL_DODGE, ActionGroup } from "../../engine/rotation.js";
-import { tuneBreak } from "../../shared/tunebreak.js";
+import { tuneBreak } from "../tunebreak.js";
 import { ABYSS_SURGES, NEW_STD_GAUNTLET } from "../../weapons/standard.js";
 import { LAMPYLUMEN_MYRIAD_MAINSLOT, FREEZING_FROST_5PC, LAMPYLUMEN_MYRIAD_1, MECH_ABOMINATION_MAINSLOT, LINGERING_TUNES_5PC, MECH_ABOMINATION, LAMPYLUMEN_MYRIAD_3, LAMPYLUMEN_MYRIAD_2 } from "../../echoes/jinzhou.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 import { BLAZING_JUSTICE } from "../../weapons/gauntlet.js";
 import { FROSTY_RESOLVE_5PC, NM_LAMPY_MAINSLOT, SENTRY_CONSTRUCT, SENTRY_CONSTRUCT_MAINSLOT } from "../../echoes/rinascita.js";
 
@@ -350,7 +350,7 @@ const LINGYANG_RESONATOR = new Resonator({
   jump: () => (isHeld(STRIDING_LION) ? Dismount : null),
   maxEnergy: 12500,
   maxForte1: 100,
-  tier: Tier.FreeS0,
+  tier: Rarity.FreeS0,
 
   stats: [[Stat.BaseHp, 10387.5], [Stat.BaseAtk, 437.5], [Stat.BaseDef, 1209.9978]],
 });

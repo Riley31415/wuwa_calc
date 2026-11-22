@@ -28,9 +28,9 @@ import { BLAZING_BRILLIANCE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
 import { NM_INFERNO_RIDER_MAINSLOT, MOLTEN_RIFT_5PC } from "../../echoes/jinzhou.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 

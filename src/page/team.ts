@@ -6,7 +6,7 @@
 import { runTeam } from "../solve/teamrun.js";
 import {
   TEAMS, filters, results, discardRestoredSolves, loadSolves, saveSolves, applyHash, syncHash, hashTeam, pageUrl,
-  rowFromKey, solvedRows, admitBuild, reopenDetail, tagTeam, gearShut,
+  rowFromKey, solvedRows, admitBuild, reopenDetail, tagTeam, gearShut, tagFilters,
 } from "./model.js";
 import { wireSourcePanels } from "./panels.js";
 import { renderDetail } from "./detail.js";
@@ -78,7 +78,8 @@ async function bootDetail(): Promise<boolean> {
   if (pending) {
     overlayPhase("Solving Team…", true);
     await paint();
-    await solveQuiet(pending, gearShut(filters));
+    // a code carrying its own Matrix flag is solved with every Matrix on
+    await solveQuiet(pending, gearShut(tagFilters(key!)));
     key = hashTeam();
   }
   const row = key ? rowFromKey(key) : null;

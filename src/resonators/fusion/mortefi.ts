@@ -8,7 +8,7 @@
  * Numbers from nanoka.cc (character 1204, https://ww.nanoka.cc/character/1204), cross-checked
  * against the migrated (old-engine) sheet's own totals.
  */
-import { Tier, Stat, Attribute, WeaponType, Type, Subtype, Cast, Node, Scaling, BuffTarget, Position } from "../../engine/stats.js";
+import { Rarity, Stat, Attribute, WeaponType, Type, Subtype, Cast, Node, Scaling, BuffTarget, Position } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   applyCurrent,
@@ -35,9 +35,9 @@ import { STATIC_MIST, CADENZA, NEW_STD_PISTOL } from "../../weapons/standard.js"
 import { HERON_MAINSLOT, STONEWALL_BRACER_MAINSLOT, MOONLIT_CLOUDS_5PC, HERON, STONEWALL_BRACER_1 } from "../../echoes/jinzhou.js";
 import { JINGRAN_RESONATOR } from "./jingran.js";
 import { EMPYREAN_ANTHEM_5PC, HECATE_MAINSLOT, HECATE } from "../../echoes/rinascita.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 import { THE_LAST_DANCE } from "../../weapons/pistol.js";
 import { THUNDERBOLT, SOLAR_FLAME } from "../../weapons/battlepass.js";
 
@@ -279,7 +279,7 @@ const MORTEFI_RESONATOR = new Resonator({
   swapInAir: MA1,
   maxEnergy: 12500,
   maxForte1: 100,
-  tier: Tier.Free,
+  tier: Rarity.FreeS6,
 
   stats: [[Stat.BaseHp, 10025], [Stat.BaseAtk, 250], [Stat.BaseDef, 1136.6646]],
 });

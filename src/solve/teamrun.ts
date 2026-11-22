@@ -10,9 +10,9 @@ import type { ChainGroup, Result, ResolvedSnapshot } from "../engine/evaluate.js
 import { ER_SHORT, settleGauges } from "../engine/evaluate.js";
 import { runRotations } from "../engine/rotation.js";
 import type { ActionField } from "../engine/rotation.js";
-import { TUNE_BREAK_ENEMY } from "../shared/tunebreak.js";
-import { erRollValue, ER_TOLERANCE } from "../shared/substats.js";
-import type { Spread } from "../shared/substats.js";
+import { TUNE_BREAK_ENEMY } from "../resonators/tunebreak.js";
+import { erRollValue, ER_TOLERANCE } from "../echoes/substats.js";
+import type { Spread } from "../echoes/substats.js";
 import { Stat, Cast } from "../engine/stats.js";
 import { ctx } from "../engine/runtime.js";
 import type { Report } from "../page/display.js";
@@ -720,14 +720,30 @@ const shownErOf = (m: Member, need: number, worn: number): number => {
   return need > 0 && at < worn ? at : -1;
 };
 
-function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace: boolean, variants: (Combo[] | null)[] | null, erRolls = erRollsFor(teamKey, members, combo), guard: boolean[] = [], replay = false, count = 4): TeamRun {
+/** One run of exactly the build `combo` wears: the ER tiers its requirement already names, the guard
+ *  off, nothing climbed or recorded. `extra[i]` is worn on top of member `i`'s pieces, which moves their
+ *  stats but never what their Liberations ask (the page's Substat Value). */
+export function runFixed(teamKey: string, members: Member[], combo: Combo[], extra: Gear[][] = []): TeamRun {
+  const outer = ctx.tracing;
+  setTracing(false);
+  try {
+    return runTeamInner(teamKey, members, combo, false, null, erRollsFor(teamKey, members, combo), [], false, 4, extra);
+  } finally {
+    setTracing(outer);
+  }
+}
+
+function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace: boolean, variants: (Combo[] | null)[] | null, erRolls = erRollsFor(teamKey, members, combo), guard: boolean[] = [], replay = false, count = 4, extra: Gear[][] = []): TeamRun {
   const state = new State(members.map((m) => m.name));
   // this combo's requirement as known now, read once for every member's variants
   let own: number[] | undefined;
   members.forEach((m, i) => {
     state.active = i;
     const c = combo[i]!;
-    withTeam(state, () => { for (const g of m.loadout.pieces(c.weapon, c.echo, c.mainstat, c.sequence, c.matrix !== null, c.highSubs, erRolls[i])) equip(g, 1); });
+    withTeam(state, () => {
+      for (const g of m.loadout.pieces(c.weapon, c.echo, c.mainstat, c.sequence, c.matrix !== null, c.highSubs, erRolls[i])) equip(g, 1);
+      for (const g of extra[i] ?? []) equip(g, 1);
+    });
     state.slots[i]!.constEr = erHeld(m, c, erRolls[i]!);
     if (trace) {
       const need = (ER_NEED_AT.get(needKey(teamKey, combo)) ?? erNeedFor(teamKey, members, combo))[i] ?? 0;
@@ -757,7 +773,7 @@ function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace:
   // one continuous fight of `count` rotations (four for a score), the opener the first of them
   const { sections, starts, end: frames, blind } = runRotations(state, members.map((m, i) => m.loadout.rotationAt(combo[i]!.sequence)), count);
   // a handoff that went blind is played again, every visit's successor known by now
-  if (blind && !replay) return runTeamInner(teamKey, members, combo, trace, variants, erRolls, guard, true, count);
+  if (blind && !replay) return runTeamInner(teamKey, members, combo, trace, variants, erRolls, guard, true, count, extra);
   if (trace) settleGauges(sections.flat() as ResolvedSnapshot[]);
   const complete = sections.length;
   // the report's lines, which only a traced run hands back

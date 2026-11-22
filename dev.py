@@ -30,6 +30,7 @@ does not reliably die with its parent. --preserveWatchOutput keeps the log reada
 default watch mode clears the screen on every rebuild, which through a pipe is a stream of escape
 codes.
 """
+import json
 import os
 import socket
 import subprocess
@@ -208,6 +209,76 @@ def listener_pid(port: int) -> int | None:
     return None
 
 
+def reap_orphans() -> list[int]:
+    """Kill this checkout's tsc/esbuild watchers that no live dev.py owns, and return their pids.
+
+    A dev.py that dies hard (taskkill /F, a closed session) never reaches its `finally`, so its
+    watchers outlive it. Two esbuild watchers on one dist/bundle race: rival chunks, a bundle that
+    lags minutes behind the edit, a page that dies on load. Owned = some ancestor is a dev.py."""
+    try:
+        out = subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             "Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,Name,CommandLine | ConvertTo-Json -Compress"],
+            capture_output=True, text=True, timeout=30, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        ).stdout
+        procs = {p["ProcessId"]: (p["ParentProcessId"], (p["CommandLine"] or "").lower(), (p["Name"] or "").lower()) for p in json.loads(out)}
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return []  # no PowerShell or an unreadable listing: leave everything alone
+
+    def owned(pid: int) -> bool:
+        seen = set()
+        while pid in procs and pid not in seen:
+            seen.add(pid)
+            pid = procs[pid][0]
+            _, cmd, name = procs.get(pid, (0, "", ""))
+            if name.startswith("python") and "dev.py" in cmd:
+                return True
+        return False
+
+    mine = str(ROOT / "node_modules").lower()
+    orphans = [pid for pid, (_, cmd, name) in procs.items()
+               if ("node" in name or "esbuild" in name) and mine in cmd and "--watch" in cmd and not owned(pid)]
+    for pid in orphans:
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True)
+    return orphans
+
+
+def kill_with_me() -> None:
+    """Put this process in a Windows job that kills every member when it closes, so the watchers it
+    starts (they inherit the job) die with it however it ends, a hard kill included. Best effort."""
+    if os.name != "nt":
+        return
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class Basic(ctypes.Structure):
+            _fields_ = [("PerProcessUserTimeLimit", ctypes.c_int64), ("PerJobUserTimeLimit", ctypes.c_int64),
+                        ("LimitFlags", wintypes.DWORD), ("MinimumWorkingSetSize", ctypes.c_size_t),
+                        ("MaximumWorkingSetSize", ctypes.c_size_t), ("ActiveProcessLimit", wintypes.DWORD),
+                        ("Affinity", ctypes.c_size_t), ("PriorityClass", wintypes.DWORD), ("SchedulingClass", wintypes.DWORD)]
+
+        class Extended(ctypes.Structure):
+            _fields_ = [("Basic", Basic), ("IoInfo", ctypes.c_uint64 * 6), ("ProcessMemoryLimit", ctypes.c_size_t),
+                        ("JobMemoryLimit", ctypes.c_size_t), ("PeakProcessMemoryUsed", ctypes.c_size_t),
+                        ("PeakJobMemoryUsed", ctypes.c_size_t)]
+
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        k32.CreateJobObjectW.restype = wintypes.HANDLE
+        k32.CreateJobObjectW.argtypes = [ctypes.c_void_p, wintypes.LPCWSTR]
+        k32.GetCurrentProcess.restype = wintypes.HANDLE
+        k32.AssignProcessToJobObject.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
+        k32.SetInformationJobObject.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD]
+        job = k32.CreateJobObjectW(None, None)
+        info = Extended()
+        info.Basic.LimitFlags = 0x2000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+        if job and k32.SetInformationJobObject(job, 9, ctypes.byref(info), ctypes.sizeof(info)):
+            k32.AssignProcessToJobObject(job, k32.GetCurrentProcess())
+            globals()["_job"] = job  # the handle must stay open for the life of the process
+    except Exception:
+        pass
+
+
 def start_watcher(name: str, bin_path: Path, args: list[str]) -> subprocess.Popen | None:
     """One compiler in the background, output tee'd to logs/<name>.log so a compile error is still
     readable when this is running hidden off the logon entry.
@@ -255,6 +326,8 @@ def main() -> int:
 
     if responding(port):
         print(f"already serving on http://127.0.0.1:{port}/ - nothing to do")
+        if reaped := reap_orphans():
+            print(f"stopped orphaned watchers: {reaped}")
         return 0
 
     # Holding the socket without answering: a copy that wedged rather than exited. Left alone it
@@ -263,7 +336,8 @@ def main() -> int:
         pid = listener_pid(port)
         print(f"port {port} held by an unresponsive server (pid {pid}) - replacing it")
         if pid:
-            subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
+            # /T: its watchers go with it rather than being left to race the new ones
+            subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True)
         for _ in range(20):
             if not port_taken(port):
                 break
@@ -279,7 +353,10 @@ def main() -> int:
         return 0
 
     # clear whatever the last session left behind before the watch starts adding to it
+    if reaped := reap_orphans():
+        print(f"stopped orphaned watchers: {reaped}")
     _sweep_chunks()
+    kill_with_me()
 
     children = []
     if not serve_only:
@@ -305,7 +382,8 @@ def main() -> int:
         httpd.server_close()
         for child in children:
             if child and child.poll() is None:
-                child.terminate()
+                # the tree: esbuild's native binary is a grandchild that terminate() leaves running
+                subprocess.run(["taskkill", "/F", "/T", "/PID", str(child.pid)], capture_output=True)
     return 0
 
 

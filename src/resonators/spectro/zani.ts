@@ -7,7 +7,7 @@
  * Heliacal Ember, 5 Blaze to her a stack. So in her teams the target never carries Frazzle for
  * longer than the action that applied it — the status ticks itself nowhere, and what stands on
  * the target instead is up to 60 Embers, which her Outro spends for +10% DMG each. An Ember is
- * not a Negative Status (shared/status.ts holds it, and deliberately leaves it out of the six):
+ * not a Negative Status (resonators/status.ts holds it, and deliberately leaves it out of the six):
  * the Frazzle that became one still counts as inflicted, because `applied()` records at the grant
  * and the conversion happens a phase later, and the conversion is no consumption either — it
  * takes the stacks off with `revokeEnemy`, never `consume()`.
@@ -34,8 +34,8 @@
  * Per-hit Redundant Energy and Blaze — which nanoka's text does not carry — are wuwalab's frame
  * data for her, in whole points: Nightfall's hits sum to exactly the "up to 40 Blazes" her Forte
  * Circuit states, which is what confirms the unit. Base stats from the same nanoka file.
- * wuwalab imports: its forte_2 is Blaze, here the team buff BLAZE rather than a gauge (Heavy Slash spends
- *  per hit, Targeted Action's +10, Rekindle's +50 all pay through it); its forte_1 is Redundant Energy, forte1.
+ * wuwalab imports: its forte_2 is Blaze, the forte2 gauge mirrored by the team buff BLAZE (each grant banks both,
+ *  each Heavy Slash bullet spends both); its forte_1 is Redundant Energy, forte1.
  */
 import { Stat, Attribute, WeaponType, Type, Subtype, Cast, Node, Scaling, BuffTarget, Position } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
@@ -55,8 +55,11 @@ import {
   runningAction,
   stacksOfEnemy,
   stacksOfTeam,
-  applyOn,
-  setForte2,
+  addForte2,
+  addGain,
+  currentHit,
+  hitting,
+  runningAnyOf,
   forte2,
   runningBullet,
   casting,
@@ -65,17 +68,17 @@ import {
   addStatAs,
 } from "../../engine/context.js";
 import { Action, Rotation, ActionGroup, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
-import { tuneBreak } from "../../shared/tunebreak.js";
+import { tuneBreak } from "../tunebreak.js";
 import {
   HELIACAL_EMBER, HELIACAL_EMBER_ACTIONS, SPECTRO_FRAZZLE, negativeStatusRung, queueOnApplier,
-} from "../../shared/status.js";
+} from "../status.js";
 import { BLAZING_JUSTICE, TRAGICOMEDY } from "../../weapons/gauntlet.js";
 import { ABYSS_SURGES, NEW_STD_GAUNTLET } from "../../weapons/standard.js";
 import { STONARD, AETHER_STRIKE } from "../../weapons/battlepass.js";
 import { CAPITANEUS_MAINSLOT, NM_MOURNING_AIX_MAINSLOT, ETERNAL_RADIANCE_5PC, CAPITANEUS, NM_MOURNING_AIX } from "../../echoes/rinascita.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -162,8 +165,9 @@ const TargetedAction = zaniAction("Forte Skill - Targeted Action", { minForte1: 
   ], castConcerto: 1000, resetForte1: true,
   updateBuffs: () => {
     applyCurrent(SUNBURST, 1);
-    applyTeam(BLAZE, 10);
-    syncBlaze();
+    const before = stacksOfTeam(BLAZE);
+    // it is not castable in Inferno Mode, so the 100 ceiling
+    addGain({ forte2: applyTeam(BLAZE, Math.max(0, Math.min(10, 100 - before))) - before });
   },
 });
 
@@ -178,53 +182,44 @@ const blazeSlash = (name: string, def: object): Action => zaniAction(name, { ...
 // "When Blaze is no less than 30, Basic Attack is replaced with Heavy Slash - Daybreak"
 const Daybreak = blazeSlash("Forte Basic - Heavy Slash: Daybreak", { notAfter: () => [Daybreak, Dawning, Lightsmash], minForte2: 30, animFrames: 31, animPriority: { 31: 2 }, castPriority: 4, bullets: [
     { hitFrame: 20, mv: 4971, energy: 57, concerto: 75, offtune: 1000 },
-    { hitFrame: 29, mv: 11929, energy: 135, concerto: 180, offtune: 2400 },
+    { hitFrame: 29, mv: 11929, energy: 135, concerto: 180, offtune: 2400, forte2: -10 },
     { hitFrame: 31, mv: 2983, energy: 34, concerto: 45, offtune: 600 },
   ] });
 // "After performing Heavy Slash - Daybreak, press Basic Attack immediately"
 const Dawning = blazeSlash("Forte Basic - Heavy Slash: Dawning", { after: [Daybreak], animFrames: 79, animPriority: { 79: 2 }, castPriority: 4, bullets: [
-    { hitFrame: 18, mv: 14843, energy: 179, concerto: 210, offtune: 3173 },
+    { hitFrame: 18, mv: 14843, energy: 179, concerto: 210, offtune: 3173, forte2: -10 },
     { hitFrame: 28, mv: 3393, energy: 41, concerto: 48, offtune: 726 },
-    { hitFrame: 56, mv: 14843, energy: 179, concerto: 210, offtune: 3173 },
+    { hitFrame: 56, mv: 14843, energy: 179, concerto: 210, offtune: 3173, forte2: -10 },
     { hitFrame: 67, mv: 4665, energy: 57, concerto: 66, offtune: 998 },
     { hitFrame: 71, mv: 4665, energy: 57, concerto: 66, offtune: 998 },
   ]});
 // Basic Attack becomes Nightfall after Dawning or Lightsmash
 const Nightfall = blazeSlash("Forte Basic - Heavy Slash: Nightfall", { after: () => [Dawning, Lightsmash], animFrames: 151, animPriority: { 151: 2 }, castPriority: 4, bullets: [
-    { hitFrame: 22, mv: 5170, energy: 117, concerto: 156, offtune: 2080 },
+    { hitFrame: 22, mv: 5170, energy: 117, concerto: 156, offtune: 2080, forte2: -5 },
     { hitFrame: 32, mv: 1591, energy: 36, concerto: 48, offtune: 640 },
-    { hitFrame: 51, mv: 5170, energy: 117, concerto: 156, offtune: 2080 },
+    { hitFrame: 51, mv: 5170, energy: 117, concerto: 156, offtune: 2080, forte2: -5 },
     { hitFrame: 61, mv: 1591, energy: 36, concerto: 48, offtune: 640 },
-    { hitFrame: 80, mv: 7953, energy: 180, concerto: 240, offtune: 3200 },
+    { hitFrame: 80, mv: 7953, energy: 180, concerto: 240, offtune: 3200, forte2: -10 },
     { hitFrame: 90, mv: 796, energy: 18, concerto: 24, offtune: 320 },
     { hitFrame: 94, mv: 796, energy: 18, concerto: 24, offtune: 320 },
     { hitFrame: 118, mv: 2784, energy: 63, concerto: 84, offtune: 1120 },
-    { hitFrame: 133, mv: 13917, energy: 315, concerto: 420, offtune: 5600 },
+    { hitFrame: 133, mv: 13917, energy: 315, concerto: 420, offtune: 5600, forte2: -20 },
   ]});
 // "... and Zani has no less than 30 Blazes, ... perform Heavy Slash - Lightsmash"
 const Lightsmash = blazeSlash("Forte Dodge Counter - Heavy Slash: Lightsmash", { after: [SUCCESSFUL_DODGE], minForte2: 30,
   animFrames: 77, animPriority: { 2: 4, 73: 2 }, castPriority: 8, bullets: [
-    { hitFrame: 12, mv: 14843, energy: 179, concerto: 210, offtune: 3173 },
+    { hitFrame: 12, mv: 14843, energy: 179, concerto: 210, offtune: 3173, forte2: -10 },
     { hitFrame: 22, mv: 3393, energy: 41, concerto: 48, offtune: 726 },
-    { hitFrame: 50, mv: 14843, energy: 179, concerto: 210, offtune: 3173 },
+    { hitFrame: 50, mv: 14843, energy: 179, concerto: 210, offtune: 3173, forte2: -10 },
     { hitFrame: 63, mv: 4665, energy: 57, concerto: 66, offtune: 998 },
     { hitFrame: 69, mv: 4665, energy: 57, concerto: 66, offtune: 998 },
   ], castConcerto: 1000, cast: Cast.DodgeCounter,
 });
 const UBA123 = new ActionGroup("Forte Basic - Daybreak + Dawning + Nightfall", [Daybreak, Dawning, Nightfall]);
-/** The Blaze each Heavy Slash hit consumes, by bullet (wuwalab's per-hit spend): 10/20/40/20 a press. */
-const SLASH_SPEND = new Map<Action, number[]>([
-  [Daybreak, [0, 10, 0]],
-  [Dawning, [10, 0, 10, 0, 0]],
-  [Nightfall, [5, 0, 5, 0, 10, 0, 0, 0, 20]],
-  [Lightsmash, [10, 0, 10, 0, 0]],
-]);
-/** What the Heavy Slash hit being run spends, 0 off any other hit. */
+const SLASHES = new Set([Daybreak, Dawning, Nightfall, Lightsmash]);
+/** The Blaze the Heavy Slash hit being run consumes (its bullet's forte2, wuwalab's per-hit spend), 0 off any other hit. */
 function slashSpend(): number {
-  for (const [slash, spend] of SLASH_SPEND) {
-    for (let k = 0; k < spend.length; k++) if (spend[k] && runningBullet(slash, k)) return spend[k]!;
-  }
-  return 0;
+  return hitting() && runningAnyOf(SLASHES) ? -currentHit().forte2 : 0;
 }
 
 // --- Between Dawn and Dusk: Rekindle opens Inferno Mode with 50 Blaze, The Last Stand closes it.
@@ -234,10 +229,10 @@ const Lib1 = zaniAction("Liberation - Rekindle", {
   cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, 
   bullets: [{ hitFrame: 120, mv: 31852, offtune: 67200 }], castConcerto: 2000, castEnergy: -12500,
+  castForte2: 50,
   updateBuffs: () => {
     applyCurrent(INFERNO_MODE, 1);
     applyTeam(BLAZE, 50);
-    syncBlaze();
   },
 });
 // "When in Inferno Mode, Resonance Liberation The Last Stand becomes available"
@@ -248,7 +243,10 @@ const Lib2 = zaniAction("Liberation - The Last Stand", { requireBuff: INFERNO_MO
   updateBuffs: () => {
     revokeCurrent(INFERNO_MODE);
     revokeCurrent(CLOCK_OUT_REFILL);
-    syncBlaze();
+    // Blaze's 150 was Inferno Mode's: what stood above 100 goes with it
+    const over = Math.max(0, stacksOfTeam(BLAZE) - 100);
+    removeStackTeam(BLAZE, over);
+    addGain({ forte2: -over });
   },
 });
 
@@ -310,16 +308,9 @@ const ZANI_INHERENT_2 = new Inherent({ name: "Inherent: Fear No Pain" });
  *  It also spends the Heavy Slashes' Blaze, hit by hit after each hit's damage, and pays Scorching
  *  Light's per-Blaze term: each Nightfall hit adds 9.95% a Blaze that hit consumes, read off the
  *  count before its own spend. S3's tally of what an Inferno Mode spent takes the same number. */
-/** After any Blaze change: its 100 cap outside Inferno Mode (150 in it, BLAZE's own), then her forte2
- *  gauge set to the count, which the Heavy Slashes' conditions read — on her own slot whoever's
- *  hit moved it. */
-function syncBlaze(): void {
-  applyOn(ZANI_RESONATOR, () => {
-    const over = stacksOfTeam(BLAZE) - 100;
-    if (over > 0 && !isHeld(INFERNO_MODE)) removeStackTeam(BLAZE, over);
-    setForte2(stacksOfTeam(BLAZE));
-  });
-}
+/** Her forte2 gauge mirrors this count: every grant of it banks the same on the gauge (the 100
+ *  ceiling outside Inferno Mode is clamped at each), and each Heavy Slash hit declares its spend
+ *  on its bullet and takes it off here. */
 const BLAZE = new Buff({
   name: "Zani: Blaze", maxStacks: 150,
   applyStats: () => {
@@ -329,7 +320,6 @@ const BLAZE = new Buff({
     const spend = Math.min(slashSpend(), stacksOfTeam(BLAZE));
     if (!spend) return;
     removeStackTeam(BLAZE, spend);
-    syncBlaze();
     if (isHeld(ZANI_S3) && isHeld(INFERNO_MODE)) applyCurrent(BLAZE_SPENT, spend);
   },
 });
@@ -417,8 +407,8 @@ const ZANI_S6 = new Sequence({
   },
   afterAction: () => {
     if (!isHeld(INFERNO_MODE) || !isHeld(CLOCK_OUT_REFILL) || stacksOfTeam(BLAZE) >= 70) return;
-    applyTeam(BLAZE, 70);
-    syncBlaze();
+    const before = stacksOfTeam(BLAZE);
+    addGain({ forte2: applyTeam(BLAZE, 70) - before });
     revokeCurrent(CLOCK_OUT_REFILL);
   },
 });
@@ -450,7 +440,7 @@ const ZANI_RESONATOR = new Resonator({
   tuneBreak: tuneBreak(94, 94, [0, 94], [0, 70], [[72, 160000]]),
   maxEnergy: 12500,
   maxForte1: 100,
-  // Blaze's mirror (syncBlaze): Inferno Mode's 150, the lower 100 clamped there
+  // Blaze's mirror: Inferno Mode's 150, the lower 100 clamped where it is granted
   maxForte2: 150,
 
   stats: [[Stat.BaseHp, 10775], [Stat.BaseAtk, 437.5], [Stat.BaseDef, 1136.6646]],
@@ -466,13 +456,15 @@ const ZANI_RESONATOR = new Resonator({
     if (applied(SPECTRO_FRAZZLE) > 0) {
       const held = stacksOfEnemy(SPECTRO_FRAZZLE);
       // the whole ladder as the stacks come off — 6 converted fires 6+5+4+3+2+1 — reported as
-      // one "Heliacal Ember - N Stacks" row whose MV is those rungs (shared/status.ts)
+      // one "Heliacal Ember - N Stacks" row whose MV is those rungs (resonators/status.ts)
       const rung = negativeStatusRung(HELIACAL_EMBER_ACTIONS, held);
       if (rung) queueOnApplier(SPECTRO_FRAZZLE, rung);
       revokeEnemy(SPECTRO_FRAZZLE);
       const before = stacksOfEnemy(HELIACAL_EMBER);
-      applyTeam(BLAZE, 5 * (applyEnemy(HELIACAL_EMBER, held) - before));
-      syncBlaze();
+      const room = (isHeld(INFERNO_MODE) ? 150 : 100) - stacksOfTeam(BLAZE);
+      const blaze = Math.max(0, Math.min(5 * (applyEnemy(HELIACAL_EMBER, held) - before), room));
+      applyTeam(BLAZE, blaze);
+      addForte2(blaze);
     }
   },
 });

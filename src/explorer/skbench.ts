@@ -14,7 +14,7 @@ import { Cast, setDelays } from "../engine/stats.js";
 import { State } from "../engine/state.js";
 import { withTeam, equip, equipEnemy, casting, currentMember, currentCast, setTracing } from "../engine/context.js";
 import { Buff } from "../engine/gear.js";
-import { TUNE_BREAK_ENEMY } from "../shared/tunebreak.js";
+import { TUNE_BREAK_ENEMY } from "../resonators/tunebreak.js";
 import { member, comboOf } from "../solve/solver.js";
 import type { Pick } from "../solve/solver.js";
 import { FALLACY } from "../echoes/jinzhou.js";

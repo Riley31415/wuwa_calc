@@ -21,9 +21,9 @@ import {
   stacksOf,
   lostOnSwap,
 } from "../engine/context.js";
-import { consumedConcerto, gainedUnison } from "../shared/unison.js";
-import { TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
-import { AERO_EROSION, FUSION_BURST, GLACIO_CHAFE, HAVOC_BANE } from "../shared/status.js";
+import { consumedConcerto, gainedUnison } from "../resonators/unison.js";
+import { TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING } from "../resonators/tunebreak.js";
+import { AERO_EROSION, FUSION_BURST, GLACIO_CHAFE, HAVOC_BANE } from "../resonators/status.js";
 
 /** Changli's sig: Crimson Phoenix. +12% ATK flat. Searing Feather: a stack on dealing damage, once
  *  every 0.5s, and five on casting a Resonance Skill, up to 14, each +4% Resonance Skill DMG Bonus.

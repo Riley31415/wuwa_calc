@@ -6,9 +6,9 @@ import {
   addStat, frozenStacks, queue, queueOutro, applied, onApplied, onInflict, onCast, either,
 } from "../engine/context.js";
 import { Action } from "../engine/rotation.js";
-import { SHIELD, HAVOC_BANE, GLACIO_CHAFE, ELECTRO_FLARE, HEALS } from "../shared/status.js";
-import { gainedUnison, unisonResponse } from "../shared/unison.js";
-import { TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
+import { SHIELD, HAVOC_BANE, GLACIO_CHAFE, ELECTRO_FLARE, HEALS } from "../resonators/status.js";
+import { gainedUnison, unisonResponse } from "../resonators/unison.js";
+import { TUNE_STRAIN_SHIFTING } from "../resonators/tunebreak.js";
 import { PseudoTransformEcho, SummonEcho, TransformEcho } from "./echo.js";
 
 /* ------------------------------------------------------------------------------ Jingran, 3.6 */

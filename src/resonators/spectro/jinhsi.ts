@@ -13,7 +13,7 @@
  * - Incarnation - Basic Attack 4 ends Incarnation and opens **Ordination Glow** (5s), in which the
  *   Resonance Skill is **Illuminous Epiphany**: Solar Flare's six taps, and Stella Glamor's
  *   detonation as its last hit, 128 frames into its animation.
- * - Casting Illuminous Epiphany grants **Unison**, once every 25s (shared/unison.ts — swapping out
+ * - Casting Illuminous Epiphany grants **Unison**, once every 25s (resonators/unison.ts — swapping out
  *   spends it in place of the Concerto bar, handed back on the outro row itself).
  *
  * That free outro is why she visits the field **twice a loop**, written as an outro-form
@@ -67,10 +67,10 @@ import { AGES_OF_HARVEST } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { AUTUMNTRACE, AUREATE_ZENITH } from "../../weapons/battlepass.js";
 import { JUE_MAINSLOT, CELESTIAL_LIGHT_5PC, JUE } from "../../echoes/jinzhou.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
-import { UNISON, unisonOutro } from "../../shared/unison.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
+import { UNISON, unisonOutro } from "../unison.js";
 import { SUHSIN_MAINSLOT, SWORN_VIGIL_5PC, SUHSIN } from "../../echoes/mengzhou.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -265,7 +265,7 @@ const OutroUnison = unisonOutro(Outro);
 
 /* ------------------------------------------------------------------------------------- buffs */
 
-/* Unison itself is shared/unison.ts's: whichever of her outros holds it is the free one, and the
+/* Unison itself is resonators/unison.ts's: whichever of her outros holds it is the free one, and the
  * other pays the real bar. */
 
 /**
@@ -423,7 +423,7 @@ export const JINHSI_RESONATOR = new Resonator({
   color: "#c2ecfb",
   intro: Intro,
   // Incarnation and Ordination Glow each replace the Basic Attack, mid-air too
-  swapIn: () => (isHeld(ORDINATION_GLOW) ? IncHeavy : isHeld(INCARNATION) ? IncBA1 : BA1),
+  swapIn: () => (isHeld(ORDINATION_GLOW) ? IncHeavy : isHeld(INCARNATION) ? IncBA1 : BA2), // TODO must use the current chain of inc ba
   swapInAir: () => (isHeld(ORDINATION_GLOW) ? IncHeavy : isHeld(INCARNATION) ? IncBA1 : MA),
   maxEnergy: 15000,
 
@@ -455,6 +455,7 @@ export const JINHSI_RESONATOR = new Resonator({
  *  banking. Trailing Lights of Eons is pressed only in the opening scramble: on every visit after,
  *  the Intro's own 5s window means the Resonance Skill button is Overflowing Radiance. */
 const BA1234 = new ActionGroup("Basic - Slash of Breaking Dawn 1234", [BA1, BA2, BA3, BA4]);
+const BA234 = new ActionGroup("Basic - Slash of Breaking Dawn 234", [BA2, BA3, BA4]);
 
 const IncBA12 = new ActionGroup("Basic - Incarnation 12", [IncBA1, IncBA2]);
 const IncBA34 = new ActionGroup("Basic - Incarnation 34", [IncBA3, IncBA4]);
@@ -481,9 +482,9 @@ const JX_ROTATION_FULL = new Rotation([
 // only fills every other time it comes round, so the cast alternates rather than being listed
 // every loop and paid for on credit
 const JX_ROTATION_EVERY_OTHER = new Rotation([
-  START_LAST, BA1.instaCancel(), Liberation.everyOther(), Skill.instaSwap(),
+  START_LAST, BA2.instaCancel(), Liberation.everyOther(), Skill.instaSwap(),
 
-  SWAPIN, BA1234.instaCancel(), Skill2.instaCancel(), JUE, SUHSIN, Liberation.everyOther(),
+  SWAPIN, BA234.instaCancel(), Skill2.instaCancel(), JUE, SUHSIN, Liberation.everyOther(),
   IncBA1, IncBA2.instaJump(), IncBA3.instaJump(), IncBA4.instaCancel(), 
   Skill4_Unison, OutroUnison,
 
@@ -497,9 +498,9 @@ const JX_ROTATION_EVERY_OTHER = new Rotation([
 ]);
 
 const JX_ROTATION_SUPPORT = new Rotation([
-  START_LAST, BA1.instaCancel(), Liberation.everyOther(), Skill.instaSwap(),
+  START_LAST, BA2.instaCancel(), Liberation.everyOther(), Skill.instaSwap(),
 
-  SWAPIN, BA1234.instaCancel(), Skill2.instaCancel(), JUE, SUHSIN, Liberation.everyOther(), 
+  SWAPIN, BA234.instaCancel(), Skill2.instaCancel(), JUE, SUHSIN, Liberation.everyOther(), 
   IncBA1, IncBA2.instaJump(), IncBA3.instaJump(), IncBA4.instaCancel(), 
   Skill4_Unison, OutroUnison,
 

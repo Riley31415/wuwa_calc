@@ -38,10 +38,10 @@ import { NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
 import { STONARD, AETHER_STRIKE } from "../../weapons/battlepass.js";
 import { NM_HERON_MAINSLOT, MIDNIGHT_VEIL_5PC, NM_HERON } from "../../echoes/rinascita.js";
 import { MOONLIT_CLOUDS_5PC, HERON_MAINSLOT, BELL_BORNE_GEOCHELONE_MAINSLOT, HAVOC_ECLIPSE_5PC, NM_CROWNLESS_MAINSLOT, HERON, BELL_BORNE_GEOCHELONE, NM_CROWNLESS } from "../../echoes/jinzhou.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
-import { tuneBreak } from "../../shared/tunebreak.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
+import { tuneBreak } from "../tunebreak.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 

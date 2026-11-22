@@ -20,7 +20,7 @@ Rotation markers, Intro chains and press order — read before writing or changi
   waits for its owner's hits still to land, cast as the one that fills it lands; never filled, it warns.
   The Resonator names the Intro an arrival casts as `intro:` — the Intro, or for a kit with more than
   one the function picking it (`intro: () => (isHeld(X) ? EIntro : Intro)`), never a resolver
-  Action; it has no `outro:`. `dodge:` and `jump:` take an Action or `(after) => ...` alike. The
+  Action; it has no `outro:`. `dodge:`, `airDodge:` (the dash made in mid-air; unset is `Dodge - Mid-air`, the grounded dodge cast at 7) and `jump:` take an Action or `(after) => ...` alike. The
   arrival plays the chain listing the Intro `intro:` picks, and throws where none does: a rotation
   may give each Intro a chain of its own or list several in one, but never one in two chains of a
   kind. `.firstIntro()` (the first arrival), `.inFirstSlot()` / `.inLastSlot()` (a team position),

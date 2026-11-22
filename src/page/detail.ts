@@ -2,21 +2,23 @@
  * The detail page: the DPR and energy tables, the action log grid, and the log's draggable
  * column order (kept in localStorage) with its pointer handlers.
  */
-import { Stat, Cast, SCALING_NAME, ActionTag, statLabel, ENERGY_UNIT } from "../engine/stats.js";
+import { Stat, Cast, SCALING_NAME, ActionTag, statLabel, ENERGY_UNIT, CONCERTO_UNIT, Resource, RESOURCE_NAME } from "../engine/stats.js";
 import type { Gear } from "../engine/gear.js";
 import { menuStats } from "../engine/context.js";
-import { TUNE_BREAK_ENEMY } from "../shared/tunebreak.js";
+import { TUNE_BREAK_ENEMY, ENEMY_MAX_OFFTUNE } from "../resonators/tunebreak.js";
 import type { ChainGroup, ResolvedSnapshot } from "../engine/evaluate.js";
-import { gaugeSuffix, fmt, fmtPct, fmtPctCell, digitsOf, PAD_DIGITS_COLUMNS, GROUPED_COLUMNS, RATE_SECTIONS } from "./display.js";
+import { buildReport, fmt, fmtPct, fmtPctCell, digitsOf, PAD_DIGITS_COLUMNS, GROUPED_COLUMNS, RATE_SECTIONS } from "./display.js";
 import type { Report, Column, ReportRow, ReportPart } from "./display.js";
 import type { TeamRun } from "../solve/teamrun.js";
 import { hitsOf, erRollsFor } from "../solve/teamrun.js";
-import { ER_TOLERANCE } from "../shared/substats.js";
+import { ER_TOLERANCE } from "../echoes/substats.js";
 import { results, detailFor, FALLBACK_HUE } from "./model.js";
-import { esc, lazyPop, rect, zoom, clearPops, popover, hitsPopover, infoPopover, buffsPopover, framesPopover, equippedGear, dprTable, loadoutTable, wireDistribution, drivePanel, dropPanel, holdPanels, panelOpenOn, copyBlock } from "./panels.js";
+import { esc, lazyPop, rect, zoom, clearPops, popover, hitsPopover, infoPopover, buffsPopover, framesPopover, equippedGear, dprTable, loadoutTable, distributionTable, substatValueTable, wireDistribution, drivePanel, dropPanel, holdPanels, panelOpenOn, copyBlock } from "./panels.js";
 import { HOLD, watchTouch, swallowClick, grabDot, makeDot } from "./cellpick.js";
 import { rememberTableScroll } from "./table.js";
 import { canPick } from "./pickmenu.js";
+import { substatGains, cachedGains } from "./substatvalue.js";
+import { showError } from "./loading.js";
 
 const app = document.getElementById("app")!;
 const topbar = document.getElementById("topbar")!;
@@ -28,7 +30,10 @@ const RUNNING_COLUMNS = new Set(["concerto", "energy", "offtune"]);
 const isRunning = (key: string): boolean => RUNNING_COLUMNS.has(key) || key.startsWith("gauge:");
 
 /** A grid track: the column's character width times --cw, plus the cell padding. */
-const colWidth = (c: Column): string => `calc(var(--cw) * ${c.width} + var(--cpad))`;
+const colWidth = (c: Column): string => {
+  const num = c.align === "left" ? 0 : 1, p = c.pad ?? { cw: 0, cpad: 0, npad: 0 };
+  return `calc(var(--cw) * ${(c.width ?? 0) + p.cw} + var(--cpad) * ${1 + p.cpad} + var(--npad) * ${num + p.npad})`;
+};
 
 function cell(col: Column, { cls = [], html = "", pop = "", style = "", attr = "" }: { cls?: string[]; html?: string; pop?: string; style?: string; attr?: string } = {}): string {
   const classes = ["c", col.align === "left" ? "" : "num", ...cls].filter(Boolean).join(" ");
@@ -40,6 +45,7 @@ const TAG_KIND: Partial<Record<ActionTag, string>> = {
   [ActionTag.InstaCancel]: "insta", [ActionTag.InstaDodge]: "insta", [ActionTag.InstaJump]: "insta", [ActionTag.InstaSwap]: "insta",
   [ActionTag.SwapCancel]: "swap", [ActionTag.MashSwap]: "swap", [ActionTag.MashCancel]: "easy", [ActionTag.HoldCancel]: "easy", [ActionTag.OffField]: "field",
   [ActionTag.DodgeCancel]: "dash", [ActionTag.JumpCancel]: "jump", [ActionTag.Cancel]: "cancel", [ActionTag.HitCancel]: "hit", [ActionTag.DodgeOnHit]: "hit", [ActionTag.JumpOnHit]: "hit",
+  [ActionTag.TimedCancel]: "timed",
 };
 
 /** How each cut is played, for its tag box's panel. */
@@ -58,6 +64,7 @@ const TAG_NOTE: Partial<Record<ActionTag, string>> = {
   [ActionTag.HitCancel]: "After the first hit, input the next action",
   [ActionTag.DodgeOnHit]: "After the first hit, dodge",
   [ActionTag.JumpOnHit]: "After the first hit, jump",
+  [ActionTag.TimedCancel]: "Input the next action on the frame shown",
 };
 
 /** One row of the log. A running column is blank where the row left it exactly as it came in
@@ -65,9 +72,37 @@ const TAG_NOTE: Partial<Record<ActionTag, string>> = {
  *  counter whose before + moved ≠ after (set outright: an outro's wipe, a clamped gauge). */
 function stepRow(
   columns: Column[], row: ReportRow | ReportPart, slotHue: Map<string, string>, gearByMember: Map<string, Gear[]>,
-  { part = false, caret = true }: { part?: boolean; caret?: boolean } = {},
+  { part = false, caret = true, bars = null }: { part?: boolean; caret?: boolean; bars?: Bars | null } = {},
 ): string {
+  const snap = "line" in row ? row.line.snap : row.snap;
+  const aggregate = "line" in row && !!row.line.aggregate;
   return columns.map((col) => {
+    if (!bars || aggregate || !(col.key === FORTE_KEY || RUNNING_COLUMNS.has(col.key))) {
+      return cell(col, cellParts(col, row, slotHue, gearByMember, part, caret));
+    }
+    // the resource view: each running figure over a bar of its own, filled to the gauge's cap
+    if (col.key !== FORTE_KEY) {
+      const p = cellParts(col, row, slotHue, gearByMember, part, caret);
+      const cap = col.key === "energy" ? bars.energyCap.get(snap.member) ?? 0 : col.key === "concerto" ? CONCERTO_CAP : OFFTUNE_CAP;
+      return cell(col, { cls: ["barcell"], attr: p.attr, pop: p.pop, html: barHtml([{ color: BAR_COLOR[col.key]!, fill: Number(row.raw[col.key]) / cap, text: p.html, cls: p.cls }]) });
+    }
+    // ...and the forte column: the member's own gauges sharing its width evenly, each in their colour
+    const hue = slotHue.get(snap.member) ?? FALLBACK_HUE;
+    const gauges = bars.forte.get(snap.member) ?? [];
+    return cell(col, { cls: ["barcell"], html: barHtml(gauges.map(({ key, cap }) => {
+      const name = key.slice("gauge:".length);
+      const p = cellParts({ ...bars.gauge, key, label: name, full: name }, row, slotHue, gearByMember, part, caret);
+      return { color: hue, fill: Number(row.raw[key]) / cap, text: p.html, cls: p.cls, pop: p.pop };
+    })) });
+  }).join("");
+}
+
+/** One column's cell content: its figure, classes, panel and data. A running column is blank where
+ *  the row left it as it came in. */
+function cellParts(
+  col: Column, row: ReportRow | ReportPart, slotHue: Map<string, string>, gearByMember: Map<string, Gear[]>, part: boolean, caret: boolean,
+): { cls: string[]; html: string; pop: string; style: string; attr: string } {
+  {
     const v = row.raw[col.key];
     const sources = row.sources[col.key];
     // a resource cell carries its balance and the one the row was entered on, blank or not, for
@@ -76,7 +111,7 @@ function stepRow(
     // the Tune Break takes the whole off-tune bar, and a block read across either would say so
     let attr = "";
     if (isRunning(col.key)) {
-      if ("line" in row && row.line.aggregate) return cell(col);
+      if ("line" in row && row.line.aggregate) return { cls: [], html: "", pop: "", style: "", attr: "" };
       const act = ("line" in row ? row.line.snap : row.snap).action, cast = act.cast;
       // a Tune Break's response casts as one too, but only the break drains the bar
       const spend = col.key === "offtune" ? cast === Cast.TuneBreak && act.castOfftune < 0
@@ -87,7 +122,13 @@ function stepRow(
       // energy's block total reads what each row's own press generated, unbuffed: no ER, nothing shared
       if (!spend && col.key === "energy") attr += ` data-gen="${Number(row.raw["gen:energy"]) || 0}"`;
       const fed = (sources ?? []).some((r) => !RATE_SECTIONS.has(r.section ?? ""));
-      if (!fed && Math.abs((Number(v) || 0) - before) < 1e-9) return cell(col, { attr });
+      const moved = (raw: typeof row.raw): boolean => Math.abs((Number(raw[col.key]) || 0) - (Number(raw[`before:${col.key}`]) || 0)) >= 1e-9;
+      // a group shows a gauge only where one of its own presses moved it: off-tune and shared energy
+      // also move between them, off another member's hits
+      const blank = "parts" in row && row.parts.length
+        ? !row.parts.some((p) => moved(p.raw) || (p.sources[col.key] ?? []).some((r) => !RATE_SECTIONS.has(r.section ?? "")))
+        : !fed && !moved(row.raw);
+      if (blank) return { cls: [], html: "", pop: "", style: "", attr };
     }
     const cls: string[] = [];
     if (col.key === "action") cls.push(part ? "name" : "action");
@@ -103,7 +144,7 @@ function stepRow(
     if (col.key === "action" && row.raw["short:buff"]) cls.push("negative");
 
     const text = (col.percent && typeof v === "number" ? `${fmtPctCell(v, col.key, PAD_DIGITS_COLUMNS.has(col.key))}%`
-      : esc(fmt(v, digitsOf(row.raw, col), PAD_DIGITS_COLUMNS.has(col.key), GROUPED_COLUMNS.has(col.key)))) + gaugeSuffix(row.raw, col.key);
+      : esc(fmt(v, digitsOf(row.raw, col), PAD_DIGITS_COLUMNS.has(col.key), GROUPED_COLUMNS.has(col.key))));
     let html = sources && text ? `<span class="has">${text}</span>` : text;
     if (col.key === "action" && caret && !part && "parts" in row && row.parts.length) {
       html = `${html}<span class="caret">▸</span>`;
@@ -113,7 +154,8 @@ function stepRow(
     // swap form yellow, a mash or hold cancel green, then a dash, a jump, and a plain cancel — or gray
     // for a press beside the fight
     if (tag) {
-      const kind = TAG_KIND[tag as ActionTag] ?? "cancel", note = TAG_NOTE[tag as ActionTag];
+      const own = tag.startsWith("cancel @ ") ? ActionTag.TimedCancel : tag as ActionTag;
+      const kind = TAG_KIND[own] ?? "cancel", note = TAG_NOTE[own];
       const tagPop = note ? lazyPop(`<span class="pop note">${esc(note)}</span>`) : "";
       html = `<span class="ctag ctag-${kind}"${tagPop}>${esc(tag.toUpperCase())}</span>${html}`;
     }
@@ -132,8 +174,6 @@ function stepRow(
       pop = buffsPopover(snap.member, gear, snap.heldLocal, snap.heldGlobal, snap.heldEnemy, slotHue);
     } else if (col.key === "avg") {
       pop = text ? hitsPopover(row.hits) : "";
-    } else if (col.key === "position") {
-      pop = "";
     } else if (text) {
       // a running counter's panel foots to what this action moved it by, not the balance
       pop = popover(col, sources, row.raw[`moved:${col.key}`] ?? v, slotHue, suffix, String(row.raw[`empty:${col.key}`] ?? ""));
@@ -153,9 +193,55 @@ function stepRow(
       const frames = snaps.reduce((n, s) => n + (s.active ? s.frames : 0) + (s.swapFrames ?? 0), 0);
       attr = ` data-frames="${frames}"`;
     }
-    return cell(col, { cls, html, pop, style, attr });
-  }).join("");
+    return { cls, html, pop, style, attr };
+  }
 }
+
+/* ------------------------------------------------------------------------------ resource bars */
+
+/** The resource view's single forte column, standing in for every gauge column. */
+const FORTE_KEY = "forte";
+const GAUGE_KEYS = [Resource.Forte1, Resource.Forte2, Resource.Forte3, Resource.Forte4, Resource.Forte5].map((r) => `gauge:${RESOURCE_NAME[r]}`);
+const BAR_COLOR: Record<string, string> = { concerto: "#ffffff", energy: "#f5c542", offtune: "#c4c7cc" };
+const CONCERTO_CAP = 10000 / CONCERTO_UNIT, OFFTUNE_CAP = ENEMY_MAX_OFFTUNE / 10000;
+
+/** What the bars need: each member's energy cap, the forte gauges they use with each one's cap,
+ *  and a gauge column to format any of the five by. */
+interface Bars {
+  energyCap: Map<string, number>;
+  forte: Map<string, { key: string; cap: number }[]>;
+  gauge: Column;
+}
+
+/** Every gauge each member uses in the report — capped, or ever off zero — with its cap; an
+ *  uncapped gauge fills to the most it held. */
+function forteUse(report: Report): Map<string, { key: string; cap: number }[]> {
+  const seen = new Map<string, { caps: number[]; peak: number[] }>();
+  const read = (snap: ResolvedSnapshot, raw: Report["rows"][number]["raw"]): void => {
+    const m = seen.get(snap.member) ?? { caps: [0, 0, 0, 0, 0], peak: [0, 0, 0, 0, 0] };
+    seen.set(snap.member, m);
+    GAUGE_KEYS.forEach((key, i) => {
+      if (snap.maxForte[i]) m.caps[i] = snap.maxForte[i]! * snap.forteScale[i]!;
+      m.peak[i] = Math.max(m.peak[i]!, Math.abs(Number(raw[key]) || 0));
+    });
+  };
+  for (const row of report.rows) {
+    if (row.line.aggregate) continue;
+    read(row.line.snap, row.raw);
+    for (const p of row.parts) read(p.snap, p.raw);
+  }
+  const out = new Map<string, { key: string; cap: number }[]>();
+  for (const [member, { caps, peak }] of seen) {
+    const used = GAUGE_KEYS.flatMap((key, i) => (caps[i] || peak[i]! > 1e-9 ? [{ key, cap: caps[i] || peak[i]! }] : []));
+    if (used.length) out.set(member, used);
+  }
+  return out;
+}
+
+/** Bars side by side, each filled to its share of its cap, its figure over it in its own colour. */
+const barHtml = (bars: { color: string; fill: number; text: string; cls: string[]; pop?: string }[]): string =>
+  `<span class="rbars">${bars.map((b) => `<span class="rbar${b.text ? "" : " empty"}" style="--bar:${b.color};--fill:${Math.max(0, Math.min(1, b.fill || 0))}"${b.pop ?? ""}>`
+    + `<span class="rfill"></span><span class="rtext${b.cls.length ? ` ${b.cls.join(" ")}` : ""}">${b.text}</span></span>`).join("")}</span>`;
 
 /** The hue a log row wears: its member's, but the enemy's gray on a Tune Break — nobody's damage,
  *  though it still names whoever was on field. */
@@ -165,14 +251,14 @@ const rowHue = (snap: ResolvedSnapshot, slotHue: Map<string, string>): string =>
 /** An opened group's rows, each in its *own* member's hue (a follow-up can land on anybody). */
 function partRows(
   columns: Column[], parts: ReportPart[], slotHue: Map<string, string>, gearByMember: Map<string, Gear[]>,
-  fieldOf: Map<ResolvedSnapshot, number>,
+  fieldOf: Map<ResolvedSnapshot, number>, bars: Bars | null,
 ): string {
   return parts.map((p) => {
     const hue = rowHue(p.snap, slotHue);
     const field = fieldOf.get(p.snap);
     const mark = field === undefined ? "" : ` data-fh="${field}"`;
     return `<div class="r${p.short ? " short" : ""}" style="--m:${hue}"${mark}>`
-      + `${stepRow(columns, p, slotHue, gearByMember, { part: true })}</div>`;
+      + `${stepRow(columns, p, slotHue, gearByMember, { part: true, bars })}</div>`;
   }).join("");
 }
 
@@ -185,10 +271,11 @@ const loopBar = (columns: Column[], n: number): string =>
 /** The whole team's rotation as one grid. A group's block holds its parts (shown open) and its
  *  spill follow-ups (shown closed); a field's summons swap with its summary row by a stylesheet
  *  keyed on the summary's checkbox, since they are scattered through the section. */
-function rotationTable(report: Report, slotHue: Map<string, string>, gearByMember: Map<string, Gear[]>, starts: Map<number, number>): string {
+function rotationTable(report: Report, slotHue: Map<string, string>, gearByMember: Map<string, Gear[]>, starts: Map<number, number>, bars: Bars | null): string {
   const columns = report.columns;
   const cols = columns.map(colWidth).join(" ");
-  const head = columns.map((c) => cell(c, { html: esc(c.label) })).join("");
+  // the resources' headings sit centred over their bars
+  const head = columns.map((c) => cell(c, { html: esc(c.label), cls: RESOURCE_COLUMN(c.key) || c.key === FORTE_KEY ? ["rhead"] : [] })).join("");
 
   const fieldIds = new Map<string, number>();
   const fieldId = (key: string): number => {
@@ -214,7 +301,7 @@ function rotationTable(report: Report, slotHue: Map<string, string>, gearByMembe
     const snap = row.line.snap;
     const hue = rowHue(snap, slotHue);
     const style = ` style="--m:${hue}"`;
-    const cells = stepRow(columns, row, slotHue, gearByMember);
+    const cells = stepRow(columns, row, slotHue, gearByMember, { bars });
     const shortCls = row.short ? " short" : "";
     const key = row.line.fieldKey;
     const mark = key === undefined || row.line.aggregate ? "" : ` data-fh="${fieldId(key)}"`;
@@ -233,12 +320,12 @@ function rotationTable(report: Report, slotHue: Map<string, string>, gearByMembe
         out.push(`<div class="chain"${style}${mark}>`
           + `<input class="tgl" type="checkbox" id="${id}">`
           + `<label class="r${shortCls}" for="${id}">${cells}</label>`
-          + `<div class="parts">${partRows(columns, row.parts, slotHue, gearByMember, fieldOf)}</div>`
+          + `<div class="parts">${partRows(columns, row.parts, slotHue, gearByMember, fieldOf, bars)}</div>`
           + `</div>`);
         return;
       }
       out.push(`<div class="r${shortCls}"${style}${mark}>`
-        + `${stepRow(columns, row, slotHue, gearByMember, { caret: false })}</div>`);
+        + `${stepRow(columns, row, slotHue, gearByMember, { caret: false, bars })}</div>`);
       return;
     }
     closeBlock();
@@ -250,7 +337,7 @@ function rotationTable(report: Report, slotHue: Map<string, string>, gearByMembe
     out.push(`<div class="step chain"${style}${mark}>`
       + `<input class="tgl" type="checkbox" id="${id}">`
       + `<label class="r${shortCls}" for="${id}">${cells}</label>`
-      + `<div class="parts">${partRows(columns, row.parts, slotHue, gearByMember, fieldOf)}</div>`
+      + `<div class="parts">${partRows(columns, row.parts, slotHue, gearByMember, fieldOf, bars)}</div>`
       + `<div class="spill">`);
     spilling = true;
   });
@@ -330,62 +417,295 @@ function energyRequirements(run: TeamRun): Map<string, Map<string, string>> {
 
 /* ------------------------------------------------------------------------------------ page */
 
+/** Loop 1 alone, its clock from its first press. A field opened in the opener is left out with all
+ *  its hits; one opened in Loop 1 keeps every hit, those landing in later loops included. */
+const loopReports = new WeakMap<TeamRun, Report>();
+function loopReport(run: TeamRun): Report {
+  const seen = loopReports.get(run);
+  if (seen) return seen;
+  const [, loop = [], ...later] = run.rotationLines!;
+  const opened = new Set(loop.filter((l) => l.aggregate).map((l) => l.fieldKey));
+  const lines = [
+    ...loop.filter((l) => l.aggregate || l.fieldKey === undefined || opened.has(l.fieldKey)),
+    ...later.flat().filter((l) => !l.aggregate && l.fieldKey !== undefined && opened.has(l.fieldKey)),
+  ];
+  const first = loop.find((l) => !l.aggregate);
+  const origin = first ? Math.min(...(first.members?.length ? first.members : [first.snap]).map((s) => s.frame)) : 0;
+  const report = buildReport(lines, origin);
+  loopReports.set(run, report);
+  return report;
+}
+
+/** The report the log is showing: the whole fight, or Loop 1 alone (its tabs). */
+// Loop 1 alone keeps the full fight's columns, so the two views are one width
+const shownReport = (run: TeamRun): Report => (rotView === "loop" ? { ...loopReport(run), columns: detailFor(run).report.columns } : detailFor(run).report);
+
 function page(run: TeamRun): string {
-  const { report } = detailFor(run);
+  const report = shownReport(run);
   const lines = run.rotationLines!;
   const { members } = run;
   const slotHue = new Map([...members.map((m): [string, string] => [m.name, m.color]), [TUNE_BREAK_ENEMY.name, TUNE_BREAK_ENEMY.color]]);
   const erRolls = erRollsFor(run.teamKey, run.members, run.combo);
   const gearByMember = new Map(members.map((m, i): [string, Gear[]] => [m.name, equippedGear(m, run.combo[i]!, erRolls[i]!).map(([, g]) => g)]));
-  // where each loop begins in the log, by loop number
+  // where each loop begins in the log, by loop number; the loop view has none
   const starts = new Map<number, number>();
-  lines.reduce((n, sec, k) => { if (k) starts.set(n, k); return n + sec.length; }, 0);
+  if (rotView === "full") lines.reduce((n, sec, k) => { if (k) starts.set(n, k); return n + sec.length; }, 0);
 
+  const panes: Record<Tab, string> = {
+    team: loadoutTable(run, energyRequirements(run), (slot, kind) => canPick(run, slot, kind)),
+    contribution: dprTable(run, lines),
+    distribution: distributionTable(run, lines),
+    substats: substatValueTable(run, cachedGains(run) ?? null),
+  };
+  const tabs = TABS.map(([key, label]) =>
+    `<button type="button" class="rtab${key === tab ? " on" : ""}" data-tab="${key}">${label}</button>`).join("");
   return `<main>
   <div class="rtables">
-    <div class="rtable-block">
-      <h2 class="summary-label">Equipment</h2>
-      ${loadoutTable(run, energyRequirements(run), (slot, kind) => canPick(run, slot, kind))}
-    </div>
-    <div class="rstack">
-      <div class="rtable-block">
-        <h2 class="summary-label">Damage Contribution</h2>
-        ${dprTable(run, lines)}
-      </div>
-    </div>
+    <div class="rtabs" role="tablist">${tabs}</div>
+    <div class="rpanes">${TABS.map(([key]) => `<div class="rpane${key === tab ? " on" : ""}" data-pane="${key}">${panes[key]}</div>`).join("")}</div>
   </div>
   <div class="rotation-block">
-    <h2 class="summary-label">Rotation</h2>
-    ${rotationTable(report, slotHue, gearByMember, starts)}
+    <div class="logbar">
+      <div class="rtabs" role="tablist">${([["full", "Full Rotation"], ["loop", "Loop Rotation"]] as const).map(([key, label]) =>
+        `<button type="button" class="rtab${key === rotView ? " on" : ""}" data-rot="${key}">${label}</button>`).join("")}</div>
+      <div class="rtabs" role="tablist">${([["resources", "Resources"], ["stats", "Stats"]] as const).map(([key, label]) =>
+        `<button type="button" class="rtab${key === logView ? " on" : ""}" data-log="${key}">${label}</button>`).join("")}</div>
+    </div>
+    ${rotationTable({ ...report, columns: shownColumns(run) }, slotHue, gearByMember, starts, logView === "resources" ? barsOf(run, report) : null)}
   </div>
 </main>`;
 }
 
 
+/** The tables' tabs; every pane is drawn, stacked in one cell so the box keeps the biggest one's size. */
+type Tab = "team" | "contribution" | "distribution" | "substats";
+const TABS: [Tab, string][] = [["team", "Team & Gear"], ["distribution", "Node Priority"], ["substats", "Substat Value"], ["contribution", "Contribution"]];
+/** The three tab choices, kept in localStorage across loads; one not recognised falls back. */
+const VIEW_KEY = "wuwa.teamViews";
+const savedViews = ((): { tab?: string; log?: string; rot?: string } => {
+  try { return JSON.parse(localStorage.getItem(VIEW_KEY) ?? "{}") as { tab?: string; log?: string; rot?: string }; }
+  catch { return {}; }
+})();
+const saveViews = (): void => {
+  try { localStorage.setItem(VIEW_KEY, JSON.stringify({ tab, log: logView, rot: rotView })); } catch { /* no storage */ }
+};
+let tab: Tab = TABS.find(([k]) => k === savedViews.tab)?.[0] ?? "team";
+
+/** The log shows its resource bars by default, or the damage stats in their place (its tabs). */
+let logView: "resources" | "stats" = savedViews.log === "stats" ? "stats" : "resources";
+/** ...over the whole fight, or Loop 1 alone. */
+let rotView: "full" | "loop" = savedViews.rot === "loop" ? "loop" : "full";
+const STAT_COLUMNS = new Set(["mv", "scaler", "dmgBonus", "amp", "cr", "cd", "effDef", "effRes", "dealt"]);
+const RESOURCE_COLUMN = (key: string): boolean => key === "concerto" || key === "energy" || key === "offtune" || key.startsWith("gauge:");
+/** The log's columns for the view: the stats, or the resources with every forte gauge folded into
+ *  one column as wide as the most gauges a member uses, which each member's bars share evenly. */
+function shownColumns(run: TeamRun): Column[] {
+  const report = shownReport(run), full = detailFor(run).report;
+  const own = viewColumns(report, full, logView), other = viewColumns(report, full, logView === "stats" ? "resources" : "stats");
+  // the narrower view's action column takes up the difference, so both tabs are one width
+  const sum = (cs: Column[]) => ({ cw: cs.reduce((n, c) => n + (c.width ?? 0), 0), cpad: cs.length, npad: cs.filter((c) => c.align !== "left").length });
+  const a = sum(own), b = sum(other);
+  const pad = { cw: b.cw - a.cw, cpad: b.cpad - a.cpad, npad: b.npad - a.npad };
+  const css = getComputedStyle(document.documentElement), v = (k: string) => parseFloat(css.getPropertyValue(k)) || 0;
+  const px = pad.cw * v("--cw") + pad.cpad * v("--cpad") + pad.npad * v("--npad");
+  return px > 0 ? own.map((c) => (c.key === "action" ? { ...c, pad } : c)) : own;
+}
+// `full` sizes the forte column, so Loop 1 alone and the full fight match
+function viewColumns(report: Report, full: Report, view: "resources" | "stats"): Column[] {
+  if (view === "stats") return report.columns.filter((c) => !RESOURCE_COLUMN(c.key));
+  const gauges = report.columns.filter((c) => c.key.startsWith("gauge:"));
+  const slots = Math.max(0, ...[...forteUse(full).values()].map((g) => g.length));
+  const width = Math.max(...gauges.map((c) => c.width ?? 0), 6);
+  // never under a slot and a half wide, the same as the columns beside it, however few gauges it holds
+  const cells = Math.max(slots, 1.5);
+  const forte: Column = { ...gauges[0]!, key: FORTE_KEY, label: "forte", full: "Forte", width: width * cells + (cells - 1) };
+  // concerto, energy and off-tune each a forte slot and a half wide, and forte right after concerto
+  // (where the fight banked no concerto, forte keeps the gauges' own place)
+  const after = report.columns.some((c) => c.key === "concerto") ? "concerto" : gauges[0]?.key;
+  return report.columns.flatMap((c) => [
+    ...(STAT_COLUMNS.has(c.key) || c.key.startsWith("gauge:") ? [] : RUNNING_COLUMNS.has(c.key) ? [{ ...c, width: width * 1.5 + 0.5 }] : [c]),
+    ...(c.key === after && slots ? [forte] : []),
+  ]);
+}
+/** The bars' caps off the run's own resonators. */
+function barsOf(run: TeamRun, report: Report): Bars | null {
+  const gauge = report.columns.find((c) => c.key.startsWith("gauge:")) ?? { key: GAUGE_KEYS[0]!, label: "", digits: 2 };
+  return {
+    energyCap: new Map(run.members.map((m) => [m.name, (m.loadout.resonator.maxEnergy ?? 0) / ENERGY_UNIT])),
+    forte: forteUse(report),
+    gauge,
+  };
+}
+let shownKey = "";
+
 export function renderDetail(key: string): void {
+  shownKey = key;
   rememberTableScroll();
   topbar.hidden = false;
   clearPops();
   const run = results.get(key)!;
   app.innerHTML = page(run);
   app.className = "";
-  wireColumnDrag(app, detailFor(run).report.columns);
+  wireColumnDrag(app, shownColumns(run));
   wireCellSelect(app);
   wireDistribution(app);
-  const pair = app.querySelector<HTMLElement>(".rtables");
-  if (pair) pairFit.observe(pair);
+  wireBlockSelect(app.querySelector<HTMLElement>(".rtable.distpies"), distCopy);
+  wireBlockSelect(app.querySelector<HTMLElement>(".rtable.dpr"), (sel) =>
+    sel.cells.slice(sel.r0, sel.r1 + 1).map((row) => row.slice(sel.c0, sel.c1 + 1).map((c) => (c.textContent ?? "").trim())));
+  // Node Priority's and Substat Value's label column as wide as Team & Gear's, before the pies fit to their cells
+  const lbl = app.querySelector<HTMLElement>(".rtable.loadout .c.lbl");
+  if (lbl) app.querySelector<HTMLElement>(".rpanes")?.style.setProperty("--lblw", `${lbl.getBoundingClientRect().width / zoom()}px`);
+  fitPies(app);
+  if (tab === "substats") fillSubstats();
 }
 
-/** Damage Contribution fills the line beside Equipment; wrapped under it, it takes Equipment's width
- *  rather than the whole line's. Measured with the cap off, so widening the page lets it back up. */
-const pairFit = new ResizeObserver((entries) => {
-  for (const { target } of entries) {
-    const equip = target.firstElementChild as HTMLElement | null;
-    const stack = target.querySelector<HTMLElement>(".rstack");
-    if (!equip || !stack) continue;
-    stack.style.maxWidth = "";
-    if (stack.offsetTop > equip.offsetTop) stack.style.maxWidth = `${equip.offsetWidth}px`;
+/** Substat Value's runs, made the first time its tab opens on a team, then drawn into it. */
+function fillSubstats(): void {
+  const key = shownKey, run = results.get(key);
+  if (!run || cachedGains(run)) return;
+  void substatGains(run, () => shownKey !== key || results.get(key) !== run).then((gains) => {
+    const pane = app.querySelector<HTMLElement>('.rpane[data-pane="substats"]');
+    if (gains && pane && shownKey === key && results.get(key) === run) pane.innerHTML = substatValueTable(run, gains);
+  }).catch(showError);
+}
+
+/** A pie's frame keeps room round it for any label: cut it to what its own labels reach, then draw
+ *  every pie at the one scale that fits the most cramped of them in its cell (Team & Gear sets the
+ *  cells' size), no bigger than 0.6. */
+function fitPies(root: HTMLElement): void {
+  const pies = [...root.querySelectorAll<SVGSVGElement>(".rtable.distpies svg.pie")].map((svg) => {
+    const vb = svg.viewBox.baseVal, b = svg.getBBox();
+    // a hovered wedge slides 7 out, which the vertical pad leaves room for
+    const left = Math.max(vb.x, b.x - 6), right = Math.min(vb.x + vb.width, b.x + b.width + 6);
+    const top = Math.max(vb.y, b.y - 9), bottom = Math.min(vb.y + vb.height, b.y + b.height + 9);
+    svg.setAttribute("viewBox", `${left} ${top} ${right - left} ${bottom - top}`);
+    const wrap = svg.parentElement as HTMLElement, cell = wrap.parentElement!;
+    return { wrap, w: right - left, h: bottom - top, room: [cell.clientWidth - 8, cell.clientHeight - 8] as const };
+  });
+  const scale = Math.min(0.6, ...pies.map((p) => Math.min(p.room[0] / p.w, p.room[1] / p.h)));
+  for (const p of pies) {
+    p.wrap.style.width = `${Math.floor(p.w * scale)}px`;
+    p.wrap.style.height = `${Math.floor(p.h * scale)}px`;
   }
+}
+
+// a tab shows its pane in place; nothing is redrawn
+app.addEventListener("click", (e) => {
+  const btn = (e.target as HTMLElement).closest<HTMLElement>(".rtab[data-tab]");
+  if (!btn) return;
+  tab = btn.dataset.tab as Tab;
+  saveViews();
+  dropPanel();
+  clearTableSel();
+  for (const el of app.querySelectorAll<HTMLElement>(".rtab[data-tab], .rpane")) el.classList.toggle("on", (el.dataset.tab ?? el.dataset.pane) === tab);
+  if (tab === "substats") fillSubstats();
+});
+
+/* ------------------------------------------------------------------- table blocks */
+
+/** A block of Contribution's or Distribution's cells: `ar`/`ac` where the press landed, `r0`..`c1`
+ *  the corners in order, `copy` what Ctrl+C makes of it. Taking it puts down the log's block, and
+ *  the log's takes it. */
+interface TableSel {
+  table: HTMLElement; cells: HTMLElement[][]; ar: number; ac: number; r0: number; r1: number; c0: number; c1: number;
+  box: HTMLElement; copy: (sel: TableSel) => string[][];
+}
+let tableSel: TableSel | null = null;
+
+function clearTableSel(): void {
+  tableSel?.box.remove();
+  tableSel = null;
+}
+
+/** Where `cell` sits in the table's rows and columns, or null for anything else. */
+function cellAt(cells: HTMLElement[][], cell: Element | null): [number, number] | null {
+  for (let r = 0; r < cells.length; r++) {
+    const c = cells[r]!.indexOf(cell as HTMLElement);
+    if (c >= 0) return [r, c];
+  }
+  return null;
+}
+
+function aimTableSel(r: number, c: number): void {
+  const sel = tableSel;
+  if (!sel) return;
+  sel.r0 = Math.min(sel.ar, r);
+  sel.r1 = Math.max(sel.ar, r);
+  sel.c0 = Math.min(sel.ac, c);
+  sel.c1 = Math.max(sel.ac, c);
+  const t = rect(sel.table), a = rect(sel.cells[sel.r0]![sel.c0]!), b = rect(sel.cells[sel.r1]![sel.c1]!);
+  Object.assign(sel.box.style, { left: `${a.left - t.left}px`, top: `${a.top - t.top}px`, width: `${b.right - a.left}px`, height: `${b.bottom - a.top}px` });
+}
+
+/** A press and drag picks a block of the table's cells, a tap one cell on a finger. Contribution's
+ *  chart row is no cell of the grid. */
+function wireBlockSelect(table: HTMLElement | null, copy: (sel: TableSel) => string[][]): void {
+  clearTableSel();
+  if (!table) return;
+  const cells = [...table.querySelectorAll<HTMLElement>(":scope > .rtrow:not(.dist)")].map((r) => [...r.children] as HTMLElement[]);
+  let dragging = false;
+  const start = (r: number, c: number): void => {
+    dropPanel();
+    clearBlock();
+    clearTableSel();
+    const box = table.appendChild(document.createElement("div"));
+    box.className = "cellbox";
+    tableSel = { table, cells, ar: r, ac: c, r0: r, r1: r, c0: c, c1: c, box, copy };
+    aimTableSel(r, c);
+  };
+  table.addEventListener("pointerdown", (e) => {
+    const at = cellAt(cells, (e.target as Element).closest(".c"));
+    if (e.button !== 0 || !at) return;
+    if (e.pointerType === "touch") {
+      watchTouch(e, cells[at[0]]![at[1]]!, () => start(...at), () => start(...at));
+      return;
+    }
+    e.preventDefault();
+    table.setPointerCapture(e.pointerId);
+    start(...at);
+    dragging = true;
+  });
+  table.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    const at = cellAt(cells, document.elementFromPoint(e.clientX, e.clientY)?.closest(".c") ?? null);
+    if (at) aimTableSel(...at);
+  });
+  const end = (): void => { dragging = false; };
+  table.addEventListener("pointerup", end);
+  table.addEventListener("pointercancel", end);
+}
+
+// a press anywhere off the table puts its block down
+addEventListener("pointerdown", (e) => {
+  if (tableSel && !tableSel.table.contains(e.target as Node)) clearTableSel();
+}, true);
+
+/** Distribution's block as text rows: a member's column is two (each slice's name, then its share),
+ *  a pie row as many lines as its longest pie, the label and the name on its first. */
+function distCopy(sel: TableSel): string[][] {
+  const out: string[][] = [];
+  for (let r = sel.r0; r <= sel.r1; r++) {
+    const row = sel.cells[r]!.slice(sel.c0, sel.c1 + 1);
+    const slices = row.map((c) => (c.dataset.slices ? JSON.parse(c.dataset.slices) as [string, string][] : null));
+    const n = Math.max(1, ...slices.map((s) => s?.length ?? 0));
+    for (let i = 0; i < n; i++) {
+      out.push(row.flatMap((c, k) => {
+        const text = i ? "" : (c.textContent ?? "").trim();
+        if (sel.c0 + k === 0) return [text];
+        const s = slices[k];
+        return s ? (s[i] ?? ["", ""]) : [text, ""];
+      }));
+    }
+  }
+  return out;
+}
+
+addEventListener("keydown", (e) => {
+  if (!tableSel || e.key !== "c" || !(e.ctrlKey || e.metaKey) || e.altKey) return;
+  const loose = getSelection();
+  if (loose && !loose.isCollapsed) return;
+  e.preventDefault();
+  copyBlock(tableSel.copy(tableSel));
 });
 
 /* ------------------------------------------------------------------------- column order */
@@ -590,6 +910,8 @@ interface CellSel {
   touch: boolean;
   /** While the dot is dragged, the edges it sits on. */
   dot?: [number, number];
+  /** The forte bar the press landed on: a block of that one cell is that bar alone. */
+  bar?: HTMLElement;
 }
 /** Where a press landed: the rows and columns it found and its own cell among them. */
 type CellAt = Pick<CellSel, "rows" | "cols" | "ar" | "ac">;
@@ -640,9 +962,12 @@ function aimBlock(sel: CellSel, row: number, col: number, gridTop: number): void
   const top = rowSpan(sel, sel.r0, gridTop)[0];
   const left = sel.cols[sel.c0]!.left;
   const box = cellSelBox ?? (cellSelBox = cellBox(sel.grid));
-  box.style.left = `${left}px`;
+  // one forte bar picked out of its cell: the box covers that bar's own share, gap halves included
+  const bar = barOf(sel);
+  const g = bar ? rect(sel.grid) : null, b = bar ? rect(bar) : null;
+  box.style.left = `${b ? b.left - g!.left - 3 : left}px`;
   box.style.top = `${top}px`;
-  box.style.width = `${sel.cols[sel.c1]!.right - left}px`;
+  box.style.width = `${b ? b.width + 6 : sel.cols[sel.c1]!.right - left}px`;
   box.style.height = `${rowSpan(sel, sel.r1, gridTop)[1] - top}px`;
   paintCellDot(sel, gridTop);
 }
@@ -717,8 +1042,14 @@ function grabCellDot(e: PointerEvent): void {
   });
 }
 
-/** The block's own cells, a row of them at a time. */
+/** The forte bar a block of one cell stands for, if the press picked one out. */
+const barOf = (sel: CellSel): HTMLElement | undefined =>
+  (sel.bar && sel.r0 === sel.r1 && sel.c0 === sel.c1 && sel.r0 === sel.ar && sel.c0 === sel.ac ? sel.bar : undefined);
+
+/** The block's own cells, a row of them at a time — a picked-out forte bar alone. */
 function blockCells(sel: CellSel): HTMLElement[][] {
+  const bar = barOf(sel);
+  if (bar) return [[bar]];
   const out: HTMLElement[][] = [];
   for (let r = sel.r0; r <= sel.r1; r++) {
     const cells = sel.rows[r]!.children;
@@ -859,13 +1190,14 @@ function wireCellSelect(root: HTMLElement): void {
   };
 
   /** Pick the one cell `at` names, putting down any block or singled-out column. */
-  const pick = (at: CellAt, touch: boolean): void => {
+  const pick = (at: CellAt, touch: boolean, bar?: HTMLElement): void => {
     dropPanel();
+    clearTableSel();
     selected = null;
     selBox?.remove();
     selBox = null;
     clearBlock();
-    cellSel = { grid, ...at, span: [], fr: at.ar, r0: at.ar, r1: at.ar, c0: at.ac, c1: at.ac, touch };
+    cellSel = { grid, ...at, span: [], fr: at.ar, r0: at.ar, r1: at.ar, c0: at.ac, c1: at.ac, touch, bar };
     aimBlock(cellSel, at.ar, at.ac, rect(grid).top);
   };
 
@@ -896,14 +1228,16 @@ function wireCellSelect(root: HTMLElement): void {
     if (e.button !== 0 || holding || !cell || target.closest(".ctag, .celldot, .uncaret")) return;
     const at = measure(cell);
     if (!at) return;
+    // a forte cell holding two or more bars picks the one under the pointer
+    const bar = cell.querySelectorAll(".rbar").length > 1 ? target.closest<HTMLElement>(".rbar:not(.empty)") ?? undefined : undefined;
     closing = panelOpenOn(cell);
     if (e.pointerType === "touch") {
       const tap = (): void => {
-        pick(at, true);
+        pick(at, true, bar);
         // a tap's click comes after the finger lifts, so it is waited for as a long press's is
         if (closing) swallowClick(600);
       };
-      watchTouch(e, cell, tap, () => pick(at, true));
+      watchTouch(e, cell, tap, () => pick(at, true, bar));
       return;
     }
     e.preventDefault();
@@ -913,7 +1247,7 @@ function wireCellSelect(root: HTMLElement): void {
     px = e.clientX / pressScale;
     py = e.clientY / pressScale;
     pressedAt = performance.now();
-    pick(at, false);
+    pick(at, false, bar);
     holding = true;
   });
 
@@ -1152,7 +1486,11 @@ function wireColumnDrag(root: HTMLElement, columns: Column[]): void {
     const next = d.order.filter((k) => k !== d.key);
     next.splice(d.at, 0, d.key);
     logOrder = next;
-    try { localStorage.setItem(COLUMN_ORDER_KEY, JSON.stringify(next)); } catch { /* no storage */ }
+    // the columns this view hides keep their saved places; the shown ones fill their own slots in order
+    const full = savedOrder(), shown = new Set(next);
+    let j = 0;
+    const merged = full.filter((k) => shown.has(k)).length === next.length ? full.map((k) => (shown.has(k) ? next[j++]! : k)) : [...next, ...full.filter((k) => !shown.has(k))];
+    try { localStorage.setItem(COLUMN_ORDER_KEY, JSON.stringify(merged)); } catch { /* no storage */ }
     // let it slide the last of the way into its gap before the real order takes over
     const rest = offsetsOf(next, d.width).get(d.key)! - offsetsOf(d.order, d.width).get(d.key)!;
     settling = true;
@@ -1185,3 +1523,18 @@ function wireColumnDrag(root: HTMLElement, columns: Column[]): void {
     else drag = null;
   });
 }
+
+// the log's tabs, Full / Loop Rotation and Resources / Stats: the page drawn again with the other rows or columns
+app.addEventListener("click", (e) => {
+  const btn = (e.target as HTMLElement).closest<HTMLElement>(".rtab[data-log], .rtab[data-rot]");
+  if (!btn || !shownKey) return;
+  const log = btn.dataset.log as typeof logView | undefined, rot = btn.dataset.rot as typeof rotView | undefined;
+  if ((log ?? logView) === logView && (rot ?? rotView) === rotView) return;
+  logView = log ?? logView;
+  rotView = rot ?? rotView;
+  saveViews();
+  // the page scrolls inside <main>, which the redraw replaces: carry its place across
+  const y = app.querySelector("main")?.scrollTop ?? 0, x = app.querySelector("main")?.scrollLeft ?? 0;
+  renderDetail(shownKey);
+  app.querySelector("main")?.scrollTo(x, y);
+});

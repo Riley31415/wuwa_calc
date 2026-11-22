@@ -3,15 +3,15 @@
  * the solve/run caches, the solves kept across reloads, and the URL hash the state round-trips
  * through. Everything that draws (table.ts, detail.ts) reads from here; index.ts drives it.
  */
-import { Tier, Stat } from "../engine/stats.js";
+import { Rarity, Stat } from "../engine/stats.js";
 import { menuStats } from "../engine/context.js";
 import { baseSequence } from "../engine/gear.js";
 import type { Weapon } from "../engine/gear.js";
 import { teamCode, readTeamCode } from "./teamcode.js";
-import { TUNE_BREAK_ENEMY } from "../shared/tunebreak.js";
+import { TUNE_BREAK_ENEMY } from "../resonators/tunebreak.js";
 import { buildReport } from "./display.js";
 import type { Report } from "./display.js";
-import { member, comboOf, eligibleWeapons, refineLevels, shownRanks, shownWeapons, sequenceLevels, scopedKey, axisUsed, weaponBase, echoLabel, echoPicks, defaultFilters, bestKey, picksKey, axisOpen, filterSignature, loadoutName, compares, AXES } from "../solve/solver.js";
+import { member, comboOf, eligibleWeapons, refineLevels, shownRanks, shownWeapons, sequenceLevels, grantToOne, scopedKey, axisUsed, weaponBase, echoLabel, echoPicks, defaultFilters, bestKey, picksKey, axisOpen, filterSignature, loadoutName, compares, AXES } from "../solve/solver.js";
 import type { Member, Combo, Pick, Filters, Solved, SolveSave, Axis, TeamCost, ScopedCompare } from "../solve/solver.js";
 import { runTeam, runFromScore, erRollsFor } from "../solve/teamrun.js";
 import type { TeamRun } from "../solve/teamrun.js";
@@ -60,14 +60,14 @@ const SIGNATURE_HUE = new Map<string, string>([["Blazing Brilliance", "#f38b68"]
 for (const pass of [true, false]) {
   for (const l of ALL_TEAMS.flatMap((t) => t.loadouts)) {
     for (const w of pass ? l.weapons.slice(0, 1) : l.weapons) {
-      if (w.tier === Tier.Limited && !SIGNATURE_HUE.has(weaponBase(w))) SIGNATURE_HUE.set(weaponBase(w), l.resonator.color);
+      if (w.tier === Rarity.Limited && !SIGNATURE_HUE.has(weaponBase(w))) SIGNATURE_HUE.set(weaponBase(w), l.resonator.color);
     }
   }
 }
 /** A weapon's colour: a signature its resonator's, a 5-star standard (or Rover's) white, a 4-star
  *  (battlepass, concerto) purple — the star read off its base ATK (5-stars 500+). */
 export function weaponHue(w: Weapon): string {
-  if (w.tier === Tier.Limited) return SIGNATURE_HUE.get(weaponBase(w)) ?? FALLBACK_HUE;
+  if (w.tier === Rarity.Limited) return SIGNATURE_HUE.get(weaponBase(w)) ?? FALLBACK_HUE;
   const atk = w.decl.stats.find((line) => line[0] === Stat.BaseAtk)?.[1] ?? 0;
   return atk >= 500 ? "#ffffff" : "#b07cff";
 }
@@ -80,17 +80,17 @@ export const MATRIX_RESONATORS = new Set(
 
 /* ---------------------------------------------------------------------------------- filters */
 
-/** Resonators required/barred by name+role key. Decides which rows are *built*, not hidden. */
+/** Resonators required/barred at one chain level, keyed as the table names them ("Phrolova",
+ *  "Phrolova S2": S0 reads bare). The names pick which teams are built, the levels which rows show. */
 export const resonatorFilters = new Map<string, ResonatorFilter>();
 /** The same by the pick a row runs — only ever set while that axis has a column on screen. */
 export const weaponFilters = new Map<string, ResonatorFilter>();
 export const echoFilters = new Map<string, ResonatorFilter>();
-/** By chain level ("Phrolova S5") and weapon rank ("Hsin R3") — set from the S/R cells. */
-export const sequenceFilters = new Map<string, ResonatorFilter>();
+/** By weapon rank ("Hsin R3") — set from the name cell's R. */
 export const refineFilters = new Map<string, ResonatorFilter>();
 
 export const OPTION_FILTER_MAPS = {
-  weapon: weaponFilters, echo: echoFilters, sequence: sequenceFilters, refine: refineFilters,
+  weapon: weaponFilters, echo: echoFilters, refine: refineFilters,
 } as const;
 export type OptionKind = keyof typeof OPTION_FILTER_MAPS;
 
@@ -122,11 +122,22 @@ export function pruneGearFilters(): void {
     const offered = offeredGear(kind);
     for (const key of [...OPTION_FILTER_MAPS[kind].keys()]) if (!offered.has(key)) OPTION_FILTER_MAPS[kind].delete(key);
   }
-  for (const key of [...sequenceFilters.keys()]) {
-    const owner = tagOwner(key);
-    if (!Object.values(TEAMS).some((ms) => ms.some((m) => m.name === owner && sequenceTagsOf(m).includes(key)))) {
-      sequenceFilters.delete(key);
-    }
+}
+
+/** Keep each resonator's level filters on levels their rows can still run: an include the cost or a
+ *  shut Sequences compare took away moves to the lowest they can. */
+export function settleLevels(): void {
+  const reach = new Map<string, Set<number>>();
+  for (const ms of Object.values(TEAMS)) for (const m of ms) {
+    if (!reach.has(m.name)) reach.set(m.name, new Set());
+    for (const n of memberLevels(m)) reach.get(m.name)!.add(n);
+  }
+  for (const name of new Set([...resonatorFilters.keys()].map(tagOwner))) {
+    const labels = [...(reach.get(name) ?? [])].sort((a, b) => a - b).map((n) => resonatorLabel(name, n));
+    const keys = [...resonatorFilters].filter(([key]) => tagOwner(key) === name);
+    for (const [key] of keys) if (!labels.includes(key)) resonatorFilters.delete(key);
+    if (!keys.some(([, mode]) => mode === "include")) continue;
+    if (!included(name) && labels.length) resonatorFilters.set(labels[0]!, "include");
   }
 }
 
@@ -139,7 +150,7 @@ export function comparable(name: string, axis: Axis): boolean {
       const n = axis === "weapons" ? l.weapons.length : axis === "echoes" ? echoPicks(m, members).length
         : axis === "mainstats" ? l.mainstats.length : axis === "substats" ? 2
         : axis === "refines" ? Math.max(...l.refinements.map((r) => r.length))
-        : (l.sequences.length ? l.sequences.length - Math.max(l.minSequence, l.resonator.tier === Tier.Free ? 0 : Math.min(baseSequence(l.resonator), l.sequences.length)) + 1 : 1);
+        : (l.sequences.length ? l.sequences.length - Math.max(l.minSequence, l.resonator.tier === Rarity.FreeS6 ? 0 : Math.min(baseSequence(l.resonator), l.sequences.length)) + 1 : 1);
       if (n > 1) return true;
     }
   }
@@ -176,6 +187,18 @@ const namesHold = (map: Map<string, ResonatorFilter>, names: string[]): boolean 
 
 /** Whose tag this is: "Lupa S3" and "Hsin R3" all belong to their resonator. */
 export const tagOwner = (tag: string): string => tag.replace(/ S\d+(R\d+)?$| R\d+$/, "");
+/** A resonator at a chain level as the table and its filter name them: "Phrolova", "Phrolova S2". */
+export const resonatorLabel = (name: string, sequence: number): string => (sequence ? `${name} S${sequence}` : name);
+/** Every level a member can run on some row here: an `mdps` grant may land on any of them. */
+export const memberLevels = (m: Member, f: Filters = filters): number[] =>
+  [...new Set([...sequenceLevels(m, f, true), ...(grantToOne(f.cost) ? sequenceLevels(m, f, false) : [])])].sort((a, b) => a - b);
+/** The level filters as rows read them: an open Sequences compare is itself the include of every
+ *  level of theirs, so their own level includes stand aside; hidden levels still apply after it. */
+export const levelFilters = (f: Filters = filters): Map<string, ResonatorFilter> =>
+  new Map([...resonatorFilters].filter(([key, mode]) => mode === "exclude" || !f.sequences.includes(tagOwner(key))));
+/** Whether `name` has a level of theirs in the include pool. */
+export const included = (name: string): boolean =>
+  [...resonatorFilters].some(([key, mode]) => mode === "include" && tagOwner(key) === name);
 
 /** "Hsin S6 Blooming Jadehaven R5": a worn weapon as its filter names it — whose, at which chain
  *  level (none at S0), and the weapon with or without its rank. */
@@ -240,7 +263,7 @@ let poolNeeds = new Map<string, number>();
 let poolAlone = new Set<string>();
 let poolKey: string | null = null;
 function leaderNeeds(): Map<string, number> {
-  const added = [...resonatorFilters].filter(([, mode]) => mode === "include").map(([name]) => name);
+  const added = [...new Set([...resonatorFilters].filter(([, mode]) => mode === "include").map(([key]) => tagOwner(key)))];
   const key = added.join("\0");
   if (key === poolKey) return poolNeeds;
   [poolKey, poolAdded, poolNeeds] = [key, added, new Map()];
@@ -292,9 +315,16 @@ export function teamWanted(key: string, members: Member[]): boolean {
   // support themselves, which asks about them rather than about the pairing, and every group they
   // are the stood-down half of has to answer for them
   if (!PRIMARY_TEAMS.has(key)
-    && !members.some((m) => INTERCHANGEABLE.has(m.loadout) && resonatorFilters.get(m.name) === "include")
-    && !members.every((m) => INTERCHANGEABLE.has(m.loadout) || resonatorFilters.get(m.name) === "include")) return false;
-  for (const [name, mode] of resonatorFilters) if (mode === "exclude" && has(name)) return false;
+    && !members.some((m) => INTERCHANGEABLE.has(m.loadout) && included(m.name))
+    && !members.every((m) => INTERCHANGEABLE.has(m.loadout) || included(m.name))) return false;
+  // a level filter strikes out a team only where it rules out every level that member can run there
+  for (const m of members) {
+    const labels = memberLevels(m).map((n) => resonatorLabel(m.name, n));
+    const keys = [...resonatorFilters].filter(([key]) => tagOwner(key) === m.name);
+    if (keys.length && labels.every((l) => resonatorFilters.get(l) === "exclude")) return false;
+    if (!filters.sequences.includes(m.name) && keys.some(([, mode]) => mode === "include")
+      && !labels.some((l) => resonatorFilters.get(l) === "include")) return false;
+  }
   const needs = leaderNeeds();
   if (poolAdded.length > 1 && poolAdded.some((o) => poolAlone.has(o) && has(o))) return true;
   if (!needs.size) return poolAdded.every(has);
@@ -309,27 +339,21 @@ export function teamWanted(key: string, members: Member[]): boolean {
   return false;
 }
 
-/** "Phrolova S5" wherever the level is a build choice the rows differ on — every level the open
- *  compare put on screen, the baseline included, so "Phrolova S0" filters like any other. Null
- *  with the compare closed, where there is only the one level and a filter would say nothing. */
+/** "Phrolova S5" on a name cell while the Sequences compare is open — the level its scoped compares
+ *  hang off. Null with the compare closed. */
 export function sequenceTagAt(m: Member, sequence: number, f: Filters = filters): string | null {
   if (!axisOpen(m, f, "sequences")) return null;
   return `${m.name} S${sequence}`;
 }
 export const sequenceTag = (m: Member, combo: Combo): string | null => sequenceTagAt(m, combo.sequence);
 
-/** Every sequence tag a member's rows can carry, in row order — one per level the box shows. One
- *  empty string with the box shut, where no row is tagged. */
-export function sequenceTagsOf(m: Member, f: Filters = filters): string[] {
-  return sequenceLevels(m, f).map((level) => sequenceTagAt(m, level, f) ?? "");
-}
 export const refineTag = (m: Member, combo: Combo): string => `${m.name} R${combo.weapon.refinement}`;
 
 function rowWanted(row: TeamRow): boolean {
   const fielded = row.members.map((m) => m.name);
   return tagsHold(weaponFilters, row.combo.flatMap((c, i) => weaponTags(row.members[i]!, c)), fielded, weaponOwner)
     && namesHold(echoFilters, row.combo.map((c, i) => echoLabel(row.members[i]!.loadout, c.echo)))
-    && tagsHold(sequenceFilters, row.combo.flatMap((c, i) => sequenceTag(row.members[i]!, c) ?? []), fielded)
+    && tagsHold(levelFilters(), row.combo.map((c, i) => resonatorLabel(row.members[i]!.name, c.sequence)), fielded)
     && tagsHold(refineFilters, row.combo.map((c, i) => refineTag(row.members[i]!, c)), fielded);
 }
 
@@ -348,7 +372,7 @@ export function admitBuild(members: Member[], combo: Combo[]): void {
   };
   fit(weaponFilters, combo.flatMap((c, i) => weaponTags(members[i]!, c)), true, weaponOwner);
   fit(echoFilters, combo.map((c, i) => echoLabel(members[i]!.loadout, c.echo)), false);
-  fit(sequenceFilters, combo.flatMap((c, i) => sequenceTag(members[i]!, c) ?? []), true);
+  fit(resonatorFilters, combo.map((c, i) => resonatorLabel(members[i]!.name, c.sequence)), true);
   fit(refineFilters, combo.map((c, i) => refineTag(members[i]!, c)), true);
 }
 
@@ -356,10 +380,12 @@ export function admitBuild(members: Member[], combo: Combo[]): void {
  *  still stands outside the pool its members join it one at a time. */
 export function admitTeam(teamKey: string): void {
   const members = TEAMS[teamKey]!;
-  for (const m of members) if (resonatorFilters.get(m.name) === "exclude") resonatorFilters.delete(m.name);
+  for (const [key, mode] of [...resonatorFilters]) {
+    if (mode === "exclude" && members.some((m) => m.name === tagOwner(key))) resonatorFilters.delete(key);
+  }
   for (const m of members) {
     if (teamWanted(teamKey, members)) return;
-    resonatorFilters.set(m.name, "include");
+    resonatorFilters.set(resonatorLabel(m.name, memberLevels(m)[0] ?? 0), "include");
   }
 }
 
@@ -449,7 +475,7 @@ export function estimatedRowCount(members: Member[], f: Filters = filters): numb
     // an open box shows every roll (solver.ts's own `rowPicks()`), and no filter narrows them
     * members.reduce((n, m) => n * (axisOpen(m, f, "mainstats") ? m.loadout.mainstats.length : 1), 1)
     // a closed sequence box's level is known (the baseline, untagged), so the real list goes in
-    * axisWays(members.map((m) => sequenceTagsOf(m, f)), sequenceFilters, Infinity, true)
+    * axisWays(members.map((m) => memberLevels(m, f).map((n) => resonatorLabel(m.name, n))), levelFilters(f), Infinity, true)
     * members.reduce((n, m) => n * (axisOpen(m, f, "substats") ? 2 : 1), 1)
     * members.reduce((n, m) => n * (axisUsed(m, f, "refines")
       ? Math.max(...eligibleWeapons(m, f).map((i) => m.loadout.refinements[i]!.length))
@@ -554,17 +580,14 @@ export function memberLabel(m: Member, combo: Combo, inCell: boolean, showMode =
  *  and every level is once the chain is compared, so an S0 row reads S0 beside its S1. */
 const seqToken = (m: Member, combo: Combo): string =>
   combo.sequence > 0 || axisOpen(m, filters, "sequences") ? `S${combo.sequence}` : "";
-/** "" while a Weapon cell carries the rank. A signature, any weapon while refines are compared or a
- *  rank of it is shown, and any rank above R1 read their rank — a rank above R1 is one the loadout pinned itself
- *  (`BLOODPACTS_PLEDGE[4]`), which is the only way a build runs one. Everything else is at R1 off
- *  its whole refinement list, where only a signature costs anything: a craftable or a standard
- *  weapon there is the "no signature" build and reads R0. */
+/** "" while a Weapon cell carries the rank. A signature reads its rank, as does any weapon while refines
+ *  are compared or a rank of it is shown; a standard or free weapon otherwise reads none. */
 const rankToken = (m: Member, combo: Combo, inCell: boolean): string =>
   inCell ? ""
-  : compares(m, filters, "refines", combo) || combo.weapon.refinement > 1 || combo.weapon.tier === Tier.Limited
+  : compares(m, filters, "refines", combo) || combo.weapon.tier === Rarity.Limited
     || shownRanks(m, filters).some(([w, , s]) => weaponBase(m.loadout.weapons[w]!) === weaponBase(combo.weapon)
       && s === combo.sequence) ? `R${combo.weapon.refinement}`
-  : "R0";
+  : "";
 
 /* --------------------------------------------------------------- solves kept across reloads */
 
@@ -731,7 +754,6 @@ const FILTER_GROUPS: { include: string; exclude: string; map: Map<string, Resona
   { include: "r", exclude: "x", map: resonatorFilters },
   { include: "wr", exclude: "wx", map: weaponFilters },
   { include: "er", exclude: "ex", map: echoFilters },
-  { include: "sr", exclude: "sx", map: sequenceFilters },
   { include: "fr", exclude: "fx", map: refineFilters },
 ];
 
@@ -765,11 +787,19 @@ export function applyHash(): boolean {
     const cur = filters.scoped.map(scopedKey);
     if (next.length !== cur.length || next.some((s) => !cur.includes(scopedKey(s)))) { filters.scoped = next; changed = true; }
   }
+  // a resonator travels compact with its level on the end ("PhrolovaS2"); an older link's level
+  // filters (`sr`/`sx`, "Phrolova S2") read as the same
+  const resonatorKey = (v: string): string => {
+    const [, name, level] = /^(.*?)(?:S(\d+))?$/.exec(v)!;
+    return resonatorLabel(RESONATOR_NAME_BY_COMPACT.get(name!) ?? name!, +(level ?? 0));
+  };
   const named = (v: string | null, mode: ResonatorFilter, resonators: boolean): [string, ResonatorFilter][] =>
-    (v ?? "").split(",").filter(Boolean).map((name) => [resonators ? RESONATOR_NAME_BY_COMPACT.get(name) ?? name : name, mode]);
+    (v ?? "").split(",").filter(Boolean).map((name) => [resonators ? resonatorKey(name.replace(/ /g, "")) : name, mode]);
   for (const { include, exclude, map } of FILTER_GROUPS) {
     const resonators = map === resonatorFilters;
-    const next = new Map([...named(params.get(exclude), "exclude", resonators), ...named(params.get(include), "include", resonators)]);
+    const read = (key: string, legacy: string): string | null =>
+      [params.get(key), resonators ? params.get(legacy) : null].filter(Boolean).join(",") || null;
+    const next = new Map([...named(read(exclude, "sx"), "exclude", resonators), ...named(read(include, "sr"), "include", resonators)]);
     if (next.size !== map.size || [...next].some(([n, m]) => map.get(n) !== m)) {
       map.clear();
       for (const [name, mode] of next) map.set(name, mode);
@@ -797,11 +827,19 @@ export const gearShut = (f: Filters): Filters => ({
 /** Each member's echo set and main-stat build as the solver picks them for `picks`: its row with every
  *  gear compare shut and every other pick as `picks` has them. Null where that solve isn't to hand. */
 function optimalGear(teamKey: string, picks: Pick[], f: Filters = filters): Pick[] | null {
-  const solved = bestPicks.get(bestKey(teamKey, TEAMS[teamKey]!, gearShut(f)));
+  // a build wearing a Matrix the filters leave off (a Value page link, a code's own flag) reads the
+  // solve made with every Matrix on
+  const solved = bestPicks.get(bestKey(teamKey, TEAMS[teamKey]!, gearShut(picks.some((p) => p.matrix) ? withMatrix(f) : f)));
   const same = (a: Pick, b: Pick): boolean => a.weapon === b.weapon && a.refine === b.refine && a.sequence === b.sequence
     && a.highSubs === b.highSubs && a.matrix === b.matrix;
   return solved?.rows.find((row) => row.every((p, i) => same(p, picks[i]!))) ?? null;
 }
+
+/** `f` with every Matrix on, where it hasn't already. */
+const withMatrix = (f: Filters): Filters => (f.matrix.length ? f : { ...f, matrix: [...MATRIX_RESONATORS] });
+/** The filters a team code's build is solved under: the page's own, with every Matrix on where the
+ *  code carries its Matrix flag. */
+export const tagFilters = (tag: string, f: Filters = filters): Filters => (readTeamCode(tag)?.matrix ? withMatrix(f) : f);
 
 /** Every team by its loadouts' ids in slot order. */
 const TEAM_BY_LOADOUTS = new Map(ALL_TEAMS.map((t, i): [string, string] => [t.loadouts.map((l) => l.id).join("."), teamKey(i)]));
@@ -907,15 +945,8 @@ export function syncCost(): void {
 /** Where a page lives with the filters as they stand: the comparison page, or `team`'s own. */
 export const pageUrl = (team: string | null): string => `${team ? "./team" : "./"}${hashOf(team)}`;
 
-/** The detail page's chosen DPR figure into the URL as `c=` (panels.ts's row and column digits), null
- *  for the default one. */
-export function syncCell(cell: string | null): void {
-  history.replaceState(history.state, "", `${location.pathname}${location.search}${hashOf(knownTeam(), cell)}`);
-}
-
-/** The whole page state as the hash `syncHash()` writes, `team` the detail page open over it and `cell`
- *  its chosen figure — the hash's own while that team stays open, dropped on any other. */
-function hashOf(team: string | null, cell = team && team === hashTeam() ? hashParams().get("c") : null): string {
+/** The whole page state as the hash `syncHash()` writes, `team` the detail page open over it. */
+function hashOf(team: string | null): string {
   const named = (map: Map<string, ResonatorFilter>, mode: ResonatorFilter): string => [...map]
     // a resonator's spaces are dropped (`ElectroRover`); gear names keep theirs
     .filter(([, m]) => m === mode).map(([name]) => encodeURIComponent(map === resonatorFilters ? name.replace(/ /g, "") : name)).join(",");
@@ -932,7 +963,6 @@ function hashOf(team: string | null, cell = team && team === hashTeam() ? hashPa
   }
   if (filters.scoped.length) parts.push(`${SCOPED_PARAM}=${filters.scoped.map((s) => encodeURIComponent(scopedKey(s))).join(",")}`);
   if (team) parts.push(`t=${teamTag(team)}`);
-  if (team && cell) parts.push(`c=${cell}`);
   // last of all, being the longest: a pin names its whole build, so it reads back with nothing solved
   if (pinnedRows.size) parts.push(`pin=${[...pinnedRows].map((key) => teamTag(key, true)).join(",")}`);
   return parts.length ? `#${parts.join("&")}` : "";

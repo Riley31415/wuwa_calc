@@ -42,15 +42,15 @@ import {
   runningBullet,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, SWAPIN, ActionTag, waitFor, DEFAULT_DODGE, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
-import { CLASS_TUNE_BREAK } from "../../shared/tunebreak.js";
+import { CLASS_TUNE_BREAK } from "../tunebreak.js";
 import { LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";
 import { COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { AUGMENT, RADIANT_DAWN } from "../../weapons/battlepass.js";
 import { DREAM_OF_THE_LOST_3PC } from "../../echoes/septimont.js";
 import { NM_HECATE_MAINSLOT, NM_HECATE } from "../../echoes/rinascita.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 import { HAVOC_ECLIPSE_2PC } from "../../echoes/jinzhou.js";
 
 /* ----------------------------------------------------------------------------------- actions */

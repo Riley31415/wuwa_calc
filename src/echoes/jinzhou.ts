@@ -13,7 +13,7 @@ import {
   lostOnSwap, lastHit,
 } from "../engine/context.js";
 import { Action, Cooldown } from "../engine/rotation.js";
-import { HEALS, gainShield } from "../shared/status.js";
+import { HEALS, gainShield } from "../resonators/status.js";
 import { PseudoTransformEcho, SummonEcho, TransformEcho } from "./echo.js";
 
 /* -------------------------------------------------------------------------- generic, unowned */

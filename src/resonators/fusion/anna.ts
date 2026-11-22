@@ -36,14 +36,14 @@ import {
   saveChain,
 } from "../../engine/context.js";
 import { Action, ActionGroup, Rotation, START, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
-import { applyRupture } from "../../shared/tunebreak.js";
+import { applyRupture } from "../tunebreak.js";
 import { ANNA_SIG, LETHEAN_ELEGY, STRINGMASTER, WHISPERS_OF_SIRENS } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { AUGMENT, RADIANT_DAWN } from "../../weapons/battlepass.js";
 import { COLLAPSAR_BLADE_MAINSLOT, TRAILBLAZING_STAR_5PC } from "../../echoes/lahairoi.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 
 /* ----------------------------------------------------------------------------------- states */
 

@@ -24,7 +24,7 @@
  * relative to this file's own scale. Her mainslot echo is Inferno Rider (plain, not
  * "Nightmare:") — see echoes/jinzhou.ts's own INFERNO_RIDER_MAINSLOT.
  */
-import { Tier, Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, BuffTarget, Position } from "../../engine/stats.js";
+import { Rarity, Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, BuffTarget, Position } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   applyCurrent,
@@ -40,9 +40,9 @@ import { LETHEAN_ELEGY, RIME_DRAPED_SPROUTS, STRINGMASTER, WHISPERS_OF_SIRENS } 
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { AUGMENT, RADIANT_DAWN } from "../../weapons/battlepass.js";
 import { INFERNO_RIDER_MAINSLOT, MOLTEN_RIFT_5PC, INFERNO_RIDER_1, INFERNO_RIDER_2, INFERNO_RIDER_3, NM_INFERNO_RIDER_MAINSLOT, NM_INFERNO_RIDER } from "../../echoes/jinzhou.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -233,7 +233,7 @@ const ENCORE_RESONATOR = new Resonator({
   talent: ENCORE_TALENTS,
   inherent1: EN_INHERENT_1,
   inherent2: EN_INHERENT_2,
-  tier: Tier.FreeS0,
+  tier: Rarity.FreeS0,
   element: Attribute.Fusion,
   weapon: WeaponType.Rectifier,
   color: "#e56b9a",

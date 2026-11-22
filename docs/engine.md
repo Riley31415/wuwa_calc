@@ -31,6 +31,8 @@ every motion value is a bullet's
   `Cast.Heavy` by default, and a Skill or Basic hold that says so), a mash only into a press that isn't; a hold lets
   go no earlier than `HOLD_MINIMUM` (6), a mash `MASH_DELAY` (6) after the moment it could, its input landing on the
   next tap; either throws where it lets go at the press's end. `HOLD_BUFFER` (16) is unused for now. a cut that runs longer than the whole press, or cuts inside `INSTA_DELAY` (6), throws.
+- a transform (13+ animation priority) may be swapped out of, but holds its owner until it drops below 13: a swap-in or Intro into them before then throws (`Slot.arrive`); their own next press ends it
+- swap cooldown: leaving the field (a swap or an Outro) starts 60 real frames (they run through time stop) before a swap may bring that member back, else it throws (`TeamMember.swappedInto`); an Intro into them bypasses and clears it, and leaving during their own Intro starts none. An exit resolver that plays a plain `SWAP` hands over as a swap form: the next member opens on their SWAPIN chain
 - priority: a press's `animPriority` (`{ 0: 5, 10: 2 }`, frame -> tier) is what it holds while it
   plays, its `castPriority` what it cuts in at; one press cuts another only with a `castPriority`
   above the other's `animPriority` at the frame it starts on (the cut and its delay played), and every
@@ -58,7 +60,9 @@ every motion value is a bullet's
   [X_1.press]`), the cooldown on the first; a rotation writes as many stages as it presses.
   an insta cut keeps the bullets committed by `INSTA_DELAY`; `.cancelOnHit()` (CANCEL ON HIT),
   `.dodgeOnHit()` and `.jumpOnHit()` cut `CANCEL_DELAY` after the first bullet hits, keeping the
-  bullets committed by the end of that delay — bullets keep firing until the next press truly starts; each throws on a press whose bullets hit on one frame
+  bullets committed by the end of that delay — bullets keep firing until the next press truly starts; each throws on a press whose bullets hit on one frame.
+  `.timedCancel(n)` (CANCEL @ Nf) cuts at animation frame n exactly, no `CANCEL_DELAY`, keeping the bullets
+  committed by n; the next press still has to out-prioritise it there, and n at or past `animFrames` throws
 - an Intro's `qteFrames` (default 0, Intros only, wuwalab's `qte_tag_frame`) is where the Outro's own
   buffs land (`queueQTE`), their durations starting there. every other handoff — a sonata's, an echo's,
   a sequence's or inherent's riding the outro, a marker — is `queueOutro`, landing as the Intro is cast

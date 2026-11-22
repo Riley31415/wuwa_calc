@@ -10,7 +10,7 @@ import {
   pageOf,
   setBuildFilters,
   wireHelp
-} from "./chunk-EPD3HQ3L.js";
+} from "./chunk-YHTK2HAI.js";
 import {
   FALLBACK_HUE,
   MATRIX_RESONATORS,
@@ -22,6 +22,7 @@ import {
   ensureBestPicks,
   filters,
   fmt,
+  iconNamed,
   loadSolves,
   overlay,
   overlayPhase,
@@ -29,12 +30,12 @@ import {
   saveSolves,
   showError,
   syncCost
-} from "./chunk-RUPMSA6L.js";
+} from "./chunk-DU4TDG6K.js";
 import {
   bestKey,
   defaultFilters,
   hasBuild
-} from "./chunk-4CKV7HFV.js";
+} from "./chunk-RLABIZFI.js";
 
 // dist/src/solve/packing.js
 var TIE = 0.5;
@@ -501,8 +502,8 @@ function prepare(teams) {
   const id = new Map(names.map((name, i) => [name, i]));
   const rover = names.findIndex(isRover);
   const free = new Set(teams.flatMap(([, members]) => members.filter(
-    (m) => m.loadout.resonator.tier === 2 || m.loadout.resonator.tier === 3 || m.loadout.resonator.tier === 4
-    /* Tier.FreeS0 */
+    (m) => m.loadout.resonator.tier === 1 || m.loadout.resonator.tier === 2 || m.loadout.resonator.tier === 3
+    /* Rarity.FreeS0 */
   ).map((m) => m.name)));
   const best = /* @__PURE__ */ new Map();
   for (const [teamKey, members] of teams) {
@@ -560,7 +561,7 @@ function render() {
     const gain = shownGain(r);
     const hue = RESONATOR_HUE.get(r.name) ?? FALLBACK_HUE;
     const figure = r.href ? `<a href="${esc(r.href)}">${fmt(gain)}</a>` : fmt(gain);
-    return `<div class="sec"><label class="c check${start}"><input type="checkbox" data-name="${esc(r.name)}" aria-label="Owned: ${esc(r.name)}"${r.owned ? " checked" : ""}></label><div class="c name res" style="--mem:${hue};color:${hue}"><span class="res-label">${esc(r.label)}</span></div><div class="c num total">${figure}</div></div>`;
+    return `<div class="sec"><label class="c check${start}"><input type="checkbox" data-name="${esc(r.name)}" aria-label="Owned: ${esc(r.name)}"${r.owned ? " checked" : ""}></label><div class="c name res" style="--mem:${hue};color:${hue}">${iconNamed(r.name)}<span class="res-label">${esc(r.label)}</span></div><div class="c num total">${figure}</div></div>`;
   };
   const sides = [rows.filter((r) => !r.owned), rows.filter((r) => r.owned)].map((side) => side.sort((a, b) => shownGain(b) - shownGain(a) || a.name.localeCompare(b.name)));
   const body = Array.from({ length: Math.max(...sides.map((side) => side.length)) }, (_, k) => `<div class="trow">${sides.map((side, i) => cell(side[k], i)).join("")}</div>`).join("");

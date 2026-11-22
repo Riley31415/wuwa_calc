@@ -4,7 +4,7 @@
  */
 import { Stat, EnemyStat, Type, Cast, ActionTag, Scaling, INSTA_DELAY, MASH_DELAY, DESPAWN_TIME, Position, POSITION_NAME, splitStop, useDelays, DELAYS } from "./stats.js";
 import type { Action, ActionGroup, ActionField, CancelledStep, DashMarker, Bullet, Cooldown } from "./rotation.js";
-import { SWAP, SKIP, EveryOther, ANY_INTRO, DEFAULT_DODGE, ECHO_DODGE, bank, isSwap } from "./rotation.js";
+import { SWAP, SKIP, EveryOther, ANY_INTRO, DEFAULT_DODGE, DEFAULT_AIR_DODGE, ECHO_DODGE, DEFAULT_JUMP, bank, isSwap } from "./rotation.js";
 import type { GainAdd } from "./runtime.js";
 import { ctx, pendingQueue, tagWordOf, RESOURCE_STATS, replay, readAny, READ_APPLY, READ_CONVERT, READ_AFTER, applied as appliedRecord, resolving, hookReads, moved, noteBackground } from "./runtime.js";
 import { Gear, PHASE_COUNT, NO_CAPS } from "./gear.js";
@@ -18,7 +18,7 @@ import { casting, isCast, asSource } from "./context.js";
 import type { Gain } from "./context.js";
 import type { Delays } from "./stats.js";
 import { damageFactors, damageFactorsInto, avgFromFactors, foldStat, FACTOR_COUNT } from "./damage.js";
-import { ER_TOLERANCE } from "../shared/substats.js";
+import { ER_TOLERANCE } from "../echoes/substats.js";
 
 export interface Snapshot {
   action: Action;
@@ -600,7 +600,7 @@ export function evaluate(state: State, action: Action, triggered = false, source
   // of one loop, so only the other ends it
   const outro = castSide && casting(Cast.Outro);
   const endsLoop = outro && state.outroDir > 0;
-  // A Unison outro declares no Concerto spend (shared/unison.ts), so it leaves the bar as it stands
+  // A Unison outro declares no Concerto spend (resonators/unison.ts), so it leaves the bar as it stands
   slot.concerto = bank(slot.concerto, own[1]! + gain[1]!, cap[1]!);
   // Off-Tune Buildup Rate and its multiplier scale what an action *builds*, never what lands on the
   // bar directly: direct off-tune (Denia's half-bar surge) is already the amount the bar moves, so it
@@ -1111,7 +1111,7 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
     // `takesCut`, a ready Tune Break): the press it cut reads the cut it became, and what
     // replaces it plays here instead — the group the dodge closed closing on that press
     const behind = state.lastOwn, marker = step.action as unknown as DashMarker;
-    if (marker.after !== undefined && (action === DEFAULT_DODGE || action === ECHO_DODGE)
+    if (marker.after !== undefined && (action === DEFAULT_DODGE || action === DEFAULT_AIR_DODGE || action === ECHO_DODGE)
       && behind && behind.member === state.slot.name && state.enemy.resonator?.takesCut
       && dashTaken(state, steps, step, action, behind, marker.kind, spillGroup)) continue;
     // ...and the same behind a swap form or a plain, on-hit or insta cancel, read once on the frame
@@ -1134,7 +1134,10 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
       steps.unshift([newStep(ctx.waitFor(DELAYS.cancel, "Swap"), -1, null, null, false, null, false, null), step]);
       continue;
     }
-    if (step.slot < 0 && isSwap(action)) state.swapPaid = true;
+    if (step.slot < 0 && isSwap(action)) {
+      state.swapPaid = true;
+      leaveField(state, state.slot);
+    }
     // a rotation entry with no charge left waits it out on a row of its own, spliced in ahead of
     // it so whatever the wait queues runs first, and then comes round again
     if (step.slot < 0 && action.cooldown && cooldownWaits(state, steps, step, action, action.cooldown)) continue;
@@ -1155,6 +1158,7 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
     // a dash the next press out-prioritises is cut short by it, an insta cancel that keeps its hit:
     // its cast priority above the dash's own where an insta cut hands over
     const dash = (step.action as unknown as DashMarker).after !== undefined && dashOutranked(state, steps, action);
+    if ((step.action as unknown as DashMarker).after !== undefined && step.slot < 0 && !step.queued) checkDashLength(state, steps, step.action as unknown as DashMarker, action, dash);
     let cut = dash ? ActionTag.InstaCancel : step.cut;
     const pressed = action;
     if (cut && !dash) [action, cut] = action.cutAs(cut);
@@ -1192,6 +1196,18 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
     const whole = action;
     const splits = whole.splitsHit(cut);
     const castAt = step.at ?? state.real, away = splits && whole.hitsAway(cut);
+    // a transform (13+ priority) holds its owner until it drops below 13, even swapped out; their own next press ends it
+    if (step.slot < 0 && !step.queued && !isSwap(whole) && whole.cast !== Cast.Outro) {
+      let held = TRANSFORM_HELD.get(whole);
+      if (held === undefined) {
+        held = -1;
+        for (let f = 0; f < whole.animFrames; f++) if (whole.priorityAt(f) >= 13) held = f;
+        TRANSFORM_HELD.set(whole, held);
+      }
+      const slot = state.slot;
+      if (held >= 0) slot.transformUntil = state.gameOf(castAt + held + 1);
+      else if (slot.transformUntil > state.gameOf(castAt)) slot.transformUntil = state.gameOf(castAt);
+    }
     let split: Timed[] | null = null, splitEnd: Timed | null = null;
     if (splits) {
       split = queueHits(state, whole, castAt, away);
@@ -1201,6 +1217,9 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
     const n = state.slots.length, next = (state.active + state.outroDir + n) % n;
     if (isCast(action, Cast.Outro) && action.half !== "hit") {
       state.onField = next;
+      // an Intro answers the Outro: it bypasses the swap cooldown and clears it
+      leaveField(state, state.slots[state.active]!);
+      state.slots[next]!.swapReadyAt = -Infinity;
       const handoff = state.gameOf(Math.max(state.real, state.playsTo));
       state.slots[next]!.arrive(state.slots[state.active]!.visitChain, handoff);
       state.lastHandoff = { from: state.slots[state.active]!.visitChain, at: handoff };
@@ -1697,8 +1716,19 @@ const PLAIN_OF: Partial<Record<ActionTag, string>> = {
 /** ...and what a plain cut is written as in front of one with none, which only a swap reaches. */
 const SWAP_OF: Partial<Record<ActionTag, string>> = {
   [ActionTag.Cancel]: ".swapCancel()", [ActionTag.InstaCancel]: ".instaSwap()", [ActionTag.MashCancel]: ".mashSwap()",
-  [ActionTag.HoldCancel]: ".mashSwap()", [ActionTag.HitCancel]: ".swapCancel()",
+  [ActionTag.HoldCancel]: ".mashSwap()", [ActionTag.HitCancel]: ".swapCancel()", [ActionTag.TimedCancel]: ".swapCancel()",
 };
+
+/** `slot` leaving the field: 60 real frames before a swap may bring them back — none where they left
+ *  during their own Intro (a swap cancel out of it). */
+function leaveField(state: State, slot: TeamMember): void {
+  let left = state.lastOwn && state.lastOwn.member === slot.name ? state.lastOwn.action : null;
+  while (left && (left.cancelOf ?? left.formOf)) left = left.cancelOf ?? left.formOf;
+  slot.swapReadyAt = left && isCast(left, Cast.Intro) ? -Infinity : Math.max(state.real, state.playsTo) + 60;
+}
+
+/** Per press, the last animation frame it holds 13+ priority (a transform), -1 where it never does. */
+const TRANSFORM_HELD = new WeakMap<Action, number>();
 
 /** The swap rules on `press` cut by `kind`, the next written press `ahead` read as it resolves: a swap
  *  form never inside its no-swap frames (a mash swap waits them out); in front of an Outro, a swap
@@ -1732,7 +1762,7 @@ function checkSwap(state: State, press: Action, kind: string, ahead: Step | null
 /** The cuts weighed against the priority of the press they cut (`checkPriority()`); a hold or a mash
  *  waits for it instead (`Action.letGo()`), and a swap answers to no-swap frames. */
 const PRIORITY_CUTS = new Set<string>([ActionTag.Cancel, ActionTag.DodgeCancel, ActionTag.JumpCancel, ActionTag.InstaCancel,
-  ActionTag.InstaDodge, ActionTag.InstaJump, ActionTag.HitCancel, ActionTag.DodgeOnHit, ActionTag.JumpOnHit]);
+  ActionTag.InstaDodge, ActionTag.InstaJump, ActionTag.HitCancel, ActionTag.DodgeOnHit, ActionTag.JumpOnHit, ActionTag.TimedCancel]);
 
 /** `by` cuts `press` only with a cast priority above `press`'s own at the frame `by` starts on —
  *  the cut and its delay played. Nothing is checked where either side declares none. */
@@ -1801,7 +1831,7 @@ function checkHoldCut(press: Action, kind: ActionTag, cut: number): void {
 
 /** The cuts the enemy's `takesCut` is asked behind on the rotation's next step — a dodge cut is
  *  asked on its own dash instead. */
-const STEP_CUTS = new Set<string>([ActionTag.SwapCancel, ActionTag.Cancel, ActionTag.HitCancel, ActionTag.InstaCancel]);
+const STEP_CUTS = new Set<string>([ActionTag.SwapCancel, ActionTag.Cancel, ActionTag.HitCancel, ActionTag.InstaCancel, ActionTag.TimedCancel]);
 /** Every cut the enemy's `takesCut` is asked behind, each read first on its own cut frame (`atCut`). */
 const TAKEN_CUTS = new Set<string>([...STEP_CUTS, ActionTag.DodgeCancel, ActionTag.InstaDodge, ActionTag.DodgeOnHit]);
 
@@ -1815,6 +1845,32 @@ function checkCutLength(base: Action, kind: ActionTag): void {
   if (!base.animFrames) return;
   const c = base.cost(kind), cut = c.action + c.global;
   if (cut > base.animFrames) throw new Error(`${base.name}: its ${kind} takes ${cut} frames, longer than the ${base.animFrames} it plays uncut`);
+}
+
+/** A dodge or jump cut whose cut, delay and dash together run past the press played out bought nothing
+ *  — unless the press after it needs the dash: one it can't follow (or is barred after) straight off
+ *  the press but can off the dash, or, after a jump, one cast in mid-air. A kit's own dash (Rebecca's
+ *  Tactical Dodge, Galbrena's Hellstride) does something of its own, and is never weighed. */
+function checkDashLength(state: State, steps: StepQueue, marker: DashMarker, dashAction: Action, outranked: boolean): void {
+  const own = state.lastOwn;
+  const plain = dashAction === DEFAULT_DODGE || dashAction === DEFAULT_AIR_DODGE || dashAction === ECHO_DODGE || dashAction === DEFAULT_JUMP;
+  if (!own || own.member !== state.slot.name || !plain) return;
+  const cutForm = own.action, base = cutForm.cancelOf ?? cutForm;
+  if (!base.animFrames) return;
+  // the cut form's own cost: an on-hit cut plays to its first hit, which the uncut press doesn't know
+  const c = cutForm.cost(marker.kind), d = dashAction.cost(outranked ? ActionTag.InstaCancel : dashAction.tag), jump = dashAction.cast === Cast.Jump;
+  const total = c.action + c.global + d.action + d.global;
+  if (total <= base.animFrames) return;
+  const ahead = steps.ahead(state);
+  const next = !ahead || ahead.queued || ahead.slot >= 0 ? null : ahead.action.resolveFn ? resolving(ahead.action.resolveFn) : ahead.action;
+  if (next && next !== SKIP) {
+    const needs = (!next.follows(cutForm) && next.follows(dashAction))
+      || (next.barredAfter(cutForm) !== null && next.barredAfter(dashAction) === null)
+      || (jump && next.castPosition === Position.Midair);
+    if (needs) return;
+  }
+  throw new Error(`${base.name}: its ${marker.kind} and ${dashAction.name} take ${total} frames, longer than the ${base.animFrames} it plays uncut, `
+    + `and ${next && next !== SKIP ? next.name : "nothing after it"} doesn't need the ${jump ? "jump" : "dodge"} — write it played out`);
 }
 
 /** What a queued hit's row keeps of its cast when a hit lands: who pressed it, how and when, and

@@ -9,7 +9,7 @@
  * row exists for this character, so this is nanoka's own tables throughout (energy/concerto off
  * Damage Data's own Energy/Elemental DMG columns, offtune off Weakness Break DMG x10000).
  */
-import { Tier, Stat, EnemyStat, Attribute, WeaponType, Type, Cast, Node, Scaling, Position } from "../../engine/stats.js";
+import { Rarity, Stat, EnemyStat, Attribute, WeaponType, Type, Cast, Node, Scaling, Position } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Debuff } from "../../engine/gear.js";
 import {
   applyCurrent,
@@ -23,14 +23,14 @@ import {
   concerto,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Cooldown, Rotation, START, SUCCESSFUL_DODGE, SWAP } from "../../engine/rotation.js";
-import { HEALS } from "../../shared/status.js";
+import { HEALS } from "../status.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { BLAZING_BRILLIANCE, RED_SPRING } from "../../weapons/sword.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
 import { NM_CROWNLESS_MAINSLOT, HAVOC_ECLIPSE_5PC, NM_CROWNLESS } from "../../echoes/jinzhou.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -199,7 +199,7 @@ const ROVER_HAVOC_RESONATOR = new Resonator({
   swapInAir: () => (isHeld(DARK_SURGE) ? EMA : MA),
   maxEnergy: 12500,
   maxForte1: 100,
-  tier: Tier.Free,
+  tier: Rarity.FreeS6,
 
   stats: [[Stat.BaseHp, 10825], [Stat.BaseAtk, 412.5], [Stat.BaseDef, 1258.8866]],
 });
@@ -253,6 +253,7 @@ const RH_ROTATION = new Rotation([
   EBA12345.cancel(), ESkill, Liberation,
   EBA12345.swapCancel(), OutroOrSwap,
 ]);
+// TODO double intro rot when possible
 
 /* ----------------------------------------------------------------------------------- loadout */
 

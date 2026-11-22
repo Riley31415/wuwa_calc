@@ -41,9 +41,9 @@ import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
 import { REJUV_2PC, HERON_MAINSLOT, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC, SIERRA_GALE_2PC, BELL_BORNE_GEOCHELONE_MAINSLOT, HERON, BELL_BORNE_GEOCHELONE, FALLACY } from "../../echoes/jinzhou.js";
 import { FALLACY_MAINSLOT } from "../../echoes/jinzhou.js";
 import { LAW_OF_HARMONY_3PC, FENRICO_MAINSLOT, FENRICO } from "../../echoes/septimont.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 

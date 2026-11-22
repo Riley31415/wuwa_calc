@@ -30,7 +30,7 @@ first and stalls ~200ms on *every* connection.
 | `src/teamrun.ts` | the DOM-free engine run the search scores (`runTeam`) and the lines/totals read off it |
 | `src/display.ts` | turns a run into the report/hover-trace data the page renders |
 | `src/precompute.ts` | solves the whole roster offline into `dist/solves/`, one file per filter state, so the published site opens with no search; each key is solved once and `index.json` names the files a state needs |
-| `src/shared/mainstats.ts` / `substats.ts` | echo main-stat builds (`mainstats()`/`mainstatOptions()`) and substat spreads (`substats()`/`chem()`) |
+| `src/echoes/mainstats.ts` / `substats.ts` | echo main-stat builds (`mainstats()`/`mainstatOptions()`) and substat spreads (`substats()`/`chem()`) |
 | `src/resonators/<attribute>/*.ts` | one folder per attribute (`aero`, `electro`, `fusion`, `glacio`, `havoc`, `spectro`): one file per resonator — actions, buffs, the Resonator itself, talents, inherent skills, sequences, a sample rotation, a loadout |
 | `src/echoes/<region>.ts` | mainslot echoes and sonata sets, one file per region that introduced them (grouped by region, unlike the resonator folders; Black Shores' Fallacy lives in `jinzhou.ts`) |
 | `src/weapons/*.ts` | signature and standard weapons, grouped by weapon type |
@@ -46,8 +46,8 @@ first and stalls ~200ms on *every* connection.
 | `src/page/roster.ts` | what the Value and Tier List pages share: vigor, a team's figure, build, page and labels, the README-and-table shell |
 | `src/page/loading.ts` / `pool.ts` | the loading overlay and solve pass, and the worker pool, shared by the pages |
 
-`index.html` is the page itself and loads `./dist/bundle/index.js` plus `index.css`, `favicon.png`
-and `loading.gif` beside it; `dev.py` serves the repo root, so the source tree and `dist/` are
+`index.html` is the page itself and loads `./dist/bundle/index.js` plus `index.css` beside it, and
+`images/` (favicon, loading gifs, resonator and weapon art); `dev.py` serves the repo root, so the source tree and `dist/` are
 reachable from it too.
 
 ## The engine

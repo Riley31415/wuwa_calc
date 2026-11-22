@@ -53,6 +53,8 @@
      up with the character counts they were sized from. */
   --cw: 7.7px;
   --cpad: 7px;
+  /* the extra right padding a right-aligned column's digits get (`.c.num`) */
+  --npad: 4px;
   /* Extra breathing room on the leading column only, so the action name is not flush against
      the table edge. index.js adds it to that column's track width too — the two must agree. */
   --lead: 10px;
@@ -208,7 +210,7 @@ body {
   display: none;
   width: 200px;
   height: 200px;
-  background: url("./error.gif") center / contain no-repeat;
+  background: url("./images/error.gif") center / contain no-repeat;
 }
 #loading:has(.loading-error:not([hidden])) .loading-gif { display: none; }
 #loading:has(.loading-error:not([hidden])) .error-gif { display: block; }
@@ -248,54 +250,43 @@ body {
 
 /* -------------------------------------------------------------- rotation tables */
 
-/* Damage per rotation / Energy Requirements, side by side below the action log.
-   Pinned to the left of <main>'s own sideways scroll: the action log below is wider than the
-   scrollport and scrolls the page sideways, and these two would otherwise slide off with it.
-   `width: 100%` is the scrollport rather than that scrolled-out width, so they stay in view and
-   do their own scrolling instead. */
+/* The team's tables, one tabbed block above the action log, centred. Pinned to the left of <main>'s
+   own sideways scroll: the log below is wider than the scrollport and would slide this off with it.
+   `safe` keeps a block wider than the page scrolling from its left edge rather than cut off there. */
 .rtables {
-  display: flex;
-  flex-wrap: wrap;
-  /* the two tables sit close, side by side or one under the other; the row's own top margin
-     stands in for the label's, which the blocks' labels give up (below) */
-  gap: 12px 18px;
   margin-top: 22px;
-  /* both blocks to the height of the taller: Damage Contribution's pies take up the slack
-     (`grid-template-rows` off dprTable), so the two finish level */
-  align-items: stretch;
-  /* Equipment against the left edge, Damage Contribution filling the rest of the line */
-  justify-content: flex-start;
   position: sticky;
   left: 0;
   width: 100%;
-  box-sizing: border-box;
-}
-/* Each block is exactly as wide as its own table, no slack handed out: side by side the second
-   table sits right after the first rather than out at the far edge. Two blocks share a line only
-   while both fit on it (`flex-wrap` above); the moment they no longer both fit, Energy
-   Requirements wraps under. `overflow-x` bites only for a table wider than the page on its own. */
-.rtable-block {
-  flex: 0 1 auto;
-  min-width: 0;
-  max-width: 100%;
   overflow-x: auto;
-  /* a column, so the table under the label can be handed the block's leftover height */
-  display: flex;
-  flex-direction: column;
+  box-sizing: border-box;
+  display: grid;
+  justify-content: safe center;
 }
-.rtable-block .summary-label { margin-top: 0; }
-/* Damage Contribution: as wide as the line leaves it beside Equipment, wrapping under it once that
-   is narrower than the table's own width — capped there at Equipment's width (detail.ts's `pairFit`). */
-.rstack {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px 18px;
-  /* passes the row's own stretch down to the table inside it */
-  align-items: stretch;
-  flex: 1 1 auto;
-  /* `0`, not `min-content`: capped at the line, a table wider than the page scrolls in its own block */
-  min-width: 0;
+/* the tabs read as the section label they replace, the open one in ink over an accent rule */
+.rtabs { display: flex; gap: 18px; margin-bottom: 8px; }
+.rtab {
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 0 0 3px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--dim);
+  cursor: pointer;
 }
+.rtab:hover { color: var(--ink); }
+.rtab.on { color: var(--ink); border-bottom-color: var(--accent); }
+/* Team & Gear alone sets the block's size; the other panes are laid over it and fit inside */
+.rpanes { position: relative; }
+.rpane { display: flex; flex-direction: column; min-width: 0; }
+.rpane:not([data-pane="team"]) { position: absolute; inset: 0; }
+.rpane:not(.on) { visibility: hidden; }
+.rpanes .rpane > .rtable { flex: 1; width: auto; min-height: 0; }
+/* Team's member columns share out whatever width a wider pane sets, as Distribution's do */
+/* ...and Menu Stats, its last row, takes whatever height is left */
+.rpanes .rpane > .rtable.loadout { grid-template-columns: max-content repeat(var(--cols), minmax(max-content, 1fr)); grid-template-rows: repeat(6, max-content) 1fr; }
 
 /* The table is the grid, its rows `display: contents` — one grid for all of them, so a column
    is as wide as its own widest cell across every row (a row-per-grid could only line them up on
@@ -318,10 +309,6 @@ body {
    is wider than the figures come to (`.chartwrap`'s own minimum), and that slack goes to the five
    figure columns alone: the two Energy columns (`.energy`, the detail page's) hold their width. */
 .rtable.dpr { grid-template-columns: max-content repeat(var(--secs, 5), minmax(max-content, 1fr)); width: max-content; }
-/* ...and on the page it takes the whole of its block's height, which is Equipment's height, and
-   the whole of its width */
-.rstack > .rtable-block { flex: 1 1 auto; }
-.rtable-block > .rtable.dpr { flex: 1; width: auto; }
 /* Loadouts turns the other two on their side — the row label down the left, one column per member
    (`--cols`, written on the element: a two-member team has one column fewer than a three). */
 .rtable.loadout { grid-template-columns: max-content repeat(var(--cols), max-content); width: max-content; }
@@ -363,6 +350,8 @@ body {
   position: relative;
 }
 .rtrow .c.num { text-align: right; color: var(--ink); }
+.c.num { padding-right: calc(5px + var(--npad)); }
+.head .c.num { padding-right: calc(6px + var(--npad)); }
 /* ...but a heading over a figure column stays the heading grey, like the action log's own */
 .rtrow.rthead .c.num { color: var(--dim); }
 /* the resonator's own name column, in both tables — the same left bar and wash the action table's
@@ -382,7 +371,7 @@ body {
 /* The heading holds a resonator's name and the label column's own first cell, and both read as
    content rather than as the band's small uppercase label type — a name is written the same
    everywhere it appears (the action log's own member column, `.c.member`: mono 13px). */
-.rtrow.rthead .c.mem, .rtable.loadout .rthead .c.lbl {
+.rtrow.rthead .c.mem, .rtable.loadout .rthead .c.lbl, .rtable.memcols .rthead .c.lbl {
   padding: 7px 10px;
   font-size: 13px;
   font-weight: 400;
@@ -397,7 +386,45 @@ body {
 /* The row's own label — a heading for its row, so it reads the heading grey the top band does,
    on the band's own ground: the first column is one unbroken strip from the corner cell down,
    the way the other two tables wash their name column (`.c.name` above). */
-.rtable.loadout .c.lbl { background: var(--surface-3); color: var(--dim); }
+.rtable.loadout .c.lbl, .rtable.memcols .c.lbl { background: var(--surface-3); color: var(--dim); }
+/* Distribution: Equipment's member columns, its two pie rows sharing whatever height the pane leaves */
+/* the label column as wide as Team & Gear's (`--lblw`, measured by detail.ts) */
+.rtable.memcols { grid-template-columns: var(--lblw, max-content) repeat(var(--cols), minmax(max-content, 1fr)); }
+.rtable.distpies, .rtable.dpr { position: relative; }
+.rtable.distpies { grid-template-rows: max-content 1fr 1fr; }
+/* Substat Value: the heading row, and the rest of the pane one placeholder cell */
+.rtable.substatval { grid-template-rows: max-content 1fr max-content; }
+.rtrow .c.svnote { grid-column: 2 / -1; padding-top: 0; color: var(--dim); white-space: normal; text-align: center; }
+/* the chart: the y axis's title and ticks down the label column, each member's bars beside it on one
+   scale, the bars' names under them. Plot and name band are the same height in every column. */
+/* `overflow: visible` over `.c`'s clip, so a tilted name can run out over the cell to its left */
+/* no top padding: the space over the tallest bar is the axis's own half a point (panels.ts), not the cell's */
+.rtrow.svrow .c { display: flex; min-height: 0; padding: 0 8px 6px; overflow: visible; }
+.rtrow.svrow .c.svaxis { gap: 6px; padding-right: 4px; }
+.svtitle { writing-mode: vertical-rl; transform: rotate(180deg); text-align: center; color: var(--dim); }
+.svcol, .svcell { flex: 1; display: flex; flex-direction: column; }
+.svcol { min-width: 52px; }
+.rtrow.svrow .c.svcell { flex-direction: column; }
+.svplot { position: relative; flex: 1; min-height: 80px; }
+/* each name hangs off its bar's middle, tilted down to the left */
+.svx { flex: none; height: 76px; display: flex; gap: 4px; padding: 6px 6px 0; }
+.svx > span { flex: 1; position: relative; }
+/* above the cells to the left, which a name runs out over */
+.svx > span > b { position: absolute; z-index: 2; right: 50%; top: 0; font-weight: inherit; color: var(--dim); white-space: nowrap; transform-origin: 100% 50%; transform: translateY(-50%) rotate(-40deg); }
+.svtick { position: absolute; right: 0; transform: translateY(50%); color: var(--dim); line-height: 1; white-space: nowrap; }
+.svgrid { position: absolute; left: 0; right: 0; border-top: 1px solid var(--line); }
+.svgrid.zero { border-top-color: var(--line-2); }
+.svbars { position: absolute; inset: 0; display: flex; gap: 4px; padding: 0 6px; }
+.svbar { position: relative; flex: 1; cursor: pointer; }
+.svbar > i { position: absolute; left: 0; right: 0; background: color-mix(in srgb, var(--mem) 80%, transparent); border-radius: 2px 2px 0 0; }
+.svbar:hover > i { background: var(--mem); }
+.rtrow .c.tbdbody { grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; font-family: var(--sans); }
+.rtrow.pierow .c { display: flex; }
+.rtrow.pierow .c.lbl { align-items: center; }
+.rtrow.pierow .c.piecell { align-items: center; min-height: 0; overflow: hidden; padding: 4px; justify-content: center; white-space: normal; font-family: var(--sans); }
+/* sized to its own drawing (detail.ts's `fitPies`) */
+.rtrow.pierow .chartwrap { flex: none; }
+.rtrow.pierow .nodist { align-self: center; }
 /* Loadouts' footer row: a member's whole menu-stat list written into the cell rather than hidden
    behind a hover — its own two columns (the stat and its figure) inside the table's one. */
 .rtrow .c.menustats { padding-top: 9px; padding-bottom: 9px; }
@@ -428,57 +455,25 @@ body {
    above them keeps the band it shares with the rest. An inset shadow rather than a left border: the
    track is `max-content`, so a border would widen the column and shift the figures. */
 .rtable.dpr .rtrow:not(.rthead):not(.dist) .c.tot { box-shadow: inset 1px 0 0 var(--line-2); }
-/* ------------------------------------------------- Damage Contribution: the Distribution row */
+/* ------------------------------------------------- Contribution: the team chart row */
 
-/* Every figure in the table is a cell the pies below can be read for; the one they are showing
-   wears the outline. The cell is already `position: relative`, so the outline draws over its
-   neighbours' edges rather than under them. */
-.rtrow .c.dist-cell, .rtrow .c.name[data-dist-row] { cursor: pointer; }
-.rtrow .c.dist-cell.sel { outline: 2px solid var(--accent); outline-offset: -2px; z-index: 1; }
-
-/* the pies run the whole width of the table, the row's own label given up to them */
+/* the team chart runs the whole width of the table, the row's own label given up to it, and takes
+   whatever height the pane leaves (the `1fr` track off dprTable) */
 .rtrow.dist .c.distbody {
   grid-column: 1 / -1;
-  /* The row is whatever Equipment leaves (the `1fr` track off dprTable), and this is the floor for
-     when there is nothing to take it from — the block alone on its own line. The drawings are sized
-     against `.chartwrap` rather than carrying their own aspect height up into here, so neither
-     distribution pushes this table past Equipment beside it, and both scale into whatever it leaves
-     instead. Low enough to fit inside the shortest Equipment on the roster (~195px of slack). */
-  min-height: 190px;
-  /* the floor matches the gap under a figure's own title, which is what puts a pie's centre exactly
-     halfway between that title and the bottom of the cell */
-  padding: 12px 10px 8px;
-  /* ...but the team's own panes fill the row rather than centring in it, and every pixel of that
-     floor is a row of the ranking that would otherwise be cut */
+  min-height: 120px;
+  padding: 12px 10px;
   white-space: normal;
   font-family: var(--sans);
-  /* the row is as tall as Equipment leaves it, and both distributions take the whole of it — a pie
-     centres in the box its own title leaves rather than in the row */
   display: flex;
   align-items: stretch;
 }
-/* Narrow enough that Equipment cannot be beside it (the two tables come to ~1500px between them),
-   so there is no height to match and no reason to hold the charts down to the floor above: they go
-   back to the taller of the two distributions, which is what they had before either had to level. */
-@media (max-width: 1100px) {
-  .rtrow.dist .c.distbody { min-height: 285px; }
-}
-/* split down the middle, each pie centred in its own half. Sized off nothing inside, with the team
-   chart's own floor (`.teampanes .piefig`): the table is as wide whichever figure is open, and the
-   pies scale into it */
-.pies { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; contain: inline-size; min-width: 330px; }
-.pies .chartwrap { min-width: 0; }
 .piefig { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%; }
-/* the table's own heading type — these are two sub-headings inside one row, not content */
+.distbody .piefig { contain: inline-size; min-width: 330px; }
 .piefig figcaption { font-size: 12px; font-weight: 650; color: var(--dim); }
-/* Scales with its half rather than sitting at a fixed size; its frame is drawn wide enough for its
-   own labels (panels.ts's pieSvg), so nothing of it runs out to the row's scroll box to be cut. The
-   minimum is what keeps the two halves' labels off each other — the row carries it up into the
-   table's own width. */
-/* The box a drawing is measured by. It carries the width — its own minimum is what keeps the two
-   halves' labels off each other, and the row hands that up to the table — while the svg inside fills
-   it absolutely, so the ratio the viewBox implies never becomes a height the row has to find. */
-.chartwrap { position: relative; flex: 1; min-height: 0; width: 100%; min-width: 330px; max-width: 480px; }
+/* The box a drawing is measured by: the svg fills it absolutely, so the ratio its viewBox implies
+   never becomes a height the row has to find. */
+.chartwrap { position: relative; flex: 1; min-height: 0; width: 100%; }
 /* `meet` (the default `preserveAspectRatio`) letterboxes the drawing in whatever box it is given, so
    a shorter row shrinks it rather than stretching it out of shape. */
 svg.pie, svg.bars { position: absolute; inset: 0; width: 100%; height: 100%; }
@@ -511,19 +506,6 @@ svg.pie .leader, svg.pie text { pointer-events: none; }
 /* glyphs positioned at full precision rather than snapped to the device pixel, so a repaint of the
    box they sit in can never land them anywhere else */
 svg.pie text { text-rendering: geometricPrecision; }
-/* The team's own figure opens one pane rather than two pies: the rotation drawn out, across the
-   row's whole width and height. */
-.rtrow.dist .c.distbody:has(.teampanes) { padding-bottom: 12px; }
-.teampanes { flex: 1; align-self: stretch; display: grid; grid-template-columns: 1fr; }
-/* Sized off nothing inside: the chart's height is definite here (the figure fills the row) and a
-   chart with an aspect ratio then asks for the width that height comes to, which widened the panes
-   — and the table — past the pies'. The floor is the pies' own (`.chartwrap`), so the two rows agree. */
-.teampanes .piefig { height: 100%; contain: inline-size; min-width: 330px; }
-/* the chart alone takes the whole row's width, not a pie's */
-.teampanes .chartwrap { max-width: none; }
-/* sized like the pies beside it, so the team's figures and a resonator's leave the table the same
-   width; the chart takes the middle of what its title leaves, the way a pie does */
-/* takes the height the pane leaves under the title */
 svg.bars .axis { stroke: var(--line-2); }
 /* every bar of the hovered action lit, a touch taller off the axis it stands on */
 svg.bars rect { transform-box: fill-box; transform-origin: bottom; }
@@ -832,6 +814,10 @@ main {
   font-family: var(--sans); font-size: 12px; color: var(--ink); cursor: pointer;
 }
 .ctxitem:hover { background: color-mix(in srgb, var(--ink) 8%, var(--surface-3)); }
+/* a line that opens a card of its own lines beside the menu on hover (table.ts's `showMenu`) */
+.ctxitem.hassub { display: flex; justify-content: space-between; gap: 12px; }
+.ctxitem.hassub::after { content: "\203A"; color: var(--dim); }
+.ctxmenu.ctxsub[hidden] { display: none; }
 
 /* an Equipment cell that opens a menu of other picks (page/pickmenu.ts) */
 .rtable.loadout .c[data-pick] { cursor: pointer; }
@@ -956,6 +942,12 @@ main {
 /* `flex-start`, not `center`: the name reads from the top of a tall row like every other cell */
 .trow .c.name.res { cursor: pointer; display: flex; align-items: flex-start; gap: 7px; }
 .trow .c.name.res .res-label { overflow: hidden; text-overflow: ellipsis; }
+/* resonator portraits and weapon art before a name (page/icons.ts); a table row's own 17px line */
+.icon { display: inline-block; width: 1.35em; height: 1.35em; vertical-align: -0.3em; margin-right: 0.35em; border-radius: 3px; object-fit: cover; flex: none; }
+.trow .c .icon { width: 17px; height: 17px; vertical-align: top; }
+.trow .c.name.res .icon { margin-right: 0; }
+/* a chip's own gap spaces its picture from its name, as a name cell's does */
+.rchip .icon { margin-right: 0; }
 
 /* a weapon/echo/mainstat pick's own column: the same member colour wash as their name cell,
    `--mem` set alongside it in index.js's own optionCell(), so a pick reads as "this row's member"
@@ -1160,6 +1152,8 @@ main {
 .ctag-easy { --tag: #3ddc7a; }
 /* a hit cancel, cut 12 frames after its first hit */
 .ctag-hit { --tag: #e3e32b; }
+/* a timed cancel, cut on its written frame */
+.ctag-timed { --tag: #a970ff; }
 
 /* The comparison table's own Total DPR hover is the detail page's damage-per-rotation table
    whole, not a panel of rows — so the panel is only the frame around it: no padding of its own,
@@ -1192,16 +1186,20 @@ main {
    scrollport — and, once it is wider, left where it is, since `auto` margins have nothing to hand
    out (which is also what keeps the label level with the log's left edge either way) */
 .rotation-block { width: max-content; margin-inline: auto; }
+/* the log's two tab pairs, rows on the left and columns on the right */
+.logbar { display: flex; justify-content: space-between; gap: 24px; margin-top: 22px; }
 .gridwrap {
   margin-top: 22px;
-  background: var(--surface);
-  box-shadow: var(--sh-2);
+  /* no surface of its own: every row paints its own, and a box a fraction of a pixel wide painted
+     a 1px grey column past them (and under the see-through loop bars) */
+  /* the drop shadow alone: no 1px outline on any side */
+  box-shadow: var(--sh-drop);
   /* exactly its columns' own width (every track is a fixed calc(), see index.js's colWidth) —
      no stretching to the page, which left the last column trailing a run of empty surface */
   width: max-content;
 }
 /* under its "action log" label the label's 8px is the gap — the 22px would collapse over it */
-.summary-label + .gridwrap { margin-top: 0; }
+.summary-label + .gridwrap, .logbar + .gridwrap { margin-top: 0; }
 main::-webkit-scrollbar { width: 10px; height: 10px; }
 main::-webkit-scrollbar-track { background: transparent; }
 main::-webkit-scrollbar-thumb {
@@ -1430,6 +1428,32 @@ body.coldrag { user-select: none; }
 .c.negative { color: #e5484d; }
 
 .c.buffed.underspent, .c.buffed.negative { text-decoration-color: currentColor; }
+
+/* the resource view's bars (detail.ts's `barHtml`): each gauge a pill filled to its cap, faint so
+   its figure reads over it in the same colour; the forte column splits its width between a
+   member's gauges */
+.c.barcell { padding: 0; overflow: visible; }
+/* the log ends on its last column: no run-out past the bars */
+.gridwrap .r { padding-right: 0; }
+.rbars { position: absolute; inset: 4px 8px; display: flex; gap: 6px; }
+/* no figure, no bar: the slot stays so the member's other gauges keep their width */
+.rbar.empty { visibility: hidden; }
+.r.head > .c.rhead { text-align: center; padding-left: 4px; padding-right: 4px; }
+.rbar {
+  flex: 1 1 0; min-width: 0; position: relative; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bar) 9%, transparent);
+}
+.rfill {
+  position: absolute; left: 0; top: 0; bottom: 0; width: calc(var(--fill) * 100%);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bar) 30%, transparent);
+}
+.rtext { position: relative; padding: 0 8px; color: var(--bar); overflow: hidden; text-overflow: ellipsis; }
+.rtext.buffed { text-decoration: underline solid currentColor; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.rtext.negative { color: #e5484d; }
+.rtext.buffed.negative { text-decoration-color: currentColor; }
 
 /* The member column: its own colour system, sourced from `--mem` (the member's own colour, set
    inline per cell) rather than `--m` (the row's action colour) — a left bar and a background
@@ -1847,8 +1871,7 @@ main.stack { padding: 0 12px 420px; }
 /* the fill is translucent rather than the whole card, so the page reads through it while its own
    text stays at full ink */
 /* Whatever the tutorial is pointing at, ringed in the card's own green so the arrow lands on
-   something the eye can already see. `.c` in the selector for the distribution cells, whose own
-   selected outline (`.rtrow .c.dist-cell.sel`) would otherwise outrank it. */
+   something the eye can already see. */
 /* Inside its own box, not outside it: a ring drawn past the edge is clipped by whatever the target
    stands in — the menu clips its lines (`overflow: hidden` for its corners), and the aside clips
    the search bar the same way it clips the Clear Filters underline — and a neighbouring cell would

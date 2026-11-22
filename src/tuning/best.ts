@@ -17,7 +17,7 @@
 import { Worker, isMainThread, parentPort, workerData } from "node:worker_threads";
 import { cpus } from "node:os";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { Substat, spreadCounts, rollSpread } from "../shared/substats.js";
+import { Substat, spreadCounts, rollSpread } from "../echoes/substats.js";
 import { ALL_TEAMS, teamKey, teamAt } from "../resonators/teams.js";
 import { teamFromKey, optimizeTeam, solveTeam, defaultFilters, comboOf, echoLabel } from "../solve/solver.js";
 import type { Pick } from "../solve/solver.js";

@@ -4,14 +4,14 @@
  * is also the worker's own entry point (see the foot). The engine run it scores with is teamrun.ts.
  */
 import { Loadout, EchoLoadout, Weapon, baseSequence } from "../engine/gear.js";
-import { Tier } from "../engine/stats.js";
+import { Rarity } from "../engine/stats.js";
 import type { Matrix } from "../engine/gear.js";
 import { runTeam, scoreOf, erRollsFor, shortOf, deriveRun } from "./teamrun.js";
 import type { TeamRun, RowScore, VariantRun } from "./teamrun.js";
 import type { State } from "../engine/state.js";
 import { teamAt } from "../resonators/teams.js";
-import { critLineOf, Mainstat } from "../shared/mainstats.js";
-import type { MainstatBuild } from "../shared/mainstats.js";
+import { critLineOf, Mainstat } from "../echoes/mainstats.js";
+import type { MainstatBuild } from "../echoes/mainstats.js";
 
 export interface Member {
   name: string;
@@ -259,7 +259,7 @@ export function sequenceLevels(m: Member, filters: Filters, holds = true): numbe
     return at === null ? [] : [at];
   }
   const base = Math.min(baseSequence(l.resonator), max);
-  const from = Math.max(l.minSequence, l.resonator.tier === Tier.Free ? 0 : base);
+  const from = Math.max(l.minSequence, l.resonator.tier === Rarity.FreeS6 ? 0 : base);
   return Array.from({ length: max - from + 1 }, (_, i) => from + i);
 }
 
@@ -268,9 +268,9 @@ export function sequenceLevels(m: Member, filters: Filters, holds = true): numbe
 export const hasBuild = (m: Member, filters: Filters): boolean =>
   eligibleWeapons(m, filters).length > 0 && sequenceLevels(m, filters, !grantToOne(filters.cost) || m.mainDps).length > 0;
 
-export const isSignature = (l: Loadout, i: number): boolean => l.weapons[i]!.tier === Tier.Limited;
+export const isSignature = (l: Loadout, i: number): boolean => l.weapons[i]!.tier === Rarity.Limited;
 /** A loadout lists its best signature first and its best standard right after (CLAUDE.md). */
-export const standardWeapon = (l: Loadout): number => Math.max(0, l.weapons.findIndex((w) => w.tier !== Tier.Limited));
+export const standardWeapon = (l: Loadout): number => Math.max(0, l.weapons.findIndex((w) => w.tier !== Rarity.Limited));
 
 /** Every weapon while comparing; otherwise the one the cost allows (`sig`: may wear a signature). */
 export function weaponOptions(m: Member, filters: Filters, sig: boolean): number[] {
@@ -730,7 +730,7 @@ function rowPicks(
       if (ranked && p.refine !== 0) twinOf(i, { refine: 0 });
       if (axisOpen(m, filters, "weapons")) {
         for (const w of eligibleWeapons(m, filters)) {
-          if (w === p.weapon || m.loadout.weapons[w]!.tier === Tier.Limited) continue;
+          if (w === p.weapon || m.loadout.weapons[w]!.tier === Rarity.Limited) continue;
           twinOf(i, { weapon: w, refine: ranked ? 0 : Math.min(p.refine, m.loadout.refinements[w]!.length - 1) });
         }
       }

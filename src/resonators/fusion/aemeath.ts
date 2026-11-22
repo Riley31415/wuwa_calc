@@ -55,7 +55,6 @@ import {
   removeStack,
   revokeCurrent,
   revokeEnemy,
-  consume,
   stacksOf,
   stacksOfEnemy,
   forte3,
@@ -64,23 +63,32 @@ import {
   addStatAs,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, START, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
-import { TUNE_RUPTURE_SHIFTING, TUNE_SHIFTABLE, TUNE_BREAK, applyRupture, tuneRuptureResponse, tuneBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
-import { FUSION_BURST, FUSION_BURST_ACTIONS, queueOnApplier } from "../../shared/status.js";
+import type { BulletDef } from "../../engine/rotation.js";
+import { TUNE_RUPTURE_SHIFTING, TUNE_SHIFTABLE, TUNE_BREAK, applyRupture, tuneRuptureResponse, tuneBreak, SWORD_BREAK } from "../tunebreak.js";
+import { FUSION_BURST, FUSION_BURST_ACTIONS, queueOnApplier } from "../status.js";
 import { EVERBRIGHT_POLESTAR } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
 import { SIGILLUM_MAINSLOT, TRAILBLAZING_STAR_5PC, SIGILLUM } from "../../echoes/lahairoi.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 
 /* =================================================================================== shared */
 
 /* ----------------------------------------------------------------------------------- actions */
 
-function aemeathAction(id: string, def: object): Action {
-  return new Action(id, { element: Attribute.Fusion, scaling: Scaling.Atk, ...def });
+function aemeathAction(id: string, def: { lays?: () => void; bullets?: BulletDef[]; [key: string]: unknown }): Action {
+  const { lays, ...rest } = def;
+  if (lays && rest.bullets) rest.bullets = laidBehind(rest.bullets, lays);
+  return new Action(id, { element: Attribute.Fusion, scaling: Scaling.Atk, ...rest });
 }
+/** A non-hit event at `frame` (wuwalab's `events[*]`): a bullet dealing nothing, carrying `fn`. */
+const event = (frame: number, fn: () => void, commitFrame = frame): BulletDef =>
+  ({ hitFrame: frame, commitFrame, element: null, type: null, subtype: null, updateDebuffs: fn });
+/** Every hit's infliction as wuwalab times it: an event 5f behind the hit, committed with it. */
+const laidBehind = (bullets: BulletDef[], lay: () => void): BulletDef[] =>
+  bullets.flatMap((b) => [b, event(b.hitFrame + 5, lay, b.commitFrame ?? b.hitFrame)]).sort((a, b) => a.hitFrame - b.hitFrame);
 
 /** Which form she is in: exactly one of the two stands, Aemeath's from the fight's start. Each
  *  form's presses require their own; every cast that switches her swaps them. */
@@ -131,11 +139,11 @@ const ABA2 = aemeathAction("Basic - Aemeath 2", { after: () => [ABA1, AHA1, AMA,
   ]});
 /** "Inflict Tune Rupture - Shifting/Fusion Burst when the following skills deal damage. The same
  *  skill can only trigger this effect on the same target once every 3s": each listed skill lays
- *  on any of its hits through its own 3s window. */
-function laysEvery3s(skill: string): { updateDebuffs: () => void } {
+ *  off any of its hits through its own 3s window, 5f behind the hit (`aemeathAction`'s `lays`). */
+function laysEvery3s(skill: string): { lays: () => void } {
   const icd = new Buff({ name: `Aemeath: ${skill} (lay cooldown)`, duration: 60 * 3 });
   return {
-    updateDebuffs: () => {
+    lays: () => {
       if (isHeld(icd)) return;
       applyCurrent(icd, 1);
       aemeathLays();
@@ -234,7 +242,7 @@ const CallOfDawn = aemeathAction("Skill - Sync Strike: Call of Dawn", { after: [
 // "in Seraphic Duo and the Synchronization Rate is no less than 100": both a condition and a spend
 const DUET = { node: Node.Forte, cast: Cast.Skill, type: Type.Liberation, minForte2: 10000, castForte2: -10000 };
 const AmyFSkill = aemeathAction("Forte - Seraphic Duet: Overture", { requireBuff: SERAPHIC_DUO, animFrames: 180, noSwapFrames: 180, animPriority: { 183: 2 }, castPriority: 10, timestop: [0, 99], motionStop: [0, 99], ...DUET, bullets: [
-    { hitFrame: 0, mv: 1790, energy: 25, concerto: 50, offtune: 800, updateDebuffs: () => duetLands() },
+    { hitFrame: 0, mv: 1790, energy: 25, concerto: 50, offtune: 800 },
     { hitFrame: 40, mv: 1492, energy: 21, concerto: 42, offtune: 667 },
     { hitFrame: 44, commitFrame: 40, mv: 1492, energy: 21, concerto: 42, offtune: 667 },
     { hitFrame: 48, commitFrame: 40, mv: 1492, energy: 21, concerto: 42, offtune: 667 },
@@ -244,22 +252,28 @@ const AmyFSkill = aemeathAction("Forte - Seraphic Duet: Overture", { requireBuff
     { hitFrame: 120, mv: 2386, energy: 34, concerto: 67, offtune: 1067 },
     { hitFrame: 124, commitFrame: 120, mv: 2386, energy: 34, concerto: 67, offtune: 1067 },
     { hitFrame: 128, commitFrame: 120, mv: 2386, energy: 34, concerto: 67, offtune: 1067 },
-    { hitFrame: 153, commitFrame: 120, mv: 5965, energy: 84, concerto: 167, offtune: 2667, updateDebuffs: () => duetDetonates() },
+    { hitFrame: 153, commitFrame: 120, mv: 5965, energy: 84, concerto: 167, offtune: 2667 },
     { hitFrame: 159, commitFrame: 120, mv: 5965, energy: 84, concerto: 167, offtune: 2667 },
+    event(160, duetLands),
     { hitFrame: 165, commitFrame: 120, mv: 5965, energy: 84, concerto: 167, offtune: 2667, forte3: 1 },
+    event(165, duetFlumes),
+    event(180, duetDetonates),
   ], updateBuffs: () => {
     toMech();
     revokeCurrent(SERAPHIC_DUO);
   } });
 const MechFSkill = aemeathAction("Forte - Seraphic Duet: Encore", { requireBuff: SERAPHIC_DUO, animFrames: 145, noSwapFrames: 145, animPriority: { 146: 2 }, castPriority: 10, timestop: [0, 60], motionStop: [0, 60], ...DUET, bullets: [
-    { hitFrame: 0, mv: 1790, energy: 25, concerto: 50, offtune: 800, updateDebuffs: () => duetLands() },
+    { hitFrame: 0, mv: 1790, energy: 25, concerto: 50, offtune: 800 },
     { hitFrame: 6, commitFrame: 0, mv: 1790, energy: 25, concerto: 50, offtune: 800 },
     { hitFrame: 68, mv: 3579, energy: 50, concerto: 100, offtune: 1600 },
     { hitFrame: 80, commitFrame: 68, mv: 3579, energy: 50, concerto: 100, offtune: 1600 },
     { hitFrame: 89, mv: 1790, energy: 25, concerto: 50, offtune: 800 },
     { hitFrame: 101, commitFrame: 89, mv: 1790, energy: 25, concerto: 50, offtune: 800 },
-    { hitFrame: 120, mv: 17893, energy: 250, concerto: 500, offtune: 8000, updateDebuffs: () => duetDetonates() },
+    { hitFrame: 120, mv: 17893, energy: 250, concerto: 500, offtune: 8000 },
     { hitFrame: 124, mv: 3579, energy: 50, concerto: 100, offtune: 1600, forte3: 1 },
+    event(135, duetLands),
+    event(141, duetFlumes),
+    event(145, duetDetonates),
   ], updateBuffs: () => {
     toAemeath();
     revokeCurrent(SERAPHIC_DUO);
@@ -594,15 +608,18 @@ function aemeathLays(): void {
   if (isHeld(MODE_BURST)) applyEnemy(FUSION_BURST, 1);
   else if (isHeld(MODE_RUPTURE)) applyRupture();
 }
-/** A Duet's first hit: S6's own 10 stacks (from here rather than the Trail, which an empty target
- *  doesn't hold). */
+/** A Duet's `rupture_trail_buff` event: S6's own 10 stacks (from here rather than the Trail, which an
+ *  empty target doesn't hold), ahead of the Duet counting them. */
 function duetLands(): void {
   if (isHeld(AE_S6)) applyEnemy(isHeld(MODE_BURST) ? FUSION_TRAIL : RUPTUROUS_TRAIL, 10);
 }
-/** The Duet's hit that detonates the Trail (wuwalab's detonate_trails): the mode's follow-up. */
+/** The Duet's `rupture_flumes` event: Tune Rupture's volley, spending the Rupturous Trail. */
+function duetFlumes(): void {
+  if (isHeld(MODE_RUPTURE)) queue(Volley);
+}
+/** The Duet's `detonate_trails` event, its last frame: Fusion Burst's own calculation off the Trail. */
 function duetDetonates(): void {
   if (isHeld(MODE_BURST)) queue(DuetBurst);
-  else if (isHeld(MODE_RUPTURE)) queue(Volley);
 }
 
 /** Held on her slot, so its hitGlobal runs as her whoever is acting: the Starburst response and
@@ -731,20 +748,31 @@ const SILENT_PROTECTION_BURST = new Buff({
   applyStats: () => addStat(Stat.Amp, frozenStacks() === 2 ? 20 : 10),
 });
 
+/** The mode's own check, every 0.2s of the fight on her slot: past 5 stacks the status calculates
+ *  at the cap's rung on whoever laid the last stack (the ladder's own rule, status.ts) and clears,
+ *  and the target gets its stack back, hers. Nameless: no popover row. */
+const BURST_CHECK = new Buff({
+  tick: {
+    every: 12,
+    fire: () => {
+      if (stacksOfEnemy(FUSION_BURST) <= 5) return;
+      queueOnApplier(FUSION_BURST, FUSION_BURST_ACTIONS[currentTeam().enemyMax(FUSION_BURST)]!);
+      // "remove all of their stacks": the ladder clearing itself, not her consuming a status
+      revokeEnemy(FUSION_BURST);
+      applyEnemy(FUSION_BURST, 1);
+      applyEnemy(FUSION_TRAIL, isHeld(AE_S6) ? 2 : 1);
+    },
+  },
+});
+
 /** Held on her slot, so its hitGlobal runs as her whoever is acting. Her listed casts lay a
- *  stack; every stack the team lands mirrors into Fusion Trail; and the mode's own upkeep — past 5
- *  stacks the status calculates at the cap's rung on whoever laid the last stack (the ladder's own
- *  rule, status.ts) and clears, and a target left on 0 gets a stack back, hers. The fight opens on that
- *  stack too. A Duet's hit queues its own calculation. */
+ *  stack; every stack the team lands mirrors into Fusion Trail; a target left on 0 gets a stack
+ *  back, hers, and the fight opens on that stack too. The past-5 check is BURST_CHECK's clock.
+ *  A Duet's last frame queues its own calculation. */
 const MODE_BURST = new ResonanceMode({
   name: "Resonance Mode - Fusion Burst",
+  combatStart: () => applyCurrent(BURST_CHECK, 1),
   hitGlobal: () => {
-    const team = currentTeam();
-    if (stacksOfEnemy(FUSION_BURST) > 5) {
-      queueOnApplier(FUSION_BURST, FUSION_BURST_ACTIONS[team.enemyMax(FUSION_BURST)]!);
-      // "remove all of their stacks": a consume, which Suisui's Undulating Mist reads
-      consume(FUSION_BURST, stacksOfEnemy(FUSION_BURST));
-    }
     if (stacksOfEnemy(FUSION_BURST) === 0) {
       applyEnemy(FUSION_BURST, 1);
     }

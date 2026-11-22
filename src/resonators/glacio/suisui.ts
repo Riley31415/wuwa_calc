@@ -80,13 +80,19 @@ import {
 import { ActionGroup, Action, Cooldown, Rotation, SWAPIN, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
 import {
   AERO_EROSION, ELECTRO_FLARE, ELECTRO_RAGE, FUSION_BURST, GLACIO_CHAFE, HAVOC_BANE, HEALS, SPECTRO_FRAZZLE,
-  inflictedNegativeStatusBy, heal } from "../../shared/status.js";
+  inflictedNegativeStatusBy, heal } from "../status.js";
 import { FIRSTLIGHTS_HERALD } from "../../weapons/rectifier.js";
 import { VARIATION } from "../../weapons/standard.js";
-import { FORBIDDEN_BASTION_MAINSLOT, FEATHERED_TRACE_5PC, FORBIDDEN_BASTION } from "../../echoes/mengzhou.js";
-import { mainstats, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { FORBIDDEN_BASTION_MAINSLOT, FEATHERED_TRACE_5PC, FORBIDDEN_BASTION, FORMRENDER_MAINSLOT, TINGED_YEARNING_5PC } from "../../echoes/mengzhou.js";
+import { mainstats, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
+import { FALLACY_MAINSLOT, REJUV_5PC } from "../../echoes/jinzhou.js";
+import { SPACETREK_EXPLORER_MAINSLOT, STARRY_RADIANCE_5PC } from "../../echoes/lahairoi.js";
+import { JINGRAN_RESONATOR } from "../fusion/jingran.js";
+import { JINHSI_RESONATOR } from "../spectro/jinhsi.js";
+import { SUOMING_RESONATOR } from "../electro/suoming.js";
+import { HSIN_RESONATOR } from "../electro/hsin.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -196,7 +202,7 @@ const FBA4 = suisuiAction("Basic - Drizzle Stance 4", {
   node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 48, mv: 15905, energy: 250, concerto: 800, offtune: 8000, forte2: 170 }],
   updateDebuffs: () => applyEnemy(GLACIO_CHAFE, 1),
 });
-const FHA = suisuiAction("Heavy - Drizzle Stance", { animFrames: 97, castPriority: 4, requireBuff: DRIZZLE_STANCE, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+const FHA = suisuiAction("Heavy - Drizzle Stance", { animFrames: 97, castPriority: 4, endPosition: Position.Midair, requireBuff: DRIZZLE_STANCE, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 14, mv: 1193, energy: 19, concerto: 60, offtune: 600, forte2: 13 },
     { hitFrame: 17, commitFrame: 14, mv: 1193, energy: 19, concerto: 60, offtune: 600, forte2: 13 },
     { hitFrame: 20, commitFrame: 14, mv: 1193, energy: 19, concerto: 60, offtune: 600, forte2: 13 },
@@ -569,7 +575,7 @@ const SUISUI_RESONATOR = new Resonator({
   stats: [[Stat.BaseHp, 16712.5], [Stat.BaseAtk, 287.5], [Stat.BaseDef, 1099.998]],
   // a successful Parting Mist in Drizzle Stance "does not reset the cycle of Basic Attack - Drizzle Stance"
   updateBuffs: () => {
-    if (casting(Cast.Dodge) && isHeld(DRIZZLE_STANCE)) saveChain(previousPress());
+    if (runningAction(SUCCESSFUL_DODGE) && isHeld(DRIZZLE_STANCE)) saveChain(previousPress());
   },
 });
 
@@ -578,6 +584,7 @@ const SUISUI_RESONATOR = new Resonator({
 const FBA1234 = new ActionGroup("Basic - Drizzle Stance 1234", [FBA1, FBA2, FBA3, FBA4]);
 const BA123 = new ActionGroup("Basic - Zephyr Stance 123", [BA1, BA2, BA3]);
 const FBA123 = new ActionGroup("Basic - Drizzle Stance 123", [FBA1, FBA2, FBA3]);
+const FBA12 = new ActionGroup("Basic - Drizzle Stance 12", [FBA1, FBA2]);
 
 /** She leads, so the opener is the Zephyr half: three basics and the skill fill Cloud Breath well
  *  past 120 for Awakening Spring, which is what puts her into Drizzle Stance with no Intro to hand
@@ -593,10 +600,16 @@ const FBA123 = new ActionGroup("Basic - Drizzle Stance 123", [FBA1, FBA2, FBA3])
  *  the scramble's Liberation is already banked) and 122.2 every loop after — both well clear of the
  *  100 the Outro spends. */
 const SS_ROTATION = new Rotation([
-  SWAPIN, BA123.cancel(), ESkillSky,
+  SWAPIN, BA123.cancel(), ESkillSky, FHA.hitCancel(),
+  FSkill, 
+  FBA12.cancel(),
+  FHA.hitCancel(), 
+  Liberation, FORBIDDEN_BASTION.instaSwap(), Outro,
+
   IntroSky,
-  FSkill, FBA1234.cancel(),
-  FORBIDDEN_BASTION.instaCancel(), Liberation, Outro,
+  //FHA.hitCancel(), FSkill, FBA12.cancel(), FHA.hitCancel(), // needs r3 weapon, 4.33s loop
+  FHA.hitCancel(), FSkill, FBA12.cancel(), FHA.hitCancel(), FMA.cancel(), // needs r1 weapons, 5.03 loop
+  Liberation, FORBIDDEN_BASTION.instaSwap(), Outro,
 ]);
 
 /** From S3 the Drizzle skill chains straight into a Stage 4 that spends Kingfisher — +20 Concerto
@@ -604,8 +617,8 @@ const SS_ROTATION = new Rotation([
 const SS_ROTATION_S3 = new Rotation([
   SWAPIN, BA123.cancel(), ESkillSky,
   IntroSky,
-  FSkill, FBA4,
-  FBA123.cancel(), // filler for s0 er match: Drizzle Stance replaces the Zephyr basics
+  //FSkill, FBA4.cancel(),
+  FSkill, FBA4, FBA123.cancel(), // filler for s0 er match: Drizzle Stance replaces the Zephyr basics
   FORBIDDEN_BASTION.instaCancel(), Liberation, Outro,
 ]);
 
@@ -615,7 +628,8 @@ export const SUISUI = new Loadout({
   weapons: [FIRSTLIGHTS_HERALD, VARIATION],
   echoes: new Echoes({
     sets: [
-    new EchoLoadout(FORBIDDEN_BASTION_MAINSLOT, FEATHERED_TRACE_5PC),
+      new EchoLoadout(FORBIDDEN_BASTION_MAINSLOT, FEATHERED_TRACE_5PC),
+      new EchoLoadout(SPACETREK_EXPLORER_MAINSLOT, STARRY_RADIANCE_5PC).requires(JINGRAN_RESONATOR),
   ],
     mainstats: [mainstats(Mainstat.HP4, Mainstat.ER3, Mainstat.ER3, Mainstat.HP1, Mainstat.HP1)],
     substats: substats(Substat.Er, Substat.CritDmg, Substat.CritRate, Substat.Skill, Substat.HpPct, Substat.FlatHp),

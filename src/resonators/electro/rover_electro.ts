@@ -17,7 +17,7 @@
  * Outro ends Apex and clears the Rage. Thunder Rage drains 5 every 0.5s from frame 107 of the hold
  * (wuwalab's own start), and Apex ends — Electric Surge cleared with it — once it runs dry.
  */
-import { Tier, Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, Position } from "../../engine/stats.js";
+import { Rarity, Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, Position } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   applyCurrent,
@@ -38,14 +38,14 @@ import {
   runningAnyOf,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Cooldown, Rotation } from "../../engine/rotation.js";
-import { tuneBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
-import { inflictElectroFlare, inflictedNegativeStatus, HEALS } from "../../shared/status.js";
+import { tuneBreak, SWORD_BREAK } from "../tunebreak.js";
+import { inflictElectroFlare, inflictedNegativeStatus, HEALS } from "../status.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { HERON_MAINSLOT, MOONLIT_CLOUDS_5PC, HERON } from "../../echoes/jinzhou.js";
 import { SOULFRAYER_MAINSLOT, SWORN_VIGIL_5PC, ELECTRIC_REFLECTION_5PC, SUHSIN_MAINSLOT, SOULFRAYER, SUHSIN } from "../../echoes/mengzhou.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 import { BLAZING_BRILLIANCE, RED_SPRING, UNSPOKEN_RUE } from "../../weapons/sword.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
 import { HSIN_RESONATOR } from "./hsin.js";
@@ -368,7 +368,7 @@ const ROVER_ELECTRO_RESONATOR = new Resonator({
   forteScale: [0.01, 0.01, 1, 1, 1],
   maxForte1: 12000,
   maxForte2: 10000,
-  tier: Tier.Free,
+  tier: Rarity.FreeS6,
 
   updateDebuffs: () => {
     // her own healing marker, read by every healing sonata and weapon (statuses.ts) — applied to

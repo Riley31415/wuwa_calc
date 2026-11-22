@@ -21,7 +21,7 @@
  * a Frazzled target, and the Liberation and Outro run at 3.55x. Confession applies — Starflash
  * lays 5 Spectro Frazzle, the Liberation 8, and her Outro hands the incoming resonator Silent
  * Prayer: 10% Spectro RES off the target, 100% amplification on its Spectro Frazzle DMG, and the
- * status's own tick interval stretched by half (shared/status.ts's FRAZZLE_SLOWED).
+ * status's own tick interval stretched by half (resonators/status.ts's FRAZZLE_SLOWED).
  *
  * The Ring of Mirrors is a 30s buff her Skill summons, and the Chamuel's Star chain below is her
  * Basic Attack while she stands inside it, so those presses require it. Refracted Holy Light, which
@@ -56,15 +56,15 @@ import {
   stacksOfEnemy,
 } from "../../engine/context.js";
 import { Action, ActionGroup, Rotation, SWAPIN, ActionTag, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
-import { FRAZZLE_SLOWED, SPECTRO_FRAZZLE } from "../../shared/status.js";
+import { FRAZZLE_SLOWED, SPECTRO_FRAZZLE } from "../status.js";
 import { LUMINOUS_HYMN, STRINGMASTER } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { AUGMENT, RADIANT_DAWN } from "../../weapons/battlepass.js";
 import { ETERNAL_RADIANCE_5PC, CAPITANEUS_MAINSLOT, CAPITANEUS } from "../../echoes/rinascita.js";
 import { HERON_MAINSLOT, MOONLIT_CLOUDS_5PC, HERON } from "../../echoes/jinzhou.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -444,16 +444,15 @@ const PHOEBE_RESONATOR = new Resonator({
  *  Confession to refill it and re-enter the stance, the Liberation's eight stacks, and the Outro
  *  that hands Silent Prayer on. 101.5 Concerto over the visit, so the Outro fires. */
 const PHOEBE_CONFESSION_ROTATION = new Rotation([
-  // leading, she has no Intro's 10 Concerto: two more chains make up the OUTRO's 100
+  // leading, she has no Intro's 10 Concerto: one more chains make up the OUTRO's 100
   SWAPIN, BA1.instaCancel(), SkillConf.instaCancel(), Liberation, Skill.instaDodge(),
-  CBA123.instaDodge(), Starflash.dodgeCancel(),
+  CBA123.instaDodge(), Starflash,
   CBA123.instaDodge(), 
-  CBA123.instaDodge(), Starflash, HERON.instaCancel(), CAPITANEUS.instaCancel(), Outro,
+  CBA123.instaDodge(), Starflash.cancel(), HERON.instaCancel(), Outro,
 
   Intro.mashCancel(), Liberation, SkillConf.instaDodge(), Skill.instaDodge(),
-  CBA123.instaDodge(), Starflash.dodgeCancel(),
   CBA123.instaDodge(), Starflash,
-  HERON.instaCancel(), CAPITANEUS.instaCancel(), Outro,
+  CBA123.instaDodge(), Starflash.cancel(), HERON.instaCancel(), Outro,
 ]);
 
 /** Absolution: Starflash costs 15 instead of 30, so the same bar pays for four of them, and it is
@@ -461,10 +460,10 @@ const PHOEBE_CONFESSION_ROTATION = new Rotation([
  *  Confession's 40, which is exactly why this loop needs the two extra chains to reach 100. */
 const PHOEBE_ABSOLUTION_ROTATION = new Rotation([
   Intro.mashCancel(), CAPITANEUS.instaCancel(), Liberation, HeavyAbs.instaDodge(), Skill.instaDodge(),
-  CBA123.instaDodge(), Starflash.dodgeCancel(),
-  CBA123.instaDodge(), Starflash.dodgeCancel(),
-  CBA123.instaDodge(), Starflash.dodgeCancel(),
   CBA123.instaDodge(), Starflash,
+  CBA123.instaDodge(), Starflash,
+  CBA123.instaDodge(), Starflash,
+  CBA123.instaDodge(), Starflash.cancel(),
   Outro,
 ]);
 

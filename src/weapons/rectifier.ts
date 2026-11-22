@@ -26,9 +26,9 @@ import {
   inflicting,
   addGain,
 } from "../engine/context.js";
-import { GLACIO_CHAFE, FUSION_BURST, HEALS, ELECTRO_FLARE, SPECTRO_FRAZZLE } from "../shared/status.js";
-import { TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
-import { unisonResponse, consumedConcerto } from "../shared/unison.js";
+import { GLACIO_CHAFE, FUSION_BURST, HEALS, ELECTRO_FLARE, SPECTRO_FRAZZLE } from "../resonators/status.js";
+import { TUNE_STRAIN_SHIFTING } from "../resonators/tunebreak.js";
+import { unisonResponse, consumedConcerto } from "../resonators/unison.js";
 
 /** Rime-Draped Sprouts, Zhezhi's sig. +12% ATK flat. On field, Resonance Skill grants +12%
  *  Basic Attack DMG Bonus a stack, up to 3, 6s. At 3+ stacks, her Outro spends them all for
@@ -149,7 +149,7 @@ export const FREEZE_FRAME = refinements((r, rank) => {
 /** Stellar Symphony, Shorekeeper's sig: 12% HP to herself, 14% attack to the team, and 8
  *  Concerto on a Liberation cast, once every 20s — the charge works like Variation's Ceaseless
  *  Aria: held from the start of the fight, spent by the cast, handed back by the wielder's Outro. */
-export const SK_SIG = refinements((r, rank) => {
+export const STELLAR_SYMPHONY = refinements((r, rank) => {
   const SK_SIG_TEAM = new Buff({
     name: `Stellar Symphony: Astral Evolvement${rank} (team)`,
     duration: 60 * 30,

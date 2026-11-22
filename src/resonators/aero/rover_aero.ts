@@ -11,7 +11,7 @@
  * Cloudburst Dance/Omega Storm heals, Boundless Winds, S2's heal over time — only ever shows up as
  * the HEALS marker those casts and S2's ticks put up (statuses.ts).
  */
-import { Tier, Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, Position } from "../../engine/stats.js";
+import { Rarity, Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, Position } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, coordinatedBuff } from "../../engine/gear.js";
 import {
   applyCurrent,
@@ -29,16 +29,16 @@ import {
   asSource,
 } from "../../engine/context.js";
 import { Action, Rotation, SWAPIN, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
-import { AERO_EROSION, SPECTRO_FRAZZLE, HAVOC_BANE, FUSION_BURST, GLACIO_CHAFE, ELECTRO_FLARE, HEALS, heal } from "../../shared/status.js";
+import { AERO_EROSION, SPECTRO_FRAZZLE, HAVOC_BANE, FUSION_BURST, GLACIO_CHAFE, ELECTRO_FLARE, HEALS, heal } from "../status.js";
 import { BLOODPACTS_PLEDGE, BLOODPACT_AERO_AMP } from "../../weapons/standard.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
 import { REJUV_5PC, HERON_MAINSLOT, MOONLIT_CLOUDS_5PC, BELL_BORNE_GEOCHELONE_MAINSLOT, FALLACY, BELL_BORNE_GEOCHELONE, HERON } from "../../echoes/jinzhou.js";
 import { FALLACY_MAINSLOT } from "../../echoes/jinzhou.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 import { FLEURDELYS_MAINSLOT, WINDWARD_5PC, FLEURDELYS } from "../../echoes/rinascita.js";
-import { tuneBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
+import { tuneBreak, SWORD_BREAK } from "../tunebreak.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -307,7 +307,7 @@ export const ROVER_AERO_RESONATOR = new Resonator({
   swapInAir: MA,
   maxEnergy: 15000,
   maxForte1: 120,
-  tier: Tier.Free,
+  tier: Rarity.FreeS6,
 
   // Bloodpact's Pledge names Unbound Flow outright, so that clause's team Aero Amplification is
   // triggered from here rather than from the weapon — see the weapon's own comment for why

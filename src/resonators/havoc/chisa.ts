@@ -85,15 +85,15 @@ import { Action, ActionGroup, Rotation, SWAPIN, ActionTag, SUCCESSFUL_DODGE } fr
 import {
   HEALS, HAVOC_BANE, GLACIO_CHAFE, ELECTRO_FLARE, FUSION_BURST, AERO_EROSION, SPECTRO_FRAZZLE, ELECTRO_RAGE,
   inflictedNegativeStatusBy, gainShield,
-} from "../../shared/status.js";
+} from "../status.js";
 import { KUMOKIRI, WILDFIRE_MARK } from "../../weapons/broadblade.js";
 import { DISCORD, LUSTROUS_RAZOR, NEW_STD_BRAUDBLADE } from "../../weapons/standard.js";
 import { AUTUMNTRACE, AUREATE_ZENITH } from "../../weapons/battlepass.js";
 import { THRENODIAN_LEVIATHAN_MAINSLOT, THREAD_OF_SEVERED_FATE_3PC, THRENODIAN_LEVIATHAN } from "../../echoes/septimont.js";
 import { BELL_BORNE_GEOCHELONE_MAINSLOT, FALLACY_MAINSLOT, HAVOC_ECLIPSE_2PC, HERON_MAINSLOT, MOONLIT_CLOUDS_2PC, MOONLIT_CLOUDS_5PC, REJUV_2PC, REJUV_5PC, FALLACY, HERON, BELL_BORNE_GEOCHELONE } from "../../echoes/jinzhou.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 

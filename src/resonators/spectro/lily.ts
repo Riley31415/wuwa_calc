@@ -52,8 +52,8 @@ import {
   stacksOfTeam,
 } from "../../engine/context.js";
 import { Action, ActionGroup, Cooldown, Rotation, SWAPIN, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
-import { HEALS } from "../../shared/status.js";
-import { BOON_REACTOR, UNISON_BOON } from "../../shared/unison.js";
+import { HEALS } from "../status.js";
+import { BOON_REACTOR, UNISON_BOON } from "../unison.js";
 import { LULLABY } from "../../weapons/pistol.js";
 import { CADENZA, STATIC_MIST } from "../../weapons/standard.js";
 import { FALLACY_MAINSLOT, REJUV_5PC, FALLACY } from "../../echoes/jinzhou.js";
@@ -61,9 +61,9 @@ import { FORMRENDER_MAINSLOT, TINGED_YEARNING_5PC, FORMRENDER } from "../../echo
 import { JINHSI_RESONATOR } from "./jinhsi.js";
 import { SUOMING_RESONATOR } from "../electro/suoming.js";
 import { HSIN_RESONATOR } from "../electro/hsin.js";
-import { mainstats, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstats, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 import { JINGRAN_RESONATOR } from "../fusion/jingran.js";
 import { SPACETREK_EXPLORER, SPACETREK_EXPLORER_MAINSLOT, STARRY_RADIANCE_5PC } from "../../echoes/lahairoi.js";
 
@@ -436,6 +436,9 @@ const SL_ROTATION = new Rotation([
   IntroBase, BA3, BA4.cancel(), SkillPhantasm, WovenPhantasm.holdCancel(), PhantasmsEnd.cancel(),
   FALLACY.instaCancel(), FORMRENDER.instaCancel(), SPACETREK_EXPLORER.instaCancel(), Liberation.mashSwap(), Outro,
 ]);
+
+/** Her presses the rotation explorer's bench stands her in with (src/explorer/skbench.ts). */
+export const LILY_PRESSES = { IntroBase, Outro };
 
 export const LILY = new Loadout({
   id: 15121,

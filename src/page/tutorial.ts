@@ -28,7 +28,7 @@
  */
 import { AXES, scopedKey } from "../solve/solver.js";
 import { searchChoice } from "./filterbar.js";
-import { echoFilters, filters, refineFilters, resonatorFilters, sequenceFilters, weaponFilters, TEAMS, visibleRows } from "./model.js";
+import { echoFilters, filters, refineFilters, resonatorFilters, weaponFilters, TEAMS, visibleRows, tagOwner, included } from "./model.js";
 import { rect, CLICKING, CLICK } from "./panels.js";
 import { rowElementAt, teamMode } from "./table.js";
 
@@ -58,8 +58,8 @@ const TEXT = [
   `Try ${CLICKING} a filter bubble to remove it`,
   "Try viewing a team's rotation and loadout",
   "Hover over equipment to see its stats and buffs",
-  `${CLICK} on a member's damage number to see their damage distribution and node leveling priority`,
-  `${CLICK} on the team total for a loop to see its damage over time`,
+  `${CLICK} Node Priority to see each member's damage distribution and node leveling priority`,
+  `${CLICK} Contribution to see each loop's damage and the team's damage over time`,
   "Scroll down to read the rotation, buffs, and stats",
 ];
 /** The stage the rotation page's own begin at: below this the card belongs to the comparison
@@ -72,7 +72,7 @@ const HEAD = 14;
 /** Every resonator being shown and every comparison open, as the flat keys the first two stages
  *  watch for something new. */
 const shownNow = (): string[] =>
-  [...resonatorFilters].filter(([, mode]) => mode === "include").map(([name]) => name);
+  [...new Set([...resonatorFilters].filter(([, mode]) => mode === "include").map(([key]) => tagOwner(key)))];
 const comparedNow = (): string[] =>
   [...filters.scoped.map(scopedKey), ...AXES.flatMap((axis) => filters[axis].map((name) => `${axis}|${name}`))];
 
@@ -98,25 +98,18 @@ const comparing = (): boolean => added(comparedNow(), comparedBefore);
  *  are set to — the same set the filter bar draws a chip for (filterbar.ts's `resonatorChips`). */
 const atBasePage = (): boolean =>
   AXES.every((axis) => filters[axis].length === 0) && !filters.scoped.length
-  && [resonatorFilters, weaponFilters, echoFilters, sequenceFilters, refineFilters].every((m) => m.size === 0);
+  && [resonatorFilters, weaponFilters, echoFilters, refineFilters].every((m) => m.size === 0);
 const firstChip = (): HTMLElement | null => document.querySelector(".tcchips .rchip");
 
-/** The third member's substats in the Equipment table, and their Total in the damage one — what
- *  the rotation page's two stages point at. */
+/** The third member's substats in the Team table, or the Team tab while another is open. */
 function substatsCell(): HTMLElement | null {
+  if (!document.querySelector(".rpane.on .rtable.loadout")) return tabButton("team");
   const row = [...document.querySelectorAll<HTMLElement>(".rtable.loadout .rtrow")]
     .find((r) => r.querySelector(".c.lbl")?.textContent === "Substats");
   const cells = [...row?.children ?? []].filter((c) => !c.classList.contains("lbl"));
   return (cells[2] ?? cells[cells.length - 1] ?? null) as HTMLElement | null;
 }
-function totalCell(): HTMLElement | null {
-  const rows = [...document.querySelectorAll<HTMLElement>(".rtable.dpr .rtrow:not(.rthead):not(.total)")];
-  // the Total column is the last figure in the row, however many loops ran whole
-  return (rows[2] ?? rows[rows.length - 1])?.querySelector<HTMLElement>(".c.tot[data-dist]") ?? null;
-}
-/** The team's own row at Loop 3 — section three of the columns the loops run through. */
-const loopCell = (): HTMLElement | null =>
-  document.querySelector<HTMLElement>(`.rtable.dpr .rtrow.total [data-dist$="|3"]`);
+const tabButton = (tab: string): HTMLElement | null => document.querySelector<HTMLElement>(`.rtab[data-tab="${tab}"]`);
 /** The `n`th line of the action log, counting the rotation's own steps alone: a chain's parts and
  *  its spill follow-ups are rows inside one of those rather than lines of their own. */
 function actionRow(n: number): HTMLElement | null {
@@ -229,8 +222,8 @@ function placeDetail(box: HTMLElement, path: SVGPathElement, mainR: DOMRect): vo
   box.style.top = `8px`;
 
   const anchor = stage === DETAIL_STAGE ? substatsCell()
-    : stage === DETAIL_STAGE + 1 ? totalCell()
-    : stage === DETAIL_STAGE + 2 ? loopCell()
+    : stage === DETAIL_STAGE + 1 ? tabButton("distribution")
+    : stage === DETAIL_STAGE + 2 ? tabButton("contribution")
     : actionRow(19);
   mark(anchor);
   const anchorR = anchor ? rect(anchor) : null;
@@ -251,13 +244,6 @@ function placeDetail(box: HTMLElement, path: SVGPathElement, mainR: DOMRect): vo
     const ty = Math.min(Math.max(anchorR.top + anchorR.height / 2, by + 40), mainR.bottom - 20);
     const end = tx - side * HEAD;
     path.setAttribute("d", `M ${bx} ${by} C ${bx} ${by + 60}, ${end - side * 60} ${ty}, ${end} ${ty}`);
-    return;
-  }
-  // the damage table's own two stages come in level, at the cell's left edge, where the rest drop
-  // onto the top of what they point at
-  if (stage === DETAIL_STAGE + 1 || stage === DETAIL_STAGE + 2) {
-    const tx = anchorR.left - 4, ty = anchorR.top + anchorR.height / 2;
-    path.setAttribute("d", `M ${bx} ${by} C ${bx} ${by + 60}, ${tx - HEAD - 60} ${ty}, ${tx - HEAD} ${ty}`);
     return;
   }
   // straight down the cell's own column into its top edge, or as far as the screen goes
@@ -514,8 +500,8 @@ document.addEventListener("click", (e) => {
   const top = (cells[2] ?? cells[cells.length - 1])?.dataset.resonator;
   const shown = [top, ...[...document.querySelectorAll<HTMLElement>(".c.name.res")].map((c) => c.dataset.resonator)];
   const onScreen = new Set(visibleRows.flatMap((row) => row.members.map((m) => m.name)));
-  const unseen = Object.values(TEAMS).flat().map((m) => m.name).find((n) => !onScreen.has(n) && !resonatorFilters.has(n));
-  const name = unseen ?? shown.find((n) => n && !resonatorFilters.has(n)) ?? top;
+  const unseen = Object.values(TEAMS).flat().map((m) => m.name).find((n) => !onScreen.has(n) && !included(n));
+  const name = unseen ?? shown.find((n) => n && !included(n)) ?? top;
   if (!input || input.value || !name) return;
   const text = name;
   let at = 0;
@@ -586,13 +572,13 @@ document.addEventListener("click", (e) => {
   place();
 }, true);
 
-// ...then any figure that opens the breakdown — a member's, and after it the team's own row.
+// ...then the Node Priority tab, and after it Contribution; a frame later, once the tab has opened
 document.addEventListener("click", (e) => {
   if (!layer || layer.hidden) return;
-  const cell = (e.target as Element).closest?.(".dist-cell, [data-dist-row]");
-  if (!cell) return;
-  if (stage === DETAIL_STAGE + 1) setStage(DETAIL_STAGE + 2);
-  else if (stage === DETAIL_STAGE + 2 && cell.closest(".rtrow.total")) setStage(DETAIL_STAGE + 3);
+  const tab = (e.target as Element).closest?.<HTMLElement>(".rtab")?.dataset.tab;
+  if (stage === DETAIL_STAGE + 1 && tab === "distribution") setStage(DETAIL_STAGE + 2);
+  else if (stage === DETAIL_STAGE + 2 && tab === "contribution") setStage(DETAIL_STAGE + 3);
+  else if (stage === DETAIL_STAGE && tab) requestAnimationFrame(place);
   else return;
   place();
 }, true);

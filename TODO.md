@@ -1,41 +1,35 @@
-# priorities
-successful dodge prio
-check dodge/jump prios
-check echo cast and animation priorities
-psuedo transform 4 or less?
-summon cast =10
-check pseudo transform
-add swapback restriction on transform
-implement swap cooldown
 
-# cleaning
-do a big cleanup especially reducing comments but possibly adding new docs/ files as explanations
+#
+tier list and matrix maxxer navigation
+invidual invest in matrix value
 
-
-# input validations
+# action interface 
+implement a full input interface for resonators
+we already have intro/outro/dodge/jump stuff
+add basic/skill etc
+basically a full interface of what actions are available at any time
+create a state machine to model unit kits?
+inputs and timers transfer between states?
 input validation for neutral state
 heavy/basic inputs
-input validation for holds
 find correct input buffers and hold buffer frames
 find tb timeout frames
 currently tb not allowed after mash,hold,
 .tbCancel(), which will take priority for tb use for that section of the rotation (the first one after offtune is full takes the priority)
-
-# burst frames
-burst 0.2s cooldown for amy
-change forte deonation to last frames
-denia burst 5f delay
 
 # cancel automation
 throw an error on transforms that do not dodge cancel
 may need midway position for echoes that fly up and down
 throw errors on actions that could be cancelled without timeloss/position loss
 
+# cleaning
+do a big cleanup especially reducing comments but possibly adding new docs/ files as explanations
+
 # crit fish
 crit fish distribution (optimize build for a level of fishing)
 
-# images
-add resonator, weapon, sonata, attribute, damage type, images
+# ui update
+update website ui completely to use astryx
 
 # rankings
 show all teams
@@ -51,7 +45,6 @@ add costs and max cost filter and ranking
 
 # resonators to implement
 taoqi
-baizhi
 
 # waiting for wuwalab
 chixia

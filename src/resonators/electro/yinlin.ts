@@ -51,9 +51,9 @@ import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { AUGMENT, RADIANT_DAWN } from "../../weapons/battlepass.js";
 import { EMPYREAN_ANTHEM_5PC } from "../../echoes/rinascita.js";
 import { NM_TEMPEST_MEPHIS_MAINSLOT, HERON_MAINSLOT, MOONLIT_CLOUDS_5PC, NM_TEMPEST_MEPHIS, HERON } from "../../echoes/jinzhou.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 

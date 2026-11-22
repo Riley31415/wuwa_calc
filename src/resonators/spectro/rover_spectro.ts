@@ -9,7 +9,7 @@
  * skill's own Skill Attributes row; energy/concerto/offtune/forte off the migrated sheet's own
  * SRover rows (offtune x10000 into this engine's units). Rotation is the sheet's own "srover 3nf".
  */
-import { Tier, Stat, EnemyStat, Attribute, WeaponType, Type, Cast, Node, Scaling, Position } from "../../engine/stats.js";
+import { Rarity, Stat, EnemyStat, Attribute, WeaponType, Type, Cast, Node, Scaling, Position } from "../../engine/stats.js";
 import { Buff, Debuff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   applyCurrent,
@@ -25,16 +25,16 @@ import {
   queue,
 } from "../../engine/context.js";
 import { Action, Rotation, SWAPIN, ActionGroup, Cooldown, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
-import { tuneBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
-import { SPECTRO_FRAZZLE, SHIMMER, HEALS } from "../../shared/status.js";
+import { tuneBreak, SWORD_BREAK } from "../tunebreak.js";
+import { SPECTRO_FRAZZLE, SHIMMER, HEALS } from "../status.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { BLAZING_BRILLIANCE, RED_SPRING } from "../../weapons/sword.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
 import { REJUV_5PC, HERON_MAINSLOT, MOONLIT_CLOUDS_5PC, FALLACY, HERON } from "../../echoes/jinzhou.js";
 import { FALLACY_MAINSLOT } from "../../echoes/jinzhou.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -104,7 +104,7 @@ const FSkill1 = roverAction("Forte Skill - Resonating Spin", {
     {
       hitFrame: 19, mv: 12908, energy: 500, offtune: 10920,
       // Shimmer rides along with the two stacks, and holds every Frazzle stack on the target for its
-      // own 9s rather than letting the ticks eat them (shared/status.ts)
+      // own 9s rather than letting the ticks eat them (resonators/status.ts)
       updateDebuffs: () => {
         applyEnemy(SPECTRO_FRAZZLE, 2);
         applyEnemy(SHIMMER, 1);
@@ -236,7 +236,7 @@ const ROVER_SPECTRO_RESONATOR = new Resonator({
   tuneBreak: tuneBreak(91, 91, [0, 91], [0, 70], SWORD_BREAK),
   maxEnergy: 12500,
   maxForte1: 100,
-  tier: Tier.Free,
+  tier: Rarity.FreeS6,
 
   stats: [[Stat.BaseHp, 11400], [Stat.BaseAtk, 375], [Stat.BaseDef, 1368.8864]],
 });

@@ -2,8 +2,9 @@
  * The comparison page: the filter aside (boxes, chips, search), the table itself drawn as a
  * scroll window over the sorted rows, and every click/change handler for it.
  */
-import { Tier } from "../engine/stats.js";
+import { Rarity } from "../engine/stats.js";
 import { fmt } from "./display.js";
+import { iconOf, ICON_SLOT } from "./icons.js";
 import { loadoutName, sequenceLevels, scopedKey, axisUsed, compares, shownRanks, rankShown, rankValue, weaponBase, echoLines, echoLabel, axisOpen, AXES } from "../solve/solver.js";
 import type { Member, Combo, Axis, TeamCost, ScopedCompare } from "../solve/solver.js";
 import type { TeamRun } from "../solve/teamrun.js";
@@ -16,10 +17,11 @@ import {
   teamRows,
   ROW_CAP,
   resonatorFilters,
-  sequenceFilters,
+  resonatorLabel,
   refineFilters,
   OPTION_FILTER_MAPS,
   pruneGearFilters,
+  settleLevels,
   comparable,
   prospectiveRows,
   sequenceTag,
@@ -141,12 +143,14 @@ function setCompare(name: string, axis: Axis): void {
       if (on && at < 0) filters[a].push(name);
       if (!on && at >= 0) filters[a].splice(at, 1);
     }
-    const kept = (Object.values(OPTION_FILTER_MAPS) as Map<string, ResonatorFilter>[]).map((map) => [...map]);
-    // either way: closing a compare strands the picks only it offered
+    const maps = [resonatorFilters, ...Object.values(OPTION_FILTER_MAPS)] as Map<string, ResonatorFilter>[];
+    const kept = maps.map((map) => [...map]);
+    // either way: closing a compare strands the picks only it offered, and the levels only it opened
     pruneGearFilters();
+    settleLevels();
     return () => {
       for (const [a, list] of before) filters[a] = list;
-      (Object.values(OPTION_FILTER_MAPS) as Map<string, ResonatorFilter>[]).forEach((map, i) => {
+      maps.forEach((map, i) => {
         map.clear();
         for (const [n, mode] of kept[i]!) map.set(n, mode);
       });
@@ -187,7 +191,7 @@ const MENU_AXES: Axis[] = ["weapons", "sequences", "echoes", "mainstats"];
 
 /** `alt` is what the right button does on this line; without one the right button is inert
  *  there, so a second right press on a menu it just opened leaves the menu standing. */
-export interface MenuItem { label: string; run: () => void; alt?: () => void }
+export interface MenuItem { label: string; run: () => void; alt?: () => void; sub?: MenuItem[] }
 
 /** The scoped compares a pick can open: refines on a weapon pick alone, and only where its rank
  *  list has >1 entry; sonatas and main stats where the resonator has options; an echo opens main
@@ -232,10 +236,12 @@ function rankItems(run: TeamRun, pos: number): MenuItem[] {
     ...here.map((s) => rankShown(s.value).weapon),
     combo.weapon.name,
   ]);
-  return [...ranks.filter((w) => !shown.has(w.name)).map((w) => ({
+  const show = ranks.filter((w) => !shown.has(w.name)).map((w) => ({
     label: `Show ${w.name}`,
     run: () => setScoped({ resonator: m.name, on: "rank", value: rankValue(w.name, combo.sequence), axis: "refines" }),
-  })), ...stop];
+  }));
+  // the ranks gather under one line that opens them to its right on hover
+  return [...(show.length ? [{ label: `Show ${weaponBase(combo.weapon)} Refinement...`, run: () => {}, sub: show }] : []), ...stop];
 }
 /** The run a cell's row is and the position `resonator` holds in it, for a menu opened on it. */
 function cellRun(el: HTMLElement, resonator: string): { run: TeamRun; pos: number } | undefined {
@@ -250,12 +256,34 @@ export function showMenu(x: number, y: number, items: MenuItem[], onClose?: () =
   document.querySelector(".ctxmenu")?.remove();
   const menu = document.createElement("div");
   menu.className = "ctxmenu";
-  menu.innerHTML = items.map((it, i) => `<button type="button" class="ctxitem" data-i="${i}">${esc(it.label)}</button>`).join("");
+  // a line with a `sub` carries its own hidden card of lines, shown beside it while hovered
+  menu.innerHTML = items.map((it, i) => (it.sub
+    ? `<button type="button" class="ctxitem hassub" data-i="${i}">${esc(it.label)}</button>`
+      + `<div class="ctxmenu ctxsub" data-of="${i}" hidden>${it.sub.map((s, k) =>
+        `<button type="button" class="ctxitem" data-i="${i}" data-s="${k}">${esc(s.label)}</button>`).join("")}</div>`
+    : `<button type="button" class="ctxitem" data-i="${i}">${esc(it.label)}</button>`)).join("");
   document.body.appendChild(menu);
   // the first line sits under the pointer, even where that runs the rest of the menu off the
   // bottom: lifting it to fit would put the pointer over a line the reader never aimed for
   menu.style.left = `${Math.max(6, Math.min(x, innerWidth - menu.getBoundingClientRect().width - 6))}px`;
   menu.style.top = `${y}px`;
+  /** Open `line`'s card at its right edge (its left where the window runs out), every other one shut. */
+  const openSub = (line: HTMLElement | null): void => {
+    for (const sub of menu.querySelectorAll<HTMLElement>(".ctxsub")) {
+      if (!line || sub.dataset.of !== line.dataset.i) {
+        sub.hidden = true;
+        continue;
+      }
+      sub.hidden = false;
+      const at = line.getBoundingClientRect(), box = menu.getBoundingClientRect(), w = sub.getBoundingClientRect().width;
+      sub.style.left = `${box.right + w + 6 > innerWidth ? Math.max(6, box.left - w) : box.right}px`;
+      sub.style.top = `${at.top}px`;
+    }
+  };
+  menu.addEventListener("mouseover", (e) => {
+    const line = (e.target as Element).closest<HTMLElement>(".ctxitem");
+    if (line && !line.dataset.s) openSub(line.classList.contains("hassub") ? line : null);
+  });
   const close = (): void => {
     menu.remove();
     removeEventListener("click", onOutside, true);
@@ -272,7 +300,13 @@ export function showMenu(x: number, y: number, items: MenuItem[], onClose?: () =
     if (!item || !menu.contains(item)) return;
     e.stopPropagation();
     e.preventDefault();
-    const it = items[Number(item.dataset.i)]!;
+    const parent = items[Number(item.dataset.i)]!;
+    // a press on a line with a card opens it (a touch has no hover); one inside it runs that line
+    if (parent.sub && item.dataset.s === undefined) {
+      if (e.type === "click") openSub(item);
+      return;
+    }
+    const it = item.dataset.s === undefined ? parent : parent.sub![Number(item.dataset.s)]!;
     const run = e.type === "contextmenu" ? it.alt : it.run;
     // a right press on a line with no `alt` is inert, menu and all — so pressing the right button
     // twice over a cell opens that cell's menu and leaves it standing
@@ -307,11 +341,11 @@ const pinCell = (key: string): string => {
 
 /** A gear pick cell; `data-kind`/`data-value` are what the click handlers filter on. Empty when
  *  the axis is open at this position but not for this member. */
-function optionCell(kind: OptionKind, value: string, color: string, lines: string[] = [value], resonator = ""): string {
+function optionCell(kind: OptionKind, value: string, color: string, lines: string[] = [value], resonator = "", icons: string[] = []): string {
   // a weapon reads in its own colour (`weaponHue`), as a resonator's name does in hers
   const style = kind === "weapon" && value ? `--mem:${color};color:${color}` : `--mem:${color}`;
   if (!value) return `<div class="c option" style="${style}"></div>`;
-  return `<div class="c option" data-kind="${kind}" data-value="${esc(value)}"${resonator ? ` data-resonator="${esc(resonator)}"` : ""} style="${style}">${lines.map(esc).join("<br>")}</div>`;
+  return `<div class="c option" data-kind="${kind}" data-value="${esc(value)}"${resonator ? ` data-resonator="${esc(resonator)}"` : ""} style="${style}">${lines.map((line, k) => (icons[k] ?? "") + esc(line)).join("<br>")}</div>`;
 }
 
 let hueShown = true;
@@ -334,9 +368,9 @@ export const teamFigure = (run: TeamRun): number =>
 /** One member's share of those sections, always per section whatever the team column reads. */
 export const personalFigure = (run: TeamRun, name: string): number =>
   Math.floor(run.sectionBySlot.reduce((a, by) => a + (by.get(name) ?? 0), 0) / Math.max(1, run.sectionTotals.length));
-/** Beside DPR, the last rotation's length as a dimmed subscript — plain for the sizing row. DPS
- *  reads alone. */
-const loopTime = (run: TeamRun): string => `${(run.sectionSeconds[run.sectionSeconds.length - 1] ?? 0).toFixed(1)}s`;
+/** Beside DPR, Loop 1's length (the log's LOOP 1, the rotation after the opening one) as a dimmed
+ *  subscript — plain for the sizing row. DPS reads alone. */
+const loopTime = (run: TeamRun): string => `${(run.sectionSeconds[1] ?? run.sectionSeconds[0] ?? 0).toFixed(1)}s`;
 const teamText = (run: TeamRun): string => fmt(teamFigure(run)) + (teamMode === "dpr" ? loopTime(run) : "");
 const teamHtml = (run: TeamRun): string =>
   fmt(teamFigure(run)) + (teamMode === "dpr" ? `<sub class="looptime">${loopTime(run)}</sub>` : "");
@@ -473,17 +507,19 @@ function comparisonTable(rows: TeamRow[]): string {
       else openAt[axis][pos] = false;
     });
   }
-  // a shown rank on a weapon other than the row's own default puts a second weapon in that team's
-  // rows, so the Weapon column opens on them — without a Compare, there being no weapon compare
-  const worn = new Map<string, Set<string>>();
+  // a shown rank can put two weapons in a team's rows that the name would read alike, so the Weapon
+  // column opens on them (no Compare). A signature's rank rides on the name, a standard's never does
+  const worn = new Map<string, Map<string, Set<string>>>();
   for (const row of rows) {
     row.members.forEach((m, pos) => {
       if (axisOpen(m, filters, "weapons") || !shownRanks(m, filters).length) return;
-      const key = `${row.teamKey}|${pos}`;
-      worn.set(key, (worn.get(key) ?? new Set()).add(weaponBase(row.combo[pos]!.weapon)));
+      const key = `${row.teamKey}|${pos}`, c = row.combo[pos]!;
+      const reads = `${c.sequence}${c.weapon.tier === Rarity.Limited ? `R${c.weapon.refinement}` : ""}`;
+      const byName = worn.get(key) ?? new Map<string, Set<string>>();
+      worn.set(key, byName.set(reads, (byName.get(reads) ?? new Set()).add(c.weapon.name)));
     });
   }
-  const multiWeapon = new Set([...worn].filter(([, seen]) => seen.size > 1).map(([key]) => key));
+  const multiWeapon = new Set([...worn].filter(([, byName]) => [...byName.values()].some((seen) => seen.size > 1)).map(([key]) => key));
   for (const key of multiWeapon) {
     const pos = Number(key.slice(key.lastIndexOf("|") + 1));
     if (!openAt.weapons[pos]) soloWeapon[pos] = true;
@@ -542,12 +578,12 @@ function comparisonTable(rows: TeamRow[]): string {
     // the loadout's leftmost standard weapon, the one it runs with no signature (CLAUDE.md), where
     // the table shows it; else the best standard one; with none, `gearRatio` falls to the worst
     const shownWeapons = axis === "weapons" ? [...offeredAt.get(`weapons|${pos}|${run.teamKey}`) ?? []].map((n) => n.replace(/ R\d$/, "")) : [];
-    const leftmost = run.members[pos]!.loadout.weapons.find((w) => w.tier !== Tier.Limited);
+    const leftmost = run.members[pos]!.loadout.weapons.find((w) => w.tier !== Rarity.Limited);
     const baseWeapon = leftmost && shownWeapons.includes(weaponBase(leftmost)) ? leftmost : undefined;
     let base = -Infinity;
     for (const t of pool) {
       if (axis === "weapons") {
-        if (t.combo.weapon.tier === Tier.Limited || (baseWeapon && weaponBase(t.combo.weapon) !== weaponBase(baseWeapon))) continue;
+        if (t.combo.weapon.tier === Rarity.Limited || (baseWeapon && weaponBase(t.combo.weapon) !== weaponBase(baseWeapon))) continue;
         // with no rank column every twin already runs at the cost's rank; with one, lower ranks
         // share the pool and R1 is the baseline
         if (ranked(run.members[pos]!) && t.combo.key.split(".")[4] !== "r0") continue;
@@ -606,7 +642,7 @@ function comparisonTable(rows: TeamRow[]): string {
         + (seqTag ? ` data-sequence="${esc(seqTag)}" data-seq-gate="${combo.sequence}"` : "")
         + (refTag ? ` data-refine="${esc(refTag)}" data-ref-gate="${combo.weapon.refinement}"` : "")
         + ` style="--mem:${m.color};color:${m.color}">`
-        + `<span class="res-label">${esc(memberLabel(m, combo, inCell))}</span>`
+        + `${iconOf(m.loadout.resonator)}<span class="res-label">${esc(memberLabel(m, combo, inCell))}</span>`
         + `</div>`;
       const dpr = dprAt(i) ? `<div class="c num slotdpr" style="--mem:${m.color}">${fmt(personalFigure(run, m.name))}</div>` : "";
       const seqCmp = cmpAt("sequences", i) ? `<div class="c num slotcompare" style="--mem:${m.color}">${axisOpen(m, filters, "sequences") ? gearCompare(run, i, "sequences") : ""}</div>` : "";
@@ -614,8 +650,8 @@ function comparisonTable(rows: TeamRow[]): string {
       const gear = GEAR_AXES.map((axis) => {
         if (!openAt[axis][i]) return "";
         const open = axis === "weapons" ? inCell : showsRow(m, axis, combo);
-        const cell = axis === "weapons" ? optionCell("weapon", open ? combo.weapon.name : "", open ? weaponHue(combo.weapon) : m.color, [combo.weapon.name], m.name)
-          : axis === "echoes" ? optionCell("echo", open ? echoLabel(m.loadout, combo.echo) : "", m.color, open ? echoLines(m.loadout, combo.echo) : [], m.name)
+        const cell = axis === "weapons" ? optionCell("weapon", open ? combo.weapon.name : "", open ? weaponHue(combo.weapon) : m.color, [combo.weapon.name], m.name, [iconOf(combo.weapon)])
+          : axis === "echoes" ? optionCell("echo", open ? echoLabel(m.loadout, combo.echo) : "", m.color, open ? echoLines(m.loadout, combo.echo) : [], m.name, open ? [...combo.echo.sets, combo.echo.mainslot].map(iconOf) : [])
           // Neither a main-stat roll nor a substat spread is ever filtered on — they reach nobody
           // but their own wearer, so "every team using this roll" says nothing. Their cells carry
           // the axis instead, and their menu only turns the compare that opened the column back
@@ -692,11 +728,11 @@ function comparisonTable(rows: TeamRow[]): string {
   });
   // a zero-height ghost row (index.css `.tghost`) sizing every track to its final width
   const ghostPos = (i: number) =>
-    `<div class="c name res"><span class="res-label">${esc(wide.name[i]!)}</span></div>`
+    `<div class="c name res">${ICON_SLOT}<span class="res-label">${esc(wide.name[i]!)}</span></div>`
     + (cmpAt("sequences", i) ? `<div class="c num slotcompare">${esc(wide.seqcmp[i]!)}</div>` : "")
     + (cmpAt("refines", i) ? `<div class="c num slotcompare">${esc(wide.refcmp[i]!)}</div>` : "")
     + GEAR_AXES.map((axis) => (openAt[axis][i]
-      ? `<div class="c option">${esc(wide.gear[axis][i]!)}</div>${cmpAt(axis, i) ? `<div class="c num slotcompare">${esc(wide.cmp[axis][i]!)}</div>` : ""}` : "")).join("")
+      ? `<div class="c option">${axis === "weapons" || axis === "echoes" ? ICON_SLOT : ""}${esc(wide.gear[axis][i]!)}</div>${cmpAt(axis, i) ? `<div class="c num slotcompare">${esc(wide.cmp[axis][i]!)}</div>` : ""}` : "")).join("")
     + (dprAt(i) ? `<div class="c num slotdpr">${esc(wide.dpr[i]!)}</div>` : "");
   // no `.teamdpr` on the ghost's Total cell: `drawWindow()` measures the row pitch off it
   // the heading is as wide as the figures under it can be too
@@ -1270,9 +1306,16 @@ document.addEventListener("change", (e) => {
   const select = e.target as HTMLSelectElement;
   if (select.id !== "cost") return;
   withRowCap(() => {
-    const was = filters.cost;
+    const was = filters.cost, kept = [...resonatorFilters];
     filters.cost = select.value as TeamCost;
-    return () => { filters.cost = was; select.value = was; };
+    // a level filter follows the resonator to the level the new cost runs them at
+    settleLevels();
+    return () => {
+      filters.cost = was;
+      select.value = was;
+      resonatorFilters.clear();
+      for (const [n, mode] of kept) resonatorFilters.set(n, mode);
+    };
   });
 });
 /** The Matrix Buffs box: every kit with a Matrix runs it, replacing the old build rather than adding rows. */
@@ -1287,7 +1330,7 @@ document.addEventListener("change", (e) => {
 });
 /* A double press needs no machinery of its own: a menu opens at the pointer with its first line
  * under the cursor, so the second press simply lands on that line. Left presses it, right runs its
- * `alt` — which on "Show X teams" is the hide. Any speed: there is no interval to beat. */
+ * `alt` — which on "Show X" is the hide. Any speed: there is no interval to beat. */
 /** The cell reads "Suoming S6R1": the resonator's own lines first, whole, then a block for each
  *  narrower reading of the cell — everything about "Suoming S6", then everything about "Suoming
  *  R1". Grouped by what a line is about rather than by axis, so the top of the menu is only ever
@@ -1306,14 +1349,16 @@ const openNameMenu = (el: HTMLElement, x: number, y: number): void => {
     { label: `Hide ${tag} teams`, run: () => setFilter(map, tag, "exclude") },
     ...scopedItems(resonator, on, gate).sort((a, b) => AXES.indexOf(a.axis) - AXES.indexOf(b.axis)),
   ] : []);
+  // the resonator at the level this row runs them at, as the name cell reads it
+  const label = resonatorLabel(resonator, row?.run.combo[row.pos]!.sequence ?? 0);
   const items: MenuItem[] = [
     // nothing to offer once they are already the ones shown — the bubble is where that comes back off
-    ...(resonatorFilters.get(resonator) === "include" ? [] : [{
-      label: `Show ${resonator} teams`,
-      run: () => setFilter(resonatorFilters, resonator, "include"),
-      alt: () => setFilter(resonatorFilters, resonator, "exclude"),
+    ...(resonatorFilters.get(label) === "include" ? [] : [{
+      label: `Show ${label}`,
+      run: () => setFilter(resonatorFilters, label, "include"),
+      alt: () => setFilter(resonatorFilters, label, "exclude"),
     }]),
-    { label: `Hide ${resonator} teams`, run: () => setFilter(resonatorFilters, resonator, "exclude") },
+    { label: `Hide ${label}`, run: () => setFilter(resonatorFilters, label, "exclude") },
     // every axis this resonator has more than one option on, the substat spread last of all —
     // it is the one that says how the whole build is invested rather than which pick it wears.
     // A kit with no chain nodes yet says so where its sequence compare would sit, and the line
@@ -1323,7 +1368,8 @@ const openNameMenu = (el: HTMLElement, x: number, y: number): void => {
     ...MENU_AXES.flatMap((axis) => (comparable(resonator, axis) ? [compareItem(axis)]
       : axis === "sequences" ? [{ label: "Sequences Not Implemented!", run: () => {} }] : [])),
     ...(comparable(resonator, "substats") ? [compareItem("substats")] : []),
-    ...scopedBlock(el.dataset.sequence, "sequence", el.dataset.seqGate ?? "", sequenceFilters),
+    // the level's own show and hide are the two lines up top
+    ...(el.dataset.sequence ? scopedItems(resonator, "sequence", el.dataset.seqGate ?? "").sort((a, b) => AXES.indexOf(a.axis) - AXES.indexOf(b.axis)) : []),
     // with no weapon compare the row's own weapon takes its other ranks from here
     ...(row && !axisOpen(row.run.members[row.pos]!, filters, "weapons") ? rankItems(row.run, row.pos) : []),
     ...scopedBlock(el.dataset.refine, "refine", el.dataset.refGate ?? "", refineFilters),
@@ -1369,13 +1415,10 @@ const openOptionMenu = (e: MouseEvent): void => {
   const axis = kind === "weapon" ? "weapons" : "echoes";
   const word = kind === "weapon" ? "weapons" : "sonatas";
   const items: MenuItem[] = [
-    // the pick's own filters lead, so "Show only" is the top line whatever else the cell offers
-    { label: `Show only ${base}`, run: () => setFilter(map, tag(base), "include"), alt: () => setFilter(map, tag(base), "exclude") },
-    { label: `Hide ${base}`, run: () => setFilter(map, tag(base), "exclude") },
-    ...(ranked ? [
-      { label: `Show only ${key}`, run: () => setFilter(map, tag(key), "include"), alt: () => setFilter(map, tag(key), "exclude") },
-      { label: `Hide ${key}`, run: () => setFilter(map, tag(key), "exclude") },
-    ] : []),
+    // the pick's own filters lead, so "Show only" is the top line whatever else the cell offers; a
+    // weapon filters at the rank its cell reads
+    { label: `Show only ${key}`, run: () => setFilter(map, tag(key), "include"), alt: () => setFilter(map, tag(key), "exclude") },
+    { label: `Hide ${key}`, run: () => setFilter(map, tag(key), "exclude") },
     // the weapon's own refines compare, then the ranks it would open shown one at a time
     ...(resonator && kind === "weapon" ? scopedItems(resonator, "weapon", base).flatMap((it) =>
       (it.axis === "refines" && row ? [it, ...rankItems(row.run, row.pos)] : [it])) : []),

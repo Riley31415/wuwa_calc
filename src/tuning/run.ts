@@ -13,7 +13,7 @@ import { cpus } from "node:os";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
-import { Substat, rollAt } from "../shared/substats.js";
+import { Substat, rollAt } from "../echoes/substats.js";
 import { Target, totalsOf } from "./target.js";
 import { buildOf, linesOf, tierUpPercentile, goalOf, Batch, mediansOf } from "./sim.js";
 import type { Tuned, Median, Strategy, Bucket } from "./sim.js";

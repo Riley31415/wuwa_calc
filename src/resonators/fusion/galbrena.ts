@@ -46,9 +46,9 @@ import { LUX_UMBRA } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
 import { THUNDERBOLT, SOLAR_FLAME } from "../../weapons/battlepass.js";
 import { CLAWPRINT_2PC, CORROSAURUS_MAINSLOT, FLAMEWING_SHADOW_3PC, CORROSAURUS } from "../../echoes/septimont.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 

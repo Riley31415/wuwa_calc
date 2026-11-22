@@ -65,15 +65,15 @@ import {
 } from "../../engine/context.js";
 import { ActionGroup, Action, Cooldown, Rotation, START_LAST, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
 import { applied } from "../../engine/context.js";
-import { applyHack, tuneHackResponse, TUNE_HACK_SHIFTING, TUNE_HACK_INTERFERED, TUNE_SHIFTABLE } from "../../shared/tunebreak.js";
+import { applyHack, tuneHackResponse, TUNE_HACK_SHIFTING, TUNE_HACK_INTERFERED, TUNE_SHIFTABLE } from "../tunebreak.js";
 import { SPECTRAL_TRIGGER } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
 import { THUNDERBOLT, SOLAR_FLAME } from "../../weapons/battlepass.js";
 import { CELESTIAL_LIGHT_2PC, LINGERING_TUNES_2PC, MOONLIT_CLOUDS_2PC } from "../../echoes/jinzhou.js";
 import { ADAM_SMASHER_MAINSLOT, SHATTERED_DREAMS_1PC, NEONLIGHT_LEAP_2PC, REEL_2PC, ADAM_SMASHER_LUCY } from "../../echoes/lahairoi.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 

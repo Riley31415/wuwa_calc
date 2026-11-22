@@ -12,8 +12,8 @@ import {
   onType, onCast, onApplied, onInflict, both,
 } from "../engine/context.js";
 import { Action, Cooldown } from "../engine/rotation.js";
-import { FUSION_BURST, HEALS, GLACIO_CHAFE, gainShield } from "../shared/status.js";
-import { TUNE_HACK_SHIFTING, TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
+import { FUSION_BURST, HEALS, GLACIO_CHAFE, gainShield } from "../resonators/status.js";
+import { TUNE_HACK_SHIFTING, TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING } from "../resonators/tunebreak.js";
 import { SummonEcho, TransformEcho } from "./echo.js";
 
 /* ------------------------------------------------------------------------------ Sigrika, 3.2 */

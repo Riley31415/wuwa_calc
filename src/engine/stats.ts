@@ -195,23 +195,13 @@ export const enum WeaponType {
   Rectifier,
 }
 
-/** How hard a resonator is to own, which is the only thing deciding how much of their resonance
- *  chain a build is assumed to hold (gear.ts's own `baseSequence()`):
- *
- *  - `Limited` — a limited 5-star, banner-only: S0, one copy is the whole build.
- *  - `Standard` — a standard 5-star, permanently available and pulled into over time (Encore,
- *    Jianxin, Verina): S0, same as a limited one — the chain is still a build choice, not owned.
- *  - `Free` — a 4-star or a Rover, handed out freely: S6, the full chain.
- *  - `FreeS2` — a standard 5-star whose kit has no rotation below S2 (Jianxin): S2 as the baseline,
- *    costed like `Standard` above it.
- *
- *  For the first two that level is a *baseline*, not a ceiling — with that role's own Sequences box
- *  open, every level from it up to S6 gets a row of its own (`sequenceLevels()`). A `Free`
- *  resonator's chain comes with the character, so theirs is fixed at S6 either way. */
-export const enum Tier {
+// rarity of resonators and weapons
+export const enum Rarity {
+  // limited characters requires pulls, starts at s0
   Limited,
-  Standard,
-  Free,
+  // free four star and rover who are easy to get s6
+  FreeS6,
+  // free standard 5* that requires s2+ for normal use: jianxin
   FreeS2,
   /** A free standard 5-star (Encore, Lingyang): an account starts with them, costed from S0. */
   FreeS0,
@@ -308,6 +298,8 @@ export enum ActionTag {
   HitCancel = "cancel on hit",
   DodgeOnHit = "dodge on hit",
   JumpOnHit = "jump on hit",
+
+  TimedCancel = "timed cancel", // the next press input at a written frame, no delay after it
 }
 
 /** Cast identities with no damage type of their own (a Dodge Counter deals whatever `type` says);

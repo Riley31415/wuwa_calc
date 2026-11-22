@@ -4,13 +4,13 @@
  * `Weapon`/`Resonator`), plus `EchoLoadout` and `Loadout`. Definitions only — what a piece
  * *does* is the hooks it declares, which `evaluate.ts` runs.
  */
-import { Stat, EnemyStat, Attribute, WeaponType, Tier, Cast, BuffTarget, ActionTag, FULL_CONCERTO } from "./stats.js";
+import { Stat, EnemyStat, Attribute, WeaponType, Rarity, Cast, BuffTarget, ActionTag, FULL_CONCERTO } from "./stats.js";
 import type { Tag } from "./stats.js";
 import type { Rotation, Action, ActionField } from "./rotation.js";
 import { ctx } from "./runtime.js";
-import type { ErSpread, Spread } from "../shared/substats.js";
-import type { MainstatBuild } from "../shared/mainstats.js";
-import type { Echoes } from "../shared/echoes.js";
+import type { ErSpread, Spread } from "../echoes/substats.js";
+import type { MainstatBuild } from "../echoes/mainstats.js";
+import type { Echoes } from "../echoes/echoes.js";
 // the one edge back up the stack: a Resonator's own combatStart banks its base stats through
 // the ordinary API. Both names are function declarations, so the import cycle is inert at load.
 import { addStat, compileLines, payLines, frozenStacks, casting, applyCurrent, applyTeam, applyEnemy, queueOutro, revokeCurrent, currentMember, currentTeam, queue, queueOn, applyOn, stacksOf, stacksOfTeam, removeStack, removeStackTeam, removeStackEnemy } from "./context.js";
@@ -371,7 +371,7 @@ export class Sequence extends Gear {}
  *  — the baseline every other level is compared against. See `Tier` for why each is what it is.
  *  Capped by however many nodes the loadout actually declares. */
 export const baseSequence = (r: Resonator): number =>
-  ({ [Tier.Limited]: 0, [Tier.Standard]: 0, [Tier.Free]: 6, [Tier.FreeS2]: 2, [Tier.FreeS0]: 0 })[r.tier];
+  ({ [Rarity.Limited]: 0, [Rarity.FreeS0]: 0, [Rarity.FreeS6]: 6, [Rarity.FreeS2]: 2 })[r.tier];
 
 /** A resonator's own Resonance Mode — a fixed stance a loadout commits to for the whole fight
  *  (Lucilla's Echo/Glacio Chafe split), not something toggled mid-rotation. Other pieces of that
@@ -616,7 +616,7 @@ export interface LoadoutDef {
    *  picked out of it (`MARCATO[4]`), which is then the only rank the build ever runs. */
   weapons: (Weapon | Weapon[])[];
   /** The set picks, main-stat builds and substat spreads, and the five echoes each combination makes
-   *  (shared/echoes.ts). The run picks a spread's ER tier off the member's own ER requirement. */
+   *  (echoes/echoes.ts). The run picks a spread's ER tier off the member's own ER requirement. */
   echoes: Echoes;
   /** One rotation for every sequence level, or a map from the level a rotation takes over at to
    *  that rotation — `{ 0: base, 3: withStrawCape }` — S0 always named; a level not named runs the
@@ -800,6 +800,8 @@ export interface ResonatorDef extends GearDef {
    *  one it makes cutting `after` short, read when the dash is reached (Hiyuki's Iai Stance flash);
    *  null, or unset, is the plain DODGE. */
   dodge?: Action | ((after: Action) => Action | null);
+  /** The same for a dash made in mid-air; unset is the plain air dodge (DEFAULT_AIR_DODGE). */
+  airDodge?: Action | ((after: Action) => Action | null);
   /** The same for a jump. */
   jump?: Action | ((after: Action) => Action | null);
   /** A wait the resonator handing this one the field must play before `next` (the arrival's first
@@ -818,7 +820,7 @@ export interface ResonatorDef extends GearDef {
   takesCut?: (behind: Action, cut: ActionTag) => void;
   /** How hard this resonator is to own, which is what sets the resonance-chain level their build
    *  is costed at — see stats.ts's own `Tier` and `baseSequence()`. Unset means `Tier.Limited`. */
-  tier?: Tier;
+  tier?: Rarity;
   /** The one Resonator that is the enemy rather than a member (tunebreak.ts's Tune Break): it is
    *  `equipEnemy()`-ped onto `State.enemy`, and carries none of the four starting stats every real
    *  resonator gets — those would land in the enemy pool and pay into every action. */
@@ -863,12 +865,13 @@ export class Resonator extends Gear {
   swapInAir?: () => Action;
   tuneBreak?: () => Action | null;
   dodgeFn?: (after: Action) => Action | null;
+  airDodgeFn?: (after: Action) => Action | null;
   jumpFn?: (after: Action) => Action | null;
   holdFn?: (next: Action) => Action | null;
   sentOff?: () => void;
   atCut?: (behind: Action, cut: ActionTag) => void;
   takesCut?: (behind: Action, cut: ActionTag) => void;
-  tier: Tier;
+  tier: Rarity;
   constructor(def: ResonatorDef) {
     super({
       ...def,
@@ -914,18 +917,19 @@ export class Resonator extends Gear {
     const scale = def.forteScale ?? 1;
     this.forteScale = Array.isArray(scale) ? scale : [scale, scale, scale, scale, scale];
     this.color = def.color;
-    const { intro, dodge, jump, swapIn, swapInAir, tuneBreak } = def;
+    const { intro, dodge, airDodge, jump, swapIn, swapInAir, tuneBreak } = def;
     this.intro = typeof intro === "function" ? intro : intro && (() => intro);
     this.swapIn = typeof swapIn === "function" ? swapIn : swapIn && (() => swapIn);
     this.swapInAir = typeof swapInAir === "function" ? swapInAir : swapInAir && (() => swapInAir);
     this.tuneBreak = typeof tuneBreak === "function" ? tuneBreak : tuneBreak && (() => tuneBreak);
     this.dodgeFn = typeof dodge === "function" ? dodge : dodge && (() => dodge);
+    this.airDodgeFn = typeof airDodge === "function" ? airDodge : airDodge && (() => airDodge);
     this.holdFn = def.holdBefore;
     this.sentOff = def.sentOff;
     this.atCut = def.atCut;
     this.takesCut = def.takesCut;
     this.jumpFn = typeof jump === "function" ? jump : jump && (() => jump);
-    this.tier = def.tier ?? Tier.Limited;
+    this.tier = def.tier ?? Rarity.Limited;
   }
 }
 
@@ -941,7 +945,7 @@ export interface MainslotDef extends GearDef {
  *  it is worn. */
 export class Mainslot extends Gear {
   cost: 4 | 3;
-  /** Its constant stats, run by the build's echo it is (shared/echoes.ts); the mainslot itself
+  /** Its constant stats, run by the build's echo it is (echoes/echoes.ts); the mainslot itself
    *  carries none. */
   echoStatsFn?: () => void;
   constructor(def: MainslotDef) {
@@ -965,7 +969,7 @@ export interface WeaponDef extends GearDef {
    *  Unset means `Tier.Limited`.
    *  The comparison table's own Allow R1 MDPS/Supports checkboxes key off it: unchecked restricts
    *  that role to the non-limited tiers, on the assumption a signature is only ever owned at R1. */
-  tier?: Tier;
+  tier?: Rarity;
 }
 
 /** All five refinements of one weapon, R1 first. `build` is called once per rank with `r` 0-4 and
@@ -982,13 +986,13 @@ export function refinements(build: (r: number, rank: string) => Weapon): Weapon[
  *  weapon grants (Ad Veritatem, Panorama, etc.) stay plain Buff. */
 export class Weapon extends Gear {
   weaponType: WeaponType;
-  tier: Tier;
+  tier: Rarity;
   /** Which rank this instance is, 1-5 — stamped by `refinements()`. */
   refinement = 1;
   constructor(def: WeaponDef) {
     super(def);
     this.weaponType = def.weaponType;
-    this.tier = def.tier ?? Tier.Limited;
+    this.tier = def.tier ?? Rarity.Limited;
   }
 }
 

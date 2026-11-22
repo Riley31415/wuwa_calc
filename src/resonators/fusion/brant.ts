@@ -33,15 +33,15 @@ import {
   pressCut,
 } from "../../engine/context.js";
 import { Action, Rotation, DODGE, SWAP, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
-import { tuneBreak, midairBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
-import { HEALS, gainShield } from "../../shared/status.js";
+import { tuneBreak, midairBreak, SWORD_BREAK } from "../tunebreak.js";
+import { HEALS, gainShield } from "../status.js";
 import { UNFLICKERING_VALOR } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS, NEW_STD_SWORD, BLOODPACTS_PLEDGE } from "../../weapons/standard.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
 import { DRAGON_OF_DIRGE_MAINSLOT, TIDEBREAKING_5PC, DRAGON_OF_DIRGE } from "../../echoes/rinascita.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 import { NM_INFERNO_RIDER_MAINSLOT, MOLTEN_RIFT_5PC, NM_INFERNO_RIDER } from "../../echoes/jinzhou.js";
 
 /* ----------------------------------------------------------------------------------- actions */

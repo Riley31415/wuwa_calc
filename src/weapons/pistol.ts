@@ -3,9 +3,9 @@
 import { WeaponType, Stat, EnemyStat, Attribute, Type, Cast, BuffTarget } from "../engine/stats.js";
 import { Buff, Debuff, Weapon, refinements } from "../engine/gear.js";
 import { addStat, addGain, casting, isActive, isHeld, onCast, onType, onInflict, onApplied, both, either } from "../engine/context.js";
-import { AERO_EROSION, HEALS } from "../shared/status.js";
-import { gainedUnison, unisonResponse } from "../shared/unison.js";
-import { TUNE_HACK_SHIFTING, TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
+import { AERO_EROSION, HEALS } from "../resonators/status.js";
+import { gainedUnison, unisonResponse } from "../resonators/unison.js";
+import { TUNE_HACK_SHIFTING, TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING } from "../resonators/tunebreak.js";
 
 /** The Last Dance, Carlotta's sig: Silent Eulogy. +12% ATK flat. Intro/Liberation grants
  *  +48% Resonance Skill DMG Bonus for 5s. */

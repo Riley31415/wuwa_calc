@@ -50,15 +50,15 @@ import {
   addStatAs,
 } from "../../engine/context.js";
 import { Action, Rotation, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
-import { gainShield } from "../../shared/status.js";
+import { gainShield } from "../status.js";
 import { THUNDERFLARE_DOMINION, VERDANT_SUMMIT } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { AUTUMNTRACE, AUREATE_ZENITH } from "../../weapons/battlepass.js";
 import { FALSE_SOVEREIGN_MAINSLOT, COV_3PC, FALSE_SOVEREIGN } from "../../echoes/septimont.js";
 import { VOID_THUNDER_2PC } from "../../echoes/jinzhou.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 

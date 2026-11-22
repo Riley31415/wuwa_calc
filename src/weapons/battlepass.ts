@@ -1,6 +1,6 @@
 /** Pioneer Podcast (battle pass) 4-star weapons: the original five and the Oath of Tide Hunters five.
  *  Each export is the weapon's five refinements, R1 first (gear.ts's own `refinements()`). */
-import { WeaponType, Stat, Type, Cast, Tier } from "../engine/stats.js";
+import { WeaponType, Stat, Type, Cast, Rarity } from "../engine/stats.js";
 import { Buff, Weapon, refinements } from "../engine/gear.js";
 import { applyCurrent, isHeld, isType, onCast } from "../engine/context.js";
 
@@ -15,7 +15,7 @@ export const AUTUMNTRACE = refinements((r, rank) => {
   const EDGE_DIRECTION_GAP = new Buff({ duration: 60 });
   return new Weapon({
     id: 21010074,
-    weaponType: WeaponType.Broadblade, tier: Tier.Standard, name: `Autumntrace${rank}`,
+    weaponType: WeaponType.Broadblade, tier: Rarity.FreeS0, name: `Autumntrace${rank}`,
     stats: [[Stat.BaseAtk, 412.5], [Stat.CritRate, 20.25]],
     afterHit: () => {
       if (!(isType(Type.Basic) || isType(Type.Heavy)) || isHeld(EDGE_DIRECTION_GAP)) return;
@@ -36,7 +36,7 @@ export const LUMINGLOSS = refinements((r, rank) => {
   });
   return new Weapon({
     id: 21020074,
-    weaponType: WeaponType.Sword, tier: Tier.Standard, name: `Lumingloss${rank}`,
+    weaponType: WeaponType.Sword, tier: Rarity.FreeS0, name: `Lumingloss${rank}`,
     stats: [[Stat.BaseAtk, 387.5], [Stat.BonusAtk, 36.45]],
     grants: [{ on: onCast(Cast.Skill), buff: PALE_GALE }],
   });
@@ -52,7 +52,7 @@ export const THUNDERBOLT = refinements((r, rank) => {
   const UNSTOPPABLE_GAP = new Buff({ duration: 60 });
   return new Weapon({
     id: 21030074,
-    weaponType: WeaponType.Pistols, tier: Tier.Standard, name: `Thunderbolt${rank}`,
+    weaponType: WeaponType.Pistols, tier: Rarity.FreeS0, name: `Thunderbolt${rank}`,
     stats: [[Stat.BaseAtk, 387.5], [Stat.BonusAtk, 36.45]],
     afterHit: () => {
       if (!(isType(Type.Basic) || isType(Type.Heavy)) || isHeld(UNSTOPPABLE_GAP)) return;
@@ -70,7 +70,7 @@ export const STONARD = refinements((r, rank) => {
   });
   return new Weapon({
     id: 21040074,
-    weaponType: WeaponType.Gauntlets, tier: Tier.Standard, name: `Stonard${rank}`,
+    weaponType: WeaponType.Gauntlets, tier: Rarity.FreeS0, name: `Stonard${rank}`,
     stats: [[Stat.BaseAtk, 412.5], [Stat.CritRate, 20.25]],
     grants: [{ on: onCast(Cast.Skill), buff: WALLBREAKER }],
   });
@@ -84,7 +84,7 @@ export const AUGMENT = refinements((r, rank) => {
   });
   return new Weapon({
     id: 21050074,
-    weaponType: WeaponType.Rectifier, tier: Tier.Standard, name: `Augment${rank}`,
+    weaponType: WeaponType.Rectifier, tier: Rarity.FreeS0, name: `Augment${rank}`,
     stats: [[Stat.BaseAtk, 412.5], [Stat.CritRate, 20.25]],
     grants: [{ on: onCast(Cast.Liberation), buff: FORGIVING_RESILIENCE }],
   });
@@ -103,7 +103,7 @@ export const AUREATE_ZENITH = refinements((r, rank) => {
   });
   return new Weapon({
     id: 21010104,
-    weaponType: WeaponType.Broadblade, tier: Tier.Standard, name: `Aureate Zenith${rank}`,
+    weaponType: WeaponType.Broadblade, tier: Rarity.FreeS0, name: `Aureate Zenith${rank}`,
     stats: [[Stat.BaseAtk, 412.5], [Stat.CritDmg, 40.5]],
     grants: [{ on: onCast(Cast.Liberation), buff: TIDE_HUNTERS }],
   });
@@ -120,7 +120,7 @@ export const FEATHER_EDGE = refinements((r, rank) => {
   });
   return new Weapon({
     id: 21020104,
-    weaponType: WeaponType.Sword, tier: Tier.Standard, name: `Feather Edge${rank}`,
+    weaponType: WeaponType.Sword, tier: Rarity.FreeS0, name: `Feather Edge${rank}`,
     stats: [[Stat.BaseAtk, 412.5], [Stat.CritRate, 20.25]],
     grants: [{ on: onCast(Cast.Liberation), buff: TIDE_HUNTERS }],
   });
@@ -140,7 +140,7 @@ export const SOLAR_FLAME = refinements((r, rank) => {
   const TIDE_HUNTERS_GAP = new Buff({ duration: 60 });
   return new Weapon({
     id: 21030104,
-    weaponType: WeaponType.Pistols, tier: Tier.Standard, name: `Solar Flame${rank}`,
+    weaponType: WeaponType.Pistols, tier: Rarity.FreeS0, name: `Solar Flame${rank}`,
     stats: [[Stat.BaseAtk, 412.5], [Stat.CritRate, 20.25]],
     afterHit: () => {
       if (!(isType(Type.Basic) || isType(Type.Heavy)) || isHeld(TIDE_HUNTERS_GAP)) return;
@@ -161,7 +161,7 @@ export const AETHER_STRIKE = refinements((r, rank) => {
   });
   return new Weapon({
     id: 21040104,
-    weaponType: WeaponType.Gauntlets, tier: Tier.Standard, name: `Aether Strike${rank}`,
+    weaponType: WeaponType.Gauntlets, tier: Rarity.FreeS0, name: `Aether Strike${rank}`,
     stats: [[Stat.BaseAtk, 412.5], [Stat.CritDmg, 40.5]],
     grants: [{ on: onCast(Cast.Liberation), buff: TIDE_HUNTERS }],
   });
@@ -178,7 +178,7 @@ export const RADIANT_DAWN = refinements((r, rank) => {
   });
   return new Weapon({
     id: 21050104,
-    weaponType: WeaponType.Rectifier, tier: Tier.Standard, name: `Radiant Dawn${rank}`,
+    weaponType: WeaponType.Rectifier, tier: Rarity.FreeS0, name: `Radiant Dawn${rank}`,
     stats: [[Stat.BaseAtk, 412.5], [Stat.CritDmg, 40.5]],
     grants: [{ on: onCast(Cast.Skill), buff: TIDE_HUNTERS }],
   });

@@ -68,16 +68,16 @@ import {
   reduceCooldown,
 } from "../../engine/context.js";
 import { ActionGroup, Action, ActionField, Cooldown, Rotation, START_LAST, SWAP, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
-import { GLACIO_CHAFE, GLACIO_CHAFE_ACTIONS, OWN_CHAFE_RUNGS } from "../../shared/status.js";
+import { GLACIO_CHAFE, GLACIO_CHAFE_ACTIONS, OWN_CHAFE_RUNGS } from "../status.js";
 import { FREEZE_FRAME, STRINGMASTER, LETHEAN_ELEGY } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { AUGMENT, RADIANT_DAWN } from "../../weapons/battlepass.js";
 import { BELL_BORNE_GEOCHELONE_MAINSLOT, HERON_MAINSLOT, MOONLIT_CLOUDS_2PC, MOONLIT_CLOUDS_5PC, REJUV_2PC, BELL_BORNE_GEOCHELONE, HERON, FALLACY } from "../../echoes/jinzhou.js";
 import { FALLACY_MAINSLOT } from "../../echoes/jinzhou.js";
 import { DREAM_OF_THE_LOST_3PC, LAW_OF_HARMONY_3PC } from "../../echoes/septimont.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 import { GLOMMOTH_MAINSLOT, QUIET_SNOWFALL_2PC, QUIET_SNOWFALL_5PC, GLOMMOTH } from "../../echoes/lahairoi.js";
 
 /* ----------------------------------------------------------------------------------- actions */

@@ -7,7 +7,7 @@ import {
   openHelp,
   pageOf,
   wireHelp
-} from "./chunk-EPD3HQ3L.js";
+} from "./chunk-YHTK2HAI.js";
 import {
   FALLBACK_HUE,
   MATRIX_RESONATORS,
@@ -19,6 +19,7 @@ import {
   ensureBestPicks,
   filters,
   fmt,
+  iconNamed,
   loadSolves,
   matrixBox,
   overlay,
@@ -27,12 +28,12 @@ import {
   saveSolves,
   showError,
   syncHash
-} from "./chunk-RUPMSA6L.js";
+} from "./chunk-DU4TDG6K.js";
 import {
   bestKey,
   defaultFilters,
   hasBuild
-} from "./chunk-4CKV7HFV.js";
+} from "./chunk-RLABIZFI.js";
 
 // dist/src/page/tierlist.js
 var app = document.getElementById("app");
@@ -101,7 +102,7 @@ function render() {
     const href = pageOf(e.teamKey);
     const hue = RESONATOR_HUE.get(e.name) ?? FALLBACK_HUE;
     const figure = href ? `<a href="${esc(href)}">${fmt(e.dpr)}</a>` : fmt(e.dpr);
-    return `${gap}<div class="sec"><div class="c name res${start}" style="--mem:${hue};color:${hue}"><span class="res-label">${esc(e.name)}</span></div><div class="c num total${band}">${figure}</div></div>`;
+    return `${gap}<div class="sec"><div class="c name res${start}" style="--mem:${hue};color:${hue}">${iconNamed(e.name)}<span class="res-label">${esc(e.name)}</span></div><div class="c num total${band}">${figure}</div></div>`;
   };
   const body = TIERS.map((tier, t) => {
     const inTier = blocks.map((b) => b.filter((e) => tierOf(e.dpr) === t));

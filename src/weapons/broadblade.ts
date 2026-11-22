@@ -9,7 +9,7 @@ import {
   applyTeam, extendCurrent, isHeld,
   addGain,
 } from "../engine/context.js";
-import { SHIELD, HEALS, inflictedNegativeStatusBy } from "../shared/status.js";
+import { SHIELD, HEALS, inflictedNegativeStatusBy } from "../resonators/status.js";
 
 /** Jiyan's sig: Swordsworn. +12% Attribute DMG Bonus flat. Every Intro/Liberation cast
  *  grants +24% Heavy Attack DMG Bonus, up to 2 stacks, 14s. */

@@ -54,9 +54,9 @@ import { THE_LAST_DANCE } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
 import { THUNDERBOLT, SOLAR_FLAME } from "../../weapons/battlepass.js";
 import { FROSTY_RESOLVE_5PC, SENTRY_CONSTRUCT_MAINSLOT, SENTRY_CONSTRUCT } from "../../echoes/rinascita.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 

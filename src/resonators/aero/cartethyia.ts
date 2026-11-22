@@ -21,7 +21,7 @@
  * The three Hearts, held from the plunge until Manifest ends:
  *  - Heart of Virtue is a force field and interruption resistance, so it carries no stat.
  *  - Mandate of Divinity amplifies Aero Erosion DMG 50% and halves its tick interval — the second
- *    half is real here, since Aero Erosion runs on a clock now (shared/status.ts): a second of
+ *    half is real here, since Aero Erosion runs on a clock now (resonators/status.ts): a second of
  *    hers advances the target's own half-second clock twice over.
  *  - Power of Discord levels the Aero Erosion stacks across nearby targets, which is nothing
  *    against the single target this calculator fights.
@@ -33,7 +33,7 @@
  * restores Conviction and neither source gives a number, so it carries none. Nothing casts it —
  * the loop always leaves Manifest on the Blade — so no number here depends on it.
  */
-import { Tier, Stat, Attribute, WeaponType, Type, Subtype, Cast, Node, Scaling, Position } from "../../engine/stats.js";
+import { Rarity, Stat, Attribute, WeaponType, Type, Subtype, Cast, Node, Scaling, Position } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   addStat,
@@ -65,18 +65,18 @@ import {
   addGain,
 } from "../../engine/context.js";
 import { Action, Rotation, ActionGroup, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
-import { tuneBreak, SWORD_BREAK, BROADBLADE_BREAK } from "../../shared/tunebreak.js";
+import { tuneBreak, SWORD_BREAK, BROADBLADE_BREAK } from "../tunebreak.js";
 import {
   AERO_EROSION, AERO_EROSION_ACTIONS, hasNegativeStatus, inflictedNegativeStatusBy, negativeStatusRung,
   EROSION_HASTE, HEALS,
-} from "../../shared/status.js";
+} from "../status.js";
 import { DEFIERS_THORN, RED_SPRING } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
 import { FLEURDELYS_MAINSLOT, WINDWARD_5PC, FLEURDELYS } from "../../echoes/rinascita.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -372,7 +372,7 @@ const Outro = cartethyiaAction("Outro - Wind's Divine Blessing", {
 const HEART_OF_VIRTUE = new Buff({ name: "Cartethyia: Heart of Virtue" });
 
 /** Mandate of Divinity: +50% Aero Erosion DMG Amplification, and the status's own tick interval
- *  halved for as long as she is the one on field — a marker on the target (shared/status.ts's
+ *  halved for as long as she is the one on field — a marker on the target (resonators/status.ts's
  *  EROSION_HASTE) that her presses keep up and her swap-out takes down. */
 const MANDATE_OF_DIVINITY = new Buff({
   name: "Cartethyia: Mandate of Divinity",
@@ -538,7 +538,7 @@ export const CARTETHYIA_RESONATOR = new Resonator({
   talent: CARTETHYIA_TALENTS,
   inherent1: CT_INHERENT_1,
   inherent2: CT_INHERENT_2,
-  tier: Tier.Limited,
+  tier: Rarity.Limited,
   element: Attribute.Aero,
   weapon: WeaponType.Sword,
   color: "#3553fb",

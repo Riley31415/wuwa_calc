@@ -38,7 +38,7 @@
  * CDN's older version directories are stale earlier betas, not older patches.
  * Sequences 1-6 are modelled off that same file — see their own block below.
  *
- * Unison mode (shared/unison.ts): the first Formshift after any of her Intros grants Unison, and
+ * Unison mode (resonators/unison.ts): the first Formshift after any of her Intros grants Unison, and
  * she can trigger Unison Response.
  * Her four Intro forms are the mode's own smaller ones, replaced by the Manifold Unison pair —
  * Resonance Skill DMG, far larger — on a Unison Response, which also banks Source Intent, or by
@@ -51,7 +51,7 @@
  * visit ending on Formshift's Unison outro, the resonator behind her plays, and their outro
  * brings her back in Illumining Form for Dominion, Stilling and Pillars Across Heaven.
  */
-import { Tier, Stat, Attribute, WeaponType, Type, Subtype, Cast, Node, Scaling, Position } from "../../engine/stats.js";
+import { Rarity, Stat, Attribute, WeaponType, Type, Subtype, Cast, Node, Scaling, Position } from "../../engine/stats.js";
 import { Buff, Debuff, Talent, Inherent, ResonanceMode, Sequence, Resonator, Loadout, EchoLoadout, coordinatedBuff } from "../../engine/gear.js";
 import {
   addBuff,
@@ -84,15 +84,15 @@ import {
   addStatAs,
 } from "../../engine/context.js";
 import { Action, ActionField, ActionGroup, Rotation, ActionTag, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
-import { UNISON, UNISON_BOON, UNISON_RESPONSE, BOON_REACTOR, grantBoon, respondToUnison, unisonIntro, unisonOutro, unisonResponse } from "../../shared/unison.js";
-import { ELECTRO_FLARE, ELECTRO_RAGE, FLARE_RETAINED, inflictElectroFlare } from "../../shared/status.js";
+import { UNISON, UNISON_BOON, UNISON_RESPONSE, BOON_REACTOR, grantBoon, respondToUnison, unisonIntro, unisonOutro, unisonResponse } from "../unison.js";
+import { ELECTRO_FLARE, ELECTRO_RAGE, FLARE_RETAINED, inflictElectroFlare } from "../status.js";
 import { BLOOMING_JADEHAVEN, FREEZE_FRAME, LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";
 import { COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { AUGMENT, RADIANT_DAWN } from "../../weapons/battlepass.js";
 import { SUHSIN_MAINSLOT, SWORN_VIGIL_5PC, SUHSIN_HSIN } from "../../echoes/mengzhou.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -931,7 +931,7 @@ export const HSIN_RESONATOR = new Resonator({
   talent: HSIN_TALENTS,
   inherent1: HS_INHERENT_1,
   inherent2: HS_INHERENT_2,
-  tier: Tier.Limited,
+  tier: Rarity.Limited,
   element: Attribute.Electro,
   weapon: WeaponType.Rectifier,
   // Unison mode: the Manifold form on a Unison Response, or on a held Source Intent

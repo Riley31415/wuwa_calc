@@ -22,7 +22,7 @@
  *  S6 a Pushing Punch (interrupting Zhoutian early) opens Special Chi Counter, 556.67% Heavy DMG,
  *     once in 5s. Kept as its own cast; a rotation that interrupts can name it.
  */
-import { Tier, Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, Position } from "../../engine/stats.js";
+import { Rarity, Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, Position } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   addStat,
@@ -36,12 +36,12 @@ import {
   revokeCurrent,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Cooldown, Rotation, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
-import { HEALS, gainShield } from "../../shared/status.js";
+import { HEALS, gainShield } from "../status.js";
 import { MARCATO } from "../../weapons/standard.js";
 import { HERON_MAINSLOT, MOONLIT_CLOUDS_5PC, HERON } from "../../echoes/jinzhou.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -266,7 +266,7 @@ const JIANXIN_RESONATOR = new Resonator({
   talent: JIANXIN_TALENTS,
   inherent1: JX_INHERENT_1,
   inherent2: JX_INHERENT_2,
-  tier: Tier.FreeS2,
+  tier: Rarity.FreeS2,
   element: Attribute.Aero,
   weapon: WeaponType.Gauntlets,
   color: "#9fe0c8",

@@ -35,14 +35,14 @@ import {
   addStatAs,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Cooldown, Rotation, SWAPIN, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
-import { tuneBreak } from "../../shared/tunebreak.js";
-import { AERO_EROSION, SPECTRO_FRAZZLE, gainShield } from "../../shared/status.js";
+import { tuneBreak } from "../tunebreak.js";
+import { AERO_EROSION, SPECTRO_FRAZZLE, gainShield } from "../status.js";
 import { WOODLAND_ARIA } from "../../weapons/pistol.js";
 import { NM_KELPIE_MAINSLOT, NM_KELPIE } from "../../echoes/rinascita.js";
 import { GUSTS_OF_WELKIN_5PC } from "../../echoes/rinascita.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
 import { THUNDERBOLT, SOLAR_FLAME } from "../../weapons/battlepass.js";
 import { HERON_MAINSLOT, MOONLIT_CLOUDS_5PC, HERON } from "../../echoes/jinzhou.js";

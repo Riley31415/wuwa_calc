@@ -39,7 +39,7 @@ import {
   addStatAs,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Cooldown, Rotation, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
-import { applyRupture, applyStrain, TUNE_STRAIN_INTERFERED, TUNE_SHIFTABLE, strainPayout, tuneRuptureResponse } from "../../shared/tunebreak.js";
+import { applyRupture, applyStrain, TUNE_STRAIN_INTERFERED, TUNE_SHIFTABLE, strainPayout, tuneRuptureResponse } from "../tunebreak.js";
 import { SPECTRUM_BLASTER } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
 import { THUNDERBOLT, SOLAR_FLAME } from "../../weapons/battlepass.js";
@@ -49,9 +49,9 @@ import { LUUK_RESONATOR } from "./luuk.js";
 import { QINGXIAO_RESONATOR } from "../aero/qingxiao.js";
 import { HERON_MAINSLOT, STONEWALL_BRACER_MAINSLOT, MOONLIT_CLOUDS_5PC, HERON, STONEWALL_BRACER_1 } from "../../echoes/jinzhou.js";
 import { JINGRAN_RESONATOR } from "../fusion/jingran.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 

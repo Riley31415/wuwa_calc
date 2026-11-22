@@ -45,9 +45,9 @@ import { SOLSWORN_CIPHERS } from "../../weapons/gauntlet.js";
 import { NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
 import { STONARD, AETHER_STRIKE } from "../../weapons/battlepass.js";
 import { NAMELESS_EXPLORER_MAINSLOT, SOUND_OF_TRUE_NAME_5PC, NAMELESS_EXPLORER } from "../../echoes/lahairoi.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 

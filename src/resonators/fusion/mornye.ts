@@ -42,17 +42,17 @@ import {
   addStatAs,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, SWAPIN, START_LAST, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
-import { HEALS, heal } from "../../shared/status.js";
+import { HEALS, heal } from "../status.js";
 import {
   TUNE_BREAK, TUNE_RUPTURE_INTERFERED, TUNE_STRAIN_INTERFERED, tuneRuptureResponse, strainPayout,
-} from "../../shared/tunebreak.js";
+} from "../tunebreak.js";
 import { STARFIELD_CALIBRATOR } from "../../weapons/broadblade.js";
 import { DISCORD } from "../../weapons/standard.js";
 import { REACTOR_HUSK_MAINSLOT, SPACETREK_EXPLORER_MAINSLOT, STARRY_RADIANCE_5PC, REACTOR_HUSK, SPACETREK_EXPLORER } from "../../echoes/lahairoi.js";
 import { JINGRAN_RESONATOR } from "./jingran.js";
-import { mainstats, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstats, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 

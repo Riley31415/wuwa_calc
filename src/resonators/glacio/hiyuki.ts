@@ -82,15 +82,15 @@ import {
   addStatAs,
 } from "../../engine/context.js";
 import { ActionGroup, Action, ActionField, Cooldown, Rotation, SWAPIN, SWAPIN_OPENER, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
-import { TUNE_BREAK } from "../../shared/tunebreak.js";
-import { GLACIO_CHAFE, GLACIO_CHAFE_ACTIONS, HAVOC_BANE, HEALS, OWN_CHAFE_RUNGS } from "../../shared/status.js";
+import { TUNE_BREAK } from "../tunebreak.js";
+import { GLACIO_CHAFE, GLACIO_CHAFE_ACTIONS, HAVOC_BANE, HEALS, OWN_CHAFE_RUNGS } from "../status.js";
 import { FROSTBURN } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
 import { QUIET_SNOWFALL_5PC, VOIDBORNE_CONSTRUCT_MAINSLOT, VOIDBORNE_CONSTRUCT } from "../../echoes/lahairoi.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 
 /* ------------------------------------------------------------------------------ glacio bite */
 
@@ -571,6 +571,8 @@ export const HIYUKI_RESONATOR = new Resonator({
   weapon: WeaponType.Sword,
   // a plain dash after anything the flash may not follow
   dodge: (after) => (forte2() >= 100 && IaiFlash.follows(after) ? IaiFlash : null),
+  // the flash out of her mid-air presses is an air dodge
+  airDodge: (after) => (forte2() >= 100 && IaiFlash.follows(after) ? IaiFlash : null),
   color: "#87e6e6",
   intro: () => (isHeld(FORECLAIMED_SELF) ? FIntro : Intro),
   swapIn: () => (isHeld(FORECLAIMED_SELF) ? UBA1 : BA1),

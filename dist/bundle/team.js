@@ -1,8 +1,10 @@
 import {
   HOLD,
   buffsPopover,
+  cachedGains,
   clearPops,
   copyBlock,
+  distributionTable,
   dprTable,
   drivePanel,
   dropPanel,
@@ -25,13 +27,15 @@ import {
   rememberTableScroll,
   rowCapWarning,
   showMenu,
+  substatGains,
+  substatValueTable,
   swallowClick,
   teamFigure,
   watchTouch,
   wireDistribution,
   wireSourcePanels,
   zoom
-} from "./chunk-QM7OR4LI.js";
+} from "./chunk-NCL6WAZD.js";
 import {
   FALLBACK_HUE,
   GROUPED_COLUMNS,
@@ -43,18 +47,20 @@ import {
   admitTeam,
   applyHash,
   barReset,
+  buildReport,
   cancelQueued,
   detailFor,
   digitsOf,
   discardRestoredSolves,
+  echoLabelHtml,
   ensureBestPicks,
   filters,
   fmt,
   fmtPct,
   fmtPctCell,
-  gaugeSuffix,
   gearShut,
   hashTeam,
+  iconOf,
   loadSolves,
   overlayHide,
   overlayNow,
@@ -74,14 +80,18 @@ import {
   solveQuiet,
   solvedRows,
   syncHash,
+  tagFilters,
   tagTeam,
   weaponHue,
   workerPool
-} from "./chunk-RUPMSA6L.js";
+} from "./chunk-DU4TDG6K.js";
 import {
   ActionTag,
+  CONCERTO_UNIT,
+  ENEMY_MAX_OFFTUNE,
   ENERGY_UNIT,
   ER_TOLERANCE,
+  RESOURCE_NAME,
   SCALING_NAME,
   TUNE_BREAK_ENEMY,
   comboOf,
@@ -98,7 +108,7 @@ import {
   sequenceLevels,
   statLabel,
   weaponBase
-} from "./chunk-4CKV7HFV.js";
+} from "./chunk-RLABIZFI.js";
 
 // dist/src/page/pickmenu.js
 var FIELDS = ["weapon", "echo", "mainstat", "sequence", "refine", "highSubs"];
@@ -356,8 +366,13 @@ var openPickMenu = (e) => {
   const boxes = new Map(offered.map((c, n) => [c, menu.querySelectorAll(".ctxitem")[n]]));
   const l = run.members[i].loadout;
   for (const [c, b] of boxes) {
-    if (c.axis === "weapons" || c.axis === "refines")
-      b.style.color = weaponHue(l.refinements[c.pick.weapon][c.pick.refine]);
+    if (c.axis === "echoes")
+      b.innerHTML = echoLabelHtml(b.textContent ?? "", esc);
+    if (c.axis !== "weapons" && c.axis !== "refines")
+      continue;
+    const w = l.refinements[c.pick.weapon][c.pick.refine];
+    b.style.color = weaponHue(w);
+    b.insertAdjacentHTML("afterbegin", iconOf(w));
   }
   void showRatios(run, i, list, boxes, el);
   menu.addEventListener("mouseover", (ev) => frame(ev.target.closest(".ctxitem") ?? el));
@@ -379,7 +394,10 @@ var topbar = document.getElementById("topbar");
 var BUFF_UNDERLINE_COLUMNS = /* @__PURE__ */ new Set(["mv", "energy", "concerto", "offtune"]);
 var RUNNING_COLUMNS = /* @__PURE__ */ new Set(["concerto", "energy", "offtune"]);
 var isRunning = (key) => RUNNING_COLUMNS.has(key) || key.startsWith("gauge:");
-var colWidth = (c) => `calc(var(--cw) * ${c.width} + var(--cpad))`;
+var colWidth = (c) => {
+  const num = c.align === "left" ? 0 : 1, p = c.pad ?? { cw: 0, cpad: 0, npad: 0 };
+  return `calc(var(--cw) * ${(c.width ?? 0) + p.cw} + var(--cpad) * ${1 + p.cpad} + var(--npad) * ${num + p.npad})`;
+};
 function cell(col, { cls = [], html = "", pop = "", style = "", attr = "" } = {}) {
   const classes = ["c", col.align === "left" ? "" : "num", ...cls].filter(Boolean).join(" ");
   return `<span class="${classes}"${style ? ` style="${style}"` : ""}${attr}${pop}>${html}</span>`;
@@ -399,7 +417,8 @@ var TAG_KIND = {
   [ActionTag.Cancel]: "cancel",
   [ActionTag.HitCancel]: "hit",
   [ActionTag.DodgeOnHit]: "hit",
-  [ActionTag.JumpOnHit]: "hit"
+  [ActionTag.JumpOnHit]: "hit",
+  [ActionTag.TimedCancel]: "timed"
 };
 var TAG_NOTE = {
   [ActionTag.InstaCancel]: "After casting, input the next action instantly",
@@ -415,16 +434,38 @@ var TAG_NOTE = {
   [ActionTag.HoldCancel]: "After casting, hold the next input to cancel when available",
   [ActionTag.HitCancel]: "After the first hit, input the next action",
   [ActionTag.DodgeOnHit]: "After the first hit, dodge",
-  [ActionTag.JumpOnHit]: "After the first hit, jump"
+  [ActionTag.JumpOnHit]: "After the first hit, jump",
+  [ActionTag.TimedCancel]: "Input the next action on the frame shown"
 };
-function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = true } = {}) {
+function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = true, bars = null } = {}) {
+  const snap = "line" in row ? row.line.snap : row.snap;
+  const aggregate = "line" in row && !!row.line.aggregate;
   return columns.map((col) => {
+    if (!bars || aggregate || !(col.key === FORTE_KEY || RUNNING_COLUMNS.has(col.key))) {
+      return cell(col, cellParts(col, row, slotHue, gearByMember, part, caret));
+    }
+    if (col.key !== FORTE_KEY) {
+      const p = cellParts(col, row, slotHue, gearByMember, part, caret);
+      const cap = col.key === "energy" ? bars.energyCap.get(snap.member) ?? 0 : col.key === "concerto" ? CONCERTO_CAP : OFFTUNE_CAP;
+      return cell(col, { cls: ["barcell"], attr: p.attr, pop: p.pop, html: barHtml([{ color: BAR_COLOR[col.key], fill: Number(row.raw[col.key]) / cap, text: p.html, cls: p.cls }]) });
+    }
+    const hue = slotHue.get(snap.member) ?? FALLBACK_HUE;
+    const gauges = bars.forte.get(snap.member) ?? [];
+    return cell(col, { cls: ["barcell"], html: barHtml(gauges.map(({ key, cap }) => {
+      const name = key.slice("gauge:".length);
+      const p = cellParts({ ...bars.gauge, key, label: name, full: name }, row, slotHue, gearByMember, part, caret);
+      return { color: hue, fill: Number(row.raw[key]) / cap, text: p.html, cls: p.cls, pop: p.pop };
+    })) });
+  }).join("");
+}
+function cellParts(col, row, slotHue, gearByMember, part, caret) {
+  {
     const v = row.raw[col.key];
     const sources = row.sources[col.key];
     let attr = "";
     if (isRunning(col.key)) {
       if ("line" in row && row.line.aggregate)
-        return cell(col);
+        return { cls: [], html: "", pop: "", style: "", attr: "" };
       const act = ("line" in row ? row.line.snap : row.snap).action, cast = act.cast;
       const spend = col.key === "offtune" ? cast === 8 && act.castOfftune < 0 : col.key === "energy" ? act.castEnergy < 0 : col.key === "concerto" && cast === 6;
       const before = Number(row.raw[`before:${col.key}`]) || 0;
@@ -433,8 +474,10 @@ function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = tr
       if (!spend && col.key === "energy")
         attr += ` data-gen="${Number(row.raw["gen:energy"]) || 0}"`;
       const fed = (sources ?? []).some((r) => !RATE_SECTIONS.has(r.section ?? ""));
-      if (!fed && Math.abs((Number(v) || 0) - before) < 1e-9)
-        return cell(col, { attr });
+      const moved2 = (raw) => Math.abs((Number(raw[col.key]) || 0) - (Number(raw[`before:${col.key}`]) || 0)) >= 1e-9;
+      const blank = "parts" in row && row.parts.length ? !row.parts.some((p) => moved2(p.raw) || (p.sources[col.key] ?? []).some((r) => !RATE_SECTIONS.has(r.section ?? ""))) : !fed && !moved2(row.raw);
+      if (blank)
+        return { cls: [], html: "", pop: "", style: "", attr };
     }
     const cls = [];
     if (col.key === "action")
@@ -451,14 +494,15 @@ function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = tr
       cls.push("negative");
     if (col.key === "action" && row.raw["short:buff"])
       cls.push("negative");
-    const text = (col.percent && typeof v === "number" ? `${fmtPctCell(v, col.key, PAD_DIGITS_COLUMNS.has(col.key))}%` : esc(fmt(v, digitsOf(row.raw, col), PAD_DIGITS_COLUMNS.has(col.key), GROUPED_COLUMNS.has(col.key)))) + gaugeSuffix(row.raw, col.key);
+    const text = col.percent && typeof v === "number" ? `${fmtPctCell(v, col.key, PAD_DIGITS_COLUMNS.has(col.key))}%` : esc(fmt(v, digitsOf(row.raw, col), PAD_DIGITS_COLUMNS.has(col.key), GROUPED_COLUMNS.has(col.key)));
     let html = sources && text ? `<span class="has">${text}</span>` : text;
     if (col.key === "action" && caret && !part && "parts" in row && row.parts.length) {
       html = `${html}<span class="caret">\u25B8</span>`;
     }
     const tag = col.key === "action" ? String(row.raw["tag:action"] ?? "") : "";
     if (tag) {
-      const kind = TAG_KIND[tag] ?? "cancel", note = TAG_NOTE[tag];
+      const own = tag.startsWith("cancel @ ") ? ActionTag.TimedCancel : tag;
+      const kind = TAG_KIND[own] ?? "cancel", note = TAG_NOTE[own];
       const tagPop = note ? lazyPop(`<span class="pop note">${esc(note)}</span>`) : "";
       html = `<span class="ctag ctag-${kind}"${tagPop}>${esc(tag.toUpperCase())}</span>${html}`;
     }
@@ -476,8 +520,6 @@ function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = tr
       pop = buffsPopover(snap.member, gear, snap.heldLocal, snap.heldGlobal, snap.heldEnemy, slotHue);
     } else if (col.key === "avg") {
       pop = text ? hitsPopover(row.hits) : "";
-    } else if (col.key === "position") {
-      pop = "";
     } else if (text) {
       pop = popover(col, sources, row.raw[`moved:${col.key}`] ?? v, slotHue, suffix, String(row.raw[`empty:${col.key}`] ?? ""));
     }
@@ -490,23 +532,62 @@ function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = tr
       const frames = snaps.reduce((n, s) => n + (s.active ? s.frames : 0) + (s.swapFrames ?? 0), 0);
       attr = ` data-frames="${frames}"`;
     }
-    return cell(col, { cls, html, pop, style, attr });
-  }).join("");
+    return { cls, html, pop, style, attr };
+  }
 }
+var FORTE_KEY = "forte";
+var GAUGE_KEYS = [
+  3,
+  4,
+  5,
+  6,
+  7
+  /* Resource.Forte5 */
+].map((r) => `gauge:${RESOURCE_NAME[r]}`);
+var BAR_COLOR = { concerto: "#ffffff", energy: "#f5c542", offtune: "#c4c7cc" };
+var CONCERTO_CAP = 1e4 / CONCERTO_UNIT;
+var OFFTUNE_CAP = ENEMY_MAX_OFFTUNE / 1e4;
+function forteUse(report) {
+  const seen = /* @__PURE__ */ new Map();
+  const read = (snap, raw) => {
+    const m = seen.get(snap.member) ?? { caps: [0, 0, 0, 0, 0], peak: [0, 0, 0, 0, 0] };
+    seen.set(snap.member, m);
+    GAUGE_KEYS.forEach((key, i) => {
+      if (snap.maxForte[i])
+        m.caps[i] = snap.maxForte[i] * snap.forteScale[i];
+      m.peak[i] = Math.max(m.peak[i], Math.abs(Number(raw[key]) || 0));
+    });
+  };
+  for (const row of report.rows) {
+    if (row.line.aggregate)
+      continue;
+    read(row.line.snap, row.raw);
+    for (const p of row.parts)
+      read(p.snap, p.raw);
+  }
+  const out = /* @__PURE__ */ new Map();
+  for (const [member, { caps, peak }] of seen) {
+    const used = GAUGE_KEYS.flatMap((key, i) => caps[i] || peak[i] > 1e-9 ? [{ key, cap: caps[i] || peak[i] }] : []);
+    if (used.length)
+      out.set(member, used);
+  }
+  return out;
+}
+var barHtml = (bars) => `<span class="rbars">${bars.map((b) => `<span class="rbar${b.text ? "" : " empty"}" style="--bar:${b.color};--fill:${Math.max(0, Math.min(1, b.fill || 0))}"${b.pop ?? ""}><span class="rfill"></span><span class="rtext${b.cls.length ? ` ${b.cls.join(" ")}` : ""}">${b.text}</span></span>`).join("")}</span>`;
 var rowHue = (snap, slotHue) => snap.slot === TUNE_BREAK_ENEMY.name ? TUNE_BREAK_ENEMY.color : slotHue.get(snap.member) ?? FALLBACK_HUE;
-function partRows(columns, parts, slotHue, gearByMember, fieldOf) {
+function partRows(columns, parts, slotHue, gearByMember, fieldOf, bars) {
   return parts.map((p) => {
     const hue = rowHue(p.snap, slotHue);
     const field = fieldOf.get(p.snap);
     const mark = field === void 0 ? "" : ` data-fh="${field}"`;
-    return `<div class="r${p.short ? " short" : ""}" style="--m:${hue}"${mark}>${stepRow(columns, p, slotHue, gearByMember, { part: true })}</div>`;
+    return `<div class="r${p.short ? " short" : ""}" style="--m:${hue}"${mark}>${stepRow(columns, p, slotHue, gearByMember, { part: true, bars })}</div>`;
   }).join("");
 }
 var loopBar = (columns, n) => `<div class="step loopbar" aria-hidden="true"><div class="r short loop">` + columns.map((c) => cell(c, { cls: c.key === "action" ? ["action"] : [], html: c.key === "action" ? `LOOP ${n}` : "" })).join("") + `</div></div>`;
-function rotationTable(report, slotHue, gearByMember, starts) {
+function rotationTable(report, slotHue, gearByMember, starts, bars) {
   const columns = report.columns;
   const cols = columns.map(colWidth).join(" ");
-  const head = columns.map((c) => cell(c, { html: esc(c.label) })).join("");
+  const head = columns.map((c) => cell(c, { html: esc(c.label), cls: RESOURCE_COLUMN(c.key) || c.key === FORTE_KEY ? ["rhead"] : [] })).join("");
   const fieldIds = /* @__PURE__ */ new Map();
   const fieldId = (key) => {
     const seen = fieldIds.get(key);
@@ -541,7 +622,7 @@ function rotationTable(report, slotHue, gearByMember, starts) {
     const snap = row.line.snap;
     const hue = rowHue(snap, slotHue);
     const style = ` style="--m:${hue}"`;
-    const cells = stepRow(columns, row, slotHue, gearByMember);
+    const cells = stepRow(columns, row, slotHue, gearByMember, { bars });
     const shortCls = row.short ? " short" : "";
     const key = row.line.fieldKey;
     const mark = key === void 0 || row.line.aggregate ? "" : ` data-fh="${fieldId(key)}"`;
@@ -554,10 +635,10 @@ function rotationTable(report, slotHue, gearByMember, starts) {
     if (row.line.spill && spilling) {
       if (row.parts.length) {
         const id2 = `x${i}`;
-        out.push(`<div class="chain"${style}${mark}><input class="tgl" type="checkbox" id="${id2}"><label class="r${shortCls}" for="${id2}">${cells}</label><div class="parts">${partRows(columns, row.parts, slotHue, gearByMember, fieldOf)}</div></div>`);
+        out.push(`<div class="chain"${style}${mark}><input class="tgl" type="checkbox" id="${id2}"><label class="r${shortCls}" for="${id2}">${cells}</label><div class="parts">${partRows(columns, row.parts, slotHue, gearByMember, fieldOf, bars)}</div></div>`);
         return;
       }
-      out.push(`<div class="r${shortCls}"${style}${mark}>${stepRow(columns, row, slotHue, gearByMember, { caret: false })}</div>`);
+      out.push(`<div class="r${shortCls}"${style}${mark}>${stepRow(columns, row, slotHue, gearByMember, { caret: false, bars })}</div>`);
       return;
     }
     closeBlock();
@@ -566,7 +647,7 @@ function rotationTable(report, slotHue, gearByMember, starts) {
       return;
     }
     const id = `x${i}`;
-    out.push(`<div class="step chain"${style}${mark}><input class="tgl" type="checkbox" id="${id}"><label class="r${shortCls}" for="${id}">${cells}</label><div class="parts">${partRows(columns, row.parts, slotHue, gearByMember, fieldOf)}</div><div class="spill">`);
+    out.push(`<div class="step chain"${style}${mark}><input class="tgl" type="checkbox" id="${id}"><label class="r${shortCls}" for="${id}">${cells}</label><div class="parts">${partRows(columns, row.parts, slotHue, gearByMember, fieldOf, bars)}</div><div class="spill">`);
     spilling = true;
   });
   closeBlock();
@@ -625,62 +706,265 @@ function energyRequirements(run) {
   });
   return cells;
 }
+var loopReports = /* @__PURE__ */ new WeakMap();
+function loopReport(run) {
+  const seen = loopReports.get(run);
+  if (seen)
+    return seen;
+  const [, loop = [], ...later] = run.rotationLines;
+  const opened2 = new Set(loop.filter((l) => l.aggregate).map((l) => l.fieldKey));
+  const lines = [
+    ...loop.filter((l) => l.aggregate || l.fieldKey === void 0 || opened2.has(l.fieldKey)),
+    ...later.flat().filter((l) => !l.aggregate && l.fieldKey !== void 0 && opened2.has(l.fieldKey))
+  ];
+  const first = loop.find((l) => !l.aggregate);
+  const origin = first ? Math.min(...(first.members?.length ? first.members : [first.snap]).map((s) => s.frame)) : 0;
+  const report = buildReport(lines, origin);
+  loopReports.set(run, report);
+  return report;
+}
+var shownReport = (run) => rotView === "loop" ? { ...loopReport(run), columns: detailFor(run).report.columns } : detailFor(run).report;
 function page(run) {
-  const { report } = detailFor(run);
+  const report = shownReport(run);
   const lines = run.rotationLines;
   const { members } = run;
   const slotHue = new Map([...members.map((m) => [m.name, m.color]), [TUNE_BREAK_ENEMY.name, TUNE_BREAK_ENEMY.color]]);
   const erRolls = erRollsFor(run.teamKey, run.members, run.combo);
   const gearByMember = new Map(members.map((m, i) => [m.name, equippedGear(m, run.combo[i], erRolls[i]).map(([, g]) => g)]));
   const starts = /* @__PURE__ */ new Map();
-  lines.reduce((n, sec, k) => {
-    if (k)
-      starts.set(n, k);
-    return n + sec.length;
-  }, 0);
+  if (rotView === "full")
+    lines.reduce((n, sec, k) => {
+      if (k)
+        starts.set(n, k);
+      return n + sec.length;
+    }, 0);
+  const panes = {
+    team: loadoutTable(run, energyRequirements(run), (slot, kind) => canPick(run, slot, kind)),
+    contribution: dprTable(run, lines),
+    distribution: distributionTable(run, lines),
+    substats: substatValueTable(run, cachedGains(run) ?? null)
+  };
+  const tabs = TABS.map(([key, label]) => `<button type="button" class="rtab${key === tab ? " on" : ""}" data-tab="${key}">${label}</button>`).join("");
   return `<main>
   <div class="rtables">
-    <div class="rtable-block">
-      <h2 class="summary-label">Equipment</h2>
-      ${loadoutTable(run, energyRequirements(run), (slot, kind) => canPick(run, slot, kind))}
-    </div>
-    <div class="rstack">
-      <div class="rtable-block">
-        <h2 class="summary-label">Damage Contribution</h2>
-        ${dprTable(run, lines)}
-      </div>
-    </div>
+    <div class="rtabs" role="tablist">${tabs}</div>
+    <div class="rpanes">${TABS.map(([key]) => `<div class="rpane${key === tab ? " on" : ""}" data-pane="${key}">${panes[key]}</div>`).join("")}</div>
   </div>
   <div class="rotation-block">
-    <h2 class="summary-label">Rotation</h2>
-    ${rotationTable(report, slotHue, gearByMember, starts)}
+    <div class="logbar">
+      <div class="rtabs" role="tablist">${[["full", "Full Rotation"], ["loop", "Loop Rotation"]].map(([key, label]) => `<button type="button" class="rtab${key === rotView ? " on" : ""}" data-rot="${key}">${label}</button>`).join("")}</div>
+      <div class="rtabs" role="tablist">${[["resources", "Resources"], ["stats", "Stats"]].map(([key, label]) => `<button type="button" class="rtab${key === logView ? " on" : ""}" data-log="${key}">${label}</button>`).join("")}</div>
+    </div>
+    ${rotationTable({ ...report, columns: shownColumns(run) }, slotHue, gearByMember, starts, logView === "resources" ? barsOf(run, report) : null)}
   </div>
 </main>`;
 }
+var TABS = [["team", "Team & Gear"], ["distribution", "Node Priority"], ["substats", "Substat Value"], ["contribution", "Contribution"]];
+var VIEW_KEY = "wuwa.teamViews";
+var savedViews = (() => {
+  try {
+    return JSON.parse(localStorage.getItem(VIEW_KEY) ?? "{}");
+  } catch {
+    return {};
+  }
+})();
+var saveViews = () => {
+  try {
+    localStorage.setItem(VIEW_KEY, JSON.stringify({ tab, log: logView, rot: rotView }));
+  } catch {
+  }
+};
+var tab = TABS.find(([k]) => k === savedViews.tab)?.[0] ?? "team";
+var logView = savedViews.log === "stats" ? "stats" : "resources";
+var rotView = savedViews.rot === "loop" ? "loop" : "full";
+var STAT_COLUMNS = /* @__PURE__ */ new Set(["mv", "scaler", "dmgBonus", "amp", "cr", "cd", "effDef", "effRes", "dealt"]);
+var RESOURCE_COLUMN = (key) => key === "concerto" || key === "energy" || key === "offtune" || key.startsWith("gauge:");
+function shownColumns(run) {
+  const report = shownReport(run), full = detailFor(run).report;
+  const own = viewColumns(report, full, logView), other = viewColumns(report, full, logView === "stats" ? "resources" : "stats");
+  const sum = (cs) => ({ cw: cs.reduce((n, c) => n + (c.width ?? 0), 0), cpad: cs.length, npad: cs.filter((c) => c.align !== "left").length });
+  const a = sum(own), b = sum(other);
+  const pad = { cw: b.cw - a.cw, cpad: b.cpad - a.cpad, npad: b.npad - a.npad };
+  const css = getComputedStyle(document.documentElement), v = (k) => parseFloat(css.getPropertyValue(k)) || 0;
+  const px2 = pad.cw * v("--cw") + pad.cpad * v("--cpad") + pad.npad * v("--npad");
+  return px2 > 0 ? own.map((c) => c.key === "action" ? { ...c, pad } : c) : own;
+}
+function viewColumns(report, full, view) {
+  if (view === "stats")
+    return report.columns.filter((c) => !RESOURCE_COLUMN(c.key));
+  const gauges = report.columns.filter((c) => c.key.startsWith("gauge:"));
+  const slots = Math.max(0, ...[...forteUse(full).values()].map((g) => g.length));
+  const width = Math.max(...gauges.map((c) => c.width ?? 0), 6);
+  const cells = Math.max(slots, 1.5);
+  const forte = { ...gauges[0], key: FORTE_KEY, label: "forte", full: "Forte", width: width * cells + (cells - 1) };
+  const after = report.columns.some((c) => c.key === "concerto") ? "concerto" : gauges[0]?.key;
+  return report.columns.flatMap((c) => [
+    ...STAT_COLUMNS.has(c.key) || c.key.startsWith("gauge:") ? [] : RUNNING_COLUMNS.has(c.key) ? [{ ...c, width: width * 1.5 + 0.5 }] : [c],
+    ...c.key === after && slots ? [forte] : []
+  ]);
+}
+function barsOf(run, report) {
+  const gauge = report.columns.find((c) => c.key.startsWith("gauge:")) ?? { key: GAUGE_KEYS[0], label: "", digits: 2 };
+  return {
+    energyCap: new Map(run.members.map((m) => [m.name, (m.loadout.resonator.maxEnergy ?? 0) / ENERGY_UNIT])),
+    forte: forteUse(report),
+    gauge
+  };
+}
+var shownKey = "";
 function renderDetail(key) {
+  shownKey = key;
   rememberTableScroll();
   topbar.hidden = false;
   clearPops();
   const run = results.get(key);
   app.innerHTML = page(run);
   app.className = "";
-  wireColumnDrag(app, detailFor(run).report.columns);
+  wireColumnDrag(app, shownColumns(run));
   wireCellSelect(app);
   wireDistribution(app);
-  const pair = app.querySelector(".rtables");
-  if (pair)
-    pairFit.observe(pair);
+  wireBlockSelect(app.querySelector(".rtable.distpies"), distCopy);
+  wireBlockSelect(app.querySelector(".rtable.dpr"), (sel) => sel.cells.slice(sel.r0, sel.r1 + 1).map((row) => row.slice(sel.c0, sel.c1 + 1).map((c) => (c.textContent ?? "").trim())));
+  const lbl = app.querySelector(".rtable.loadout .c.lbl");
+  if (lbl)
+    app.querySelector(".rpanes")?.style.setProperty("--lblw", `${lbl.getBoundingClientRect().width / zoom()}px`);
+  fitPies(app);
+  if (tab === "substats")
+    fillSubstats();
 }
-var pairFit = new ResizeObserver((entries) => {
-  for (const { target } of entries) {
-    const equip = target.firstElementChild;
-    const stack = target.querySelector(".rstack");
-    if (!equip || !stack)
-      continue;
-    stack.style.maxWidth = "";
-    if (stack.offsetTop > equip.offsetTop)
-      stack.style.maxWidth = `${equip.offsetWidth}px`;
+function fillSubstats() {
+  const key = shownKey, run = results.get(key);
+  if (!run || cachedGains(run))
+    return;
+  void substatGains(run, () => shownKey !== key || results.get(key) !== run).then((gains) => {
+    const pane = app.querySelector('.rpane[data-pane="substats"]');
+    if (gains && pane && shownKey === key && results.get(key) === run)
+      pane.innerHTML = substatValueTable(run, gains);
+  }).catch(showError);
+}
+function fitPies(root) {
+  const pies = [...root.querySelectorAll(".rtable.distpies svg.pie")].map((svg) => {
+    const vb = svg.viewBox.baseVal, b = svg.getBBox();
+    const left = Math.max(vb.x, b.x - 6), right = Math.min(vb.x + vb.width, b.x + b.width + 6);
+    const top = Math.max(vb.y, b.y - 9), bottom = Math.min(vb.y + vb.height, b.y + b.height + 9);
+    svg.setAttribute("viewBox", `${left} ${top} ${right - left} ${bottom - top}`);
+    const wrap = svg.parentElement, cell2 = wrap.parentElement;
+    return { wrap, w: right - left, h: bottom - top, room: [cell2.clientWidth - 8, cell2.clientHeight - 8] };
+  });
+  const scale = Math.min(0.6, ...pies.map((p) => Math.min(p.room[0] / p.w, p.room[1] / p.h)));
+  for (const p of pies) {
+    p.wrap.style.width = `${Math.floor(p.w * scale)}px`;
+    p.wrap.style.height = `${Math.floor(p.h * scale)}px`;
   }
+}
+app.addEventListener("click", (e) => {
+  const btn = e.target.closest(".rtab[data-tab]");
+  if (!btn)
+    return;
+  tab = btn.dataset.tab;
+  saveViews();
+  dropPanel();
+  clearTableSel();
+  for (const el of app.querySelectorAll(".rtab[data-tab], .rpane"))
+    el.classList.toggle("on", (el.dataset.tab ?? el.dataset.pane) === tab);
+  if (tab === "substats")
+    fillSubstats();
+});
+var tableSel = null;
+function clearTableSel() {
+  tableSel?.box.remove();
+  tableSel = null;
+}
+function cellAt(cells, cell2) {
+  for (let r = 0; r < cells.length; r++) {
+    const c = cells[r].indexOf(cell2);
+    if (c >= 0)
+      return [r, c];
+  }
+  return null;
+}
+function aimTableSel(r, c) {
+  const sel = tableSel;
+  if (!sel)
+    return;
+  sel.r0 = Math.min(sel.ar, r);
+  sel.r1 = Math.max(sel.ar, r);
+  sel.c0 = Math.min(sel.ac, c);
+  sel.c1 = Math.max(sel.ac, c);
+  const t = rect(sel.table), a = rect(sel.cells[sel.r0][sel.c0]), b = rect(sel.cells[sel.r1][sel.c1]);
+  Object.assign(sel.box.style, { left: `${a.left - t.left}px`, top: `${a.top - t.top}px`, width: `${b.right - a.left}px`, height: `${b.bottom - a.top}px` });
+}
+function wireBlockSelect(table, copy) {
+  clearTableSel();
+  if (!table)
+    return;
+  const cells = [...table.querySelectorAll(":scope > .rtrow:not(.dist)")].map((r) => [...r.children]);
+  let dragging = false;
+  const start = (r, c) => {
+    dropPanel();
+    clearBlock();
+    clearTableSel();
+    const box = table.appendChild(document.createElement("div"));
+    box.className = "cellbox";
+    tableSel = { table, cells, ar: r, ac: c, r0: r, r1: r, c0: c, c1: c, box, copy };
+    aimTableSel(r, c);
+  };
+  table.addEventListener("pointerdown", (e) => {
+    const at = cellAt(cells, e.target.closest(".c"));
+    if (e.button !== 0 || !at)
+      return;
+    if (e.pointerType === "touch") {
+      watchTouch(e, cells[at[0]][at[1]], () => start(...at), () => start(...at));
+      return;
+    }
+    e.preventDefault();
+    table.setPointerCapture(e.pointerId);
+    start(...at);
+    dragging = true;
+  });
+  table.addEventListener("pointermove", (e) => {
+    if (!dragging)
+      return;
+    const at = cellAt(cells, document.elementFromPoint(e.clientX, e.clientY)?.closest(".c") ?? null);
+    if (at)
+      aimTableSel(...at);
+  });
+  const end = () => {
+    dragging = false;
+  };
+  table.addEventListener("pointerup", end);
+  table.addEventListener("pointercancel", end);
+}
+addEventListener("pointerdown", (e) => {
+  if (tableSel && !tableSel.table.contains(e.target))
+    clearTableSel();
+}, true);
+function distCopy(sel) {
+  const out = [];
+  for (let r = sel.r0; r <= sel.r1; r++) {
+    const row = sel.cells[r].slice(sel.c0, sel.c1 + 1);
+    const slices = row.map((c) => c.dataset.slices ? JSON.parse(c.dataset.slices) : null);
+    const n = Math.max(1, ...slices.map((s) => s?.length ?? 0));
+    for (let i = 0; i < n; i++) {
+      out.push(row.flatMap((c, k) => {
+        const text = i ? "" : (c.textContent ?? "").trim();
+        if (sel.c0 + k === 0)
+          return [text];
+        const s = slices[k];
+        return s ? s[i] ?? ["", ""] : [text, ""];
+      }));
+    }
+  }
+  return out;
+}
+addEventListener("keydown", (e) => {
+  if (!tableSel || e.key !== "c" || !(e.ctrlKey || e.metaKey) || e.altKey)
+    return;
+  const loose = getSelection();
+  if (loose && !loose.isCollapsed)
+    return;
+  e.preventDefault();
+  copyBlock(tableSel.copy(tableSel));
 });
 var COLUMN_ORDER_KEY = "wuwa.logColumns";
 var savedOrder = () => {
@@ -850,9 +1134,11 @@ function aimBlock(sel, row, col, gridTop) {
   const top = rowSpan(sel, sel.r0, gridTop)[0];
   const left = sel.cols[sel.c0].left;
   const box = cellSelBox ?? (cellSelBox = cellBox(sel.grid));
-  box.style.left = `${left}px`;
+  const bar = barOf(sel);
+  const g = bar ? rect(sel.grid) : null, b = bar ? rect(bar) : null;
+  box.style.left = `${b ? b.left - g.left - 3 : left}px`;
   box.style.top = `${top}px`;
-  box.style.width = `${sel.cols[sel.c1].right - left}px`;
+  box.style.width = `${b ? b.width + 6 : sel.cols[sel.c1].right - left}px`;
   box.style.height = `${rowSpan(sel, sel.r1, gridTop)[1] - top}px`;
   paintCellDot(sel, gridTop);
 }
@@ -921,7 +1207,11 @@ function grabCellDot(e) {
     }
   });
 }
+var barOf = (sel) => sel.bar && sel.r0 === sel.r1 && sel.c0 === sel.c1 && sel.r0 === sel.ar && sel.c0 === sel.ac ? sel.bar : void 0;
 function blockCells(sel) {
+  const bar = barOf(sel);
+  if (bar)
+    return [[bar]];
   const out = [];
   for (let r = sel.r0; r <= sel.r1; r++) {
     const cells = sel.rows[r].children;
@@ -1029,13 +1319,14 @@ function wireCellSelect(root) {
     const ac = cols.findIndex((c) => c.nth === [...row.children].indexOf(cell2));
     return ar < 0 || ac < 0 ? null : { rows, cols, ar, ac };
   };
-  const pick = (at, touch) => {
+  const pick = (at, touch, bar) => {
     dropPanel();
+    clearTableSel();
     selected = null;
     selBox?.remove();
     selBox = null;
     clearBlock();
-    cellSel = { grid, ...at, span: [], fr: at.ar, r0: at.ar, r1: at.ar, c0: at.ac, c1: at.ac, touch };
+    cellSel = { grid, ...at, span: [], fr: at.ar, r0: at.ar, r1: at.ar, c0: at.ac, c1: at.ac, touch, bar };
     aimBlock(cellSel, at.ar, at.ac, rect(grid).top);
   };
   const end = () => {
@@ -1064,14 +1355,15 @@ function wireCellSelect(root) {
     const at = measure(cell2);
     if (!at)
       return;
+    const bar = cell2.querySelectorAll(".rbar").length > 1 ? target.closest(".rbar:not(.empty)") ?? void 0 : void 0;
     closing = panelOpenOn(cell2);
     if (e.pointerType === "touch") {
       const tap = () => {
-        pick(at, true);
+        pick(at, true, bar);
         if (closing)
           swallowClick(600);
       };
-      watchTouch(e, cell2, tap, () => pick(at, true));
+      watchTouch(e, cell2, tap, () => pick(at, true, bar));
       return;
     }
     e.preventDefault();
@@ -1081,7 +1373,7 @@ function wireCellSelect(root) {
     px = e.clientX / pressScale;
     py = e.clientY / pressScale;
     pressedAt = performance.now();
-    pick(at, false);
+    pick(at, false, bar);
     holding = true;
   });
   const firstRow = (tgl) => {
@@ -1295,8 +1587,11 @@ function wireColumnDrag(root, columns) {
     const next = d.order.filter((k) => k !== d.key);
     next.splice(d.at, 0, d.key);
     logOrder = next;
+    const full = savedOrder(), shown = new Set(next);
+    let j = 0;
+    const merged = full.filter((k) => shown.has(k)).length === next.length ? full.map((k) => shown.has(k) ? next[j++] : k) : [...next, ...full.filter((k) => !shown.has(k))];
     try {
-      localStorage.setItem(COLUMN_ORDER_KEY, JSON.stringify(next));
+      localStorage.setItem(COLUMN_ORDER_KEY, JSON.stringify(merged));
     } catch {
     }
     const rest = offsetsOf(next, d.width).get(d.key) - offsetsOf(d.order, d.width).get(d.key);
@@ -1334,6 +1629,20 @@ function wireColumnDrag(root, columns) {
       drag = null;
   });
 }
+app.addEventListener("click", (e) => {
+  const btn = e.target.closest(".rtab[data-log], .rtab[data-rot]");
+  if (!btn || !shownKey)
+    return;
+  const log = btn.dataset.log, rot = btn.dataset.rot;
+  if ((log ?? logView) === logView && (rot ?? rotView) === rotView)
+    return;
+  logView = log ?? logView;
+  rotView = rot ?? rotView;
+  saveViews();
+  const y = app.querySelector("main")?.scrollTop ?? 0, x = app.querySelector("main")?.scrollLeft ?? 0;
+  renderDetail(shownKey);
+  app.querySelector("main")?.scrollTo(x, y);
+});
 
 // dist/src/page/team.js
 var app2 = document.getElementById("app");
@@ -1390,7 +1699,7 @@ async function bootDetail() {
   if (pending) {
     overlayPhase("Solving Team\u2026", true);
     await paint();
-    await solveQuiet(pending, gearShut(filters));
+    await solveQuiet(pending, gearShut(tagFilters(key)));
     key = hashTeam();
   }
   const row = key ? rowFromKey(key) : null;

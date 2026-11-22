@@ -30,14 +30,14 @@ import {
   applyOn,
 } from "../../engine/context.js";
 import { ActionGroup, Action, ActionTag, Rotation, START_LAST, SWAPIN, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
-import { HEALS, heal } from "../../shared/status.js";
-import { SK_SIG } from "../../weapons/rectifier.js";
+import { HEALS, heal } from "../status.js";
+import { STELLAR_SYMPHONY } from "../../weapons/rectifier.js";
 import { VARIATION } from "../../weapons/standard.js";
 import { REJUV_5PC, FALLACY } from "../../echoes/jinzhou.js";
 import { FALLACY_MAINSLOT } from "../../echoes/jinzhou.js";
-import { mainstats, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstats, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 import { SPACETREK_EXPLORER_MAINSLOT, STARRY_RADIANCE_5PC, SPACETREK_EXPLORER } from "../../echoes/lahairoi.js";
 import { FORMRENDER_MAINSLOT, TINGED_YEARNING_5PC, FORMRENDER } from "../../echoes/mengzhou.js";
 import { JINGRAN_RESONATOR } from "../fusion/jingran.js";
@@ -408,7 +408,7 @@ export const SHOREKEEPER = new Loadout({
   // her kit scales off Energy Regen: 240% on the character screen at least
   minEr: 240,
   resonator: SHOREKEEPER_RESONATOR,
-  weapons: [SK_SIG, VARIATION],
+  weapons: [STELLAR_SYMPHONY, VARIATION],
   echoes: new Echoes({
     sets: [
     new EchoLoadout(FALLACY_MAINSLOT, REJUV_5PC),

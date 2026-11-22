@@ -77,15 +77,15 @@ import {
   previousPress,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, START_LAST, ActionTag, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
-import { tuneBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
-import { HAVOC_BANE, anyNegativeStatusInflicted } from "../../shared/status.js";
+import { tuneBreak, SWORD_BREAK } from "../tunebreak.js";
+import { HAVOC_BANE, anyNegativeStatusInflicted } from "../status.js";
 import { AZURE_OATH, EMERALD_SENTENCE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
 import { THOUSAND_PUPPET_PAVILION_MAINSLOT, FEATHERED_TRACE_5PC, THOUSAND_PUPPET_PAVILION } from "../../echoes/mengzhou.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 

@@ -32,7 +32,7 @@
  *  S5 the Array inflicts 6 more Electro Flare the moment it is generated.
  *  S6 Heaven, Earth, Mind grants 50% Resonance Skill DMG Bonus instead of 25% — its own +25 on top.
  */
-import { Tier, Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, Position } from "../../engine/stats.js";
+import { Rarity, Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, Position } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, coordinatedBuff } from "../../engine/gear.js";
 import {
   applyTeam,
@@ -58,7 +58,7 @@ import {
 } from "../../engine/context.js";
 import { Action, ActionField, Cooldown, Rotation, SWAPIN, ActionGroup, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
 import type { BulletDef } from "../../engine/rotation.js";
-import { HEALS, heal, inflictElectroFlare } from "../../shared/status.js";
+import { HEALS, heal, inflictElectroFlare } from "../status.js";
 import { VARIATION } from "../../weapons/standard.js";
 import { REJUV_5PC, FALLACY } from "../../echoes/jinzhou.js";
 import { FALLACY_MAINSLOT } from "../../echoes/jinzhou.js";
@@ -66,9 +66,9 @@ import { FORMRENDER_MAINSLOT, TINGED_YEARNING_5PC, FORMRENDER } from "../../echo
 import { JINHSI_RESONATOR } from "../spectro/jinhsi.js";
 import { SUOMING_RESONATOR } from "./suoming.js";
 import { HSIN_RESONATOR } from "./hsin.js";
-import { mainstats, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstats, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -380,7 +380,7 @@ const BULING_RESONATOR = new Resonator({
   talent: BULING_TALENTS,
   inherent1: BL_INHERENT_1,
   inherent2: BL_INHERENT_2,
-  tier: Tier.Free,
+  tier: Rarity.FreeS6,
   element: Attribute.Electro,
   weapon: WeaponType.Rectifier,
   color: "#7a6ff0",

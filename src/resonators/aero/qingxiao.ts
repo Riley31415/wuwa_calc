@@ -60,14 +60,14 @@ import {
   addGain,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, START_LAST, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
-import { applyStrain, TUNE_BREAK, TUNE_STRAIN_SHIFTING, TUNE_STRAIN_INTERFERED, TUNE_SHIFTABLE, strainPayout, tuneBreak } from "../../shared/tunebreak.js";
+import { applyStrain, TUNE_BREAK, TUNE_STRAIN_SHIFTING, TUNE_STRAIN_INTERFERED, TUNE_SHIFTABLE, strainPayout, tuneBreak } from "../tunebreak.js";
 import { GLINT_OF_CLOUDS, RED_SPRING } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS, NEW_STD_SWORD } from "../../weapons/standard.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
 import { CALAMITY_EFFIGY_MAINSLOT, HEART_OF_EVILS_PURGE_5PC, CALAMITY_EFFIGY } from "../../echoes/mengzhou.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 import { NM_KELPIE_MAINSLOT, WINDWARD_5PC, NM_KELPIE } from "../../echoes/rinascita.js";
 import { CARTETHYIA_RESONATOR } from "./cartethyia.js";
 import { CIACCONA_RESONATOR } from "./ciaccona.js";

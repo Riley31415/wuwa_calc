@@ -23,7 +23,7 @@
  * "Damage Data" table — see the comment above the action definitions for the column mapping.
  * Resonance Cost (`maxEnergy` below) is her own real 100%, not the generic 125% default.
  */
-import { Tier, Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, Position } from "../../engine/stats.js";
+import { Rarity, Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, Position } from "../../engine/stats.js";
 import { Buff, Debuff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   applyCurrent,
@@ -42,15 +42,15 @@ import {
   forte1,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
-import { tuneBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
-import { HEALS } from "../../shared/status.js";
+import { tuneBreak, SWORD_BREAK } from "../tunebreak.js";
+import { HEALS } from "../status.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { BLAZING_BRILLIANCE, EMERALD_SENTENCE } from "../../weapons/sword.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
 import { NM_HERON_MAINSLOT, MIDNIGHT_VEIL_5PC, NM_HERON } from "../../echoes/rinascita.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 import { CROWNLESS_MAINSLOT, HAVOC_ECLIPSE_5PC, HERON_MAINSLOT, MOONLIT_CLOUDS_5PC, REJUV_5PC, HERON, FALLACY, CROWNLESS_1 } from "../../echoes/jinzhou.js";
 import { FALLACY_MAINSLOT } from "../../echoes/jinzhou.js";
 
@@ -273,7 +273,7 @@ const DANJIN_RESONATOR = new Resonator({
   tuneBreak: tuneBreak(91, 90, [0, 91], [0, 70], SWORD_BREAK),
   maxEnergy: 10000,
   maxForte1: 120,
-  tier: Tier.Free,
+  tier: Rarity.FreeS6,
 
   stats: [[Stat.BaseHp, 9437.5], [Stat.BaseAtk, 262.5], [Stat.BaseDef, 1148.8868]],
 });

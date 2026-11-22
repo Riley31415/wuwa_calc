@@ -42,9 +42,9 @@ import { ActionGroup, Action, Rotation, ActionField, SUCCESSFUL_DODGE } from "..
 import { IUNO_SIG, VERITYS_HANDLE } from "../../weapons/gauntlet.js";
 import { ABYSS_SURGES, NEW_STD_GAUNTLET } from "../../weapons/standard.js";
 import { STONARD, AETHER_STRIKE } from "../../weapons/battlepass.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 import { NM_MEPHIS_MAINSLOT, VOID_THUNDER_5PC, NM_MEPHIS } from "../../echoes/jinzhou.js";
 
 /* ----------------------------------------------------------------------------------- states */

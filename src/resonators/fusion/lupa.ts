@@ -55,9 +55,9 @@ import { WILDFIRE_MARK } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { AUTUMNTRACE, AUREATE_ZENITH } from "../../weapons/battlepass.js";
 import { LIONESS_OF_GLORY_MAINSLOT, CLAWPRINT_5PC, LIONESS_OF_GLORY } from "../../echoes/septimont.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 import { HERON_MAINSLOT, MOONLIT_CLOUDS_5PC, HERON } from "../../echoes/jinzhou.js";
 
 /* ----------------------------------------------------------------------------------- actions */

@@ -33,7 +33,7 @@ import {
   addStatAs,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Cooldown, Rotation, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
-import { SHIELD } from "../../shared/status.js";
+import { SHIELD } from "../status.js";
 import { IUNO_SIG, VERITYS_HANDLE } from "../../weapons/gauntlet.js";
 import { MARCATO, NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
 import { STONARD, AETHER_STRIKE } from "../../weapons/battlepass.js";
@@ -43,9 +43,9 @@ import { CARTETHYIA_RESONATOR } from "./cartethyia.js";
 import { CIACCONA_RESONATOR } from "./ciaccona.js";
 import { ROVER_AERO_RESONATOR } from "./rover_aero.js";
 import { SIERRA_GALE_2PC, HERON_MAINSLOT, MOONLIT_CLOUDS_5PC, REJUV_5PC, FALLACY_MAINSLOT, HERON, FALLACY } from "../../echoes/jinzhou.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 

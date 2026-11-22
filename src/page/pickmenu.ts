@@ -4,10 +4,11 @@ import { comboOf, compares, echoPicks, gateOf, loadoutName, mainstatRanking, sco
 import type { Axis, Filters, Gate, Member, Pick } from "../solve/solver.js";
 import type { TeamRun } from "../solve/teamrun.js";
 import { erRollsFor } from "../solve/teamrun.js";
-import { Tier } from "../engine/stats.js";
+import { Rarity } from "../engine/stats.js";
+import { iconOf, echoLabelHtml } from "./icons.js";
 import { filters, results, routeTeam, picksOfKey, prospectiveRows, snapshotFilters, admitTeam, admitBuild, pruneGearFilters, solvedRows, ROW_CAP, weaponHue } from "./model.js";
 import type { TeamRow } from "./model.js";
-import { dropPanel, holdPanels } from "./panels.js";
+import { dropPanel, holdPanels, esc } from "./panels.js";
 import type { PickKind } from "./panels.js";
 import { showMenu, rowCapWarning, teamFigure, personalFigure, pctTrunc } from "./table.js";
 import type { MenuItem } from "./table.js";
@@ -176,7 +177,7 @@ function ratios(m: Member, owns: [Choice, number][]): [Choice, number][] {
   const low = Math.min(...owns.map(([c]) => c.pick.sequence));
   // weapons read with their ranks beside them measure against a standard weapon at R1
   const ranked = owns.some(([c]) => c.axis === "refines");
-  const keep = axis === "weapons" ? (c: Choice) => l.weapons[c.pick.weapon]!.tier !== Tier.Limited && (!ranked || c.pick.refine === 0)
+  const keep = axis === "weapons" ? (c: Choice) => l.weapons[c.pick.weapon]!.tier !== Rarity.Limited && (!ranked || c.pick.refine === 0)
     : axis === "refines" ? (c: Choice) => c.pick.refine === 0
     : axis === "sequences" ? (c: Choice) => c.pick.sequence === low
     : axis === "substats" ? (c: Choice) => !c.pick.highSubs
@@ -309,7 +310,11 @@ const openPickMenu = (e: MouseEvent): void => {
   // a weapon option reads in its own weapon's colour, not the cell's (`weaponHue`)
   const l = run.members[i]!.loadout;
   for (const [c, b] of boxes) {
-    if (c.axis === "weapons" || c.axis === "refines") b.style.color = weaponHue(l.refinements[c.pick.weapon]![c.pick.refine]!);
+    if (c.axis === "echoes") b.innerHTML = echoLabelHtml(b.textContent ?? "", esc);
+    if (c.axis !== "weapons" && c.axis !== "refines") continue;
+    const w = l.refinements[c.pick.weapon]![c.pick.refine]!;
+    b.style.color = weaponHue(w);
+    b.insertAdjacentHTML("afterbegin", iconOf(w));
   }
   void showRatios(run, i, list, boxes, el);
   menu.addEventListener("mouseover", (ev) => frame((ev.target as Element).closest(".ctxitem") ?? el));

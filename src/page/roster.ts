@@ -9,7 +9,7 @@ import type { Filters } from "../solve/solver.js";
 import { README } from "./readme.js";
 
 /** The resonators that may stand in two teams (2 vigor); everyone else has 1. */
-export const TWO_VIGOR = new Set(["Shorekeeper", "Mornye", "Suisui", "Lily", "Verina", "Buling"]);
+export const TWO_VIGOR = new Set(["Shorekeeper", "Mornye", "Suisui", "Lily", "Verina", "Buling", "Baizhi"]);
 /** The four Rover forms share one vigor, so an account fields one of them. */
 export const isRover = (name: string): boolean => name.endsWith(" Rover");
 

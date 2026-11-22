@@ -63,10 +63,10 @@ import { RED_SPRING } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
 import { NM_CROWNLESS_MAINSLOT, HAVOC_ECLIPSE_5PC, NM_CROWNLESS } from "../../echoes/jinzhou.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { Echoes } from "../../shared/echoes.js";
-import { substats, highSubs, Substat } from "../../shared/substats.js";
-import { tuneBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
+import { mainstatOptions, Mainstat } from "../../echoes/mainstats.js";
+import { Echoes } from "../../echoes/echoes.js";
+import { substats, highSubs, Substat } from "../../echoes/substats.js";
+import { tuneBreak, SWORD_BREAK } from "../tunebreak.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 

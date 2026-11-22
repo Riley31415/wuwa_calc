@@ -3,8 +3,8 @@
 import { WeaponType, Stat, Attribute, Type, Subtype, Cast } from "../engine/stats.js";
 import { Buff, Weapon, refinements } from "../engine/gear.js";
 import { setStacksSelf, casting, applied, onCast, onType, onInflict, onApplied } from "../engine/context.js";
-import { SHIELD } from "../shared/status.js";
-import { TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
+import { SHIELD } from "../resonators/status.js";
+import { TUNE_STRAIN_SHIFTING } from "../resonators/tunebreak.js";
 
 /** Verity's Handle, Xiangli Yao's sig: Ad Veritatem. +12% Attribute DMG Bonus flat.
  *  Liberation grants +48% Liberation DMG Bonus for 8s, extended by each Skill cast while up —

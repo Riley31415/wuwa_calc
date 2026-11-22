@@ -256,6 +256,7 @@ export function cancelCost(a: Action, cut: ActionTag | null): { action: number; 
     : tag === ActionTag.HoldCancel ? Math.min(HOLD_MINIMUM, full)
     : tag === ActionTag.MashCancel ? Math.min(MASH_DELAY, full)
     : tag === ActionTag.MashSwap ? Math.min(whole.noSwapFrames + MASH_DELAY, full)
+    : tag === ActionTag.TimedCancel ? Math.min(whole.timedAt ?? a.timedAt ?? full, full)
     : Math.min(whole.onHitAt ?? whole.cutFrame, full);
   // a swap's delay runs on past its cut like any other cancel's: a swap cancel's CANCEL_DELAY, an insta one's INSTA_DELAY
   const global = insta ? INSTA_DELAY
@@ -396,6 +397,8 @@ export class Action extends Gear {
   qteFrames: number;
   /** Where an on-hit cut cuts (its first bullet's hit); null on every other press. Engine-owned. */
   onHitAt: number | null = null;
+  /** Where a timed cut cuts (`timedCancel()`); null on every other press. Engine-owned. */
+  timedAt: number | null = null;
   /** The stops' lengths, and the animation frame each starts on (`ActionDef.timestop`/`motionStop`). */
   timestop: number;
   timestopFrom: number;
@@ -912,10 +915,22 @@ export class Action extends Gear {
     if (this.resolveFn) return this.swapResolver((a) => a.hitCancel());
     return this.cutOnHit(ActionTag.HitCancel);
   }
+  /** The press cut at animation frame `frames` exactly, no delay after it — the bullets committed by
+   *  then landing: CANCEL @ Nf. The next press must still out-prioritise it there. */
+  cancelAt(frames: number): Action {
+    if (this.resolveFn) return this.swapResolver((a) => a.cancelAt(frames));
+    if (!Number.isInteger(frames) || frames < 0) throw new Error(`${this.name}: a timed cancel needs a whole frame, not ${frames}`);
+    if (this.animFrames && frames >= this.animFrames) throw new Error(`${this.name}: its timed cancel at frame ${frames} of ${this.animFrames} saves nothing over playing it out`);
+    const kept = this.bullets.filter((h) => h.commitFrame <= frames);
+    const out = this.variant(this.name, { tag: ActionTag.TimedCancel, bullets: kept });
+    out.timedAt = frames;
+    out.cancelOf = this;
+    return out;
+  }
   /** The same cut by a dash after its first hit — DODGE ON HIT — the dash a press of its own. */
   hitDodge(): Action { return this.dashOnHit(ActionTag.DodgeOnHit); }
   /** The same by a jump — JUMP ON HIT. */
-  jumpOnHit(): Action { return this.dashOnHit(ActionTag.JumpOnHit); }
+  hitJump(): Action { return this.dashOnHit(ActionTag.JumpOnHit); }
   private dashOnHit(kind: ActionTag): Action {
     const cut = this.resolveFn ? this.swapResolver((a) => a.cutOnHit(kind)) : this.cutOnHit(kind);
     return new ActionGroup(this.resolveFn ? "" : this.name, [cut, new DashMarker(kind === ActionTag.JumpOnHit, this, kind)], 1);
@@ -1013,8 +1028,9 @@ export class ActionGroup extends Action {
   override swapCancel(): Action { return this.withLast((a) => a.swapCancel()); }
   override mashSwap(): Action { return this.withLast((a) => a.mashSwap()); }
   override hitCancel(): Action { return this.withLast((a) => a.hitCancel()); }
+  override cancelAt(frames: number): Action { return this.withLast((a) => a.cancelAt(frames)); }
   override hitDodge(): Action { return this.dashLast((a) => a.hitDodge()); }
-  override jumpOnHit(): Action { return this.dashLast((a) => a.jumpOnHit()); }
+  override hitJump(): Action { return this.dashLast((a) => a.hitJump()); }
   override instaSwap(): Action { return this.withLast((a) => a.instaSwap()); }
   // a group is skipped where its first press is, the rest going with it (`run()`)
   override everyOther(): Action {
@@ -1044,19 +1060,34 @@ function dashed(after: Action, kind: ActionTag): ActionGroup {
 
 
 /** The plain dash and jump — what a resonator without one of its own makes (`ResonatorDef.dodge`). */
-export const DEFAULT_DODGE = new Action("Dodge", { animFrames: 20, cast: Cast.Dodge, animPriority: { 0: 9 }, castPriority: 6 });
+export const DEFAULT_DODGE = new Action("Dodge - Grounded", { animFrames: 20, cast: Cast.Dodge, animPriority: { 0: 9 }, castPriority: 6 ,
+  endPosition: Position.Grounded, castPosition: Position.Grounded
+});
+
+/** The plain dash made in mid-air: the grounded one's frames, cast at 7. */
+export const DEFAULT_AIR_DODGE = DEFAULT_DODGE.variant("Dodge - Mid-air", { castPriority: 7 ,
+  endPosition: Position.Midair, castPosition: Position.Midair
+});
+
 /** A dodge that dodged something: the plain dodge's frames, and the one press every dodge counter
  *  follows. Nothing inserts it — a rotation writes it where a counter comes next. */
-export const SUCCESSFUL_DODGE = DEFAULT_DODGE.variant("Dodge - Successful", {});
-export const DEFAULT_JUMP = new Action("Jump", { animFrames: 6, cast: Cast.Jump, animPriority: { 0: 9 }, castPriority: 8, endPosition: Position.Midair });
+// TODO possibly has time dilation making it slower?
+export const SUCCESSFUL_DODGE = DEFAULT_DODGE.variant("Dodge - Successful", { castPriority: 8 });
+
 /** The dash out of an Echo cast, whoever makes it: casting at 14, it leaves even a transform (13). */
-export const ECHO_DODGE = new Action("Dodge - Out of echo", { animFrames: 20, cast: Cast.Dodge, animPriority: { 0: 9 }, castPriority: 14 });
-/** The dash (or jump) the acting resonator makes after `after`: out of an Echo cast (its `cast`, never a
- *  subcast) the echo dash, else their own, else the plain one. */
+export const ECHO_DODGE = new Action("Dodge - Out of transform", { animFrames: 20, cast: Cast.Dodge, animPriority: { 0: 9 }, castPriority: 14 });
+
+// jump from ground, backflip, or glider (need to verify backflip and glider prio)
+export const DEFAULT_JUMP = new Action("Jump", { animFrames: 7, cast: Cast.Jump, animPriority: { 0: 9 }, castPriority: 8, 
+  endPosition: Position.Midair, });
+
 const dashFor = (isJump: boolean, after: Action): Action => {
   if (!isJump && after.cast === Cast.Echo) return ECHO_DODGE;
-  const resonator = currentMember().resonator;
-  return (isJump ? resonator?.jumpFn?.(after) : resonator?.dodgeFn?.(after)) ?? (isJump ? DEFAULT_JUMP : DEFAULT_DODGE);
+  const member = currentMember(), resonator = member.resonator;
+  if (isJump) return resonator?.jumpFn?.(after) ?? DEFAULT_JUMP;
+  // in mid-air the air dodge's own handler, never the grounded one's
+  if (member.position === Position.Midair) return resonator?.airDodgeFn?.(after) ?? DEFAULT_AIR_DODGE;
+  return resonator?.dodgeFn?.(after) ?? DEFAULT_DODGE;
 };
 /** What a dash written on its own follows: this member's last press of the visit, cut or not, else
  *  the Intro they arrived on. */
@@ -1067,8 +1098,8 @@ const lastPress = (): Action => {
   return a ?? currentMember().resonator?.intro?.() ?? ANY_INTRO;
 };
 /** A dodge or jump written in a rotation on its own, resolved when reached off the press it follows:
- *  the echo dash after an Echo cast, else the resonator's own (`ResonatorDef.dodge`/`jump`), else
- *  DEFAULT_DODGE / DEFAULT_JUMP. */
+ *  the echo dash after an Echo cast, else the resonator's own (`ResonatorDef.dodge`/`airDodge`/`jump`),
+ *  else DEFAULT_DODGE / DEFAULT_AIR_DODGE / DEFAULT_JUMP. */
 export const DODGE = new Action("Dodge Marker", { resolve: () => dashFor(false, lastPress()) });
 export const JUMP = new Action("Jump Marker", { resolve: () => dashFor(true, lastPress()) });
 
@@ -1137,8 +1168,9 @@ export class EveryOther extends Action {
   override instaDodge(): Action { return this.gated.instaDodge().everyOther(); }
   override instaJump(): Action { return this.gated.instaJump().everyOther(); }
   override hitCancel(): Action { return this.gated.hitCancel().everyOther(); }
+  override cancelAt(frames: number): Action { return this.gated.cancelAt(frames).everyOther(); }
   override hitDodge(): Action { return this.gated.hitDodge().everyOther(); }
-  override jumpOnHit(): Action { return this.gated.jumpOnHit().everyOther(); }
+  override hitJump(): Action { return this.gated.hitJump().everyOther(); }
   override swapCancel(): Action { return this.gated.swapCancel().everyOther(); }
   override mashSwap(): Action { return this.gated.mashSwap().everyOther(); }
   override instaSwap(): Action { return this.gated.instaSwap().everyOther(); }
@@ -1240,7 +1272,7 @@ export class IntroEntry extends Action {
   // a cut on its first hit is its resolved Intro's own, which no marker can make
   override hitCancel(): Action { throw new Error(`${this.name}: an Intro opening a chain can't be cut on hit`); }
   override hitDodge(): Action { throw new Error(`${this.name}: an Intro opening a chain can't be cut on hit`); }
-  override jumpOnHit(): Action { throw new Error(`${this.name}: an Intro opening a chain can't be cut on hit`); }
+  override hitJump(): Action { throw new Error(`${this.name}: an Intro opening a chain can't be cut on hit`); }
 }
 
 /** A written Intro as its parts: the Intros it opens on, the chain it opens, and how it is cut —
@@ -2141,6 +2173,10 @@ function playRotations(state: State, rotations: Rotation[], count: number): { se
     checkSwapOuts(state.slots[i]!.name, list);
     const snaps = run(state, list);
     state.outroDir = 1;
+    // an exit resolver that played a plain swap (no Outro, so no Intro) hands over as a swap form does
+    const name = state.slots[i]!.name;
+    const resolvedSwap = !swapped && !!chain.exit?.resolveFn && snaps.some((r) => r.member === name && isSwap(r.action) && !r.queued);
+    if (resolvedSwap) swapped = true;
     // an Outro row advances the field itself (evaluate.ts); a swap hands it forward here — held
     // first, on the one swapping out, until the incoming visit's cooldown-gated press would land ready
     // the fight's last swap out holds for the next visit's cooldown like every other, so the last
@@ -2161,11 +2197,12 @@ function playRotations(state: State, rotations: Rotation[], count: number): { se
       const to = (i + 1) % rotations.length;
       const seen = state.successor ? state.successorOf(chain) : null;
       const from = Math.max(state.real, state.playsTo);
-      const short = (!state.successor || seen?.slot === to) && state.handoffWaits ? state.slots[to]!.handoffShortfall(chain, state.gameOf(from), planned(to, true, seen?.visit ?? null)) : null;
+      const short = !resolvedSwap && (!state.successor || seen?.slot === to) && state.handoffWaits ? state.slots[to]!.handoffShortfall(chain, state.gameOf(from), planned(to, true, seen?.visit ?? null)) : null;
       if (short) snaps.push(...run(state, [short.cd.wait(short.frames, short.press)]));
-      // the swap itself, once every wait the one leaving holds for is played
-      snaps.push(...run(state, [SWAP]));
+      // the swap itself, once every wait the one leaving holds for is played (a resolved one already has)
+      if (!resolvedSwap) snaps.push(...run(state, [SWAP]));
       const handoff = state.gameOf(Math.max(state.real, state.playsTo));
+      state.slots[to]!.swappedInto(Math.max(state.real, state.playsTo));
       state.active = to;
       state.slots[to]!.arrive(chain, handoff);
       state.lastHandoff = { from: chain, at: handoff };
@@ -2232,6 +2269,7 @@ function playRotations(state: State, rotations: Rotation[], count: number): { se
     const kept = last === SWAP ? [] : opening.slice(tail).map(staysOnField);
     const chain = stays ? [...opening.slice(0, tail), ...kept] : leavesField(last) && last !== SWAP ? [...opening, SWAP] : opening;
     out[section]!.push(...run(state, chain));
+    if (!stays) state.slots[next]!.swappedInto(Math.max(state.real, state.playsTo));
     state.active = next;
   }
   state.inStart = false;
@@ -2291,6 +2329,7 @@ function playRotations(state: State, rotations: Rotation[], count: number): { se
         checkSwapOuts(state.slots[nxt]!.name, body);
         place(run(state, [...body, SWAP]));
         state.outroDir = 1;
+        state.slots[i]!.swappedInto(Math.max(state.real, state.playsTo));
         state.active = i;
         runChain(i, openerChain(i)!); // the SWAPIN fill; its outro hands forward
         return;
