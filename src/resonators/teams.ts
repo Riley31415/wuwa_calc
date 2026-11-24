@@ -37,6 +37,7 @@ import { LUPA } from "./fusion/lupa.js";
 import { MORNYE } from "./fusion/mornye.js";
 import { MORTEFI } from "./fusion/mortefi.js";
 import { CARLOTTA, CARLOTTA_FAST } from "./glacio/carlotta.js";
+import { TAOQI } from "./havoc/taoqi.js";
 import { HIYUKI } from "./glacio/hiyuki.js";
 import { LINGYANG } from "./glacio/lingyang.js";
 import { LUCILLA, LUCILLA_CHAFE } from "./glacio/lucilla.js";
@@ -294,6 +295,7 @@ const TEAMS: Slot[][] = [
   [[SHOREKEEPER, BULING, LILY, VERINA, MORNYE, SUISUI], [BRANT], CARLOTTA],
   [[SHOREKEEPER, BULING, LILY, VERINA, BAIZHI, MORNYE, SUISUI], [ZHEZHI, LUCILLA_CHAFE, YANGYANG], CARLOTTA],
   [[MORNYE, SHOREKEEPER, BULING, LILY, VERINA, BAIZHI, SUISUI], [LYNAE_RUPTURE, REBECCA], CARLOTTA],
+  [[SHOREKEEPER], [TAOQI], CARLOTTA],
 
   // roccia: havoc heavy
   [[SHOREKEEPER, VERINA, BAIZHI, LILY, MORNYE, SUISUI], [MORTEFI, IUNO], ROCCIA_MDPS],

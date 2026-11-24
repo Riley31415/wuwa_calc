@@ -35,7 +35,7 @@ import {
   wireDistribution,
   wireSourcePanels,
   zoom
-} from "./chunk-LJSTMGDA.js";
+} from "./chunk-4NLD7ZYF.js";
 import {
   FALLBACK_HUE,
   GROUPED_COLUMNS,
@@ -84,7 +84,7 @@ import {
   tagTeam,
   weaponHue,
   workerPool
-} from "./chunk-V6NQUF3X.js";
+} from "./chunk-TDFOAYWI.js";
 import {
   ActionTag,
   CONCERTO_UNIT,
@@ -108,7 +108,7 @@ import {
   sequenceLevels,
   statLabel,
   weaponBase
-} from "./chunk-Z3RDNZVZ.js";
+} from "./chunk-QDZSVQYL.js";
 
 // dist/src/page/pickmenu.js
 var FIELDS = ["weapon", "echo", "mainstat", "sequence", "refine", "highSubs"];
@@ -1110,11 +1110,11 @@ function blockPanel(sel) {
   }
   const lines = dmgCells > 1 ? [["Total Dmg", fmt(dmg, 0)]] : [];
   if (timeCells > 1)
-    lines.push(["Total Time", `${(frames / 60).toFixed(2)}s`]);
+    lines.push(["Selection Time", `${(frames / 60).toFixed(2)}s`]);
   if (energyCells)
-    lines.push(["Total Energy", fmt(energy, energyDigits, true, false)]);
+    lines.push(["Energy Generated", fmt(energy, energyDigits, true, false)]);
   if (tuneCells)
-    lines.push(["Total Offtune", fmt(gained, tuneDigits, true, false)]);
+    lines.push(["Offtune Buildup", fmt(gained, tuneDigits, true, false)]);
   if (!lines.length)
     return "";
   return `<span class="pop stat"><table>` + lines.map(([k, v]) => `<tr><td class="k">${esc(k)}</td><td class="v">${esc(v)}</td></tr>`).join("") + `</table></span>`;

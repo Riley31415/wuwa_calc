@@ -8,14 +8,15 @@ remove pins
 one dps per team
 make cost modes stricty apply to that mdps
 
+
 #
-dps over dpr
+define the goals of the site
+123 rotations, or double intro
+opener may insert a reasonable amount of buildup for the maindps: carlotta, yangyang etc
+make cancels more casual friendly
 
 #
 enforce start of fight no swapin
-
-#
-test viable 5 libs
 
 #
 nav bar
@@ -38,14 +39,14 @@ may need midway position for echoes that fly up and down
 throw warnings on actions that could be cancelled without timeloss/position loss
 rework cancel/tag system into "transitions" define ways to transition to the next action (make mash 6f)
 allow mashing past an animation finish
-lib -> mash adds 3f delay
+lib -> mash adds 6f delay
 
 # action interface 
 implement a full input interface for resonators
 we already have intro/outro/dodge/jump stuff
 add basic/skill etc
+basically a function for each kind of input, and the resonator's definition must return the action that making that input would play based on the current state (Buffs, resources, etc) of the character
 basically a full interface of what actions are available at any time, built through functions. make resonators more of a class.
-input validation for neutral state
 heavy/basic inputs
 find tb timeout frames (cant tb after lib/intro etc)
 currently tb not allowed after mash,hold,
@@ -73,8 +74,6 @@ rank by best sequence gain
 have it re order teams?
 add costs and max cost filter and ranking
 
-# resonators to implement
-taoqi
 
 # waiting for wuwalab
 chixia

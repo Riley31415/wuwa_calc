@@ -44,7 +44,7 @@ import {
   weaponHue,
   weaponIconByName,
   weaponPart
-} from "./chunk-V6NQUF3X.js";
+} from "./chunk-TDFOAYWI.js";
 import {
   AXES,
   ActionTag,
@@ -89,7 +89,7 @@ import {
   substatRollBuffs,
   tierRoll,
   weaponBase
-} from "./chunk-Z3RDNZVZ.js";
+} from "./chunk-QDZSVQYL.js";
 
 // dist/src/page/substatvalue.js
 var SUBSTAT_LABEL = {
@@ -1455,7 +1455,7 @@ async function snapshotCells(cells, bg) {
 }
 
 // dist/src/page/banners.js
-var BANNER_ART = /* @__PURE__ */ new Set(["anna", "lucielle", 1103, 1104, 1105, 1107, 1108, 1109, 1110, 1205, 1206, 1207, 1208, 1209, 1210, 1211, 1212, 1304, 1306, 1308, 1309, 1311, 1312, 1406, 1407, 1409, 1410, 1411, 1412, 1413, 1501, 1505, 1506, 1507, 1508, 1509, 1510, 1511, 1512, 1603, 1606, 1607, 1608, 1610]);
+var BANNER_ART = /* @__PURE__ */ new Set(["anna", "lucielle", 1103, 1104, 1105, 1107, 1108, 1109, 1110, 1205, 1206, 1207, 1208, 1209, 1210, 1211, 1212, 1304, 1306, 1308, 1309, 1311, 1312, 1406, 1407, 1409, 1410, 1411, 1412, 1413, 1501, 1505, 1506, 1507, 1508, 1509, 1510, 1511, 1512, 1601, 1603, 1606, 1607, 1608, 1610]);
 var BANNERS = [
   { id: 1512, title: "Lily Calcs Released" }
 ];

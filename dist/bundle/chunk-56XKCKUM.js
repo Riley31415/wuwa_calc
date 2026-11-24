@@ -4,7 +4,7 @@ import {
   memberLabel,
   pageUrl,
   solvedRows
-} from "./chunk-V6NQUF3X.js";
+} from "./chunk-TDFOAYWI.js";
 
 // dist/src/page/roster.js
 var TWO_VIGOR = /* @__PURE__ */ new Set(["Shorekeeper", "Mornye", "Suisui", "Lily", "Verina", "Buling", "Baizhi"]);

@@ -903,9 +903,9 @@ function blockPanel(sel: CellSel): string {
     }
   }
   const lines: [string, string][] = dmgCells > 1 ? [["Total Dmg", fmt(dmg, 0)]] : [];
-  if (timeCells > 1) lines.push(["Total Time", `${(frames / 60).toFixed(2)}s`]);
-  if (energyCells) lines.push(["Total Energy", fmt(energy, energyDigits, true, false)]);
-  if (tuneCells) lines.push(["Total Offtune", fmt(gained, tuneDigits, true, false)]);
+  if (timeCells > 1) lines.push(["Selection Time", `${(frames / 60).toFixed(2)}s`]);
+  if (energyCells) lines.push(["Energy Generated", fmt(energy, energyDigits, true, false)]);
+  if (tuneCells) lines.push(["Offtune Buildup", fmt(gained, tuneDigits, true, false)]);
   if (!lines.length) return "";
   return `<span class="pop stat"><table>`
     + lines.map(([k, v]) => `<tr><td class="k">${esc(k)}</td><td class="v">${esc(v)}</td></tr>`).join("")
