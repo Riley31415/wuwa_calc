@@ -1,9 +1,8 @@
 import {
-  maybeShowTutorial,
   onRefresh,
   renderComparison,
   wireSourcePanels
-} from "./chunk-NCL6WAZD.js";
+} from "./chunk-LJSTMGDA.js";
 import {
   TEAMS,
   applyHash,
@@ -31,11 +30,11 @@ import {
   teamWanted,
   visibleRows,
   workerPool
-} from "./chunk-DU4TDG6K.js";
+} from "./chunk-V6NQUF3X.js";
 import {
   bestKey,
   runTeam
-} from "./chunk-RLABIZFI.js";
+} from "./chunk-Z3RDNZVZ.js";
 
 // dist/src/page/index.js
 var app = document.getElementById("app");
@@ -66,7 +65,6 @@ async function runMissing(rows, stale) {
 var generation = 0;
 var route = () => {
   renderComparison();
-  maybeShowTutorial();
 };
 async function refresh() {
   const gen = ++generation;
@@ -121,7 +119,6 @@ async function refresh() {
     return;
   }
   overlayHide();
-  maybeShowTutorial();
 }
 async function boot() {
   if (leaveForTeam())

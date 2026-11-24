@@ -13,6 +13,7 @@ import type { TeamRun } from "../solve/teamrun.js";
 import { hitsOf, erRollsFor } from "../solve/teamrun.js";
 import { ER_TOLERANCE } from "../echoes/substats.js";
 import { results, detailFor, FALLBACK_HUE } from "./model.js";
+import { bannerUrl } from "./banners.js";
 import { esc, lazyPop, rect, zoom, clearPops, popover, hitsPopover, infoPopover, buffsPopover, framesPopover, equippedGear, dprTable, loadoutTable, distributionTable, substatValueTable, wireDistribution, drivePanel, dropPanel, holdPanels, panelOpenOn, copyBlock } from "./panels.js";
 import { HOLD, watchTouch, swallowClick, grabDot, makeDot } from "./cellpick.js";
 import { rememberTableScroll } from "./table.js";
@@ -21,7 +22,6 @@ import { substatGains, cachedGains } from "./substatvalue.js";
 import { showError } from "./loading.js";
 
 const app = document.getElementById("app")!;
-const topbar = document.getElementById("topbar")!;
 
 /* ------------------------------------------------------------------------------ action log */
 
@@ -538,12 +538,30 @@ function barsOf(run: TeamRun, report: Report): Bars | null {
 }
 let shownKey = "";
 
+/** The page's backdrop: the banner art of the member dealing the most damage who has one, fixed
+ *  and blurred under the tables; none of them having art leaves the plain background. */
+function setBackdrop(run: TeamRun): void {
+  const best = run.members.filter((m) => bannerUrl(m.loadout.resonator))
+    .sort((a, b) => (run.bySlot.get(b.name) ?? 0) - (run.bySlot.get(a.name) ?? 0))[0];
+  let el = document.querySelector<HTMLElement>("body > .backdrop");
+  document.body.classList.toggle("backdropped", !!best);
+  if (!best) {
+    el?.remove();
+    return;
+  }
+  if (!el) {
+    el = document.body.appendChild(document.createElement("div"));
+    el.className = "backdrop";
+  }
+  el.style.backgroundImage = `url('${bannerUrl(best.loadout.resonator)}')`;
+}
+
 export function renderDetail(key: string): void {
   shownKey = key;
   rememberTableScroll();
-  topbar.hidden = false;
   clearPops();
   const run = results.get(key)!;
+  setBackdrop(run);
   app.innerHTML = page(run);
   app.className = "";
   wireColumnDrag(app, shownColumns(run));
@@ -555,6 +573,15 @@ export function renderDetail(key: string): void {
   // Node Priority's and Substat Value's label column as wide as Team & Gear's, before the pies fit to their cells
   const lbl = app.querySelector<HTMLElement>(".rtable.loadout .c.lbl");
   if (lbl) app.querySelector<HTMLElement>(".rpanes")?.style.setProperty("--lblw", `${lbl.getBoundingClientRect().width / zoom()}px`);
+  // ...and every column exactly Team & Gear's, off its cells at full precision, so switching tabs never
+  // shifts one by a fraction
+  const heads = [...app.querySelectorAll<HTMLElement>(".rpanes .rtable.loadout > .rtrow:first-child > .c")];
+  if (heads.length) {
+    const cols = heads.map((c) => `${c.getBoundingClientRect().width / zoom()}px`).join(" ");
+    app.querySelectorAll<HTMLElement>(".rpanes .rtable:not(.loadout)").forEach((t) => {
+      if (t.querySelector(":scope > .rtrow:first-child")?.children.length === heads.length) t.style.gridTemplateColumns = cols;
+    });
+  }
   fitPies(app);
   if (tab === "substats") fillSubstats();
 }
@@ -937,15 +964,10 @@ function clearBlock(): void {
   cellSelDot = null;
 }
 
-/** Where row `i` sits inside the grid, measured on the first ask and kept after (`span`). The
- *  pinned heading is taken where it sits unpinned, just above the first row. */
+/** Where row `i` sits inside the grid, measured on the first ask and kept after (`span`). */
 function rowSpan(sel: CellSel, i: number, gridTop: number): [number, number] {
   const seen = sel.span[i];
   if (seen) return seen;
-  if (i === 0 && sel.rows.length > 1) {
-    const below = rowSpan(sel, 1, gridTop)[0];
-    return (sel.span[0] = [below - rect(sel.rows[0]!).height, below]);
-  }
   const r = rect(sel.rows[i]!);
   const at: [number, number] = [r.top - gridTop, r.bottom - gridTop];
   sel.span[i] = at;
@@ -1008,7 +1030,7 @@ function grabCellDot(e: PointerEvent): void {
   if (!sel) return;
   dropPanel();
   // groups may have opened since: the block's rows are found again by element
-  const rows = [...sel.grid.querySelectorAll<HTMLElement>(".r")].filter((r) => r.offsetParent);
+  const rows = [...sel.grid.querySelectorAll<HTMLElement>(".r:not(.head)")].filter((r) => r.offsetParent);
   const r0 = rows.indexOf(sel.rows[sel.r0]!), r1 = rows.indexOf(sel.rows[sel.r1]!);
   if (r0 < 0 || r1 < 0) {
     clearBlock();
@@ -1077,9 +1099,6 @@ function trackBlock(): void {
   while (row > 0 && y < rowSpan(sel, row, g.top)[0]) row--;
   // a loop bar cannot end a block: the pointer over one reads as the row before it going down, after it going up
   if (sel.rows[row]!.classList.contains("loop")) row = Math.min(Math.max(row + (row > sel.ar ? -1 : 1), 0), sel.rows.length - 1);
-  // the heading is reached wherever it is pinned, over whichever rows it hides
-  const head = rect(sel.rows[0]!);
-  if (py >= head.top && py < head.bottom) row = 0;
   const x = px - g.left;
   let col = 0;
   while (col < sel.cols.length - 1 && x >= sel.cols[col + 1]!.left) col++;
@@ -1151,13 +1170,17 @@ function copyText(c: HTMLElement): string {
 }
 
 /** Ctrl+C takes a copy of the block, a row to a line and a tab between columns — the figures as the
- *  table sets them, so what lands in a spreadsheet reads the way the log does. */
+ *  table sets them, so what lands in a spreadsheet reads the way the log does. The block's column
+ *  headings lead it as its first line. */
 addEventListener("keydown", (e) => {
   if (!cellSel || e.key !== "c" || !(e.ctrlKey || e.metaKey) || e.altKey) return;
   const loose = getSelection();
   if (loose && !loose.isCollapsed) return;
   e.preventDefault();
-  copyBlock(blockCells(cellSel).filter((row) => !row[0]?.parentElement?.classList.contains("loop")).map((row) => row.map(copyText)));
+  const sel = cellSel, head = sel.grid.querySelector<HTMLElement>(":scope > .r.head")!.children;
+  const heads = barOf(sel) ? [head[sel.cols[sel.c0]!.nth] as HTMLElement] : sel.cols.slice(sel.c0, sel.c1 + 1).map((c) => head[c.nth] as HTMLElement);
+  const rows = blockCells(sel).filter((row) => !row[0]?.parentElement?.classList.contains("loop")).map((row) => row.map(copyText));
+  copyBlock([heads.map(copyText), ...rows]);
 });
 
 /** Pick a block of log cells with the table's gestures (cellpick.ts): a click or tap opens the cell's
@@ -1182,8 +1205,8 @@ function wireCellSelect(root: HTMLElement): void {
       })
       .sort((a, b) => a.left - b.left);
     const row = cell.closest<HTMLElement>(".r")!;
-    // the heading leads the rows: a press there lifts its column, but a block can be dragged up into it
-    const rows = [...grid.querySelectorAll<HTMLElement>(".r")].filter((r) => r.offsetParent);
+    // the heading is never in a block: a copy writes the headings on top itself
+    const rows = [...grid.querySelectorAll<HTMLElement>(".r:not(.head)")].filter((r) => r.offsetParent);
     const ar = rows.indexOf(row);
     const ac = cols.findIndex((c) => c.nth === [...row.children].indexOf(cell));
     return ar < 0 || ac < 0 ? null : { rows, cols, ar, ac };

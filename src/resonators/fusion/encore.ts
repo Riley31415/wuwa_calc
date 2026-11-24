@@ -262,7 +262,7 @@ const EN_ROTATION = new Rotation([
   USkill,
   UBA1234.dodgeCancel(),
   UBA1234.cancel(),
-  USkill.cancel(),
+  USkill,
   FHA.instaSwap(), Outro,
 ]);
 

@@ -12,7 +12,6 @@ import { wireSourcePanels } from "./panels.js";
 import { renderDetail } from "./detail.js";
 import { onSwitch, onSolve } from "./pickmenu.js";
 import type { Attempt } from "./pickmenu.js";
-import { maybeShowTutorial } from "./tutorial.js";
 import { paint, workerPool, cancelQueued } from "./pool.js";
 import { overlayPhase, overlayNow, overlayHide, showError, barReset, ensureBestPicks, solveQuiet } from "./loading.js";
 
@@ -30,8 +29,6 @@ let moved = false;
 
 const show = (key: string): void => {
   renderDetail(key);
-  // the tutorial's later stages belong to this page; the earlier ones take themselves down for it
-  maybeShowTutorial();
 };
 
 /** Which `switchTo()` pass is the live one: an older pass checks it after every wait and stops. */
@@ -89,7 +86,6 @@ async function bootDetail(): Promise<boolean> {
   results.set(key, runTeam(row.teamKey, row.members, row.combo, true));
   renderDetail(key);
   overlayHide();
-  maybeShowTutorial();
   return true;
 }
 

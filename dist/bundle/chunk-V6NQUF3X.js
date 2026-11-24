@@ -24,6 +24,7 @@ import {
   Sonata2pc,
   Sonata3pc,
   TAG_NAME,
+  TUNE_BREAK,
   TUNE_BREAK_ENEMY,
   Weapon,
   axisOpen,
@@ -32,6 +33,8 @@ import {
   bestKey,
   comboOf,
   compares,
+  costBuild,
+  costRefine,
   damageFactors,
   defFactorOf,
   defaultFilters,
@@ -42,14 +45,17 @@ import {
   eligibleWeapons,
   erRollsFor,
   filterSignature,
+  grantHolders,
   grantToOne,
   hasBuild,
   hitDamage,
   isProgress,
+  isSignature,
   loadoutName,
   member,
   menuStats,
   picksKey,
+  rankValue,
   refineLevels,
   runFromScore,
   runTeam,
@@ -60,13 +66,14 @@ import {
   shownWeapons,
   solveTeam,
   splitStat,
+  standardWeapon,
   statDisplayScale,
   statLabel,
   tagKind,
   teamAt,
   teamKey,
   weaponBase
-} from "./chunk-RLABIZFI.js";
+} from "./chunk-Z3RDNZVZ.js";
 
 // dist/src/page/display.js
 var shown = (s, i) => s.shownAfter?.[i] ?? [s.energy, s.concerto, s.offtune, ...s.forte][i];
@@ -360,7 +367,7 @@ var actionInfo = (snap) => {
   push("Type", kinds((h) => h.type, type));
   push("Subtype", kinds((h) => h.subtype));
   let press = action;
-  while (press.cancelOf ?? press.formOf)
+  while ((press.cancelOf ?? press.formOf) && (press.cancelOf ?? press.formOf) !== TUNE_BREAK)
     press = press.cancelOf ?? press.formOf;
   push("Cast Position", press.castPosition === null ? null : POSITION_NAME[press.castPosition]);
   push("End Position", press.endPosition === null ? null : POSITION_NAME[press.endPosition]);
@@ -1185,25 +1192,17 @@ function weaponHue(w) {
 }
 var MATRIX_RESONATORS = new Set(ALL_TEAMS.flatMap((t) => t.loadouts).filter((l) => l.resonator.matrix).map((l) => l.resonator.name));
 var resonatorFilters = /* @__PURE__ */ new Map();
-var weaponFilters = /* @__PURE__ */ new Map();
 var echoFilters = /* @__PURE__ */ new Map();
-var refineFilters = /* @__PURE__ */ new Map();
-var OPTION_FILTER_MAPS = {
-  weapon: weaponFilters,
-  echo: echoFilters,
-  refine: refineFilters
-};
+var OPTION_FILTER_MAPS = { echo: echoFilters };
 var filters = defaultFilters();
 var pinnedRows = /* @__PURE__ */ new Set();
 var gearCache = null;
 function offeredGear(kind, f = filters) {
   const sig = filterSignature(f);
   if (gearCache?.sig !== sig) {
-    const offered = { weapon: /* @__PURE__ */ new Set(), echo: /* @__PURE__ */ new Set() };
+    const offered = { echo: /* @__PURE__ */ new Set() };
     for (const members of Object.values(TEAMS)) {
       for (const m of members) {
-        for (const tag of weaponTagsOf(m, f))
-          offered.weapon.add(tag);
         if (axisOpen(m, f, "echoes"))
           for (const e of echoPicks(m, members))
             offered.echo.add(echoLabel(m.loadout, m.loadout.echoLoadouts[e]));
@@ -1214,7 +1213,7 @@ function offeredGear(kind, f = filters) {
   return gearCache.offered[kind];
 }
 function pruneGearFilters() {
-  for (const kind of ["weapon", "echo"]) {
+  for (const kind of ["echo"]) {
     const offered = offeredGear(kind);
     for (const key of [...OPTION_FILTER_MAPS[kind].keys()])
       if (!offered.has(key))
@@ -1231,15 +1230,16 @@ function settleLevels() {
         reach.get(m.name).add(n);
     }
   for (const name of new Set([...resonatorFilters.keys()].map(tagOwner))) {
-    const labels = [...reach.get(name) ?? []].sort((a, b) => a - b).map((n) => resonatorLabel(name, n));
+    const levels = [...reach.get(name) ?? []].sort((a, b) => a - b);
     const keys = [...resonatorFilters].filter(([key]) => tagOwner(key) === name);
     for (const [key] of keys)
-      if (!labels.includes(key))
+      if (!levels.includes(parseTag(key).sequence))
         resonatorFilters.delete(key);
-    if (!keys.some(([, mode]) => mode === "include"))
+    if (!keys.some(([, mode]) => mode === "include") || included(name) || !levels.length)
       continue;
-    if (!included(name) && labels.length)
-      resonatorFilters.set(labels[0], "include");
+    const m = memberNamed(name);
+    const tag = m ? buildTag(m, filters.cost, false) ?? buildTag(m, filters.cost, true) : null;
+    resonatorFilters.set(tag ?? joinTag(name, levels[0], ""), "include");
   }
 }
 function comparable(name, axis) {
@@ -1269,35 +1269,145 @@ var setVisibleRows = (rows) => {
   visibleRows = rows;
 };
 var namesHold = (map, names) => [...map].every(([name, mode]) => names.includes(name) === (mode === "include"));
-var tagOwner = (tag) => tag.replace(/ S\d+(R\d+)?$| R\d+$/, "");
-var resonatorLabel = (name, sequence) => sequence ? `${name} S${sequence}` : name;
-var memberLevels = (m, f = filters) => [.../* @__PURE__ */ new Set([...sequenceLevels(m, f, true), ...grantToOne(f.cost) ? sequenceLevels(m, f, false) : []])].sort((a, b) => a - b);
-var levelFilters = (f = filters) => new Map([...resonatorFilters].filter(([key, mode]) => mode === "exclude" || !f.sequences.includes(tagOwner(key))));
-var included = (name) => [...resonatorFilters].some(([key, mode]) => mode === "include" && tagOwner(key) === name);
-var weaponTag = (m, sequence, weapon) => `${m.name}${sequence ? ` S${sequence}` : ""} ${weapon}`;
-var weaponTags = (m, c) => [weaponTag(m, c.sequence, c.weapon.name), weaponTag(m, c.sequence, weaponBase(c.weapon))];
-var weaponOwner = (tag) => [...RESONATOR_HUE.keys()].filter((name) => tag.startsWith(`${name} `)).sort((a, b) => b.length - a.length)[0] ?? "";
-function weaponTagsOf(m, f = filters) {
-  if (!axisOpen(m, f, "weapons") && !shownRanks(m, f).length)
-    return [];
-  const levels = /* @__PURE__ */ new Set([...sequenceLevels(m, f, true), ...sequenceLevels(m, f, false)]);
-  const weapons = axisOpen(m, f, "weapons") ? eligibleWeapons(m, f) : m.loadout.weapons.map((_, i) => i);
-  return [...levels].flatMap((level) => weapons.flatMap((i) => [weaponBase(m.loadout.weapons[i]), ...m.loadout.refinements[i].map((w) => w.name)].map((name) => weaponTag(m, level, name))));
+var NAMES_LONGEST = [...RESONATOR_HUE.keys()].sort((a, b) => b.length - a.length);
+var tagOwner = (tag) => NAMES_LONGEST.find((n) => tag === n || tag.startsWith(`${n} `)) ?? tag;
+function parseTag(tag) {
+  const owner = tagOwner(tag);
+  const [, seq, joined, sig, named2] = /^(?: S(\d))?(?:(R\d)| (R\d)| (.+ R\d))?$/.exec(tag.slice(owner.length)) ?? [];
+  return { owner, sequence: +(seq ?? 0), part: joined ?? sig ?? named2 ?? "" };
 }
-function tagsHold(map, names, fielded, owner = tagOwner) {
+var memberNamed = (name) => {
+  for (const ms of Object.values(TEAMS))
+    for (const m of ms)
+      if (m.name === name)
+        return m;
+  return void 0;
+};
+var signatureOf = (m) => isSignature(m.loadout, 0) ? weaponBase(m.loadout.weapons[0]) : null;
+function weaponPart(m, weapon, cost = filters.cost) {
+  const l = m.loadout, base = weaponBase(weapon), std = standardWeapon(l);
+  if (base === signatureOf(m))
+    return `R${weapon.refinement}`;
+  if (base === weaponBase(l.weapons[std]) && [true, false].some((h) => l.refinements[std][costRefine(m, std, cost, h)].name === weapon.name))
+    return "";
+  return `${base} R${weapon.refinement}`;
+}
+var joinTag = (name, sequence, part) => name + (sequence ? ` S${sequence}` : "") + (!part ? "" : /^R\d$/.test(part) && sequence ? part : ` ${part}`);
+var memberTag = (m, combo, cost = filters.cost) => joinTag(m.name, combo.sequence, weaponPart(m, combo.weapon, cost));
+function buildTag(m, cost, holds) {
+  const b = costBuild(m, cost, holds);
+  return b ? joinTag(m.name, b.sequence, weaponPart(m, m.loadout.refinements[b.weapon][b.refine], cost)) : null;
+}
+var costTag = (m) => buildTag(m, filters.cost, false) ?? buildTag(m, filters.cost, true) ?? m.name;
+function tagWeapon(m, part, cost) {
+  const l = m.loadout, all = l.refinements.flat();
+  if (!part) {
+    const std = standardWeapon(l);
+    return l.refinements[std][costRefine(m, std, cost, false)];
+  }
+  if (/^R\d$/.test(part))
+    return signatureOf(m) ? l.refinements[0].find((w) => `R${w.refinement}` === part) : void 0;
+  return all.find((w) => `${weaponBase(w)} R${w.refinement}` === part);
+}
+var memberLevels = (m, f = filters) => [.../* @__PURE__ */ new Set([...sequenceLevels(m, f, true), ...grantToOne(f.cost) ? sequenceLevels(m, f, false) : []])].sort((a, b) => a - b);
+var included = (name) => [...resonatorFilters].some(([key, mode]) => mode === "include" && tagOwner(key) === name);
+function tagHolds(tag, m, combo, f = filters) {
+  const t = parseTag(tag);
+  if (t.sequence !== combo.sequence && !axisOpen(m, f, "sequences"))
+    return false;
+  if (axisOpen(m, f, "weapons"))
+    return true;
+  const part = weaponPart(m, combo.weapon, f.cost), unranked = (p) => p.replace(/ ?R\d$/, "");
+  return part === t.part || axisUsed(m, f, "refines") && unranked(part) === unranked(t.part);
+}
+function carryTags(from, to) {
+  const roles = (name, cost) => {
+    const f = { ...filters, cost }, hold = /* @__PURE__ */ new Set(), rest = /* @__PURE__ */ new Set();
+    for (const ms of Object.values(TEAMS)) {
+      const i = ms.findIndex((m) => m.name === name);
+      if (i < 0 || !ms.every((m) => hasBuild(m, f)))
+        continue;
+      const holders = grantHolders(ms, f);
+      const h = holders.includes(i) ? buildTag(ms[i], cost, true) : null;
+      const r = holders.length === 1 && holders[0] === i ? null : buildTag(ms[i], cost, false);
+      if (h)
+        hold.add(h);
+      if (r)
+        rest.add(r);
+    }
+    return { hold, rest };
+  };
+  const reach = (name, cost) => {
+    const f = { ...filters, cost }, out = /* @__PURE__ */ new Set();
+    for (const ms of Object.values(TEAMS))
+      for (const m of ms)
+        if (m.name === name)
+          for (const n of memberLevels(m, f))
+            out.add(n);
+    return out;
+  };
+  for (const name of new Set([...resonatorFilters.keys()].map(tagOwner))) {
+    const was = roles(name, from), now = roles(name, to), m = memberNamed(name);
+    for (const [tag, mode] of [...resonatorFilters].filter(([key]) => tagOwner(key) === name)) {
+      const out = /* @__PURE__ */ new Set();
+      if (was.hold.has(tag))
+        for (const t of now.hold)
+          out.add(t);
+      if (was.rest.has(tag))
+        for (const t of now.rest)
+          out.add(t);
+      if (!was.hold.has(tag) && !was.rest.has(tag)) {
+        const t = parseTag(tag), w = m ? tagWeapon(m, t.part, from) : void 0;
+        const b = m && !reach(name, to).has(t.sequence) ? costBuild(m, to, false) ?? costBuild(m, to, true) : null;
+        out.add(m && w ? joinTag(name, b?.sequence ?? t.sequence, weaponPart(m, w, to)) : tag);
+      } else if (!out.size)
+        for (const t of [...now.rest, ...now.hold])
+          out.add(t);
+      resonatorFilters.delete(tag);
+      for (const t of out)
+        if (!resonatorFilters.has(t))
+          resonatorFilters.set(t, mode);
+    }
+  }
+}
+var tagShows = /* @__PURE__ */ new Set();
+var isTagShow = (s) => tagShows.has(scopedKey(s));
+function syncTagShows() {
+  const want = /* @__PURE__ */ new Map();
+  for (const [tag, mode] of resonatorFilters) {
+    const t = parseTag(tag), m = memberNamed(t.owner);
+    if (mode !== "include" || !t.part || !m || [true, false].some((h) => buildTag(m, filters.cost, h) === tag))
+      continue;
+    const w = tagWeapon(m, t.part, filters.cost);
+    if (!w)
+      continue;
+    const s = { resonator: t.owner, on: "rank", value: rankValue(w.name, t.sequence), axis: "refines" };
+    want.set(scopedKey(s), s);
+  }
+  filters.scoped = filters.scoped.filter((s) => !tagShows.has(scopedKey(s)) || want.has(scopedKey(s)));
+  for (const key of [...tagShows])
+    if (!want.has(key))
+      tagShows.delete(key);
+  for (const [key, s] of want) {
+    if (filters.scoped.some((x) => scopedKey(x) === key))
+      continue;
+    filters.scoped.push(s);
+    tagShows.add(key);
+  }
+}
+function tagsHold(row) {
   const wanted = /* @__PURE__ */ new Map();
-  for (const [name, mode] of map) {
+  for (const [tag, mode] of resonatorFilters) {
+    const at = row.members.findIndex((m) => m.name === tagOwner(tag));
     if (mode === "exclude") {
-      if (names.includes(name))
+      if (at >= 0 && memberTag(row.members[at], row.combo[at]) === tag)
         return false;
       continue;
     }
-    const who = owner(name);
-    if (!fielded.includes(who))
-      continue;
-    wanted.set(who, [...wanted.get(who) ?? [], name]);
+    if (at >= 0)
+      wanted.set(at, [...wanted.get(at) ?? [], tag]);
   }
-  return [...wanted.values()].every((group) => group.some((name) => names.includes(name)));
+  return [...wanted].every(([at, tags]) => tags.some((tag) => tagHolds(tag, row.members[at], row.combo[at])));
 }
 var poolAdded = [];
 var poolNeeds = /* @__PURE__ */ new Map();
@@ -1330,11 +1440,15 @@ function teamWanted(key, members) {
   if (!PRIMARY_TEAMS.has(key) && !members.some((m) => INTERCHANGEABLE.has(m.loadout) && included(m.name)) && !members.every((m) => INTERCHANGEABLE.has(m.loadout) || included(m.name)))
     return false;
   for (const m of members) {
-    const labels = memberLevels(m).map((n) => resonatorLabel(m.name, n));
     const keys = [...resonatorFilters].filter(([key2]) => tagOwner(key2) === m.name);
-    if (keys.length && labels.every((l) => resonatorFilters.get(l) === "exclude"))
+    if (!keys.length)
+      continue;
+    const open = axisOpen(m, filters, "sequences") || axisOpen(m, filters, "weapons") || axisUsed(m, filters, "refines") || shownRanks(m, filters).length > 0;
+    const builds = [true, false].map((h) => buildTag(m, filters.cost, h)).filter((t) => t !== null);
+    if (!open && builds.length && builds.every((t) => resonatorFilters.get(t) === "exclude"))
       return false;
-    if (!filters.sequences.includes(m.name) && keys.some(([, mode]) => mode === "include") && !labels.some((l) => resonatorFilters.get(l) === "include"))
+    const levels = memberLevels(m);
+    if (!filters.sequences.includes(m.name) && keys.some(([, mode]) => mode === "include") && !keys.some(([key2, mode]) => mode === "include" && levels.includes(parseTag(key2).sequence)))
       return false;
   }
   const needs = leaderNeeds();
@@ -1361,26 +1475,23 @@ function sequenceTagAt(m, sequence, f = filters) {
 var sequenceTag = (m, combo) => sequenceTagAt(m, combo.sequence);
 var refineTag = (m, combo) => `${m.name} R${combo.weapon.refinement}`;
 function rowWanted(row) {
-  const fielded = row.members.map((m) => m.name);
-  return tagsHold(weaponFilters, row.combo.flatMap((c, i) => weaponTags(row.members[i], c)), fielded, weaponOwner) && namesHold(echoFilters, row.combo.map((c, i) => echoLabel(row.members[i].loadout, c.echo))) && tagsHold(levelFilters(), row.combo.map((c, i) => resonatorLabel(row.members[i].name, c.sequence)), fielded) && tagsHold(refineFilters, row.combo.map((c, i) => refineTag(row.members[i], c)), fielded);
+  return namesHold(echoFilters, row.combo.map((c, i) => echoLabel(row.members[i].loadout, c.echo))) && tagsHold(row);
 }
 function admitBuild(members, combo) {
   const fielded = members.map((m) => m.name);
-  const fit = (map, names, tagged, owner = tagOwner) => {
+  const fit = (map, names, tagged) => {
     for (const [name, mode] of [...map]) {
       if (names.includes(name) === (mode === "include"))
         continue;
-      const own = tagged && mode === "include" ? names.find((n) => owner(n) === owner(name)) : void 0;
+      const own = tagged && mode === "include" ? names.find((n) => tagOwner(n) === tagOwner(name)) : void 0;
       if (own)
         map.set(own, "include");
-      else if (!tagged || mode === "exclude" || fielded.includes(owner(name)))
+      else if (!tagged || mode === "exclude" || fielded.includes(tagOwner(name)))
         map.delete(name);
     }
   };
-  fit(weaponFilters, combo.flatMap((c, i) => weaponTags(members[i], c)), true, weaponOwner);
   fit(echoFilters, combo.map((c, i) => echoLabel(members[i].loadout, c.echo)), false);
-  fit(resonatorFilters, combo.map((c, i) => resonatorLabel(members[i].name, c.sequence)), true);
-  fit(refineFilters, combo.map((c, i) => refineTag(members[i], c)), true);
+  fit(resonatorFilters, combo.map((c, i) => memberTag(members[i], c)), true);
 }
 function admitTeam(teamKey2) {
   const members = TEAMS[teamKey2];
@@ -1388,10 +1499,13 @@ function admitTeam(teamKey2) {
     if (mode === "exclude" && members.some((m) => m.name === tagOwner(key)))
       resonatorFilters.delete(key);
   }
-  for (const m of members) {
+  const holders = grantHolders(members, filters);
+  for (const [i, m] of members.entries()) {
     if (teamWanted(teamKey2, members))
       return;
-    resonatorFilters.set(resonatorLabel(m.name, memberLevels(m)[0] ?? 0), "include");
+    const tag = buildTag(m, filters.cost, holders.includes(i)) ?? buildTag(m, filters.cost, false);
+    if (tag)
+      resonatorFilters.set(tag, "include");
   }
 }
 function snapshotFilters() {
@@ -1454,7 +1568,7 @@ function axisWays(lists, map, cap = Infinity, tagged = false) {
   return total;
 }
 function estimatedRowCount(members, f = filters) {
-  return axisWays(members.map((m) => axisOpen(m, f, "weapons") ? eligibleWeapons(m, f).map((i) => m.loadout.weapons[i].name) : null), /* @__PURE__ */ new Map()) * axisWays(members.map((m) => axisOpen(m, f, "echoes") ? echoPicks(m, members).map((e) => echoLabel(m.loadout, m.loadout.echoLoadouts[e])) : null), echoFilters) * members.reduce((n, m) => n * (axisOpen(m, f, "mainstats") ? m.loadout.mainstats.length : 1), 1) * axisWays(members.map((m) => memberLevels(m, f).map((n) => resonatorLabel(m.name, n))), levelFilters(f), Infinity, true) * members.reduce((n, m) => n * (axisOpen(m, f, "substats") ? 2 : 1), 1) * members.reduce((n, m) => n * (axisUsed(m, f, "refines") ? Math.max(...eligibleWeapons(m, f).map((i) => m.loadout.refinements[i].length)) : 1 + shownRanks(m, f).length), 1) * members.reduce((n, m) => n * (!axisOpen(m, f, "echoes") && axisUsed(m, f, "echoes") ? echoPicks(m, members).length : 1) * (!axisOpen(m, f, "mainstats") && axisUsed(m, f, "mainstats") ? m.loadout.mainstats.length : 1), 1);
+  return axisWays(members.map((m) => axisOpen(m, f, "weapons") ? eligibleWeapons(m, f).map((i) => m.loadout.weapons[i].name) : null), /* @__PURE__ */ new Map()) * axisWays(members.map((m) => axisOpen(m, f, "echoes") ? echoPicks(m, members).map((e) => echoLabel(m.loadout, m.loadout.echoLoadouts[e])) : null), echoFilters) * members.reduce((n, m) => n * (axisOpen(m, f, "mainstats") ? m.loadout.mainstats.length : 1), 1) * members.reduce((n, m) => n * Math.max(1, memberLevels(m, f).length), 1) * members.reduce((n, m) => n * (axisOpen(m, f, "substats") ? 2 : 1), 1) * members.reduce((n, m) => n * (axisUsed(m, f, "refines") ? Math.max(...eligibleWeapons(m, f).map((i) => m.loadout.refinements[i].length)) : 1 + shownRanks(m, f).length), 1) * members.reduce((n, m) => n * (!axisOpen(m, f, "echoes") && axisUsed(m, f, "echoes") ? echoPicks(m, members).length : 1) * (!axisOpen(m, f, "mainstats") && axisUsed(m, f, "mainstats") ? m.loadout.mainstats.length : 1), 1);
 }
 function prospectiveRows(f = filters) {
   return Object.entries(TEAMS).filter(([key, members]) => teamWanted(key, members)).reduce((sum, [, members]) => sum + estimatedRowCount(members, f), pinnedRows.size);
@@ -1521,6 +1635,7 @@ var seqToken = (m, combo) => combo.sequence > 0 || axisOpen(m, filters, "sequenc
 var rankToken = (m, combo, inCell) => inCell ? "" : compares(m, filters, "refines", combo) || combo.weapon.tier === 0 || shownRanks(m, filters).some(([w, , s]) => weaponBase(m.loadout.weapons[w]) === weaponBase(combo.weapon) && s === combo.sequence) ? `R${combo.weapon.refinement}` : "";
 var SOLVES_KEY = "wuwa.solves.v1";
 var buildStamp = null;
+var kitStamps = null;
 var solvesDirty = false;
 var shippedStates = null;
 var shippedFetched = /* @__PURE__ */ new Set();
@@ -1639,22 +1754,25 @@ async function loadSolves() {
   const restore = (saved) => {
     if (saved.stamp !== buildStamp)
       return;
+    const kitsSame = (key) => !kitStamps || !!teamAt(key.split("|")[0])?.loadouts.every((l) => saved.kits?.[l.resonator.name] === kitStamps[l.resonator.name]);
     for (const [k, v] of saved.solves)
-      if (solveFits(k, v)) {
+      if (kitsSame(k) && solveFits(k, v)) {
         bestPicks.set(k, v);
         restoredSolves = true;
       }
     for (const [k, v] of saved.picks)
-      if (picksFit(k, v)) {
+      if (kitsSame(k) && picksFit(k, v)) {
         picksCache.set(k, v);
         restoredSolves = true;
       }
   };
   try {
-    const live = await fetch("/__livereload", { cache: "no-store" }).catch(() => null);
-    if (live?.ok)
-      buildStamp = `dev:${await live.text()}`;
-    else {
+    const live = await fetch("/__solvestamp", { cache: "no-store" }).catch(() => null);
+    if (live?.ok) {
+      const dev = await live.json();
+      buildStamp = `dev:${dev.global}`;
+      kitStamps = dev.kits;
+    } else {
       const idx = await fetch("./dist/solves/index.json", { cache: "no-store" });
       if (!idx.ok)
         return;
@@ -1677,7 +1795,8 @@ function saveSolves() {
     const save = {
       stamp: buildStamp,
       solves: [...bestPicks].filter(([k]) => !shippedKeys.has(k)),
-      picks: [...picksCache]
+      picks: [...picksCache],
+      ...kitStamps ? { kits: kitStamps } : {}
     };
     localStorage.setItem(SOLVES_KEY, JSON.stringify(save));
   } catch {
@@ -1699,16 +1818,19 @@ var COST_CODE = {
 };
 var FILTER_GROUPS = [
   { include: "r", exclude: "x", map: resonatorFilters },
-  { include: "wr", exclude: "wx", map: weaponFilters },
-  { include: "er", exclude: "ex", map: echoFilters },
-  { include: "fr", exclude: "fx", map: refineFilters }
+  { include: "er", exclude: "ex", map: echoFilters }
 ];
+var compactTag = (tag) => {
+  const owner = tagOwner(tag);
+  return owner.replace(/ /g, "") + tag.slice(owner.length).replace(/^ /, "");
+};
+var COMPACT_LONGEST = [...RESONATOR_NAME_BY_COMPACT.keys()].sort((a, b) => b.length - a.length);
 function applyHash() {
   const params = hashParams();
   let changed = false;
   {
-    const legacy = (params.get("f") ?? "").split(",").filter(Boolean);
-    const next = params.get("mx") || legacy.includes("x") || legacy.includes("matrix") ? [...MATRIX_RESONATORS] : [];
+    const legacy2 = (params.get("f") ?? "").split(",").filter(Boolean);
+    const next = params.get("mx") || legacy2.includes("x") || legacy2.includes("matrix") ? [...MATRIX_RESONATORS] : [];
     const cur = filters.matrix;
     if (next.length !== cur.length || next.some((n) => !cur.includes(n))) {
       filters.matrix = next;
@@ -1734,21 +1856,36 @@ function applyHash() {
       const [resonator, on, value, axis] = decodeURIComponent(e).split("~");
       return { resonator, on, value, axis };
     });
-    const cur = filters.scoped.map(scopedKey);
+    const cur = filters.scoped.filter((s) => !isTagShow(s)).map(scopedKey);
     if (next.length !== cur.length || next.some((s) => !cur.includes(scopedKey(s)))) {
       filters.scoped = next;
       changed = true;
     }
   }
   const resonatorKey = (v) => {
-    const [, name, level] = /^(.*?)(?:S(\d+))?$/.exec(v);
-    return resonatorLabel(RESONATOR_NAME_BY_COMPACT.get(name) ?? name, +(level ?? 0));
+    const compact = COMPACT_LONGEST.find((c) => v.startsWith(c)) ?? v;
+    const rest = v.slice(compact.length).trim();
+    return `${RESONATOR_NAME_BY_COMPACT.get(compact) ?? compact}${rest ? ` ${rest}` : ""}`;
   };
-  const named2 = (v, mode, resonators) => (v ?? "").split(",").filter(Boolean).map((name) => [resonators ? resonatorKey(name.replace(/ /g, "")) : name, mode]);
+  const weaponKey = (v) => {
+    const owner = tagOwner(v), m = memberNamed(owner);
+    const [, seq, name] = /^(?: S(\d))? (.+)$/.exec(v.slice(owner.length)) ?? [];
+    const w = m && name ? m.loadout.refinements.flat().find((x) => x.name === name || weaponBase(x) === name) : void 0;
+    return m && w ? joinTag(owner, +(seq ?? 0), weaponPart(m, w, filters.cost)) : null;
+  };
+  const named2 = (v, mode, resonators) => (v ?? "").split(",").filter(Boolean).map((name) => [resonators ? resonatorKey(name) : name, mode]);
+  const legacy = (v, mode) => (v ?? "").split(",").filter(Boolean).flatMap((name) => {
+    const tag = weaponKey(name);
+    return tag ? [[tag, mode]] : [];
+  });
   for (const { include, exclude, map } of FILTER_GROUPS) {
     const resonators = map === resonatorFilters;
-    const read = (key, legacy) => [params.get(key), resonators ? params.get(legacy) : null].filter(Boolean).join(",") || null;
-    const next = new Map([...named2(read(exclude, "sx"), "exclude", resonators), ...named2(read(include, "sr"), "include", resonators)]);
+    const read = (key, old) => [params.get(key), resonators ? params.get(old) : null].filter(Boolean).join(",") || null;
+    const next = new Map([
+      ...named2(read(exclude, "sx"), "exclude", resonators),
+      ...named2(read(include, "sr"), "include", resonators),
+      ...resonators ? [...legacy(params.get("wx"), "exclude"), ...legacy(params.get("wr"), "include")] : []
+    ]);
     if (next.size !== map.size || [...next].some(([n, m]) => map.get(n) !== m)) {
       map.clear();
       for (const [name, mode] of next)
@@ -1756,6 +1893,8 @@ function applyHash() {
       changed = true;
     }
   }
+  if (changed)
+    syncTagShows();
   {
     const next = (params.get("pin") ?? "").split(",").filter(Boolean).map(keyOfTag).filter((key) => rowFromKey(key));
     if (next.length !== pinnedRows.size || next.some((key) => !pinnedRows.has(key))) {
@@ -1868,7 +2007,7 @@ function syncCost() {
 }
 var pageUrl = (team) => `${team ? "./team" : "./"}${hashOf(team)}`;
 function hashOf(team) {
-  const named2 = (map, mode) => [...map].filter(([, m]) => m === mode).map(([name]) => encodeURIComponent(map === resonatorFilters ? name.replace(/ /g, "") : name)).join(",");
+  const named2 = (map, mode) => [...map].filter(([, m]) => m === mode).map(([name]) => encodeURIComponent(map === resonatorFilters ? compactTag(name) : name)).join(",");
   const parts = [];
   for (const { include, exclude, map } of FILTER_GROUPS) {
     if (named2(map, "include"))
@@ -1884,8 +2023,9 @@ function hashOf(team) {
     if (filters[axis].length)
       parts.push(`${COMPARE_PARAM[axis]}=${filters[axis].map((n) => encodeURIComponent(n.replace(/ /g, ""))).join(",")}`);
   }
-  if (filters.scoped.length)
-    parts.push(`${SCOPED_PARAM}=${filters.scoped.map((s) => encodeURIComponent(scopedKey(s))).join(",")}`);
+  const scoped = filters.scoped.filter((s) => !isTagShow(s));
+  if (scoped.length)
+    parts.push(`${SCOPED_PARAM}=${scoped.map((s) => encodeURIComponent(scopedKey(s))).join(",")}`);
   if (team)
     parts.push(`t=${teamTag(team)}`);
   if (pinnedRows.size)
@@ -2026,12 +2166,13 @@ function solveAll(teams, f, share) {
 // dist/src/page/icons.js
 var UNKNOWN = "./images/unknown.webp";
 var dirOf = (g) => g instanceof Resonator ? "resonators" : g instanceof Weapon ? "weapons" : g instanceof Mainslot ? "echoes" : g instanceof Sonata || g instanceof Sonata1pc || g instanceof Sonata2pc || g instanceof Sonata3pc ? "sonatas" : null;
-function iconOf(g) {
+var iconOf = (g) => imageOf(g, "icon");
+function imageOf(g, cls) {
   const dir = g ? dirOf(g) : null;
   if (!dir)
     return "";
   const src = g.id ? `./images/${dir}/${g.id}.webp` : UNKNOWN;
-  return `<img class="icon" src="${src}" alt="" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${UNKNOWN}'">`;
+  return `<img class="${cls}" src="${src}" alt="" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${UNKNOWN}'">`;
 }
 var named = null;
 function gearNamed() {
@@ -2057,7 +2198,13 @@ function gearNamed() {
     }
   return named;
 }
-var iconNamed = (name) => iconOf(gearNamed().get(name));
+var iconNamed = (name, cls = "icon") => imageOf(gearNamed().get(name), cls);
+function portraitNamed(name, cls) {
+  const id = gearNamed().get(name)?.id;
+  if (!id)
+    return imageOf(void 0, cls);
+  return `<img class="${cls}" src="./images/resonators/80/${id}.webp" srcset="./images/resonators/80/${id}.webp 1x, ./images/resonators/160/${id}.webp 2x" width="80" height="80" alt="" loading="lazy" decoding="async" onerror="this.onerror=null;this.srcset='';this.src='${UNKNOWN}'">`;
+}
 var ICON_SLOT = `<span class="icon"></span>`;
 function weaponIconByName(tag) {
   const bare = tag.replace(/ R\d$/, "");
@@ -2226,9 +2373,6 @@ export {
   weaponHue,
   MATRIX_RESONATORS,
   resonatorFilters,
-  weaponFilters,
-  echoFilters,
-  refineFilters,
   OPTION_FILTER_MAPS,
   filters,
   pinnedRows,
@@ -2241,11 +2385,16 @@ export {
   visibleRows,
   setVisibleRows,
   tagOwner,
-  resonatorLabel,
+  parseTag,
+  weaponPart,
+  joinTag,
+  memberTag,
+  costTag,
   memberLevels,
   included,
-  weaponTag,
-  weaponOwner,
+  carryTags,
+  isTagShow,
+  syncTagShows,
   teamWanted,
   sequenceTag,
   refineTag,
@@ -2279,6 +2428,7 @@ export {
   cancelQueued,
   iconOf,
   iconNamed,
+  portraitNamed,
   ICON_SLOT,
   weaponIconByName,
   echoLabelHtml,

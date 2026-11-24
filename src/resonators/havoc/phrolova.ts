@@ -13,7 +13,7 @@
  *  Volatile Notes are forte1, off the kit text — wuwalab lists no Note gains.
  */
 import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, BuffTarget, Position } from "../../engine/stats.js";
-import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence, matrix } from "../../engine/gear.js";
 import {
   applyCurrent,
   stacksOf,
@@ -580,6 +580,7 @@ const PHROLOVA_TALENTS = new Talent({
 export const PHROLOVA_RESONATOR = new Resonator({
   id: 1608,
   name: "Phrolova",
+  matrix: matrix("Phrolova", 25),
   talent: PHROLOVA_TALENTS,
   inherent1: PH_INHERENT_1,
   inherent2: PH_INHERENT_2,

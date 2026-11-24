@@ -13,13 +13,14 @@ const dirOf = (g: Gear): string | null =>
   g instanceof Resonator ? "resonators" : g instanceof Weapon ? "weapons" : g instanceof Mainslot ? "echoes"
   : g instanceof Sonata || g instanceof Sonata1pc || g instanceof Sonata2pc || g instanceof Sonata3pc ? "sonatas" : null;
 
-/** `g`'s image as an inline `<img class="icon">` — the question mark where it has none — or "" for a kind
- *  that has no pictures. */
-export function iconOf(g: Gear | null | undefined): string {
+/** `g`'s image as an inline `<img class="icon">` (or `cls`) — the question mark where it has none — or ""
+ *  for a kind that has no pictures. */
+export const iconOf = (g: Gear | null | undefined): string => imageOf(g, "icon");
+function imageOf(g: Gear | null | undefined, cls: string): string {
   const dir = g ? dirOf(g) : null;
   if (!dir) return "";
   const src = g!.id ? `./images/${dir}/${g!.id}.webp` : UNKNOWN;
-  return `<img class="icon" src="${src}" alt="" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${UNKNOWN}'">`;
+  return `<img class="${cls}" src="${src}" alt="" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${UNKNOWN}'">`;
 }
 
 /** Every resonator, weapon (each rank's name and the bare one), mainslot and set piece the roster
@@ -46,7 +47,15 @@ function gearNamed(): Map<string, Gear> {
 }
 
 /** The image of whatever the roster fields under `name`, or "". */
-export const iconNamed = (name: string): string => iconOf(gearNamed().get(name));
+export const iconNamed = (name: string, cls = "icon"): string => imageOf(gearNamed().get(name), cls);
+/** A resonator's portrait at 80px, from copies pre-shrunk to 80 and 160 (images/resonators/80, /160)
+ *  so neither a 1x nor a 2x screen resamples it much; the question mark where they have none. */
+export function portraitNamed(name: string, cls: string): string {
+  const id = gearNamed().get(name)?.id;
+  if (!id) return imageOf(undefined, cls);
+  return `<img class="${cls}" src="./images/resonators/80/${id}.webp" srcset="./images/resonators/80/${id}.webp 1x, ./images/resonators/160/${id}.webp 2x"`
+    + ` width="80" height="80" alt="" loading="lazy" decoding="async" onerror="this.onerror=null;this.srcset='';this.src='${UNKNOWN}'">`;
+}
 /** An icon's blank space, for a row that only sizes columns (table.ts's ghost row). */
 export const ICON_SLOT = `<span class="icon"></span>`;
 /** A weapon's art off a filter tag ("Changli S1 Blazing Brilliance R1"): the longest weapon name the

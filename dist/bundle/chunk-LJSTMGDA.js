@@ -7,9 +7,10 @@ import {
   RESONATOR_HUE,
   ROW_CAP,
   TEAMS,
+  carryTags,
   comparable,
   costBox,
-  echoFilters,
+  costTag,
   echoLabelHtml,
   filters,
   fmt,
@@ -18,31 +19,32 @@ import {
   iconNamed,
   iconOf,
   included,
+  isTagShow,
+  joinTag,
   matrixBox,
   memberLabel,
   memberLevels,
+  memberTag,
+  parseTag,
   pinnedRows,
   prospectiveRows,
   pruneGearFilters,
-  refineFilters,
   refineTag,
   resonatorFilters,
-  resonatorLabel,
   results,
   rowFromKey,
   sequenceTag,
   setVisibleRows,
   settleLevels,
   syncHash,
+  syncTagShows,
   tagOwner,
   teamRows,
   visibleRows,
-  weaponFilters,
   weaponHue,
   weaponIconByName,
-  weaponOwner,
-  weaponTag
-} from "./chunk-DU4TDG6K.js";
+  weaponPart
+} from "./chunk-V6NQUF3X.js";
 import {
   AXES,
   ActionTag,
@@ -59,6 +61,7 @@ import {
   axisOpen,
   axisUsed,
   compares,
+  costBuild,
   echoLabel,
   echoLines,
   echoPicks,
@@ -86,7 +89,7 @@ import {
   substatRollBuffs,
   tierRoll,
   weaponBase
-} from "./chunk-RLABIZFI.js";
+} from "./chunk-Z3RDNZVZ.js";
 
 // dist/src/page/substatvalue.js
 var SUBSTAT_LABEL = {
@@ -135,7 +138,6 @@ async function substatGains(run, stale) {
 var esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 var coarse = matchMedia("(pointer: coarse)").matches;
 var CLICK = coarse ? "Tap" : "Click";
-var CLICKING = coarse ? "tapping" : "clicking";
 var lazyPop = (html) => html ? ` data-pop='${html.replace(/&/g, "&amp;").replace(/'/g, "&#39;")}'` : "";
 var deferredPop = (kind, key) => ` data-pop-kind="${kind}" data-pop-key="${esc(key)}"`;
 function buildPop(kind, key) {
@@ -570,7 +572,7 @@ function loadoutTable(run, needs, pickable2) {
 }
 function dprTable(run, lines) {
   const grand = run.fightTotal;
-  const whole = run.sectionTotals.length;
+  const whole = Math.min(run.sectionTotals.length, 4);
   const slotHue = new Map([
     ...run.members.map((m) => [m.name, m.color]),
     [TUNE_BREAK_ENEMY.name, TUNE_BREAK_ENEMY.color]
@@ -579,10 +581,10 @@ function dprTable(run, lines) {
   const head = `<div class="rtrow rthead"><div class="c"></div>` + sections.map((n) => `<div class="c num">${n}</div>`).join("") + `<div class="c num tot">Total</div></div>`;
   const valueCell = (value, cls = "") => `<div class="c num${cls}">${fmt(value)}</div>`;
   const rowLabel = (slot, mem) => `<div class="c name"${mem}>${iconNamed(slot)}${esc(slot)}</div>`;
-  const dataRow = (slot, color) => `<div class="rtrow">` + rowLabel(slot, ` style="--mem:${color}"`) + run.sectionBySlot.map((by2) => valueCell(by2.get(slot) ?? 0)).join("") + valueCell(run.fightBySlot.get(slot) ?? 0, " tot") + `</div>`;
+  const dataRow = (slot, color) => `<div class="rtrow">` + rowLabel(slot, ` style="--mem:${color}"`) + run.sectionBySlot.slice(0, whole).map((by2) => valueCell(by2.get(slot) ?? 0)).join("") + valueCell(run.fightBySlot.get(slot) ?? 0, " tot") + `</div>`;
   const memberRows = run.members.map((m) => dataRow(m.name, m.color)).join("");
   const tuneBreakRow = dataRow(TUNE_BREAK_ENEMY.name, TUNE_BREAK_ENEMY.color);
-  const totalRow = `<div class="rtrow total">` + rowLabel(TEAM_ROW, "") + run.sectionTotals.map((v) => valueCell(v)).join("") + valueCell(grand, " tot") + `</div>`;
+  const totalRow = `<div class="rtrow total">` + rowLabel(TEAM_ROW, "") + run.sectionTotals.slice(0, whole).map((v) => valueCell(v)).join("") + valueCell(grand, " tot") + `</div>`;
   const chartRow = lines ? `<div class="rtrow dist"><div class="c distbody">${teamChart(teamCell(lines, slotHue))}</div></div>` : "";
   const rowsCss = lines ? `;grid-template-rows:repeat(${run.members.length + 3}, max-content) 1fr` : "";
   return `<div class="rtable dpr" style="--secs:${whole + 1}${rowsCss}">${head}${memberRows}${tuneBreakRow}${totalRow}${chartRow}</div>`;
@@ -605,7 +607,7 @@ function wireSourcePanels(root) {
     openHome = null;
     pinned = false;
   };
-  const place2 = (cell, pop) => {
+  const place = (cell, pop) => {
     if (pop.parentElement !== document.body)
       document.body.appendChild(pop);
     pop.style.visibility = "hidden";
@@ -669,7 +671,7 @@ function wireSourcePanels(root) {
       box.innerHTML = html;
       const pop = box.firstElementChild;
       if (pop)
-        place2(cell, pop);
+        place(cell, pop);
     },
     hide: () => {
       driven = false;
@@ -688,9 +690,9 @@ function wireSourcePanels(root) {
       return;
     if (open && open.contains(e.target))
       return;
-    const hovered2 = e.target?.closest?.(".c") ?? null;
-    if (hovered2 && clickOpen(hovered2)) {
-      if (!openHome || !hovered2.contains(openHome))
+    const hovered = e.target?.closest?.(".c") ?? null;
+    if (hovered && clickOpen(hovered)) {
+      if (!openHome || !hovered.contains(openHome))
         close();
       return;
     }
@@ -699,7 +701,7 @@ function wireSourcePanels(root) {
       return;
     close();
     if (pop)
-      place2(cell, pop);
+      place(cell, pop);
   });
   document.addEventListener("mouseout", (e) => {
     if (driven || held || pinned)
@@ -740,7 +742,7 @@ function wireSourcePanels(root) {
       const same = openHome === cell;
       close();
       if (!same) {
-        place2(cell, pop);
+        place(cell, pop);
         pinned = true;
       }
       return;
@@ -1071,9 +1073,9 @@ function wireBarHover(body) {
     lit = rects;
   };
   const NONE = [];
-  let last = null, queued2 = false;
+  let last = null, queued = false;
   const update = () => {
-    queued2 = false;
+    queued = false;
     const e = last;
     if (!e)
       return;
@@ -1100,9 +1102,9 @@ function wireBarHover(body) {
   };
   body.addEventListener("mousemove", (e) => {
     last = e;
-    if (queued2)
+    if (queued)
       return;
-    queued2 = true;
+    queued = true;
     requestAnimationFrame(update);
   });
   body.addEventListener("mouseleave", () => {
@@ -1275,6 +1277,200 @@ function makeDot(parent, grab) {
   return dot;
 }
 
+// dist/src/page/snapshot.js
+function splitTop(list) {
+  const out = [];
+  let depth = 0, from = 0;
+  for (let i = 0; i < list.length; i++) {
+    const ch = list[i];
+    if (ch === "(")
+      depth++;
+    else if (ch === ")")
+      depth--;
+    else if (ch === "," && depth === 0) {
+      out.push(list.slice(from, i).trim());
+      from = i + 1;
+    }
+  }
+  out.push(list.slice(from).trim());
+  return out;
+}
+var clear = (color) => color === "transparent" || /^rgba\(.*,\s*0\)$/.test(color);
+function paintBox(ctx, st, r) {
+  const radius = [st.borderTopLeftRadius, st.borderTopRightRadius, st.borderBottomRightRadius, st.borderBottomLeftRadius].map((v) => parseFloat(v) || 0);
+  if (!clear(st.backgroundColor)) {
+    ctx.fillStyle = st.backgroundColor;
+    ctx.beginPath();
+    ctx.roundRect(r.left, r.top, r.width, r.height, radius);
+    ctx.fill();
+  }
+  if (st.boxShadow !== "none") {
+    for (const s of splitTop(st.boxShadow)) {
+      if (!/\binset\b/.test(s))
+        continue;
+      const [x = 0, y = 0, blur = 0, spread = 0] = (s.match(/-?[\d.]+px/g) ?? []).map(parseFloat);
+      const color = s.replace(/-?[\d.]+px/g, "").replace(/\binset\b/, "").trim();
+      if (blur || clear(color))
+        continue;
+      ctx.fillStyle = color;
+      const left = Math.max(0, x + spread), right = Math.max(0, -x + spread), top = Math.max(0, y + spread), bottom = Math.max(0, -y + spread);
+      if (left)
+        ctx.fillRect(r.left, r.top, left, r.height);
+      if (right)
+        ctx.fillRect(r.right - right, r.top, right, r.height);
+      if (top)
+        ctx.fillRect(r.left, r.top, r.width, top);
+      if (bottom)
+        ctx.fillRect(r.left, r.bottom - bottom, r.width, bottom);
+    }
+  }
+  const side = (w, style, color, draw) => {
+    const n = parseFloat(w) || 0;
+    if (!n || style === "none" || style === "hidden" || clear(color))
+      return;
+    ctx.fillStyle = color;
+    draw(n);
+  };
+  side(st.borderTopWidth, st.borderTopStyle, st.borderTopColor, (n) => ctx.fillRect(r.left, r.top, r.width, n));
+  side(st.borderBottomWidth, st.borderBottomStyle, st.borderBottomColor, (n) => ctx.fillRect(r.left, r.bottom - n, r.width, n));
+  side(st.borderLeftWidth, st.borderLeftStyle, st.borderLeftColor, (n) => ctx.fillRect(r.left, r.top, n, r.height));
+  side(st.borderRightWidth, st.borderRightStyle, st.borderRightColor, (n) => ctx.fillRect(r.right - n, r.top, n, r.height));
+}
+var cased = (text, transform) => transform === "uppercase" ? text.toUpperCase() : transform === "lowercase" ? text.toLowerCase() : transform === "capitalize" ? text.replace(/\b\p{L}/gu, (c) => c.toUpperCase()) : text;
+function paintText(ctx, node, box) {
+  const data = node.data;
+  const first = data.search(/\S/);
+  if (first < 0)
+    return;
+  const last = data.length - (data.length - data.trimEnd().length);
+  const st = getComputedStyle(node.parentElement);
+  if (st.visibility !== "visible")
+    return;
+  ctx.font = `${st.fontStyle} ${st.fontWeight} ${st.fontSize} ${st.fontFamily}`;
+  ctx.fillStyle = st.color;
+  ctx.letterSpacing = st.letterSpacing === "normal" ? "0px" : st.letterSpacing;
+  ctx.textBaseline = "alphabetic";
+  const range = document.createRange();
+  const draw = (from2, to, r) => {
+    const text = cased(data.slice(from2, to).replace(/\s+/g, " "), st.textTransform);
+    const m = ctx.measureText(text);
+    const pad = (r.height - m.fontBoundingBoxAscent - m.fontBoundingBoxDescent) / 2;
+    ctx.fillText(text, r.left, r.top + pad + m.fontBoundingBoxAscent);
+  };
+  if (st.transform !== "none") {
+    const [a = 1, b = 0, c = 0, d = 1] = (st.transform.match(/-?[\d.e]+/g) ?? []).map(Number);
+    const r = box(node.parentElement.getBoundingClientRect());
+    ctx.save();
+    ctx.translate(r.left + r.width / 2, r.top + r.height / 2);
+    ctx.transform(a, b, c, d, 0, 0);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(cased(data.slice(first, last), st.textTransform), 0, 0);
+    ctx.restore();
+    return;
+  }
+  range.setStart(node, first);
+  range.setEnd(node, last);
+  const rects = range.getClientRects();
+  if (rects.length <= 1) {
+    if (rects[0])
+      draw(first, last, box(rects[0]));
+    return;
+  }
+  let from = first, top = NaN, lead = null;
+  for (let i = first; i <= last; i++) {
+    let r;
+    if (i < last) {
+      range.setStart(node, i);
+      range.setEnd(node, i + 1);
+      r = range.getClientRects()[0];
+    }
+    if (i === last || r && Math.abs(r.top - top) > 1) {
+      if (lead)
+        draw(from, i, box(lead));
+      if (r) {
+        from = i;
+        top = r.top;
+        lead = r;
+      }
+    }
+  }
+}
+function paintInside(ctx, el, box) {
+  for (const n of el.childNodes) {
+    if (n instanceof Text) {
+      paintText(ctx, n, box);
+      continue;
+    }
+    if (!(n instanceof HTMLElement))
+      continue;
+    const st = getComputedStyle(n);
+    if (st.display === "none" || st.visibility !== "visible")
+      continue;
+    const r = box(n.getBoundingClientRect());
+    paintBox(ctx, st, r);
+    if (n instanceof HTMLImageElement) {
+      if (n.complete && n.naturalWidth) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.roundRect(r.left, r.top, r.width, r.height, parseFloat(st.borderTopLeftRadius) || 0);
+        ctx.clip();
+        ctx.drawImage(n, r.left, r.top, r.width, r.height);
+        ctx.restore();
+      }
+      continue;
+    }
+    paintInside(ctx, n, box);
+  }
+}
+async function snapshotCells(cells, bg) {
+  await document.fonts.ready;
+  const imgs = cells.flatMap((c) => [...c.querySelectorAll("img")]);
+  await Promise.all(imgs.map((i) => i.decode().catch(() => void 0)));
+  const z = zoom();
+  const box = (r) => new DOMRect(r.x / z, r.y / z, r.width / z, r.height / z);
+  const rs = cells.map((c) => box(c.getBoundingClientRect()));
+  const left = Math.min(...rs.map((r) => r.left)), top = Math.min(...rs.map((r) => r.top));
+  const width = Math.max(...rs.map((r) => r.right)) - left, height = Math.max(...rs.map((r) => r.bottom)) - top;
+  const scale = Math.max(2, devicePixelRatio || 1);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.ceil(width * scale);
+  canvas.height = Math.ceil(height * scale);
+  const ctx = canvas.getContext("2d");
+  ctx.scale(scale, scale);
+  ctx.translate(-left, -top);
+  ctx.fillStyle = bg;
+  ctx.fillRect(left, top, width, height);
+  cells.forEach((c, i) => {
+    const r = rs[i];
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(r.left, r.top, r.width, r.height);
+    ctx.clip();
+    paintBox(ctx, getComputedStyle(c), r);
+    paintInside(ctx, c, box);
+    ctx.restore();
+  });
+  return new Promise((resolve, reject) => canvas.toBlob((b) => b ? resolve(b) : reject(new Error("no image")), "image/png"));
+}
+
+// dist/src/page/banners.js
+var BANNER_ART = /* @__PURE__ */ new Set(["anna", "lucielle", 1103, 1104, 1105, 1107, 1108, 1109, 1110, 1205, 1206, 1207, 1208, 1209, 1210, 1211, 1212, 1304, 1306, 1308, 1309, 1311, 1312, 1406, 1407, 1409, 1410, 1411, 1412, 1413, 1501, 1505, 1506, 1507, 1508, 1509, 1510, 1511, 1512, 1603, 1606, 1607, 1608, 1610]);
+var BANNERS = [
+  { id: 1512, title: "Lily Calcs Released" }
+];
+function bannerUrl(r) {
+  const key = BANNER_ART.has(r.id) ? r.id : BANNER_ART.has(r.name.toLowerCase()) ? r.name.toLowerCase() : null;
+  return key === null ? null : `./images/banners/${key}.webp`;
+}
+function memberOfId(id) {
+  for (const ms of Object.values(TEAMS))
+    for (const m of ms)
+      if (m.loadout.resonator.id === id)
+        return m;
+  return void 0;
+}
+
 // dist/src/page/filterbar.js
 var app = document.getElementById("app");
 var searchText = "";
@@ -1307,30 +1503,25 @@ function searchCandidates() {
   };
   for (const members of Object.values(TEAMS)) {
     for (const m of members) {
-      for (const level of memberLevels(m))
-        add("resonator", resonatorLabel(m.name, level));
-      if (axisOpen(m, filters, "weapons") && axisUsed(m, filters, "refines")) {
+      for (const holds of [true, false]) {
+        const b = costBuild(m, filters.cost, holds);
+        if (b)
+          add("resonator", joinTag(m.name, b.sequence, weaponPart(m, m.loadout.refinements[b.weapon][b.refine])));
+      }
+      if (axisOpen(m, filters, "weapons") || axisUsed(m, filters, "refines")) {
         for (const level of memberLevels(m))
           for (const i of eligibleWeapons(m, filters)) {
             for (const w of m.loadout.refinements[i])
-              add("weapon", weaponTag(m, level, w.name));
+              add("resonator", joinTag(m.name, level, weaponPart(m, w)));
           }
       }
-      if (axisUsed(m, filters, "refines"))
-        for (const i of eligibleWeapons(m, filters))
-          for (const w of m.loadout.refinements[i])
-            add("refine", `${m.name} R${w.refinement}`);
       if (axisOpen(m, filters, "echoes"))
         for (const e of echoPicks(m, members))
           add("echo", echoLabel(m.loadout, m.loadout.echoLoadouts[e]));
     }
   }
-  for (const row of visibleRows) {
-    row.members.forEach((m, i) => {
-      if (axisOpen(m, filters, "weapons"))
-        add("weapon", weaponTag(m, row.combo[i].sequence, row.combo[i].weapon.name));
-    });
-  }
+  for (const row of visibleRows)
+    row.members.forEach((m, i) => add("resonator", memberTag(m, row.combo[i])));
   for (const name of new Set([...resonatorFilters].filter(([, mode]) => mode === "include").map(([key]) => tagOwner(key)))) {
     for (const axis of AXES) {
       if (axis === "refines" || filters[axis].includes(name) || !comparable(name, axis))
@@ -1381,28 +1572,26 @@ function searchResults() {
     return "";
   const KIND_LABEL = {
     resonator: "Resonator",
-    weapon: "Weapon",
     echo: "Echo",
-    refine: "Refine",
     compare: "Compare"
   };
   const hits = searchHits();
   if (!hits.length)
     return `<div class="sresult none">no matches</div>`;
   return hits.map(({ kind, value, axis, resonator }, i) => {
-    const hue = (kind === "resonator" ? RESONATOR_HUE.get(tagOwner(value)) : kind === "compare" ? RESONATOR_HUE.get(resonator ?? "") : kind === "weapon" ? RESONATOR_HUE.get(weaponOwner(value)) : void 0) ?? TUNE_BREAK_ENEMY.color;
+    const hue = (kind === "resonator" ? RESONATOR_HUE.get(tagOwner(value)) : kind === "compare" ? RESONATOR_HUE.get(resonator ?? "") : void 0) ?? TUNE_BREAK_ENEMY.color;
     return `<button type="button" class="sresult${i === searchAt ? " sel" : ""}" data-kind="${kind}" data-value="${esc(value)}"` + (axis ? ` data-axis="${axis}"` : "") + (resonator ? ` data-resonator="${esc(resonator)}"` : "") + ` style="--mem:${hue}" title="${kind === "compare" ? `Compare ${esc(resonator ?? "")}'s ${esc(AXIS_LABEL[axis].toLowerCase())}` : `Add ${esc(value)} to the filters`}. The chip it makes is where it comes back off."><span class="sact inc"><span class="sname">${filterHtml(kind, value, resonator)}<span class="skind">${KIND_LABEL[kind]}</span></span></span></button>`;
   }).join("");
 }
 var openHelp = /* @__PURE__ */ new Set(["readme"]);
 function comparisonFilters() {
-  const note = (id, label, lines, extra = "") => {
+  const note = (id, label, lines) => {
     const open = openHelp.has(id);
-    return `<div class="tcopt note${open ? " open" : ""}" data-note="${id}"><div class="tcopt-head"><button type="button" class="tcopt-name" data-help="${id}" aria-expanded="${open}">${esc(label)}<span class="arrow">\u203A</span></button></div><div class="tcopt-desc"${open ? "" : " hidden"}><ul>${lines.map((l) => `<li>${l}</li>`).join("")}${extra}</ul></div></div>`;
+    return `<div class="tcopt note${open ? " open" : ""}" data-note="${id}"><div class="tcopt-head"><button type="button" class="tcopt-name" data-help="${id}" aria-expanded="${open}">${esc(label)}<span class="arrow">\u203A</span></button></div><div class="tcopt-desc"${open ? "" : " hidden"}><ul>${lines.map((l) => `<li>${l}</li>`).join("")}</ul></div></div>`;
   };
   return `<div class="tcfilters">
     <div class="tcfilter-row note">
-      ${note("readme", "README", README, `<li><button type="button" class="tutstart">How do I use this website? ${CLICK} here.</button></li>`)}
+      ${note("readme", "README", README)}
       ${matrixBox(filters.matrix.length > 0, openHelp.has("matrix"))}
       ${costBox(filters.cost, openHelp.has("cost"))}
       <div class="tcsearchrow">
@@ -1412,9 +1601,24 @@ function comparisonFilters() {
           <div class="tcsearch-results" id="searchResults">${searchResults()}</div>
         </div>
         ${resonatorChips()}
+        ${bannersHtml()}
       </div>
     </div>
   </div>`;
+}
+function bannersHtml() {
+  const unfiltered = [...Object.values(OPTION_FILTER_MAPS), resonatorFilters].every((m) => m.size === 0) && filters.scoped.length === 0 && AXES.every((a) => !filters[a].length);
+  if (!unfiltered)
+    return "";
+  const tabs = BANNERS.flatMap(({ id, title, subs = [] }) => {
+    const m = memberOfId(id);
+    const url = m && bannerUrl(m.loadout.resonator);
+    if (!m || !url)
+      return [];
+    const arrow = `<span class="arrow">\u203A</span>`;
+    return [`<div class="bannerset" style="--mem:${m.color};--art:url('${url}')"><button type="button" class="banner" data-banner="${id}" title="${CLICK} to show ${esc(m.name)}'s teams"><span class="banner-title">${esc(title)}${arrow}</span></button>` + subs.map((s, k) => `<button type="button" class="banner sub" data-banner="${id}" data-sub="${k}" title="${CLICK} to compare ${esc(m.name)}'s ${esc(AXIS_LABEL[s.compare])}"><span class="banner-title">${esc(s.title)}${arrow}</span></button>`).join("") + `</div>`];
+  });
+  return tabs.length ? `<div class="banners">${tabs.join("")}</div>` : "";
 }
 var AXIS_LABEL = {
   weapons: "Weapons",
@@ -1430,11 +1634,10 @@ function filterHtml(kind, value, resonator = "") {
     return echoLabelHtml(value, esc);
   if (kind === "compare")
     return iconNamed(resonator) + esc(value);
-  if (kind !== "weapon")
-    return iconNamed(tagOwner(value)) + esc(value);
-  const owner = weaponOwner(value);
-  const [, level = "", weapon = value] = /^( S\d+)? (.*)$/.exec(value.slice(owner.length)) ?? [];
-  return `${iconNamed(owner)}${esc(owner + level)}${weaponIconByName(value)}${esc(weapon)}`;
+  const t = parseTag(value);
+  if (!t.part || /^R\d$/.test(t.part))
+    return iconNamed(t.owner) + esc(value);
+  return `${iconNamed(t.owner)}${esc(joinTag(t.owner, t.sequence, ""))}${weaponIconByName(t.part)}${esc(t.part)}`;
 }
 function resonatorChips() {
   const inc = [], exc = [];
@@ -1445,13 +1648,14 @@ function resonatorChips() {
   }
   for (const [kind, map] of Object.entries(OPTION_FILTER_MAPS)) {
     for (const [name, mode] of map) {
-      const hue = kind === "refine" ? RESONATOR_HUE.get(tagOwner(name)) : kind === "weapon" ? RESONATOR_HUE.get(weaponOwner(name)) : void 0;
-      bucket(mode).push(`<button type="button" class="rchip" data-kind="${kind}" data-value="${esc(name)}"` + (hue ? ` style="--mem:${hue}"` : "") + ` title="${esc(name)} \u2014 rows using ${MODE_TITLE[mode]}. ${CLICK} to remove.">${filterHtml(kind, name)}</button>`);
+      bucket(mode).push(`<button type="button" class="rchip" data-kind="${kind}" data-value="${esc(name)}" title="${esc(name)} \u2014 rows using ${MODE_TITLE[mode]}. ${CLICK} to remove.">${filterHtml(kind, name)}</button>`);
     }
   }
   for (const s of filters.scoped) {
+    if (isTagShow(s))
+      continue;
     if (s.on === "rank") {
-      inc.push(`<button type="button" class="rchip" data-scoped="${esc(scopedKey(s))}" style="--mem:${RESONATOR_HUE.get(s.resonator) ?? TUNE_BREAK_ENEMY.color}" title="Showing ${esc(s.resonator)} ${esc(s.value)} beside their own rank. ${CLICK} to remove.">${filterHtml("weapon", `${s.resonator} ${s.value}`)}</button>`);
+      inc.push(`<button type="button" class="rchip" data-scoped="${esc(scopedKey(s))}" style="--mem:${RESONATOR_HUE.get(s.resonator) ?? TUNE_BREAK_ENEMY.color}" title="Showing ${esc(s.resonator)} ${esc(s.value)} beside their own rank. ${CLICK} to remove.">${iconNamed(s.resonator)}${esc(joinTag(s.resonator, rankShown(s.value).sequence, ""))}${weaponIconByName(rankShown(s.value).weapon)}${esc(rankShown(s.value).weapon)}</button>`);
       continue;
     }
     inc.push(`<button type="button" class="rchip" data-scoped="${esc(scopedKey(s))}" style="--mem:${RESONATOR_HUE.get(s.resonator) ?? TUNE_BREAK_ENEMY.color}" title="Comparing ${esc(scopedLabel(s))}'s ${AXIS_LABEL[s.axis].toLowerCase()}. ${CLICK} to remove.">${iconNamed(s.resonator)}${esc(scopedLabel(s))} ${AXIS_LABEL[s.axis]}</button>`);
@@ -1543,7 +1747,6 @@ document.addEventListener("focusout", (e) => {
 
 // dist/src/page/table.js
 var app2 = document.getElementById("app");
-var topbar = document.getElementById("topbar");
 var refresh = async () => {
 };
 var onRefresh = (fn) => {
@@ -1584,9 +1787,11 @@ function rowCapWarning(total) {
 }
 function withRowCap(change, apply = () => void refresh()) {
   const undo = change();
+  syncTagShows();
   const total = prospectiveRows();
   if (total > ROW_CAP) {
     undo();
+    syncTagShows();
     rowCapWarning(total);
     focusAfterDraw = void 0;
     return;
@@ -1794,8 +1999,8 @@ var pinCell = (key) => {
   const on = pinnedRows.has(key);
   return `<div class="c pin${on ? " on" : ""}" data-pin="${esc(key)}" title="${CLICK} to ${on ? "unpin this row" : "pin this row, shown whatever the other filters say"}">${PIN_MARK}</div>`;
 };
-function optionCell(kind, value, color, lines = [value], resonator = "", icons = []) {
-  const style = kind === "weapon" && value ? `--mem:${color};color:${color}` : `--mem:${color}`;
+function optionCell(kind, value, color, lines = [value], resonator = "", icons = [], ink = "") {
+  const style = ink ? `--mem:${color};color:${ink}` : `--mem:${color}`;
   if (!value)
     return `<div class="c option" style="${style}"></div>`;
   return `<div class="c option" data-kind="${kind}" data-value="${esc(value)}"${resonator ? ` data-resonator="${esc(resonator)}"` : ""} style="${style}">${lines.map((line, k) => (icons[k] ?? "") + esc(line)).join("<br>")}</div>`;
@@ -1805,8 +2010,7 @@ var personalOpen = [false, false, false];
 var cmpDrawn = /* @__PURE__ */ new Set();
 var teamMode = "dpr";
 var TEAM_HEAD = { dpr: "Team Avg DPR", dps: "Team DPS" };
-var wholeDamage = (run) => run.sectionTotals.reduce((a, b) => a + b, 0);
-var teamFigure = (run) => Math.floor(wholeDamage(run) / (teamMode === "dpr" ? Math.max(1, run.sectionTotals.length) : run.seconds));
+var teamFigure = (run) => Math.floor(teamMode === "dpr" ? run.sectionTotals.reduce((a, b) => a + b, 0) / Math.max(1, run.sectionTotals.length) : run.fightTotal / run.seconds);
 var personalFigure = (run, name) => Math.floor(run.sectionBySlot.reduce((a, by2) => a + (by2.get(name) ?? 0), 0) / Math.max(1, run.sectionTotals.length));
 var loopTime = (run) => `${(run.sectionSeconds[1] ?? run.sectionSeconds[0] ?? 0).toFixed(1)}s`;
 var teamText = (run) => fmt(teamFigure(run)) + (teamMode === "dpr" ? loopTime(run) : "");
@@ -1911,6 +2115,13 @@ function comparisonTable(rows) {
     });
   }
   const multiWeapon = new Set([...worn].filter(([, byName]) => [...byName.values()].some((seen) => seen.size > 1)).map(([key]) => key));
+  for (const row of rows) {
+    row.members.forEach((m, pos) => {
+      const part = axisOpen(m, filters, "weapons") ? "" : weaponPart(m, row.combo[pos].weapon);
+      if (part && !/^R\d$/.test(part))
+        multiWeapon.add(`${row.teamKey}|${pos}`);
+    });
+  }
   for (const key of multiWeapon) {
     const pos = Number(key.slice(key.lastIndexOf("|") + 1));
     if (!openAt.weapons[pos])
@@ -2023,18 +2234,18 @@ function comparisonTable(rows) {
         if (!openAt[axis][i])
           return "";
         const open = axis === "weapons" ? inCell : showsRow(m, axis, combo);
-        const cell = axis === "weapons" ? optionCell("weapon", open ? combo.weapon.name : "", open ? weaponHue(combo.weapon) : m.color, [combo.weapon.name], m.name, [iconOf(combo.weapon)]) : axis === "echoes" ? optionCell("echo", open ? echoLabel(m.loadout, combo.echo) : "", m.color, open ? echoLines(m.loadout, combo.echo) : [], m.name, open ? [...combo.echo.sets, combo.echo.mainslot].map(iconOf) : []) : `<div class="c option"${open ? ` data-stat="${axis}" data-resonator="${esc(m.name)}"` : ""} style="--mem:${m.color}">${open ? esc(axis === "mainstats" ? combo.mainstat.name : subsLabel(combo)) : ""}</div>`;
+        const cell = axis === "weapons" ? optionCell("weapon", open ? combo.weapon.name : "", m.color, [combo.weapon.name], m.name, [iconOf(combo.weapon)], open ? weaponHue(combo.weapon) : "") : axis === "echoes" ? optionCell("echo", open ? echoLabel(m.loadout, combo.echo) : "", m.color, open ? echoLines(m.loadout, combo.echo) : [], m.name, open ? [...combo.echo.sets, combo.echo.mainslot].map(iconOf) : []) : `<div class="c option"${open ? ` data-stat="${axis}" data-resonator="${esc(m.name)}"` : ""} style="--mem:${m.color}">${open ? esc(axis === "mainstats" ? combo.mainstat.name : subsLabel(combo)) : ""}</div>`;
         return cell + (cmpAt(axis, i) ? `<div class="c num slotcompare" style="--mem:${m.color}">${open ? gearCompare(run, i, axis) : ""}</div>` : "");
       }).join("");
       return name + seqCmp + refCmp + gear + dpr;
     };
     const memberCells = run.members.map((m, i) => memberCell(m, run.combo[i], i)).join("");
-    return `<div class="trow${rank2.pinned ? " isbaseline" : ""}" style="--hue:${rank2.hue}" data-team="${esc(key)}" data-team-key="${esc(run.teamKey)}" data-members="${esc(memberNames)}" data-total="${grand}">` + pinCell(key) + memberCells + `<div class="c num total teamdpr" title="${CLICK} to view the team's damage breakdown"${deferredPop("dpr", key)}>${teamHtml(run)}</div><div class="c num total baseline" data-team="${esc(key)}" title="${CLICK} to measure every team against this one">${rank2.pct}</div><div class="c gotodetail" data-team="${esc(key)}">view rotation<span class="arrow">\u203A</span></div></div>`;
+    return `<div class="trow${rank2.pinned ? " isbaseline" : ""}" style="--hue:${rank2.hue}" data-team="${esc(key)}" data-team-key="${esc(run.teamKey)}" data-members="${esc(memberNames)}" data-total="${grand}">` + memberCells + `<div class="c num total teamdpr" title="${CLICK} to view the team's damage breakdown"${deferredPop("dpr", key)}>${teamHtml(run)}</div><div class="c num total baseline" data-team="${esc(key)}" title="${CLICK} to measure every team against this one">${rank2.pct}</div><div class="c gotodetail" data-team="${esc(key)}">view rotation<span class="arrow">\u203A</span></div>` + pinCell(key) + `</div>`;
   };
   const memberHead2 = (n, i) => `<div class="c slothead${dprAt(i) ? " open" : ""}" data-slot="${i}" title="${CLICK} to ${dprAt(i) ? "hide" : "show"} this slot's Personal DPR">Slot ${n}<span class="arrow">\u203A</span></div>` + (cmpAt("sequences", i) ? `<div class="c num">Compare</div>` : "") + (cmpAt("refines", i) ? `<div class="c num">Compare</div>` : "") + GEAR_AXES.map((axis) => openAt[axis][i] ? `<div class="c">${AXIS_HEAD[axis]}</div>${cmpAt(axis, i) ? `<div class="c num">Compare</div>` : ""}` : "").join("") + (dprAt(i) ? `<div class="c num">Personal</div>` : "");
-  const head = `<div class="trow thead"><div class="c pinhead">Pin</div>` + memberHead2(3, 0) + memberHead2(2, 1) + memberHead2(1, 2) + `<div class="c num dprhead" title="${CLICK} to switch between DPR and DPS">${TEAM_HEAD[teamMode]}</div><div class="c num huehead" title="${CLICK} to colour the column by rank">Compare</div><div class="c"></div></div>`;
+  const head = `<div class="trow thead">` + memberHead2(3, 0) + memberHead2(2, 1) + memberHead2(1, 2) + `<div class="c num dprhead" title="${CLICK} to switch between DPR and DPS">${TEAM_HEAD[teamMode]}</div><div class="c num huehead" title="${CLICK} to colour the column by rank">Compare</div><div class="c"></div><div class="c pinhead">Pin</div></div>`;
   const posCols = (i) => `max-content${cmpAt("sequences", i) ? " max-content" : ""}${cmpAt("refines", i) ? " max-content" : ""}${GEAR_AXES.map((axis) => openAt[axis][i] ? ` max-content${cmpAt(axis, i) ? " max-content" : ""}` : "").join("")}${dprAt(i) ? " max-content" : ""}`;
-  const gridStyle = `grid-template-columns:max-content ${posCols(0)} ${posCols(1)} ${posCols(2)} max-content max-content max-content`;
+  const gridStyle = `grid-template-columns:${posCols(0)} ${posCols(1)} ${posCols(2)} max-content max-content max-content max-content`;
   const rowLines = (run) => Math.max(1, ...run.members.map((m, i) => openAt.echoes[i] && axisOpen(m, filters, "echoes") ? echoLines(m.loadout, run.combo[i].echo).length : 1));
   const lines = sorted.map(([, run]) => rowLines(run));
   const extra = [0];
@@ -2076,10 +2287,36 @@ function comparisonTable(rows) {
     wide.pct = widest(wide.pct, ranks[i].pct);
   });
   const ghostPos = (i) => `<div class="c name res">${ICON_SLOT}<span class="res-label">${esc(wide.name[i])}</span></div>` + (cmpAt("sequences", i) ? `<div class="c num slotcompare">${esc(wide.seqcmp[i])}</div>` : "") + (cmpAt("refines", i) ? `<div class="c num slotcompare">${esc(wide.refcmp[i])}</div>` : "") + GEAR_AXES.map((axis) => openAt[axis][i] ? `<div class="c option">${axis === "weapons" || axis === "echoes" ? ICON_SLOT : ""}${esc(wide.gear[axis][i])}</div>${cmpAt(axis, i) ? `<div class="c num slotcompare">${esc(wide.cmp[axis][i])}</div>` : ""}` : "").join("") + (dprAt(i) ? `<div class="c num slotdpr">${esc(wide.dpr[i])}</div>` : "");
-  const ghost = () => `<div class="trow tghost" aria-hidden="true"><div class="c pin">${PIN_MARK}</div>` + ghostPos(0) + ghostPos(1) + ghostPos(2) + `<div class="c num total">${esc(widest(wide.total, TEAM_HEAD[teamMode]))}</div><div class="c num total baseline">${esc(wide.pct)}</div><div class="c gotodetail">view rotation<span class="arrow">\u203A</span></div></div>`;
+  const ghost = () => `<div class="trow tghost" aria-hidden="true">` + ghostPos(0) + ghostPos(1) + ghostPos(2) + `<div class="c num total">${esc(widest(wide.total, TEAM_HEAD[teamMode]))}</div><div class="c num total baseline">${esc(wide.pct)}</div><div class="c gotodetail">view rotation<span class="arrow">\u203A</span></div><div class="c pin">${PIN_MARK}</div></div>`;
   tableView = { sorted, ranks, head, ghost, rowHtml, lines, extra };
   return `<main><div class="tclayout"><aside class="tcside">${comparisonFilters()}</aside><div class="tcbody"><h2 class="summary-label" id="teamCount">${fmt(sorted.length)} teams<span class="hint">${CLICK} on a Resonator to filter and compare sequences, weapons, echoes</span></h2><div class="tcwrap"><div class="tgrid${hueShown ? " hued" : ""}" style="${gridStyle}">${head}${ghost()}</div></div></div></div></main>`;
 }
+document.addEventListener("click", (e) => {
+  const el = e.target.closest(".banner");
+  const banner = BANNERS.find((b) => b.id === +(el?.dataset.banner ?? NaN));
+  const m = banner && memberOfId(banner.id);
+  if (!el || !banner || !m)
+    return;
+  const sub = el.dataset.sub === void 0 ? void 0 : banner.subs?.[+el.dataset.sub];
+  withRowCap(() => {
+    const kept = [...resonatorFilters], before = sub ? [...filters[sub.compare]] : [];
+    for (const id of sub?.show ?? [banner.id]) {
+      const who = memberOfId(id);
+      if (who && !included(who.name))
+        resonatorFilters.set(costTag(who), "include");
+    }
+    if (sub && !filters[sub.compare].includes(m.name))
+      filters[sub.compare].push(m.name);
+    settleLevels();
+    return () => {
+      resonatorFilters.clear();
+      for (const [n, mode] of kept)
+        resonatorFilters.set(n, mode);
+      if (sub)
+        filters[sub.compare] = before;
+    };
+  });
+});
 var rowHeight = 30;
 var lineHeight = 17;
 var measured = false;
@@ -2172,10 +2409,11 @@ var bx = 0;
 var by = 0;
 var copyMenu = null;
 var COPY_MODE_KEY = "wuwa.copyMode";
-var copyMode = "discord";
+var copyMode = "image";
 try {
-  if (localStorage.getItem(COPY_MODE_KEY) === "sheets")
-    copyMode = "sheets";
+  const kept = localStorage.getItem(COPY_MODE_KEY);
+  if (kept === "sheets" || kept === "discord")
+    copyMode = kept;
 } catch {
 }
 var rowTopOf = (i) => i * rowHeight + tableView.extra[i] * lineHeight;
@@ -2192,20 +2430,17 @@ function clearBlock() {
 function pickable(target) {
   const cell = target.closest?.(".tgrid .c");
   const row = cell?.parentElement;
-  if (!cell || !row)
+  if (!cell || !row || row.classList.contains("thead"))
     return null;
   const at = [...row.children].indexOf(cell);
-  return at > 0 && at < row.children.length - 1 ? cell : null;
+  return at < row.children.length - 2 ? cell : null;
 }
 function blockCellAt(grid, x, y) {
   const heads = [...grid.querySelectorAll(".thead > .c")].map(rect);
-  let col = 1;
-  while (col < heads.length - 1 && x >= heads[col + 1].left)
+  let col = 0;
+  while (col < heads.length - 3 && x >= heads[col + 1].left)
     col++;
-  const head = heads[0];
-  if (y < head.bottom)
-    return [-1, col];
-  const at = y - rect(grid).top - head.height;
+  const at = y - rect(grid).top - heads[0].height;
   let lo = 0, hi = tableView.sorted.length - 1;
   while (lo < hi) {
     const mid = lo + hi + 1 >> 1;
@@ -2221,7 +2456,7 @@ function blockEdgeAt(grid, x, y) {
   const n = tableView.sorted.length;
   const at = y - rect(grid).top;
   const edgeY = (e) => e < 0 ? 0 : heads[0].height + rowTopOf(e);
-  let lo = -1, hi = n;
+  let lo = 0, hi = n;
   while (lo < hi) {
     const mid = lo + hi + 1 >> 1;
     if (edgeY(mid) <= at)
@@ -2230,8 +2465,8 @@ function blockEdgeAt(grid, x, y) {
       hi = mid - 1;
   }
   const row = lo < n && edgeY(lo + 1) - at < at - edgeY(lo) ? lo + 1 : lo;
-  let col = 1;
-  for (let c = 2; c < heads.length; c++)
+  let col = 0;
+  for (let c = 1; c < heads.length - 1; c++)
     if (Math.abs(heads[c].left - x) < Math.abs(heads[col].left - x))
       col = c;
   return [row, col];
@@ -2270,13 +2505,13 @@ function paintBlock() {
 function showCopyMenu() {
   const wrap = app2.querySelector(".tcwrap");
   const tracks = app2.querySelectorAll(".tgrid .thead > .c").length;
-  if (!block || !wrap || block.c1 < 1 || block.c0 > tracks - 2)
+  if (!block || !wrap || block.c0 > tracks - 3)
     return;
   copyMenu?.remove();
   const item = (mode, label) => `<button type="button" class="ctxitem" data-copy="${mode}">${label}</button>`;
   copyMenu = wrap.appendChild(document.createElement("div"));
   copyMenu.className = "copymenu";
-  copyMenu.innerHTML = item("sheets", "Copy to Sheets") + item("discord", "Copy to Discord");
+  copyMenu.innerHTML = item("image", "Copy as Image") + item("sheets", "Copy to Sheets") + item("discord", "Copy to Discord");
   paintBlock();
 }
 function measureFromBlock(grid) {
@@ -2335,7 +2570,7 @@ function grabBlockDot(e) {
       const heads = [...grid.querySelectorAll(".thead > .c")].map(rect);
       return [heads[c].left, rect(grid).top + (r < 0 ? 0 : heads[0].height + rowTopOf(r))];
     },
-    limits: () => [[-1, 1], [tableView.sorted.length, grid.querySelectorAll(".thead > .c").length - 1]],
+    limits: () => [[0, 0], [tableView.sorted.length, grid.querySelectorAll(".thead > .c").length - 2]],
     aim: (from, to) => {
       const [r0, r1] = from[0] <= to[0] ? [from[0], to[0]] : [to[0], from[0]];
       const [c0, c1] = from[1] <= to[1] ? [from[1], to[1]] : [to[1], from[1]];
@@ -2420,9 +2655,13 @@ function copyTableBlock(mode) {
   const tracks = app2.querySelectorAll(".tgrid .thead > .c").length;
   if (!block || !view)
     return;
-  const c0 = Math.max(block.c0, 1), c1 = Math.min(block.c1, tracks - 2);
+  const c0 = Math.max(block.c0, 0), c1 = Math.min(block.c1, tracks - 3);
   if (c0 > c1)
     return;
+  if (mode === "image") {
+    copyTableImage(block.r0, block.r1, c0, c1);
+    return;
+  }
   const tpl = document.createElement("template");
   const lines = [];
   for (let i = block.r0; i <= block.r1; i++) {
@@ -2441,6 +2680,33 @@ function copyTableBlock(mode) {
     }));
   }
   copyBlock(lines, mode);
+}
+function copyTableImage(r0, r1, c0, c1) {
+  const view = tableView;
+  const grid = app2.querySelector(".tgrid");
+  const clip = navigator.clipboard;
+  if (!view || !grid || !clip || typeof ClipboardItem === "undefined")
+    return;
+  const copy = grid.cloneNode(false);
+  let html = view.ghost();
+  for (let i = Math.min(r0, -1); i <= r1; i++) {
+    const at = view.sorted[i];
+    html += i < 0 ? view.head : view.rowHtml(at[0], at[1], view.ranks[i]);
+  }
+  copy.innerHTML = html;
+  copy.querySelectorAll("img").forEach((img) => {
+    img.loading = "eager";
+  });
+  Object.assign(copy.style, { position: "fixed", left: "-100000px", top: "0", pointerEvents: "none" });
+  copy.querySelectorAll(".thead > .c").forEach((c) => {
+    c.style.position = "relative";
+    c.style.top = "0";
+  });
+  grid.parentElement.appendChild(copy);
+  const cells = [...copy.querySelectorAll(":scope > .trow:not(.tghost)")].flatMap((row) => [...row.children].slice(c0, c1 + 1));
+  const png = snapshotCells(cells, getComputedStyle(grid.parentElement).backgroundColor).finally(() => copy.remove());
+  clip.write([new ClipboardItem({ "image/png": png })]).catch(() => {
+  });
 }
 addEventListener("keydown", (e) => {
   if (e.key === "Escape")
@@ -2508,13 +2774,6 @@ function fitSide() {
   sideFit.disconnect();
   sideFit.observe(side);
 }
-function rowElementAt(i) {
-  const sorted = tableView?.sorted;
-  if (!sorted?.length)
-    return null;
-  const key = sorted[Math.min(i, sorted.length - 1)][0];
-  return [...app2.querySelectorAll(".tgrid .trow[data-team]")].find((el) => el.dataset.team === key) ?? null;
-}
 var tableScrollTop = 0;
 var rememberTableScroll = () => {
   if (app2.querySelector(".tgrid"))
@@ -2527,7 +2786,6 @@ for (const type of ["pointerdown", "keydown", "wheel"]) {
   }, { capture: true, once: true });
 }
 function renderComparison() {
-  topbar.hidden = true;
   clearPops();
   const scrollTop = app2.querySelector(".tgrid") ? app2.querySelector("main")?.scrollTop ?? 0 : tableScrollTop;
   clearBlock();
@@ -2550,13 +2808,13 @@ function renderComparison() {
     else
       focusSearch();
   }
-  let queued2 = false;
+  let queued = false;
   main.addEventListener("scroll", () => {
-    if (queued2)
+    if (queued)
       return;
-    queued2 = true;
+    queued = true;
     requestAnimationFrame(() => {
-      queued2 = false;
+      queued = false;
       drawWindow();
     });
   }, { passive: true });
@@ -2601,6 +2859,7 @@ document.addEventListener("change", (e) => {
   withRowCap(() => {
     const was = filters.cost, kept = [...resonatorFilters];
     filters.cost = select.value;
+    carryTags(was, filters.cost);
     settleLevels();
     return () => {
       filters.cost = was;
@@ -2631,12 +2890,7 @@ var openNameMenu = (el, x, y) => {
     label: `${filters[axis].includes(resonator) ? "Stop comparing" : "Compare"} ${resonator} ${AXIS_LABEL[axis].toLowerCase()}`,
     run: () => setCompare(resonator, axis)
   });
-  const scopedBlock = (tag, on, gate, map) => tag ? [
-    { label: `Show only ${tag} teams`, run: () => setFilter(map, tag, "include"), alt: () => setFilter(map, tag, "exclude") },
-    { label: `Hide ${tag} teams`, run: () => setFilter(map, tag, "exclude") },
-    ...scopedItems(resonator, on, gate).sort((a, b) => AXES.indexOf(a.axis) - AXES.indexOf(b.axis))
-  ] : [];
-  const label = resonatorLabel(resonator, row?.run.combo[row.pos].sequence ?? 0);
+  const label = row ? memberTag(row.run.members[row.pos], row.run.combo[row.pos]) : resonator;
   const items = [
     // nothing to offer once they are already the ones shown — the bubble is where that comes back off
     ...resonatorFilters.get(label) === "include" ? [] : [{
@@ -2658,7 +2912,8 @@ var openNameMenu = (el, x, y) => {
     ...el.dataset.sequence ? scopedItems(resonator, "sequence", el.dataset.seqGate ?? "").sort((a, b) => AXES.indexOf(a.axis) - AXES.indexOf(b.axis)) : [],
     // with no weapon compare the row's own weapon takes its other ranks from here
     ...row && !axisOpen(row.run.members[row.pos], filters, "weapons") ? rankItems(row.run, row.pos) : [],
-    ...scopedBlock(el.dataset.refine, "refine", el.dataset.refGate ?? "", refineFilters)
+    // the rank rides in the tag above; what is left is the compares scoped to it
+    ...el.dataset.refine ? scopedItems(resonator, "refine", el.dataset.refGate ?? "").sort((a, b) => AXES.indexOf(a.axis) - AXES.indexOf(b.axis)) : []
   ];
   showMenu(x, y, items);
 };
@@ -2675,7 +2930,7 @@ var optionPick = (e) => {
   const el = e.target.closest(".c.option");
   const kind = el?.dataset.kind;
   const value = el?.dataset.value;
-  return kind && value ? [OPTION_FILTER_MAPS[kind], value] : void 0;
+  return kind && value ? [kind === "weapon" ? resonatorFilters : OPTION_FILTER_MAPS[kind], value] : void 0;
 };
 var openOptionMenu = (e) => {
   const pick = optionPick(e);
@@ -2689,15 +2944,20 @@ var openOptionMenu = (e) => {
   const resonator = el.dataset.resonator ?? "";
   const row = cellRun(el, resonator);
   const base = kind === "weapon" ? key.replace(/ R\d$/, "") : key;
-  const tag = (name) => kind === "weapon" && row ? weaponTag(row.run.members[row.pos], row.run.combo[row.pos].sequence, name) : name;
+  const tag = (name) => {
+    if (kind !== "weapon" || !row)
+      return name;
+    const m = row.run.members[row.pos], w = m.loadout.refinements.flat().find((x2) => x2.name === name);
+    return w ? joinTag(m.name, row.run.combo[row.pos].sequence, weaponPart(m, w)) : name;
+  };
   const ranked = kind === "weapon" && (filters.refines.includes(resonator) || filters.scoped.some((s) => s.resonator === resonator && s.axis === "refines"));
   const axis = kind === "weapon" ? "weapons" : "echoes";
   const word = kind === "weapon" ? "weapons" : "sonatas";
   const items = [
     // the pick's own filters lead, so "Show only" is the top line whatever else the cell offers; a
     // weapon filters at the rank its cell reads
-    { label: `Show only ${key}`, run: () => setFilter(map, tag(key), "include"), alt: () => setFilter(map, tag(key), "exclude") },
-    { label: `Hide ${key}`, run: () => setFilter(map, tag(key), "exclude") },
+    { label: `Show only ${tag(key)}`, run: () => setFilter(map, tag(key), "include"), alt: () => setFilter(map, tag(key), "exclude") },
+    { label: `Hide ${tag(key)}`, run: () => setFilter(map, tag(key), "exclude") },
     // the weapon's own refines compare, then the ranks it would open shown one at a time
     ...resonator && kind === "weapon" ? scopedItems(resonator, "weapon", base).flatMap((it) => it.axis === "refines" && row ? [it, ...rankItems(row.run, row.pos)] : [it]) : [],
     ...resonator && ranked ? scopedItems(resonator, "weaponRank", key) : [],
@@ -2935,465 +3195,6 @@ document.addEventListener("keydown", (e) => {
   takeSearchHit(hit);
 });
 
-// dist/src/page/tutorial.js
-var DONE_KEY = "wuwa.tutorialDone";
-var STAGE_KEY = "wuwa.tutorialStage";
-var done = false;
-function dismissed() {
-  if (done)
-    return true;
-  try {
-    return localStorage.getItem(DONE_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-var TEXT = [
-  "Start Tutorial",
-  "Switch between DPS and DPR mode",
-  `Try ${CLICKING} on a resonator to show only their teams`,
-  `${CLICK} that resonator again and compare their weapons`,
-  "Search to add another resonator or comparison",
-  `Try ${CLICKING} a filter bubble to remove it`,
-  "Try viewing a team's rotation and loadout",
-  "Hover over equipment to see its stats and buffs",
-  `${CLICK} Node Priority to see each member's damage distribution and node leveling priority`,
-  `${CLICK} Contribution to see each loop's damage and the team's damage over time`,
-  "Scroll down to read the rotation, buffs, and stats"
-];
-var DETAIL_STAGE = 7;
-var HEAD = 14;
-var shownNow = () => [...new Set([...resonatorFilters].filter(([, mode]) => mode === "include").map(([key]) => tagOwner(key)))];
-var comparedNow = () => [...filters.scoped.map(scopedKey), ...AXES.flatMap((axis) => filters[axis].map((name) => `${axis}|${name}`))];
-var shownBefore = /* @__PURE__ */ new Set();
-var comparedBefore = /* @__PURE__ */ new Set();
-function baseline() {
-  shownBefore = new Set(shownNow());
-  comparedBefore = new Set(comparedNow());
-}
-function added(now, before) {
-  for (const key of before)
-    if (!now.includes(key))
-      before.delete(key);
-  return now.some((key) => !before.has(key));
-}
-var showing = () => added(shownNow(), shownBefore);
-var comparing = () => added(comparedNow(), comparedBefore);
-var atBasePage = () => AXES.every((axis) => filters[axis].length === 0) && !filters.scoped.length && [resonatorFilters, weaponFilters, echoFilters, refineFilters].every((m) => m.size === 0);
-var firstChip = () => document.querySelector(".tcchips .rchip");
-function substatsCell() {
-  if (!document.querySelector(".rpane.on .rtable.loadout"))
-    return tabButton("team");
-  const row = [...document.querySelectorAll(".rtable.loadout .rtrow")].find((r) => r.querySelector(".c.lbl")?.textContent === "Substats");
-  const cells = [...row?.children ?? []].filter((c) => !c.classList.contains("lbl"));
-  return cells[2] ?? cells[cells.length - 1] ?? null;
-}
-var tabButton = (tab) => document.querySelector(`.rtab[data-tab="${tab}"]`);
-function actionRow(n) {
-  const rows = [...document.querySelectorAll(".rotation-block .grid .r")].filter((r) => !r.classList.contains("head") && !r.classList.contains("totalrow") && !r.closest(".parts") && !r.closest(".spill"));
-  const row = rows[n] ?? rows[rows.length - 1];
-  return row?.querySelector(".c.action") ?? row ?? null;
-}
-function scrolledFar() {
-  const main = document.querySelector("main");
-  const log = document.querySelector(".rotation-block .gridwrap");
-  if (!main || !log)
-    return false;
-  const mainR = rect(main);
-  return rect(log).top <= mainR.top + mainR.height * 0.3;
-}
-function restoreStage() {
-  try {
-    const n = Number(localStorage.getItem(STAGE_KEY));
-    return Number.isInteger(n) && n >= 0 && n < TEXT.length ? n : 0;
-  } catch {
-    return 0;
-  }
-}
-function setStage(n) {
-  stage = n;
-  try {
-    localStorage.setItem(STAGE_KEY, String(n));
-  } catch {
-  }
-}
-var stage = restoreStage();
-var started = false;
-var layer = null;
-var overlay = document.getElementById("loading");
-var sawDps = false;
-function settle() {
-  if (stage === 1 && teamMode === "dps")
-    sawDps = true;
-  else if (stage === 1 && sawDps) {
-    setStage(2);
-    baseline();
-  }
-  if (stage === 2 && showing())
-    setStage(3);
-  else if (stage === 3 && !showing())
-    setStage(2);
-  if (stage === 3 && comparing())
-    setStage(4);
-  if (stage === 5 && !firstChip())
-    setStage(4);
-}
-function build() {
-  const el = document.createElement("div");
-  el.className = "tut";
-  el.innerHTML = `<svg class="tut-arrow" aria-hidden="true"><defs><marker id="tutHead" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="12" refX="0" refY="6" orient="auto"><path d="M0,0 L14,6 L0,12 Z"></path></marker></defs><path class="tut-path" marker-end="url(#tutHead)" d=""></path></svg><div class="tut-box" role="dialog" aria-label="Tutorial"><p></p><button type="button" class="tut-begin">${TEXT[0]}<span class="arrow">\u203A</span></button><div class="tut-buttons"><button type="button" class="tut-skip">Skip Tutorial</button></div></div>`;
-  el.querySelector(".tut-begin").addEventListener("click", () => {
-    sawDps = false;
-    setStage(1);
-    place();
-  });
-  el.querySelector(".tut-skip").addEventListener("click", () => {
-    done = true;
-    try {
-      localStorage.setItem(DONE_KEY, "1");
-    } catch {
-    }
-    hideTutorial();
-  });
-  return el;
-}
-function mark(anchor) {
-  for (const el of document.querySelectorAll(".tut-target"))
-    el.classList.remove("tut-target");
-  anchor?.classList.add("tut-target");
-}
-function placeDetail(box, path, mainR) {
-  const width = Math.max(240, Math.min(330, mainR.width - 24));
-  box.style.width = `${width}px`;
-  box.style.left = `${mainR.left + (mainR.width - width) / 2}px`;
-  box.style.top = `8px`;
-  const anchor = stage === DETAIL_STAGE ? substatsCell() : stage === DETAIL_STAGE + 1 ? tabButton("distribution") : stage === DETAIL_STAGE + 2 ? tabButton("contribution") : actionRow(19);
-  mark(anchor);
-  const anchorR = anchor ? rect(anchor) : null;
-  if (!anchorR) {
-    path.setAttribute("d", "");
-    return;
-  }
-  const boxR = rect(box);
-  const [bx2, by2] = [boxR.left + boxR.width / 2, boxR.bottom];
-  const side = anchorR.left > mainR.right - 16 ? 1 : anchorR.right < mainR.left + 16 ? -1 : 0;
-  if (side) {
-    const tx2 = side > 0 ? mainR.right - 4 : mainR.left + 4;
-    const ty2 = Math.min(Math.max(anchorR.top + anchorR.height / 2, by2 + 40), mainR.bottom - 20);
-    const end = tx2 - side * HEAD;
-    path.setAttribute("d", `M ${bx2} ${by2} C ${bx2} ${by2 + 60}, ${end - side * 60} ${ty2}, ${end} ${ty2}`);
-    return;
-  }
-  const tx = anchorR.left + anchorR.width / 2;
-  const ty = Math.min(anchorR.top - 4, mainR.bottom - 4);
-  const bend = Math.max(12, Math.min(70, (ty - HEAD - by2) * 0.5));
-  path.setAttribute("d", `M ${bx2} ${by2} C ${bx2} ${by2 + bend}, ${tx} ${ty - HEAD - bend}, ${tx} ${ty - HEAD}`);
-}
-function place() {
-  if (!layer || layer.hidden)
-    return;
-  settle();
-  const box = layer.querySelector(".tut-box");
-  const path = layer.querySelector(".tut-path");
-  const main = document.querySelector("main");
-  if (!main)
-    return;
-  const text = layer.querySelector("p");
-  text.textContent = TEXT[stage];
-  text.hidden = stage === 0;
-  layer.querySelector(".tut-begin").hidden = stage !== 0;
-  if (stage >= DETAIL_STAGE) {
-    placeDetail(box, path, rect(main));
-    return;
-  }
-  const layout = document.querySelector(".tclayout");
-  const table = document.querySelector(".tcbody");
-  const filterbar = document.querySelector(".tcfilters");
-  const search = document.querySelector(".tcsearch");
-  if (!layout || !table || !filterbar || !search)
-    return;
-  const stacked = layout.classList.contains("stack");
-  const items = [...document.querySelector(".ctxmenu:not(.rowcap)")?.querySelectorAll(".ctxitem") ?? []];
-  const compares2 = items.filter((item) => item.textContent?.startsWith("Compare"));
-  const line = stage === 2 ? items[0] : compares2.find((item) => item.textContent?.includes("weapon")) ?? compares2[0];
-  const headCell = document.querySelector(".tgrid .trow.thead .c");
-  const below = headCell ? rect(headCell).bottom : rect(main).top;
-  const already = new Set(shownNow());
-  let first;
-  let fresh;
-  for (const row of document.querySelectorAll(".tgrid .trow[data-team]")) {
-    const cells = [...row.querySelectorAll(".c.name.res")];
-    const cell = cells[2] ?? cells[cells.length - 1];
-    if (!cell || rect(cell).top < below - 1)
-      continue;
-    first ??= cell;
-    const spare = already.has(cell.dataset.resonator ?? "") ? cells.find((c) => !already.has(c.dataset.resonator ?? "")) : cell;
-    if (!spare)
-      continue;
-    fresh = spare;
-    break;
-  }
-  const column = (stage === 2 ? fresh : void 0) ?? first;
-  const chips = [...document.querySelectorAll(".tcchips .rchip")];
-  const anchor = stage === 0 ? null : stage === 1 ? document.querySelector(".tgrid .c.dprhead") : stage === 4 ? search : stage === 5 ? stacked ? chips[chips.length - 1] : chips[0] : stage === 6 ? rowElementAt(0)?.querySelector(".gotodetail") : line ?? column;
-  mark(anchor);
-  const anchorR = anchor ? rect(anchor) : null;
-  const mainR = rect(main), layoutR = rect(layout), tableR = rect(table), filterR = rect(filterbar);
-  const aside = stage > 3 || stacked;
-  const [from, to] = aside ? [filterR.left, filterR.right] : [layoutR.left, tableR.left];
-  box.style.width = stage === 0 ? "max-content" : `${Math.max(240, Math.min(330, to - from - 40))}px`;
-  const { width, height: boxH } = rect(box);
-  const ideal = stage === 0 && !aside ? to - width - 20 : (from + to - width) / 2;
-  const middle = Math.min(Math.max(ideal, mainR.left + 12), mainR.right - width - 12);
-  box.style.left = `${stacked && stage === 6 ? mainR.left + 12 : middle}px`;
-  const list = document.getElementById("searchResults");
-  const listR = list?.childElementCount ? rect(list) : null;
-  const under = stage === 4 && listR ? Math.max(filterR.bottom, listR.bottom) : filterR.bottom;
-  const top = aside ? under + 16 : mainR.top + mainR.height * 0.2;
-  const clear = stacked && stage < 4 && anchorR ? Math.min(top, anchorR.top - boxH - 40) : top;
-  box.style.top = `${Math.min(Math.max(clear, mainR.top + 12), mainR.bottom - boxH - 12)}px`;
-  if (!anchorR || anchorR.top > mainR.bottom || anchorR.bottom < mainR.top || anchorR.right < mainR.left || anchorR.left > mainR.right && stage !== 6) {
-    path.setAttribute("d", "");
-    return;
-  }
-  const boxR = rect(box);
-  const by2 = boxR.top + boxR.height / 2;
-  const bow = Math.min(100, boxR.left - mainR.left - 8);
-  if (stage === 6 && !stacked) {
-    const [tx2, ty2] = [anchorR.left + anchorR.width / 2, anchorR.bottom + 4];
-    path.setAttribute("d", `M ${boxR.left} ${by2} C ${boxR.left - bow} ${by2}, ${tx2} ${ty2 + HEAD + 90}, ${tx2} ${ty2 + HEAD}`);
-    return;
-  }
-  if (stage === 6 && stacked && anchorR.right <= mainR.right) {
-    const [tx2, ty2] = [anchorR.left + anchorR.width / 2, anchorR.top - 4];
-    path.setAttribute("d", `M ${boxR.right} ${by2} C ${boxR.right + 40} ${by2}, ${tx2} ${ty2 - HEAD - 40}, ${tx2} ${ty2 - HEAD}`);
-    return;
-  }
-  if (stage === 6 && anchorR.right > mainR.right) {
-    const [tx2, ty2] = [mainR.right - 14, anchorR.top + anchorR.height / 2];
-    path.setAttribute("d", `M ${boxR.right} ${by2} C ${boxR.right + 30} ${by2}, ${tx2 - HEAD - 30} ${ty2}, ${tx2 - HEAD} ${ty2}`);
-    return;
-  }
-  if (stage === 1 && !stacked) {
-    const cx = boxR.left + boxR.width / 2;
-    const [ax, ay] = [anchorR.left + anchorR.width / 2, anchorR.top - 4];
-    const peak = Math.max(mainR.top + 8, ay - HEAD - 60);
-    path.setAttribute("d", `M ${cx} ${boxR.top} C ${cx} ${peak}, ${ax} ${peak}, ${ax} ${ay - HEAD}`);
-    return;
-  }
-  const [tx, ty] = [anchorR.left - 4, anchorR.top + anchorR.height / 2];
-  if (stage === 4 || stage === 5) {
-    const bx3 = boxR.left;
-    if (!stacked) {
-      path.setAttribute("d", tx - HEAD - bow >= mainR.left ? `M ${bx3} ${by2} C ${bx3 - bow} ${by2}, ${tx - HEAD - bow} ${ty}, ${tx - HEAD} ${ty}` : `M ${bx3} ${by2} C ${bx3 - bow} ${by2}, ${anchorR.left + anchorR.width / 2} ${ty + HEAD + 70}, ${anchorR.left + anchorR.width / 2} ${ty + HEAD}`);
-      return;
-    }
-    const cx = boxR.left + boxR.width / 2;
-    const [ax, ay] = [anchorR.left + anchorR.width / 2, anchorR.bottom + 4];
-    const bend = Math.max(12, Math.min(70, (boxR.top - ay - HEAD) * 0.5));
-    path.setAttribute("d", `M ${cx} ${boxR.top} C ${cx} ${boxR.top - bend}, ${ax} ${ay + HEAD + bend}, ${ax} ${ay + HEAD}`);
-    return;
-  }
-  if (stacked && stage < 4) {
-    const bx3 = boxR.left + boxR.width / 2;
-    const [cx, cy] = [anchorR.left + anchorR.width / 2, anchorR.top - 4];
-    const bend = Math.max(12, Math.min(70, (cy - HEAD - boxR.bottom) * 0.5));
-    path.setAttribute("d", `M ${bx3} ${boxR.bottom} C ${bx3} ${boxR.bottom + bend}, ${cx} ${cy - HEAD - bend}, ${cx} ${cy - HEAD}`);
-    return;
-  }
-  const bx2 = boxR.right, dx = tx - bx2;
-  if (dx >= 80) {
-    path.setAttribute("d", `M ${bx2} ${by2} C ${bx2 + dx * 0.5} ${by2}, ${tx - HEAD - dx * 0.5} ${ty}, ${tx - HEAD} ${ty}`);
-    return;
-  }
-  if (ty > by2) {
-    path.setAttribute("d", `M ${bx2} ${by2} C ${bx2 + 70} ${by2}, ${tx} ${ty - HEAD - 70}, ${tx} ${ty - HEAD}`);
-    return;
-  }
-  const [ex, ey] = [tx - HEAD * 0.7, ty + HEAD * 0.7];
-  path.setAttribute("d", `M ${bx2} ${by2} C ${bx2 + (ex - bx2) * 0.9} ${by2}, ${ex - 45} ${ey + 45}, ${ex} ${ey}`);
-}
-function maybeShowTutorial(force = false) {
-  if (!overlay?.hidden)
-    return;
-  if (dismissed())
-    return;
-  if (!force && !started && stage === 0 && !atBasePage()) {
-    hideTutorial();
-    return;
-  }
-  const ready = stage >= DETAIL_STAGE ? document.querySelector(".rtable.loadout") : document.querySelector(".tgrid .trow[data-team]");
-  if (!ready) {
-    hideTutorial();
-    return;
-  }
-  if (!layer) {
-    layer = build();
-    document.body.appendChild(layer);
-    baseline();
-  }
-  layer.hidden = false;
-  started = true;
-  place();
-}
-function hideTutorial() {
-  if (layer)
-    layer.hidden = true;
-  mark(null);
-}
-var typing;
-document.addEventListener("click", (e) => {
-  if (!layer || layer.hidden || stage !== 4 || typing !== void 0)
-    return;
-  if (!e.target.closest?.("#optionSearch"))
-    return;
-  const input = document.querySelector("#optionSearch");
-  const cells = [...rowElementAt(0)?.querySelectorAll(".c.name.res") ?? []];
-  const top = (cells[2] ?? cells[cells.length - 1])?.dataset.resonator;
-  const shown = [top, ...[...document.querySelectorAll(".c.name.res")].map((c) => c.dataset.resonator)];
-  const onScreen = new Set(visibleRows.flatMap((row) => row.members.map((m) => m.name)));
-  const unseen = Object.values(TEAMS).flat().map((m) => m.name).find((n) => !onScreen.has(n) && !included(n));
-  const name = unseen ?? shown.find((n) => n && !included(n)) ?? top;
-  if (!input || input.value || !name)
-    return;
-  const text = name;
-  let at = 0;
-  const key = () => {
-    input.value = text.slice(0, ++at);
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    typing = at < text.length ? setTimeout(key, 50) : void 0;
-  };
-  typing = setTimeout(key, 50);
-}, true);
-function searchUsed() {
-  if (!layer || layer.hidden || stage !== 4)
-    return;
-  setStage(5);
-  place();
-}
-document.addEventListener("click", (e) => {
-  if (e.target.closest?.(".sresult[data-value]"))
-    searchUsed();
-}, true);
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && e.target.id === "optionSearch" && searchChoice())
-    searchUsed();
-}, true);
-document.addEventListener("click", (e) => {
-  if (!layer || layer.hidden || stage !== 5)
-    return;
-  if (!e.target.closest?.(".tcchips .rchip, .tcchips .clearall"))
-    return;
-  setStage(6);
-  place();
-}, true);
-document.addEventListener("click", (e) => {
-  if (!layer || layer.hidden || stage !== 6)
-    return;
-  if (!e.target.closest?.(".gotodetail"))
-    return;
-  setStage(DETAIL_STAGE);
-}, true);
-var hoverTimer;
-var hovered = (e) => e.target.closest?.(".rtable.loadout .c.has");
-document.addEventListener("pointerover", (e) => {
-  if (!layer || layer.hidden || stage !== DETAIL_STAGE || !hovered(e))
-    return;
-  clearTimeout(hoverTimer);
-  hoverTimer = setTimeout(() => {
-    setStage(DETAIL_STAGE + 1);
-    place();
-  }, 1e3);
-}, true);
-document.addEventListener("pointerout", (e) => {
-  const from = hovered(e);
-  if (!from || e.relatedTarget instanceof Element && e.relatedTarget.closest(".rtable.loadout .c.has") === from)
-    return;
-  clearTimeout(hoverTimer);
-}, true);
-document.addEventListener("click", (e) => {
-  if (!layer || layer.hidden || stage !== DETAIL_STAGE || !hovered(e))
-    return;
-  clearTimeout(hoverTimer);
-  setStage(DETAIL_STAGE + 1);
-  place();
-}, true);
-document.addEventListener("click", (e) => {
-  if (!layer || layer.hidden)
-    return;
-  const tab = e.target.closest?.(".rtab")?.dataset.tab;
-  if (stage === DETAIL_STAGE + 1 && tab === "distribution")
-    setStage(DETAIL_STAGE + 2);
-  else if (stage === DETAIL_STAGE + 2 && tab === "contribution")
-    setStage(DETAIL_STAGE + 3);
-  else if (stage === DETAIL_STAGE && tab)
-    requestAnimationFrame(place);
-  else
-    return;
-  place();
-}, true);
-function finish() {
-  done = true;
-  try {
-    localStorage.setItem(DONE_KEY, "1");
-  } catch {
-  }
-  hideTutorial();
-}
-document.addEventListener("click", (e) => {
-  if (!e.target.closest?.(".tutstart"))
-    return;
-  try {
-    localStorage.removeItem(DONE_KEY);
-  } catch {
-  }
-  done = false;
-  sawDps = false;
-  setStage(1);
-  baseline();
-  maybeShowTutorial(true);
-}, true);
-if (overlay) {
-  new MutationObserver(() => {
-    if (overlay.hidden)
-      maybeShowTutorial();
-    else
-      hideTutorial();
-  }).observe(overlay, { attributes: true, attributeFilter: ["hidden"] });
-}
-new MutationObserver(() => {
-  if (layer && !layer.hidden)
-    place();
-}).observe(document.body, { childList: true });
-var queued = false;
-addEventListener("scroll", () => {
-  if (!layer || layer.hidden || queued)
-    return;
-  queued = true;
-  requestAnimationFrame(() => {
-    queued = false;
-    if (stage === DETAIL_STAGE + 3 && scrolledFar()) {
-      finish();
-      return;
-    }
-    place();
-    requestAnimationFrame(place);
-  });
-}, true);
-var remeasure = () => {
-  if (layer && !layer.hidden)
-    requestAnimationFrame(place);
-};
-document.addEventListener("input", remeasure, true);
-document.addEventListener("click", remeasure, true);
-document.addEventListener("focusout", remeasure, true);
-addEventListener("resize", () => {
-  if (!layer || layer.hidden)
-    return;
-  place();
-  requestAnimationFrame(place);
-});
-
 export {
   cachedGains,
   substatGains,
@@ -3424,6 +3225,7 @@ export {
   watchTouch,
   grabDot,
   makeDot,
+  bannerUrl,
   onRefresh,
   rowCapWarning,
   showMenu,
@@ -3431,6 +3233,5 @@ export {
   personalFigure,
   pctTrunc,
   rememberTableScroll,
-  renderComparison,
-  maybeShowTutorial
+  renderComparison
 };

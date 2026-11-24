@@ -1,5 +1,6 @@
 import {
   HOLD,
+  bannerUrl,
   buffsPopover,
   cachedGains,
   clearPops,
@@ -18,7 +19,6 @@ import {
   lazyPop,
   loadoutTable,
   makeDot,
-  maybeShowTutorial,
   panelOpenOn,
   pctTrunc,
   personalFigure,
@@ -35,7 +35,7 @@ import {
   wireDistribution,
   wireSourcePanels,
   zoom
-} from "./chunk-NCL6WAZD.js";
+} from "./chunk-LJSTMGDA.js";
 import {
   FALLBACK_HUE,
   GROUPED_COLUMNS,
@@ -84,7 +84,7 @@ import {
   tagTeam,
   weaponHue,
   workerPool
-} from "./chunk-DU4TDG6K.js";
+} from "./chunk-V6NQUF3X.js";
 import {
   ActionTag,
   CONCERTO_UNIT,
@@ -108,7 +108,7 @@ import {
   sequenceLevels,
   statLabel,
   weaponBase
-} from "./chunk-RLABIZFI.js";
+} from "./chunk-Z3RDNZVZ.js";
 
 // dist/src/page/pickmenu.js
 var FIELDS = ["weapon", "echo", "mainstat", "sequence", "refine", "highSubs"];
@@ -390,7 +390,6 @@ document.addEventListener("contextmenu", openPickMenu);
 
 // dist/src/page/detail.js
 var app = document.getElementById("app");
-var topbar = document.getElementById("topbar");
 var BUFF_UNDERLINE_COLUMNS = /* @__PURE__ */ new Set(["mv", "energy", "concerto", "offtune"]);
 var RUNNING_COLUMNS = /* @__PURE__ */ new Set(["concerto", "energy", "offtune"]);
 var isRunning = (key) => RUNNING_COLUMNS.has(key) || key.startsWith("gauge:");
@@ -812,12 +811,26 @@ function barsOf(run, report) {
   };
 }
 var shownKey = "";
+function setBackdrop(run) {
+  const best = run.members.filter((m) => bannerUrl(m.loadout.resonator)).sort((a, b) => (run.bySlot.get(b.name) ?? 0) - (run.bySlot.get(a.name) ?? 0))[0];
+  let el = document.querySelector("body > .backdrop");
+  document.body.classList.toggle("backdropped", !!best);
+  if (!best) {
+    el?.remove();
+    return;
+  }
+  if (!el) {
+    el = document.body.appendChild(document.createElement("div"));
+    el.className = "backdrop";
+  }
+  el.style.backgroundImage = `url('${bannerUrl(best.loadout.resonator)}')`;
+}
 function renderDetail(key) {
   shownKey = key;
   rememberTableScroll();
-  topbar.hidden = false;
   clearPops();
   const run = results.get(key);
+  setBackdrop(run);
   app.innerHTML = page(run);
   app.className = "";
   wireColumnDrag(app, shownColumns(run));
@@ -828,6 +841,14 @@ function renderDetail(key) {
   const lbl = app.querySelector(".rtable.loadout .c.lbl");
   if (lbl)
     app.querySelector(".rpanes")?.style.setProperty("--lblw", `${lbl.getBoundingClientRect().width / zoom()}px`);
+  const heads = [...app.querySelectorAll(".rpanes .rtable.loadout > .rtrow:first-child > .c")];
+  if (heads.length) {
+    const cols = heads.map((c) => `${c.getBoundingClientRect().width / zoom()}px`).join(" ");
+    app.querySelectorAll(".rpanes .rtable:not(.loadout)").forEach((t) => {
+      if (t.querySelector(":scope > .rtrow:first-child")?.children.length === heads.length)
+        t.style.gridTemplateColumns = cols;
+    });
+  }
   fitPies(app);
   if (tab === "substats")
     fillSubstats();
@@ -1116,10 +1137,6 @@ function rowSpan(sel, i, gridTop) {
   const seen = sel.span[i];
   if (seen)
     return seen;
-  if (i === 0 && sel.rows.length > 1) {
-    const below = rowSpan(sel, 1, gridTop)[0];
-    return sel.span[0] = [below - rect(sel.rows[0]).height, below];
-  }
   const r = rect(sel.rows[i]);
   const at = [r.top - gridTop, r.bottom - gridTop];
   sel.span[i] = at;
@@ -1174,7 +1191,7 @@ function grabCellDot(e) {
   if (!sel)
     return;
   dropPanel();
-  const rows = [...sel.grid.querySelectorAll(".r")].filter((r) => r.offsetParent);
+  const rows = [...sel.grid.querySelectorAll(".r:not(.head)")].filter((r) => r.offsetParent);
   const r0 = rows.indexOf(sel.rows[sel.r0]), r1 = rows.indexOf(sel.rows[sel.r1]);
   if (r0 < 0 || r1 < 0) {
     clearBlock();
@@ -1232,9 +1249,6 @@ function trackBlock() {
     row--;
   if (sel.rows[row].classList.contains("loop"))
     row = Math.min(Math.max(row + (row > sel.ar ? -1 : 1), 0), sel.rows.length - 1);
-  const head = rect(sel.rows[0]);
-  if (py >= head.top && py < head.bottom)
-    row = 0;
   const x = px - g.left;
   let col = 0;
   while (col < sel.cols.length - 1 && x >= sel.cols[col + 1].left)
@@ -1297,7 +1311,10 @@ addEventListener("keydown", (e) => {
   if (loose && !loose.isCollapsed)
     return;
   e.preventDefault();
-  copyBlock(blockCells(cellSel).filter((row) => !row[0]?.parentElement?.classList.contains("loop")).map((row) => row.map(copyText)));
+  const sel = cellSel, head = sel.grid.querySelector(":scope > .r.head").children;
+  const heads = barOf(sel) ? [head[sel.cols[sel.c0].nth]] : sel.cols.slice(sel.c0, sel.c1 + 1).map((c) => head[c.nth]);
+  const rows = blockCells(sel).filter((row) => !row[0]?.parentElement?.classList.contains("loop")).map((row) => row.map(copyText));
+  copyBlock([heads.map(copyText), ...rows]);
 });
 function wireCellSelect(root) {
   clearBlock();
@@ -1314,7 +1331,7 @@ function wireCellSelect(root) {
       return { key: h.dataset.col, nth, left: r.left - g.left, right: r.right - g.left };
     }).sort((a, b) => a.left - b.left);
     const row = cell2.closest(".r");
-    const rows = [...grid.querySelectorAll(".r")].filter((r) => r.offsetParent);
+    const rows = [...grid.querySelectorAll(".r:not(.head)")].filter((r) => r.offsetParent);
     const ar = rows.indexOf(row);
     const ac = cols.findIndex((c) => c.nth === [...row.children].indexOf(cell2));
     return ar < 0 || ac < 0 ? null : { rows, cols, ar, ac };
@@ -1656,7 +1673,6 @@ var came = (() => {
 var moved = false;
 var show = (key) => {
   renderDetail(key);
-  maybeShowTutorial();
 };
 var generation = 0;
 async function switchTo2(teamKey, attempts, undo) {
@@ -1710,7 +1726,6 @@ async function bootDetail() {
   results.set(key, runTeam(row.teamKey, row.members, row.combo, true));
   renderDetail(key);
   overlayHide();
-  maybeShowTutorial();
   return true;
 }
 async function boot() {

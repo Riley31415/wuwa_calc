@@ -508,7 +508,7 @@ const SR_ROTATION = new Rotation([
   Intro, NAMELESS_EXPLORER, 
   BA234, EBASIC.cancel(), FHA.cancel(), Liberation,
   BA234, EBASIC.cancel(), FHA.holdCancel(), FSkill,
-  Skill, BA34, EBASIC,
+  Skill, BA34, EBASIC.cancel(),
   Outro,
 ]);
 

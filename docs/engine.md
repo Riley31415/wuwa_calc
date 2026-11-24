@@ -2,6 +2,12 @@
 How a press plays: cuts, hold and mash, priority, echo casts, hooks and timers — read before writing
 hooks, cuts or anything timing-sensitive.
 
+# fight length
+a fight plays its rotations round the team until the game timer reaches 2:00 (`FIGHT_FRAMES`, so time
+stops pause it), then is cut: nothing is pressed past it (`State.fightEnd`) and no hit past it lands.
+DPR is the average of the sections that closed by then, the opener included; DPS is every hit inside
+the 2 minutes over 120s. the action log shows the whole 2 minutes; the Contribution table only the opener and loops 1-3
+
 # cast and hit
 every press is a cast plus its `bullets` — each `{ hitFrame, commitFrame?, mv, energy, concerto, offtune,
 forteN, element?, type?, subtype?, updateDebuffs?, hitGlobal? }`, landing at its `hitFrame` — plus an end

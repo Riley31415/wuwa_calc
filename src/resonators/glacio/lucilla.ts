@@ -442,14 +442,14 @@ const LC_SEQUENCES = [LC_S1, LC_S2, LC_S3, LC_S4, LC_S5, LC_S6];
 const UBA123 = new ActionGroup("Basic - Tracing Forms 123", [UBA1, UBA2, UBA3]);
 
 const LC_ROTATION = new Rotation([
-  Intro.holdCancel(), Spotlight.mashCancel(), Liberation,
+  Intro.holdCancel(), Spotlight, Liberation,
   UBA123, LettingGo, BELL_BORNE_GEOCHELONE.instaSwap(), HERON.instaSwap(), FALLACY.instaSwap(), GLOMMOTH.instaSwap(), Outro,
 
   START_LAST, BA1.instaCancel(), Spotlight, SWAP,
 
   Intro.inLastSlot().mashCancel(), 
   BELL_BORNE_GEOCHELONE.instaCancel(), HERON.instaDodge(), FALLACY.instaCancel(), GLOMMOTH.instaCancel(),
-  Liberation, UBA123, LettingGo.cancel(),
+  Liberation, UBA123, LettingGo, BA1.instaCancel(),
   Spotlight, 
   Outro,
 ]);

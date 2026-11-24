@@ -368,7 +368,7 @@ const LY_ROTATION_BASIC = new Rotation([
   FMA1.instaCancel(), MountainRoamer, FMA2.instaCancel(), MountainRoamer,
   FMA1.instaCancel(), MountainRoamer, FMA2.instaCancel(), MountainRoamer,
   FMA1.hitCancel(), MountainRoamer, //FMA2.instaCancel(), MountainRoamer, // best is 9 skill in practice?
-  StormyKicks.swapCancel(),
+  StormyKicks.instaSwap(),
   Outro,
 ]);
 

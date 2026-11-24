@@ -1,5 +1,6 @@
 import {
   TWO_VIGOR,
+  buildOf,
   clearBuilds,
   dprOf,
   drawPage,
@@ -7,7 +8,7 @@ import {
   openHelp,
   pageOf,
   wireHelp
-} from "./chunk-YHTK2HAI.js";
+} from "./chunk-LK3SGK4G.js";
 import {
   FALLBACK_HUE,
   MATRIX_RESONATORS,
@@ -19,26 +20,26 @@ import {
   ensureBestPicks,
   filters,
   fmt,
-  iconNamed,
   loadSolves,
   matrixBox,
   overlay,
   overlayPhase,
   paint,
+  portraitNamed,
   saveSolves,
   showError,
-  syncHash
-} from "./chunk-DU4TDG6K.js";
+  syncHash,
+  weaponPart
+} from "./chunk-V6NQUF3X.js";
 import {
   bestKey,
   defaultFilters,
   hasBuild
-} from "./chunk-RLABIZFI.js";
+} from "./chunk-Z3RDNZVZ.js";
 
 // dist/src/page/tierlist.js
 var app = document.getElementById("app");
-var dpsMode = false;
-var cutStep = () => dpsMode ? 1e3 : 1e5;
+var CUT_STEP = 1e5;
 var BLOCKS = ["Main DPS", "Sub DPS", "Support"];
 var TIERS = [
   { name: "T0", color: "#e5484d" },
@@ -58,7 +59,7 @@ function cutsOf(entries) {
   for (let t = 1; t < TIERS.length; t++) {
     const share = dprs.length * t / TIERS.length;
     const at = Math.min(dprs.length - 1, Math.max(1, Math.round(share)));
-    const step = cutStep();
+    const step = CUT_STEP;
     const mid = Math.sqrt(dprs[at - 1] * dprs[at]) / step;
     const off = (cut2) => Math.abs(dprs.filter((d) => d >= cut2).length - share);
     const [down, up] = [Math.floor(mid) * step, Math.ceil(mid) * step];
@@ -80,7 +81,7 @@ function blocksOf(f) {
     const score = bestPicks.get(bestKey(teamKey, members, f))?.scores[0];
     if (!score)
       continue;
-    const dpr = dpsMode ? score.total : dprOf(score.sectionTotals);
+    const dpr = dprOf(score.sectionTotals);
     for (const m of members) {
       const block = best[m.mainDps ? 0 : TWO_VIGOR.has(m.name) ? 2 : 1];
       if ((block.get(m.name)?.dpr ?? -1) < dpr)
@@ -93,40 +94,36 @@ function compute() {
   cuts = cutsOf(blocksOf(plainFilters()).flat());
   blocks = blocksOf(tierFilters());
 }
+function costOf(e) {
+  const row = buildOf(e.teamKey);
+  const at = row ? row.members.findIndex((m) => m.name === e.name) : -1;
+  if (!row || at < 0)
+    return "";
+  const combo = row.combo[at], part = weaponPart(row.members[at], combo.weapon);
+  return (combo.sequence ? `S${combo.sequence}` : "") + (/^R\d$/.test(part) ? part : "") || "S0";
+}
 function render() {
-  const cell = (e, i, band) => {
-    const gap = i ? `<div class="c tiergap${band}"></div>` : "";
-    const start = band;
-    if (!e)
-      return `${gap}<div class="sec"><div class="c${start}"></div><div class="c${band}"></div></div>`;
+  const matrixOn = filters.matrix.length > 0;
+  const card = (e) => {
     const href = pageOf(e.teamKey);
     const hue = RESONATOR_HUE.get(e.name) ?? FALLBACK_HUE;
-    const figure = href ? `<a href="${esc(href)}">${fmt(e.dpr)}</a>` : fmt(e.dpr);
-    return `${gap}<div class="sec"><div class="c name res${start}" style="--mem:${hue};color:${hue}">${iconNamed(e.name)}<span class="res-label">${esc(e.name)}</span></div><div class="c num total${band}">${figure}</div></div>`;
+    const cost = costOf(e);
+    const mx = matrixOn && MATRIX_RESONATORS.has(e.name) ? `<span class="tcard-up" title="Matrix Buff">\u25B2</span>` : "";
+    const tag = href ? "a" : "div";
+    return `<${tag} class="tcard"${href ? ` href="${esc(href)}"` : ""} style="--mem:${hue}" title="${esc(e.name)}${cost ? ` ${cost}` : ""}"><span class="tcard-art">${portraitNamed(e.name, "tcard-img")}${cost ? `<span class="tcard-cost">${esc(cost)}</span>` : ""}</span><span class="tcard-dpr">${fmt(e.dpr)}${mx}</span></${tag}>`;
   };
   const body = TIERS.map((tier, t) => {
     const inTier = blocks.map((b) => b.filter((e) => tierOf(e.dpr) === t));
-    const height = Math.max(...inTier.map((b) => b.length));
-    if (!height)
+    if (!inTier.some((b) => b.length))
       return "";
-    return Array.from({ length: height }, (_, k) => {
-      const band = k === 0 && t > 0 ? " bandstart" : "";
-      const label = k === 0 ? `<div class="c tier${band}" style="--tier:${tier.color};grid-row:span ${height}">${tier.name}</div><div class="c tiergap${band}" style="grid-row:span ${height}"></div>` : "";
-      return `<div class="trow">${label}${inTier.map((b, i) => cell(b[k], i, band)).join("")}</div>`;
-    }).join("");
+    const band = t > 0 ? " bandstart" : "";
+    return `<div class="trow"><div class="c tier${band}" style="--tier:${tier.color}">${tier.name}</div>` + inTier.map((b) => `<div class="c tiergap${band}"></div><div class="c tiercards${band}">${b.map(card).join("")}</div>`).join("") + `</div>`;
   }).join("");
-  const head = `<div class="c"></div><div class="c tiergap"></div>` + BLOCKS.map((title, i) => `${i ? `<div class="c tiergap"></div>` : ""}<div class="c">${title}</div><div class="c num modehead" title="Click to switch between Best Team DPR and Best Team DPS">Best Team ${dpsMode ? "DPS" : "DPR"}</div>`).join("");
+  const head = `<div class="c"></div>` + BLOCKS.map((title) => `<div class="c tiergap"></div><div class="c tierhead">${title}</div>`).join("");
   const boxes = matrixBox(filters.matrix.length > 0, openHelp.has("matrix")) + costBox(filters.cost, openHelp.has("cost"));
-  drawPage(app, boxes, "", BLOCKS.length * 3 + 1, head, body);
+  drawPage(app, boxes, "", BLOCKS.length * 2 + 1, head, body);
 }
 wireHelp(app, render);
-app.addEventListener("click", (e) => {
-  if (!e.target.closest(".modehead"))
-    return;
-  dpsMode = !dpsMode;
-  compute();
-  render();
-});
 app.addEventListener("change", (e) => {
   const el = e.target;
   if (el.id === "cost")

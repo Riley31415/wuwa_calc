@@ -38,7 +38,7 @@
  *  each Heavy Slash bullet spends both); its forte_1 is Redundant Energy, forte1.
  */
 import { Stat, Attribute, WeaponType, Type, Subtype, Cast, Node, Scaling, BuffTarget, Position } from "../../engine/stats.js";
-import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
+import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, matrix } from "../../engine/gear.js";
 import {
   addStat,
   applied,
@@ -427,6 +427,7 @@ const ZANI_TALENTS = new Talent({
 const ZANI_RESONATOR = new Resonator({
   id: 1507,
   name: "Zani",
+  matrix: matrix("Zani", 25),
   talent: ZANI_TALENTS,
   inherent1: ZANI_INHERENT_1,
   inherent2: ZANI_INHERENT_2,

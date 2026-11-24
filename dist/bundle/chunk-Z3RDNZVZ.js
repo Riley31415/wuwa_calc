@@ -231,7 +231,7 @@ var TAG_NAME = {
 };
 var scopedStat = (tag, stat) => stat | tag;
 var splitStat = (key) => [key & STAT_BITS, key & TAG_BITS || null];
-var BASE_DELAYS = { cancel: 9, insta: 6, mash: 3, hold: 0 };
+var BASE_DELAYS = { cancel: 10, insta: 6, mash: 6, hold: 0 };
 var DELAYS = BASE_DELAYS;
 var CANCEL_DELAY = BASE_DELAYS.cancel;
 var INSTA_DELAY = BASE_DELAYS.insta;
@@ -1823,6 +1823,8 @@ var State = class {
   plannedGates = null;
   /** Whether a handoff holds for the incoming visit's cooldowns: on inside `runRotations()`. */
   handoffWaits = false;
+  /** The game frame the fight is cut at (`runRotations()`'s limit): nothing is pressed from then on. */
+  fightEnd = Infinity;
   /** With a double Intro in the team, the visit each visit's handoff really opens — its slot and
    *  its chain, learned as the scheduler plays it, since the next slot along is often not it, nor
    *  its usual chain; null where the next slot's is. */
@@ -5317,17 +5319,19 @@ var rotationsKey = (rotations) => rotations.map((r) => {
   return id;
 }).join(",");
 var ROTATION_ID_NEXT = { n: 0 };
-function runRotations(state, rotations, count) {
+function runRotations(state, rotations, count, limit = Infinity) {
   rotations.forEach((r, i) => {
     state.slots[i].delays = r.delays;
   });
+  state.fightEnd = limit;
   try {
-    return playRotations(state, rotations, count);
+    return playRotations(state, rotations, count, limit);
   } finally {
     useDelays(null);
+    state.fightEnd = Infinity;
   }
 }
-function playRotations(state, rotations, count) {
+function playRotations(state, rotations, count, limit) {
   const why = teamPlayable(rotations, state.slots.map((s) => s.name));
   if (why)
     throw new Error(why);
@@ -5402,13 +5406,28 @@ function playRotations(state, rotations, count) {
   const starts = [0];
   let opensAt = 0;
   let section = 0;
-  const going = () => section + (closing ? 1 : 0) < count;
+  const going = () => section + (closing ? 1 : 0) < count && state.gameOf(Math.max(state.real, state.playsTo)) < limit;
   const finish = () => {
     state.plannedGates = null;
     state.handoffWaits = false;
     const blind = state.successorMissed;
     state.successor = null;
     state.lastHandoff = null;
+    if (section + (closing ? 1 : 0) < count) {
+      const ends = [...starts.slice(1), closing ? opensAt : Infinity];
+      while (starts.length > 1 && starts[starts.length - 1] >= limit) {
+        starts.pop();
+        out.pop();
+        ends.pop();
+      }
+      for (let k = 0; k < out.length; k++)
+        out[k] = out[k].filter((r) => r.starts < limit);
+      out.forEach((rows, k) => {
+        for (const r of rows)
+          r.section = k;
+      });
+      return { sections: out, starts, end: limit, complete: ends.filter((at) => at <= limit).length, blind };
+    }
     let end = 0, endReal = 0, cutoff = 0;
     const drainUntil = state.drainUntil;
     let outro = fightEnd;
@@ -5441,7 +5460,7 @@ function playRotations(state, rotations, count) {
       for (const r of rows)
         r.section = k;
     });
-    return { sections: out, starts, end, blind };
+    return { sections: out, starts, end, complete: out.length, blind };
   };
   let closing = false;
   let awaiting = 0, closePending = false;
@@ -6615,6 +6634,8 @@ function run(state, rotation, flush = false, until = Infinity) {
     if ((!up.queued || up.event) && state.real < state.playsTo)
       continue;
     const step = steps.take();
+    if (state.frame >= state.fightEnd)
+      continue;
     useDelays(state.slots[step.slot >= 0 ? step.slot : state.active]?.delays ?? null);
     if (step.at === void 0 ? state.real > until : step.at > until)
       continue;
@@ -8813,13 +8834,11 @@ function sumHits(sections, complete, frames, members, pick, src, unsafe, quiet) 
       for (const k of s.order) {
         const x = s.by[k] + (delta ? delta[v * stride + k] : 0);
         by.set(slotNames[k], x);
-        if (sec < complete) {
-          if (whole[k] === void 0) {
-            whole[k] = 0;
-            wholeOrder.push(k);
-          }
-          whole[k] = whole[k] + x;
+        if (whole[k] === void 0) {
+          whole[k] = 0;
+          wholeOrder.push(k);
         }
+        whole[k] = whole[k] + x;
       }
       const sum = v < 0 ? s.total : s.total + s.deltaTotal[i][v];
       if (sec < complete) {
@@ -8840,7 +8859,7 @@ function sumHits(sections, complete, frames, members, pick, src, unsafe, quiet) 
   };
   const variantTotal = (i, v) => {
     const whole = [], wholeOrder = [];
-    for (let sec = 0; sec < complete; sec++) {
+    for (let sec = 0; sec < secs.length; sec++) {
       const s = secs[sec], delta = s.deltaBy[i];
       for (const k of s.order) {
         if (whole[k] === void 0) {
@@ -9011,7 +9030,7 @@ function askedOf(teamKey2, members, combo, i, alt, measured) {
     ER_NEED_AT.set(altKey, need = measured);
   return erRollsWanted(members[i], alt, need[i] ?? 0);
 }
-function runTeam(teamKey2, members, combo, trace = false, variants = null, sections = 4) {
+function runTeam(teamKey2, members, combo, trace = false, variants = null, sections = Infinity) {
   if (members.length < 2 && sections > 1)
     throw new Error(`${teamKey2}: a team of one plays its opener alone, not ${sections} rotations`);
   const outer = ctx.tracing;
@@ -9171,12 +9190,13 @@ function runFixed(teamKey2, members, combo, extra = []) {
   const outer = ctx.tracing;
   setTracing(false);
   try {
-    return runTeamInner(teamKey2, members, combo, false, null, erRollsFor(teamKey2, members, combo), [], false, 4, extra);
+    return runTeamInner(teamKey2, members, combo, false, null, erRollsFor(teamKey2, members, combo), [], false, Infinity, extra);
   } finally {
     setTracing(outer);
   }
 }
-function runTeamInner(teamKey2, members, combo, trace, variants, erRolls = erRollsFor(teamKey2, members, combo), guard = [], replay2 = false, count = 4, extra = []) {
+var FIGHT_FRAMES = 120 * 60;
+function runTeamInner(teamKey2, members, combo, trace, variants, erRolls = erRollsFor(teamKey2, members, combo), guard = [], replay2 = false, count = Infinity, extra = []) {
   const state = new State(members.map((m) => m.name));
   let own;
   members.forEach((m, i) => {
@@ -9208,14 +9228,13 @@ function runTeamInner(teamKey2, members, combo, trace, variants, erRolls = erRol
   });
   state.active = 0;
   withTeam(state, () => equipEnemy(TUNE_BREAK_ENEMY));
-  const { sections, starts, end: frames, blind } = runRotations(state, members.map((m, i) => m.loadout.rotationAt(combo[i].sequence)), count);
+  const { sections, starts, end: frames, complete, blind } = runRotations(state, members.map((m, i) => m.loadout.rotationAt(combo[i].sequence)), count, count === Infinity ? FIGHT_FRAMES : Infinity);
   if (blind && !replay2)
     return runTeamInner(teamKey2, members, combo, trace, variants, erRolls, guard, true, count, extra);
   if (trace)
     settleGauges(sections.flat());
-  const complete = sections.length;
   const rotationLines = trace ? sections.map(toLines) : null;
-  const sectionSeconds = starts.map((at, k) => ((starts[k + 1] ?? frames) - at) / 60);
+  const sectionSeconds = starts.slice(0, complete).map((at, k) => ((starts[k + 1] ?? frames) - at) / 60);
   const hits = starts.map(() => []);
   for (const h of state.hits) {
     const outro = !!h.res && isCast(
@@ -13019,13 +13038,14 @@ var TB_FORM = tuneBreak(94, 94, [0, 94], [0, 64], BROADBLADE_BREAK);
 var CARTETHYIA_RESONATOR = new Resonator({
   id: 1409,
   name: "Cartethyia",
+  matrix: matrix("Cartethyia", 25),
   talent: CARTETHYIA_TALENTS,
   inherent1: CT_INHERENT_1,
   inherent2: CT_INHERENT_2,
   tier: 0,
   element: 64,
   weapon: 0,
-  color: "#3553fb",
+  color: "#5770fc",
   // resolved when its row is reached: whichever Intro the kit's state calls for there
   intro: () => isHeld(MANIFEST) ? FIntro : Intro,
   swapIn: () => isHeld(MANIFEST) ? FBA1 : BA1,
@@ -13571,9 +13591,29 @@ var CIACCONA_TALENTS = new Talent({
   name: "Ciaccona: Talents",
   stats: [[6, 11.9999997], [10, 16]]
 });
+var CIACCONA_MATRIX_TEAM = new Buff({
+  name: "Ciaccona: Matrix Buff",
+  duration: 60 * 30,
+  stats: [[
+    18,
+    20,
+    64
+    /* Attribute.Aero */
+  ]]
+});
+var CIACCONA_MATRIX = matrix("Ciaccona", 20, {
+  updateBuffs: () => {
+    if (casting(
+      4
+      /* Cast.Liberation */
+    ))
+      applyTeam(CIACCONA_MATRIX_TEAM);
+  }
+});
 var CIACCONA_RESONATOR = new Resonator({
   id: 1407,
   name: "Ciaccona",
+  matrix: CIACCONA_MATRIX,
   talent: CIACCONA_TALENTS,
   inherent1: CI_INHERENT_1,
   inherent2: CI_INHERENT_2,
@@ -17411,7 +17451,7 @@ var QY_ROTATION = new Rotation([
   BELL_BORNE_GEOCHELONE.instaCancel(),
   FALLACY.instaCancel(),
   Liberation8,
-  SkillHold.holdCancel(),
+  SkillHold.cancel(),
   FHA123.cancel(),
   Outro8
 ]);
@@ -18827,7 +18867,7 @@ var SR_ROTATION = new Rotation([
   FSkill,
   Skill9,
   BA343,
-  EBASIC,
+  EBASIC.cancel(),
   Outro10
 ]);
 var SR_ROTATION_DOUBLE = new Rotation([
@@ -28144,7 +28184,7 @@ var EN_ROTATION = new Rotation([
   USkill2,
   UBA12343.dodgeCancel(),
   UBA12343.cancel(),
-  USkill2.cancel(),
+  USkill2,
   FHA9.instaSwap(),
   Outro27
 ]);
@@ -29079,9 +29119,29 @@ var LUPA_TALENTS = new Talent({
   name: "Lupa: Talents",
   stats: [[9, 8], [6, 11.9999997]]
 });
+var LUPA_MATRIX_TEAM = new Buff({
+  name: "Lupa: Matrix Buff",
+  duration: 60 * 30,
+  stats: [[
+    18,
+    20,
+    192
+    /* Attribute.Fusion */
+  ]]
+});
+var LUPA_MATRIX = matrix("Lupa", 20, {
+  updateBuffs: () => {
+    if (casting(
+      4
+      /* Cast.Liberation */
+    ))
+      applyTeam(LUPA_MATRIX_TEAM);
+  }
+});
 var LUPA_RESONATOR = new Resonator({
   id: 1207,
   name: "Lupa",
+  matrix: LUPA_MATRIX,
   stats: [[1, 11912.5], [0, 387.5], [2, 1185.5534]],
   talent: LUPA_TALENTS,
   inherent1: LP_INHERENT_1,
@@ -29498,6 +29558,8 @@ var MORNYE_RESONATOR = new Resonator({
   // Wide Field Observation Mode ends on a swap, so she always arrives in Baseline Mode; no mid-air chain, only the plunge
   swapIn: BA132,
   swapInAir: MA31,
+  // the sword's break, but it leaves him in mid-air
+  tuneBreak: midairBreak(tuneBreak(94, 94, [0, 94], [0, 64], BROADBLADE_BREAK)),
   maxEnergy: 17500,
   forteScale: [0.01, 0.01, 1, 1, 1],
   maxForte1: 1e4,
@@ -30865,7 +30927,7 @@ var HIYUKI_RESONATOR = new Resonator({
   dodge: (after) => forte2() >= 100 && IaiFlash.follows(after) ? IaiFlash : null,
   // the flash out of her mid-air presses is an air dodge
   airDodge: (after) => forte2() >= 100 && IaiFlash.follows(after) ? IaiFlash : null,
-  color: "#87e6e6",
+  color: "#cdeeee",
   intro: () => isHeld(FORECLAIMED_SELF) ? FIntro2 : Intro31,
   swapIn: () => isHeld(FORECLAIMED_SELF) ? UBA16 : BA135,
   swapInAir: () => isHeld(FORECLAIMED_SELF) ? FMA13 : MA38,
@@ -31623,7 +31685,7 @@ var LY_ROTATION_BASIC = new Rotation([
   FMA14.hitCancel(),
   MountainRoamer,
   //FMA2.instaCancel(), MountainRoamer, // best is 9 skill in practice?
-  StormyKicks.swapCancel(),
+  StormyKicks.instaSwap(),
   Outro34
 ]);
 var LINGYANG = new Loadout({
@@ -32071,7 +32133,7 @@ var LC_SEQUENCES = [LC_S12, LC_S22, LC_S32, LC_S42, LC_S52, LC_S62];
 var UBA1235 = new ActionGroup("Basic - Tracing Forms 123", [UBA17, UBA26, UBA37]);
 var LC_ROTATION2 = new Rotation([
   Intro33.holdCancel(),
-  Spotlight.mashCancel(),
+  Spotlight,
   Liberation25,
   UBA1235,
   LettingGo,
@@ -32091,7 +32153,8 @@ var LC_ROTATION2 = new Rotation([
   GLOMMOTH.instaCancel(),
   Liberation25,
   UBA1235,
-  LettingGo.cancel(),
+  LettingGo,
+  BA137.instaCancel(),
   Spotlight,
   Outro35
 ]);
@@ -34370,6 +34433,7 @@ var PHROLOVA_TALENTS = new Talent({
 var PHROLOVA_RESONATOR = new Resonator({
   id: 1608,
   name: "Phrolova",
+  matrix: matrix("Phrolova", 25),
   talent: PHROLOVA_TALENTS,
   inherent1: PH_INHERENT_1,
   inherent2: PH_INHERENT_2,
@@ -40145,6 +40209,7 @@ var ZANI_TALENTS = new Talent({
 var ZANI_RESONATOR = new Resonator({
   id: 1507,
   name: "Zani",
+  matrix: matrix("Zani", 25),
   talent: ZANI_TALENTS,
   inherent1: ZANI_INHERENT_1,
   inherent2: ZANI_INHERENT_2,
@@ -40398,7 +40463,7 @@ var ROVER_HAVOC_RESONATOR = new Resonator({
   inherent2: RH_INHERENT_2,
   element: 384,
   weapon: 0,
-  color: "#823ac6",
+  color: "#c63a9c",
   intro: Intro50,
   swapIn: () => isHeld(DARK_SURGE) ? EBA15 : BA155,
   swapInAir: () => isHeld(DARK_SURGE) ? EMA2 : MA57,
@@ -40491,12 +40556,9 @@ var TEAMS = [
   //[PHRO_9s,[MORNYE], ANNA ],
   // suoming mdps, electro basic unison
   [[SHOREKEEPER], [JINHSI_SUPPORT], SUOMING_MDPS],
-  [[SHOREKEEPER, VERINA, BAIZHI, MORNYE], [SANHUA], SUOMING_MDPS_DOUBLE],
-  [[LILY], [SANHUA], SUOMING_MDPS_DOUBLE],
-  [[SHOREKEEPER, VERINA, BAIZHI, MORNYE], [JINHSI_SUPPORT], SUOMING_MDPS],
-  [[LILY], [JINHSI_SUPPORT], SUOMING_MDPS],
-  [[MORNYE, SHOREKEEPER, VERINA, BAIZHI], [LYNAE_RUPTURE, REBECCA], SUOMING_MDPS],
-  [[LILY], [LYNAE_RUPTURE, REBECCA], SUOMING_MDPS],
+  [[SHOREKEEPER, VERINA, BAIZHI, MORNYE, LILY], [SANHUA], SUOMING_MDPS_DOUBLE],
+  [[SHOREKEEPER, VERINA, BAIZHI, MORNYE, LILY], [JINHSI_SUPPORT], SUOMING_MDPS],
+  [[MORNYE, SHOREKEEPER, VERINA, BAIZHI, LILY], [LYNAE_RUPTURE, REBECCA], SUOMING_MDPS],
   // hsin, Unison mode: Suoming or Jinhsi behind her hands over the Unison her Intro answers
   [[SHOREKEEPER, VERINA, BAIZHI, MORNYE, SUISUI], [SUOMING], HSIN_UNISON],
   [[LILY], [SUOMING], HSIN_UNISON],
@@ -40535,19 +40597,21 @@ var TEAMS = [
   // which is why Chisa (+3 to it) and Lucilla's Chafe build stand behind her
   [[SUISUI], [PHRO_9s], HIYUKI],
   [[SUISUI], CARLOTTA_FAST, HIYUKI],
+  [[SUISUI], LINGYANG, HIYUKI],
   [[PHRO_9s], [LUCILLA], HIYUKI],
   [HIYUKI, CARLOTTA_FAST, [LUCILLA_CHAFE]],
   [[SUISUI, CHISA, LILY, MORNYE, VERINA, BAIZHI, SHOREKEEPER], [LUCILLA_CHAFE, LYNAE_RUPTURE, CHISA, JIANXIN, ROVER_ELECTRO], HIYUKI],
-  // geeek double dont publish
-  //[[SHOREKEEPER], [QIUYUAN, LUCILLA], SIGRIKA_DOUBLE],
-  //[[LILY], [QIUYUAN, LUCILLA], SIGRIKA_DOUBLE],
   // sigrika: aero + echo
   [[SHOREKEEPER, VERINA, BAIZHI, MORNYE], [QIUYUAN, CIACCONA, CANTARELLA], SIGRIKA_EBA],
   [[LILY], [QIUYUAN, CIACCONA, CANTARELLA], SIGRIKA_EBA],
   [[SHOREKEEPER, VERINA, BAIZHI, MORNYE], [LUCILLA], SIGRIKA_EBA],
   [[LILY], [LUCILLA], SIGRIKA_FAST],
   [[QIUYUAN], [LUCILLA], SIGRIKA_FAST],
+  // geeek double dont publish
+  //[[SHOREKEEPER], [QIUYUAN, LUCILLA], SIGRIKA_DOUBLE],
+  //[[LILY], [QIUYUAN, LUCILLA], SIGRIKA_DOUBLE],
   //[[SHOREKEEPER], [QIUYUAN], SIGRIKA_DOUBLE],
+  //[[VERINA], [QIUYUAN], SIGRIKA_DOUBLE],
   [[LILY], [PHRO_9s], SIGRIKA_FAST],
   [[PHRO_9s], [QIUYUAN, LUCILLA], SIGRIKA_FAST],
   [[MORNYE, SHOREKEEPER, VERINA, BAIZHI], [LYNAE_RUPTURE], SIGRIKA_FAST],
@@ -40725,10 +40789,10 @@ var TEAMS = [
   [[LUPA], ENCORE, [BRANT]],
   // havoc rover: havoc, mixed
   // beside Roccia, Cantarella or Yangyang, Havoc Rover's loop leaves Baizhi too little Energy for her own Liberation
-  [[SHOREKEEPER, VERINA, MORNYE, BULING, SUISUI, LILY], [ROCCIA, CANTARELLA, YANGYANG], ROVER_HAVOC],
+  [[SHOREKEEPER, VERINA, MORNYE, BULING, SUISUI, LILY], [ROCCIA, CANTARELLA], ROVER_HAVOC],
   [[SHOREKEEPER, VERINA, BAIZHI, MORNYE, BULING, SUISUI, LILY], [DANJIN, SANHUA], ROVER_HAVOC],
-  [[SHOREKEEPER, VERINA, BAIZHI, MORNYE, BULING, SUISUI, LILY], [PHRO_9s], ROVER_HAVOC],
-  [[MORNYE, VERINA, BAIZHI, LILY, BULING, SUISUI, SHOREKEEPER], [LYNAE_RUPTURE, REBECCA], ROVER_HAVOC]
+  [[MORNYE, VERINA, BAIZHI, LILY, BULING, SUISUI, SHOREKEEPER], [LYNAE_RUPTURE, REBECCA], ROVER_HAVOC],
+  [[SHOREKEEPER, VERINA, BAIZHI, MORNYE, BULING, SUISUI, LILY], PHRO_9s, [ROVER_HAVOC]]
 ];
 var UNPLAYABLE_TEAMS = [];
 var LOADOUT_ID = /* @__PURE__ */ new Map();
@@ -41157,15 +41221,25 @@ function bestMainstats(teamKey2, members, picks, who) {
     return index === p.mainstat ? p : { ...p, mainstat: index };
   });
 }
+function grantHolders(members, filters) {
+  if (!grantToOne(filters.cost))
+    return members.map((_, i) => i);
+  const lifts = (m) => costLevel(m, filters.cost, true) !== costLevel(m, filters.cost, false) || m.loadout.refinements.some((_, w) => costRefine(m, w, filters.cost, true) > costRefine(m, w, filters.cost, false)) || !sigForAll(filters.cost) && m.loadout.weapons.some((_, w) => isSignature(m.loadout, w));
+  const main = members.flatMap((m, i) => m.mainDps && lifts(m) ? [i] : []);
+  return main.length ? main : members.flatMap((m, i) => lifts(m) ? [i] : []);
+}
+function costBuild(m, cost, holds) {
+  const held = !grantToOne(cost) || holds;
+  const sequence = costLevel(m, cost, held);
+  if (sequence === null)
+    return null;
+  const weapon = sigForAll(cost) || cost === "s0r1mdps" && held ? 0 : standardWeapon(m.loadout);
+  return { sequence, weapon, refine: costRefine(m, weapon, cost, held) };
+}
 function optimizeTeam(teamKey2, members, filters) {
   const one = grantToOne(filters.cost);
   const fillsAll = (trial) => shortOf(teamKey2, members, trial.map((p, j) => comboOf(members[j].loadout, p))).every((s) => s === null);
-  const holders = [];
-  if (one) {
-    for (let i = 0; i < members.length; i++)
-      if (members[i].mainDps)
-        holders.push(i);
-  }
+  const holders = one ? grantHolders(members, filters) : [];
   if (!holders.length)
     holders.push(null);
   const everyone = members.map((_, k) => k);
@@ -41447,6 +41521,7 @@ export {
   ENEMY_MAX_OFFTUNE,
   BASE_RESISTANCE,
   TUNE_BREAK_ENEMY,
+  TUNE_BREAK,
   hitsOf,
   erRollsFor,
   runTeam,
@@ -41485,6 +41560,8 @@ export {
   fitPick,
   comboOf,
   grantToOne,
+  costLevel,
+  costRefine,
   refineLevels,
   sequenceLevels,
   hasBuild,
@@ -41495,6 +41572,8 @@ export {
   sigAllowed,
   sigHolder,
   eligibleWeapons,
+  grantHolders,
+  costBuild,
   optimizeTeam,
   teamFromKey,
   mainstatRanking,

@@ -983,6 +983,8 @@ export class State {
   plannedGates: ((to: number, visit: object | null) => VisitGate[] | null) | null = null;
   /** Whether a handoff holds for the incoming visit's cooldowns: on inside `runRotations()`. */
   handoffWaits = false;
+  /** The game frame the fight is cut at (`runRotations()`'s limit): nothing is pressed from then on. */
+  fightEnd = Infinity;
   /** With a double Intro in the team, the visit each visit's handoff really opens — its slot and
    *  its chain, learned as the scheduler plays it, since the next slot along is often not it, nor
    *  its usual chain; null where the next slot's is. */

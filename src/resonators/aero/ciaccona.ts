@@ -16,7 +16,7 @@
  * skill states its own Concerto Regen outright, which wins.
  */
 import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, Subtype, Position } from "../../engine/stats.js";
-import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence, matrix } from "../../engine/gear.js";
 import {
   applyTeam,
   applyEnemy,
@@ -246,11 +246,21 @@ const CIACCONA_TALENTS = new Talent({
   stats: [[Stat.BonusAtk, 11.9999997], [Stat.CritDmg, 16]],
 });
 
+/** Matrix (4.0 beta): her Liberation grants the team +20% Aero DMG Bonus; duration unlisted, 30s like the others. */
+const CIACCONA_MATRIX_TEAM = new Buff({
+  name: "Ciaccona: Matrix Buff", duration: 60 * 30,
+  stats: [[Stat.DmgBonus, 20, Attribute.Aero]],
+});
+const CIACCONA_MATRIX = matrix("Ciaccona", 20, {
+  updateBuffs: () => { if (casting(Cast.Liberation)) applyTeam(CIACCONA_MATRIX_TEAM); },
+});
+
 /** Her, as a Resonator: name/element/weapon, every grant/spend/queue rule her kit needs, and her
  *  own base stat line. */
 export const CIACCONA_RESONATOR = new Resonator({
   id: 1407,
   name: "Ciaccona",
+  matrix: CIACCONA_MATRIX,
   talent: CIACCONA_TALENTS,
   inherent1: CI_INHERENT_1,
   inherent2: CI_INHERENT_2,

@@ -26,21 +26,22 @@ export interface TeamRun {
   teamKey: string;
   members: Member[];
   combo: Combo[];
-  /** [opener, loop 1, loop 2, loop 3] — only kept on a traced run; the table never reads them. */
+  /** Every section of the fight, the opener first and the cut one last — only kept on a traced run;
+   *  the table never reads them. */
   rotationLines: ChainGroup[][] | null;
-  /** DPS: the four rotations' damage over the time they took, per second. */
+  /** DPS: the 2 minute fight's damage, per second. */
   total: number;
   bySlot: Map<string, number>;
-  /** Each rotation's damage — the opener and the three loops. */
+  /** Each complete rotation's damage — the opener and every loop closed inside the 2 minutes: DPR is
+   *  their average. */
   sectionTotals: number[];
   sectionBySlot: Map<string, number>[];
-  /** Every hit of the four rotations. */
+  /** Every hit of the 2 minute fight. */
   fightTotal: number;
   fightBySlot: Map<string, number>;
-  /** How long the four rotations took, in seconds — what DPS and the loop length divide by. */
+  /** How long the fight ran, in seconds: the 2 minutes it is cut at — what DPS divides by. */
   seconds: number;
-  /** How long each rotation took, in seconds — first cast to the next rotation's (the fight's end
-   *  for the last); they add up to `seconds`. */
+  /** How long each complete rotation took, in seconds — first cast to the next rotation's. */
   sectionSeconds: number[];
   /** Per member, per main-stat variant scored alongside this run (state.ts's `TeamMember.variants`). */
   variantRuns: VariantRun[][];
@@ -245,8 +246,8 @@ export function collapseFields(sections: ChainGroup[][]): ChainGroup[][] {
 /** `damage` dealt over `frames`, per second. */
 const perSecond = (damage: number, frames: number): number => (damage * 60) / frames;
 
-/** A run's figures: the rotations (the first `complete` sections), each on its own and together as
- *  DPS over the frames they took, and the whole fight's damage beside them. */
+/** A run's figures: each complete rotation (the first `complete` sections) on its own, and every hit of
+ *  the fight, the cut section's included, as DPS over its frames and as its whole damage. */
 type RunSums = Pick<TeamRun, "total" | "bySlot" | "sectionTotals" | "sectionBySlot" | "fightTotal" | "fightBySlot" | "seconds">;
 
 /** One walk over a fight's hits (all whole numbers): the run's figures off each member's own hits, or where
@@ -312,13 +313,11 @@ function sumHits(sections: HitRecord[][], complete: number, frames: number, memb
       for (const k of s.order) {
         const x = s.by[k]! + (delta ? delta[v * stride + k]! : 0);
         by.set(slotNames[k]!, x);
-        if (sec < complete) {
-          if (whole[k] === undefined) {
-            whole[k] = 0;
-            wholeOrder.push(k);
-          }
-          whole[k] = whole[k]! + x;
+        if (whole[k] === undefined) {
+          whole[k] = 0;
+          wholeOrder.push(k);
         }
+        whole[k] = whole[k]! + x;
       }
       const sum = v < 0 ? s.total : s.total + s.deltaTotal[i]![v]!;
       if (sec < complete) {
@@ -339,7 +338,7 @@ function sumHits(sections: HitRecord[][], complete: number, frames: number, memb
   // what the search ranks by, made now; the rest the first time a row that ships reads it
   const variantTotal = (i: number, v: number): number => {
     const whole: number[] = [], wholeOrder: number[] = [];
-    for (let sec = 0; sec < complete; sec++) {
+    for (let sec = 0; sec < secs.length; sec++) {
       const s = secs[sec]!, delta = s.deltaBy[i]!;
       for (const k of s.order) {
         if (whole[k] === undefined) {
@@ -539,8 +538,9 @@ function askedOf(teamKey: string, members: Member[], combo: Combo[], i: number, 
 /** @param trace  keep per-entry traces and the resolved lines (the detail page); off for the bulk pass.
  *  @param variants  per member, combos differing from `combo` in that member's main stat alone, to
  *  score as engine variants of it (not with `trace`).
- *  @param sections  how many rotations the fight plays: 1 is the opener alone (a timing bench). */
-export function runTeam(teamKey: string, members: Member[], combo: Combo[], trace = false, variants: (Combo[] | null)[] | null = null, sections = 4): TeamRun {
+ *  @param sections  how many rotations the fight plays: 1 is the opener alone (a timing bench); left
+ *  out, they play on until the fight is cut at 2 minutes (`FIGHT_FRAMES`). */
+export function runTeam(teamKey: string, members: Member[], combo: Combo[], trace = false, variants: (Combo[] | null)[] | null = null, sections = Infinity): TeamRun {
   // a solo team only benches an opener: past it, its Outro hands back to someone who never left
   if (members.length < 2 && sections > 1) throw new Error(`${teamKey}: a team of one plays its opener alone, not ${sections} rotations`);
   // restored, not cleared: `erRollsFor` probes a team by running it, and that run sits *inside* the
@@ -727,13 +727,16 @@ export function runFixed(teamKey: string, members: Member[], combo: Combo[], ext
   const outer = ctx.tracing;
   setTracing(false);
   try {
-    return runTeamInner(teamKey, members, combo, false, null, erRollsFor(teamKey, members, combo), [], false, 4, extra);
+    return runTeamInner(teamKey, members, combo, false, null, erRollsFor(teamKey, members, combo), [], false, Infinity, extra);
   } finally {
     setTracing(outer);
   }
 }
 
-function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace: boolean, variants: (Combo[] | null)[] | null, erRolls = erRollsFor(teamKey, members, combo), guard: boolean[] = [], replay = false, count = 4, extra: Gear[][] = []): TeamRun {
+/** The fight's length, in game frames: every rotation it fits plays, and it is cut at 2 minutes. */
+const FIGHT_FRAMES = 120 * 60;
+
+function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace: boolean, variants: (Combo[] | null)[] | null, erRolls = erRollsFor(teamKey, members, combo), guard: boolean[] = [], replay = false, count = Infinity, extra: Gear[][] = []): TeamRun {
   const state = new State(members.map((m) => m.name));
   // this combo's requirement as known now, read once for every member's variants
   let own: number[] | undefined;
@@ -770,15 +773,15 @@ function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace:
   // the enemy is equipped like a member: the Tune Break resonator fires the break itself (tunebreak.ts)
   withTeam(state, () => equipEnemy(TUNE_BREAK_ENEMY));
 
-  // one continuous fight of `count` rotations (four for a score), the opener the first of them
-  const { sections, starts, end: frames, blind } = runRotations(state, members.map((m, i) => m.loadout.rotationAt(combo[i]!.sequence)), count);
+  // one continuous fight, the opener first: `count` rotations, or as many as fit before the 2 minute cut
+  const { sections, starts, end: frames, complete, blind } = runRotations(state, members.map((m, i) => m.loadout.rotationAt(combo[i]!.sequence)), count,
+    count === Infinity ? FIGHT_FRAMES : Infinity);
   // a handoff that went blind is played again, every visit's successor known by now
   if (blind && !replay) return runTeamInner(teamKey, members, combo, trace, variants, erRolls, guard, true, count, extra);
   if (trace) settleGauges(sections.flat() as ResolvedSnapshot[]);
-  const complete = sections.length;
-  // the report's lines, which only a traced run hands back
+  // the report's lines, which only a traced run hands back: the whole 2 minutes
   const rotationLines = trace ? sections.map(toLines) : null;
-  const sectionSeconds = starts.map((at, k) => ((starts[k + 1] ?? frames) - at) / 60);
+  const sectionSeconds = starts.slice(0, complete).map((at, k) => ((starts[k + 1] ?? frames) - at) / 60);
 
   // a rotation's damage is the hits landing inside its frames, swap to swap, whatever row shows them
   const hits: HitRecord[][] = starts.map(() => []);

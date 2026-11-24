@@ -12,7 +12,7 @@ import {
 import type { Type, Subtype, StatKey, Tag } from "../engine/stats.js";
 import { effectiveShred, defFactorOf, OWN_DEF, effectiveRes, damageFactors, RESONATOR_LEVEL, LEVEL_90_DOT, LEVEL_90_TUNE } from "../engine/damage.js";
 import type { DamageFactors } from "../engine/damage.js";
-import { BASE_RESISTANCE } from "../resonators/tunebreak.js";
+import { BASE_RESISTANCE, TUNE_BREAK } from "../resonators/tunebreak.js";
 import type { Action, Bullet } from "../engine/rotation.js";
 import { hitDamage } from "../engine/evaluate.js";
 import type { ChainGroup, ResolvedSnapshot, HitDamage } from "../engine/evaluate.js";
@@ -224,7 +224,8 @@ const actionInfo = (snap: ResolvedSnapshot): InfoEntry[] => {
   push("Subtype", kinds((h) => h.subtype));
   // the frames are the whole press's, however it was cut or swapped out of
   let press = action;
-  while (press.cancelOf ?? press.formOf) press = (press.cancelOf ?? press.formOf)!;
+  // a kit's own Tune Break is a form of the placeholder one: stop on the kit's
+  while ((press.cancelOf ?? press.formOf) && (press.cancelOf ?? press.formOf) !== TUNE_BREAK) press = (press.cancelOf ?? press.formOf)!;
   push("Cast Position", press.castPosition === null ? null : POSITION_NAME[press.castPosition]);
   push("End Position", press.endPosition === null ? null : POSITION_NAME[press.endPosition]);
   push("Animation", `${press.animFrames}f`);

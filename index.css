@@ -88,29 +88,34 @@ body {
   flex: 1;
 }
 
-/* -------------------------------------------------------------------- topbar */
+/* ------------------------------------------------------------------ back button */
 
-.topbar {
-  flex: none;                       /* stays put; <main> below it is what scrolls */
-  display: flex;
-  flex-wrap: wrap;
+/* The team page's way back (team.ts), floating over its top left corner: it takes no row of its own.
+   A frosted pill, so it reads over the backdrop art without a flat box of its own. */
+.backbtn {
+  position: fixed;
+  top: 14px;
+  left: 22px;
+  z-index: 50;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px 14px;
-  padding: 14px 26px;
-  border-bottom: 1px solid var(--line);
-  background: var(--bg);
-}
-.backlink {
-  color: var(--ink-2);
-  font-size: 12.5px;
-  font-weight: 600;
+  gap: 8px;
+  padding: 9px 20px 9px 16px;
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-radius: 999px;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+  backdrop-filter: blur(10px) saturate(1.3);
+  box-shadow: 0 8px 24px -10px rgba(0, 0, 0, .85);
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: .2px;
   text-decoration: none;
+  transition: background .12s, border-color .12s;
 }
-.backlink:hover { color: var(--ink); }
-/* the bar is the back link and nothing else, so the table page has no bar at all rather than
-   an empty strip across the top of it (index.ts's own `renderComparison`/`renderDetail`) */
-.topbar[hidden] { display: none; }
+.backbtn .arrow { font-size: 16px; line-height: 1; transition: transform .12s; }
+.backbtn:hover { background: color-mix(in srgb, var(--bg) 35%, transparent); border-color: color-mix(in srgb, var(--accent) 65%, transparent); }
+.backbtn:hover .arrow { transform: translateX(-3px); }
 
 /* ------------------------------------------------------------------- loading */
 
@@ -284,6 +289,9 @@ body {
 .rpane:not([data-pane="team"]) { position: absolute; inset: 0; }
 .rpane:not(.on) { visibility: hidden; }
 .rpanes .rpane > .rtable { flex: 1; width: auto; min-height: 0; }
+/* the upper tables wear no 1px ring (`--sh-2`): it showed as a stray grey edge where
+   the cells stop short of the box */
+.rpanes .rtable { box-shadow: var(--sh-drop); }
 /* Team's member columns share out whatever width a wider pane sets, as Distribution's do */
 /* ...and Menu Stats, its last row, takes whatever height is left */
 .rpanes .rpane > .rtable.loadout { grid-template-columns: max-content repeat(var(--cols), minmax(max-content, 1fr)); grid-template-rows: repeat(6, max-content) 1fr; }
@@ -895,7 +903,8 @@ main {
   top: var(--headtop, 0px);
   z-index: 5;
   background: var(--surface-3);
-  padding: 9px 10px;
+  /* 27px, a little under a row's 29 */
+  padding: 5px 10px;
   font-size: 11px;
   font-weight: 650;
   text-transform: uppercase;
@@ -942,9 +951,10 @@ main {
 /* `flex-start`, not `center`: the name reads from the top of a tall row like every other cell */
 .trow .c.name.res { cursor: pointer; display: flex; align-items: flex-start; gap: 7px; }
 .trow .c.name.res .res-label { overflow: hidden; text-overflow: ellipsis; }
-/* resonator portraits and weapon art before a name (page/icons.ts); a table row's own 17px line */
-.icon { display: inline-block; width: 1.35em; height: 1.35em; vertical-align: -0.3em; margin-right: 0.35em; border-radius: 3px; object-fit: cover; flex: none; }
-.trow .c .icon { width: 17px; height: 17px; vertical-align: top; }
+/* resonator portraits and weapon art before a name (page/icons.ts), 20px everywhere; in the table
+   it hangs 1.5px into the padding either side, so a row keeps its 17px line */
+.icon { display: inline-block; width: 20px; height: 20px; vertical-align: middle; margin-right: 0.35em; border-radius: 3px; object-fit: cover; flex: none; }
+.trow .c .icon { vertical-align: top; margin-top: -1.5px; margin-bottom: -1.5px; }
 .trow .c.name.res .icon { margin-right: 0; }
 /* a chip's own gap spaces its picture from its name, as a name cell's does */
 .rchip .icon { margin-right: 0; }
@@ -1308,7 +1318,7 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 .head .c {
   /* one more pixel of right padding than the cells below (`.c`), so a heading sitting right
      against its column's own right edge is not quite as tight as the figures under it */
-  padding: 7px 6px 7px 2px;
+  padding: 5.5px 6px 5.5px 2px;
   /* smaller than the cells below on purpose: uppercase + letter-spacing at the body size would
      outrun the narrow columns, whose tracks are sized off their values, not their headings */
   font-size: 11px;
@@ -1834,105 +1844,132 @@ main.stack { padding: 0 12px 420px; }
   .tcsearch { max-width: none; }
 }
 
-
-/* ------------------------------------------------------------------ tutorial */
-
-/* The first-run walkthrough (page/tutorial.ts, which measures and places everything in here):
-   a card in the empty band left of the table with a curved arrow into the tenth row. Fixed to
-   the viewport, so scrolling the table below leaves the pair where they are. Over the pinned
-   headers, popovers and hover panels (200), under a run in progress (#loading, 300). */
-.tut {
-  position: fixed;
-  inset: 0;
-  z-index: 250;
-  /* the page keeps working around it — only the card itself takes clicks */
-  pointer-events: none;
-}
-.tut[hidden] { display: none; }
-
-/* no viewBox: the path is drawn straight in the viewport pixels the card was measured in */
-.tut-arrow {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-}
-/* A solid line at the width of the ring it leads to (below), which is dashed — the line is the
-   one thing on screen the eye follows end to end, and a broken one reads as a border. */
-.tut-path {
-  fill: none;
-  stroke: #3ddc7a;
-  stroke-width: 2px;
-  stroke-linecap: round;
-}
-.tut-arrow marker path { fill: #3ddc7a; }
-
-/* the fill is translucent rather than the whole card, so the page reads through it while its own
-   text stays at full ink */
-/* Whatever the tutorial is pointing at, ringed in the card's own green so the arrow lands on
-   something the eye can already see. */
-/* Inside its own box, not outside it: a ring drawn past the edge is clipped by whatever the target
-   stands in — the menu clips its lines (`overflow: hidden` for its corners), and the aside clips
-   the search bar the same way it clips the Clear Filters underline — and a neighbouring cell would
-   paint its background over the rest. */
-.tut-target, .c.tut-target {
-  /* dashed rather than dotted: the dashes an outline draws are three times its width, which is as
-     long as CSS lets them be without drawing the ring by hand — and at the arrow's own width, so
-     the line and the ring it lands on are the same mark */
-  outline: 2px dashed #3ddc7a;
-  outline-offset: -2px;
-}
-/* ...and over its neighbours all the same, so a cell wearing an inset outline of its own (the
-   selected figure's `z-index: 1`) cannot paint across the edge they share. Not on the search bar:
-   it is already a positioned box, and a stacking context there would trap its results list under
-   the table's pinned header. */
-.c.tut-target, .rchip.tut-target, .ctxitem.tut-target {
-  position: relative;
-  z-index: 2;
-}
-
-.tut-box {
-  position: absolute;
-  pointer-events: auto;
-  padding: 14px 16px;
-  border: 1px solid #3ddc7a;
-  background: rgba(18, 87, 47, .78);
-  color: #fff;
-  box-shadow: var(--sh-drop);
-  font-size: 12.5px;
-  line-height: 1.55;
-}
-.tut-box p { margin: 0; }
-/* a line of text at the bottom left, not a button: the card is asking for something else */
-.tut-buttons { display: flex; justify-content: flex-start; margin-top: 12px; }
-.tut-skip, .tutstart {
-  font: inherit;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: #3ddc7a;
-  text-decoration: underline;
-  cursor: pointer;
-}
-.tut-skip { font-size: 11px; }
 /* The README's styled lines, each its own class on the line and never the bullet beside it: the beta
    notice in the table's own red (`.c.underspent`), the rotation-time warning in yellow. */
 .readme-beta { color: #e5484d; text-decoration: underline; }
 .readme-warn { color: #f5d042; text-decoration: underline; }
-/* the first card's whole ask: white, blue under the pointer */
-.tut-begin {
-  font: inherit;
-  font-size: 20px;
-  font-weight: 650;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: #fff;
+
+/* ------------------------------------------------------------------ banners */
+
+/* The banner tabs under the search bar while no filter is set (filterbar.ts's `bannersHtml`). A set is
+   one piece of art laid down at the set's width (16:9, so 56.25cqw tall), each box cutting out its own
+   strip: the banner the top 30%, any tabs under it the next 30% each. */
+.banners { display: flex; flex-direction: column; gap: 12px; max-width: 360px; }
+.bannerset { container-type: inline-size; display: flex; flex-direction: column; gap: 6px; }
+.banner {
+  position: relative;
+  width: 100%;
+  height: 16.875cqw;
+  padding: 0 18px;
+  display: flex;
+  align-items: flex-end;
+  border: 1px solid color-mix(in srgb, var(--mem) 45%, transparent);
+  border-radius: var(--r);
+  background: var(--surface) var(--art) no-repeat;
+  background-size: 100cqw auto;
+  background-position: 0 0;
+  box-shadow: var(--sh-drop);
+  overflow: hidden;
   cursor: pointer;
+  font: inherit;
+  text-align: left;
 }
-/* the table's own marker, nudged the same way on hover */
-.tut-begin .arrow { display: inline-block; margin-left: 6px; transition: transform .12s; }
-.tut-begin:hover .arrow { transform: translateX(2px); }
-.tut-begin:hover { color: var(--accent); }
-.tut-skip:hover, .tutstart:hover { color: #8bf0b4; }
+.banner.sub { padding: 0 14px; background-position: 0 -16.875cqw; }
+.banner.sub + .banner.sub { background-position: 0 -33.75cqw; }
+/* a dark wash from the bottom-left, so the title reads over any art */
+.banner::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(20deg, rgba(0, 0, 0, .78) 0%, rgba(0, 0, 0, .35) 45%, transparent 75%);
+  transition: opacity .12s;
+}
+.banner:hover { border-color: var(--mem); }
+.banner:hover::before { opacity: .75; }
+.banner-title {
+  position: relative;
+  padding-bottom: 10px;
+  color: var(--mem);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: .3px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .9);
+}
+.banner.sub .banner-title { padding-bottom: 8px; font-size: 13px; }
+.banner-title .arrow { display: inline-block; margin-left: 6px; transition: transform .12s; }
+.banner:hover .banner-title .arrow { transform: translateX(2px); }
+
+/* The team page's backdrop (detail.ts's `setBackdrop`): its top damage dealer's banner art, fixed to
+   the viewport so it holds still under a scroll, blurred and darkened so the tables read over it.
+   Past the edges by its blur, so the soft rim falls outside the window. */
+.backdrop {
+  position: fixed;
+  inset: -16px;
+  z-index: -1;
+  background: var(--bg) center / cover no-repeat;
+  filter: blur(4px) brightness(.42) saturate(1.1);
+  pointer-events: none;
+}
+body.backdropped { background: transparent; }
+
+/* ------------------------------------------------------------------ tier list cards */
+
+/* The Tier List (tierlist.ts's `render`): the table spans all the room left of the aside, a tier per
+   row, and each block's cards wrap inside a column a third of what is left. */
+.tierpage .tclayout::before { display: none; }
+.tierpage .tcbody { flex: 1 1 0; margin-left: 0; }
+.tierpage .tcwrap { width: 100%; }
+.tierpage .tgrid { grid-template-columns: max-content 6px 1fr 6px 1fr 6px 1fr !important; }
+.tierpage .trow.thead .c.tierhead { text-align: center; }
+.tierpage .trow .c.tier { font-size: 18px; padding: 6px 18px; }
+.tierpage .trow:not(.thead):hover .c { background: transparent; }
+.tierpage .trow:not(.thead):hover .c.tier { background: color-mix(in srgb, var(--tier) 16%, var(--surface)); }
+.tierpage .trow .c.tiercards {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 8px 6px;
+  padding: 8px 10px;
+  white-space: normal;
+  overflow: visible;
+}
+/* a card: the portrait square on the resonator's colour with a bar of it along the bottom, the cost
+   over its bottom right corner, and the best team's figure centred under it (a green arrow after it
+   for a Matrix Buff). The portrait is 80px, served pre-shrunk at 80 and 160 (icons.ts's `portraitNamed`),
+   so it stays sharp at 1x and 2x. */
+.tcard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 82px;
+  color: var(--ink);
+  text-decoration: none;
+}
+.tcard-art {
+  position: relative;
+  width: 80px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--mem) 55%, #000), color-mix(in srgb, var(--mem) 85%, #000));
+  border-bottom: 4px solid var(--mem);
+  transition: transform .12s;
+}
+.tcard-img { display: block; width: 80px; height: 80px; }
+.tcard-cost {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  padding: 0 4px;
+  border-top-left-radius: 4px;
+  background: rgba(10, 11, 14, .82);
+  color: var(--mem);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 13px;
+}
+.tcard-up { margin-left: 3px; color: #39ff14; font-size: 9px; }
+.tcard-dpr { font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; text-align: center; }
+a.tcard:hover .tcard-art { transform: translateY(-2px); }
+a.tcard:hover .tcard-dpr { color: var(--accent); }

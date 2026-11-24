@@ -45,6 +45,9 @@ import { ActionGroup, Action, Rotation, SWAPIN, START_LAST, SUCCESSFUL_DODGE } f
 import { HEALS, heal } from "../status.js";
 import {
   TUNE_BREAK, TUNE_RUPTURE_INTERFERED, TUNE_STRAIN_INTERFERED, tuneRuptureResponse, strainPayout,
+  BROADBLADE_BREAK,
+  tuneBreak,
+  midairBreak,
 } from "../tunebreak.js";
 import { STARFIELD_CALIBRATOR } from "../../weapons/broadblade.js";
 import { DISCORD } from "../../weapons/standard.js";
@@ -425,6 +428,8 @@ const MORNYE_RESONATOR = new Resonator({
   // Wide Field Observation Mode ends on a swap, so she always arrives in Baseline Mode; no mid-air chain, only the plunge
   swapIn: BA1,
   swapInAir: MA,
+  // the sword's break, but it leaves him in mid-air
+  tuneBreak: midairBreak(tuneBreak(94, 94, [0, 94], [0, 64], BROADBLADE_BREAK)),
   maxEnergy: 17500,
   forteScale: [0.01, 0.01, 1, 1, 1],
   maxForte1: 10000,

@@ -17,8 +17,6 @@ import {
   teamRows,
   ROW_CAP,
   resonatorFilters,
-  resonatorLabel,
-  refineFilters,
   OPTION_FILTER_MAPS,
   pruneGearFilters,
   settleLevels,
@@ -26,7 +24,13 @@ import {
   prospectiveRows,
   sequenceTag,
   refineTag,
-  weaponTag,
+  costTag,
+  included,
+  memberTag,
+  joinTag,
+  weaponPart,
+  carryTags,
+  syncTagShows,
   syncHash,
   MATRIX_RESONATORS,
   pinnedRows,
@@ -38,9 +42,10 @@ import type { SearchKind, SearchHit } from "./filterbar.js";
 import { esc, deferredPop, rect, zoom, clearPops, subsLabel, CLICK, dropPanel, holdPanels, copyBlock } from "./panels.js";
 import { HOLD, watchTouch, swallowClick, grabDot, makeDot } from "./cellpick.js";
 import type { CopyMode } from "./panels.js";
+import { snapshotCells } from "./snapshot.js";
+import { memberOfId, BANNERS } from "./banners.js";
 
 const app = document.getElementById("app")!;
-const topbar = document.getElementById("topbar")!;
 
 import { focusSearch, clearSearch, searchHits, searchChoice, cycleSearch, comparisonFilters, AXIS_LABEL, scopedLabel } from "./filterbar.js";
 
@@ -96,9 +101,11 @@ export function rowCapWarning(total: number | null): void {
  *  `apply` is what a committed change ends in: the full solve-and-run pass by default. */
 function withRowCap(change: () => () => void, apply: () => void = () => void refresh()): void {
   const undo = change();
+  syncTagShows();
   const total = prospectiveRows();
   if (total > ROW_CAP) {
     undo();
+    syncTagShows();
     rowCapWarning(total);
     focusAfterDraw = undefined;
     return;
@@ -341,9 +348,9 @@ const pinCell = (key: string): string => {
 
 /** A gear pick cell; `data-kind`/`data-value` are what the click handlers filter on. Empty when
  *  the axis is open at this position but not for this member. */
-function optionCell(kind: OptionKind, value: string, color: string, lines: string[] = [value], resonator = "", icons: string[] = []): string {
-  // a weapon reads in its own colour (`weaponHue`), as a resonator's name does in hers
-  const style = kind === "weapon" && value ? `--mem:${color};color:${color}` : `--mem:${color}`;
+function optionCell(kind: OptionKind | "weapon", value: string, color: string, lines: string[] = [value], resonator = "", icons: string[] = [], ink = ""): string {
+  // the wash is the member's; a weapon's text reads in its own colour (`weaponHue`)
+  const style = ink ? `--mem:${color};color:${ink}` : `--mem:${color}`;
   if (!value) return `<div class="c option" style="${style}"></div>`;
   return `<div class="c option" data-kind="${kind}" data-value="${esc(value)}"${resonator ? ` data-resonator="${esc(resonator)}"` : ""} style="${style}">${lines.map((line, k) => (icons[k] ?? "") + esc(line)).join("<br>")}</div>`;
 }
@@ -358,13 +365,13 @@ const personalOpen = [false, false, false];
  *  `personalOpen` opens on, so each new Compare opens the figure it is a share of. */
 const cmpDrawn = new Set<string>();
 /** What the team column reads, switched by clicking its heading — and what the table ranks by: the
- *  four rotations, as the damage one of them does on average (DPR, beside how long one takes) or as
- *  the rate over the time they took (DPS). */
+ *  damage a complete rotation does on average (DPR, beside how long one takes), or the whole 2 minute
+ *  fight's damage per second (DPS). */
 export let teamMode: "dpr" | "dps" = "dpr";
 const TEAM_HEAD = { dpr: "Team Avg DPR", dps: "Team DPS" };
-const wholeDamage = (run: TeamRun): number => run.sectionTotals.reduce((a, b) => a + b, 0);
-export const teamFigure = (run: TeamRun): number =>
-  Math.floor(wholeDamage(run) / (teamMode === "dpr" ? Math.max(1, run.sectionTotals.length) : run.seconds));
+export const teamFigure = (run: TeamRun): number => Math.floor(teamMode === "dpr"
+  ? run.sectionTotals.reduce((a, b) => a + b, 0) / Math.max(1, run.sectionTotals.length)
+  : run.fightTotal / run.seconds);
 /** One member's share of those sections, always per section whatever the team column reads. */
 export const personalFigure = (run: TeamRun, name: string): number =>
   Math.floor(run.sectionBySlot.reduce((a, by) => a + (by.get(name) ?? 0), 0) / Math.max(1, run.sectionTotals.length));
@@ -520,6 +527,14 @@ function comparisonTable(rows: TeamRow[]): string {
     });
   }
   const multiWeapon = new Set([...worn].filter(([, byName]) => [...byName.values()].some((seen) => seen.size > 1)).map(([key]) => key));
+  // ...and a weapon the tag has to name (neither their signature nor their standard at the cost's rank)
+  // is read in that column whatever else the team's rows wear
+  for (const row of rows) {
+    row.members.forEach((m, pos) => {
+      const part = axisOpen(m, filters, "weapons") ? "" : weaponPart(m, row.combo[pos]!.weapon);
+      if (part && !/^R\d$/.test(part)) multiWeapon.add(`${row.teamKey}|${pos}`);
+    });
+  }
   for (const key of multiWeapon) {
     const pos = Number(key.slice(key.lastIndexOf("|") + 1));
     if (!openAt.weapons[pos]) soloWeapon[pos] = true;
@@ -650,7 +665,7 @@ function comparisonTable(rows: TeamRow[]): string {
       const gear = GEAR_AXES.map((axis) => {
         if (!openAt[axis][i]) return "";
         const open = axis === "weapons" ? inCell : showsRow(m, axis, combo);
-        const cell = axis === "weapons" ? optionCell("weapon", open ? combo.weapon.name : "", open ? weaponHue(combo.weapon) : m.color, [combo.weapon.name], m.name, [iconOf(combo.weapon)])
+        const cell = axis === "weapons" ? optionCell("weapon", open ? combo.weapon.name : "", m.color, [combo.weapon.name], m.name, [iconOf(combo.weapon)], open ? weaponHue(combo.weapon) : "")
           : axis === "echoes" ? optionCell("echo", open ? echoLabel(m.loadout, combo.echo) : "", m.color, open ? echoLines(m.loadout, combo.echo) : [], m.name, open ? [...combo.echo.sets, combo.echo.mainslot].map(iconOf) : [])
           // Neither a main-stat roll nor a substat spread is ever filtered on — they reach nobody
           // but their own wearer, so "every team using this roll" says nothing. Their cells carry
@@ -665,11 +680,11 @@ function comparisonTable(rows: TeamRow[]): string {
     const memberCells = run.members.map((m, i) => memberCell(m, run.combo[i]!, i)).join("");
     return `<div class="trow${rank.pinned ? " isbaseline" : ""}" style="--hue:${rank.hue}" data-team="${esc(key)}" data-team-key="${esc(run.teamKey)}"`
       + ` data-members="${esc(memberNames)}" data-total="${grand}">`
-      + pinCell(key)
       + memberCells
       + `<div class="c num total teamdpr" title="${CLICK} to view the team's damage breakdown"${deferredPop("dpr", key)}>${teamHtml(run)}</div>`
       + `<div class="c num total baseline" data-team="${esc(key)}" title="${CLICK} to measure every team against this one">${rank.pct}</div>`
       + `<div class="c gotodetail" data-team="${esc(key)}">view rotation<span class="arrow">›</span></div>`
+      + pinCell(key)
       + `</div>`;
   };
 
@@ -680,16 +695,16 @@ function comparisonTable(rows: TeamRow[]): string {
     + GEAR_AXES.map((axis) => (openAt[axis][i] ? `<div class="c">${AXIS_HEAD[axis]}</div>${cmpAt(axis, i) ? `<div class="c num">Compare</div>` : ""}` : "")).join("")
     + (dprAt(i) ? `<div class="c num">Personal</div>` : "");
   const head = `<div class="trow thead">`
-    + `<div class="c pinhead">Pin</div>`
     + memberHead(3, 0) + memberHead(2, 1) + memberHead(1, 2)
     + `<div class="c num dprhead" title="${CLICK} to switch between DPR and DPS">${TEAM_HEAD[teamMode]}</div>`
     + `<div class="c num huehead" title="${CLICK} to colour the column by rank">Compare</div>`
     + `<div class="c"></div>`
+    + `<div class="c pinhead">Pin</div>`
     + `</div>`;
 
   // one grid track per column rendered above, position by position
   const posCols = (i: number) => `max-content${cmpAt("sequences", i) ? " max-content" : ""}${cmpAt("refines", i) ? " max-content" : ""}${GEAR_AXES.map((axis) => (openAt[axis][i] ? ` max-content${cmpAt(axis, i) ? " max-content" : ""}` : "")).join("")}${dprAt(i) ? " max-content" : ""}`;
-  const gridStyle = `grid-template-columns:max-content ${posCols(0)} ${posCols(1)} ${posCols(2)} max-content max-content max-content`;
+  const gridStyle = `grid-template-columns:${posCols(0)} ${posCols(1)} ${posCols(2)} max-content max-content max-content max-content`;
 
   const rowLines = (run: TeamRun): number => Math.max(1, ...run.members.map((m, i) =>
     (openAt.echoes[i] && axisOpen(m, filters, "echoes")) ? echoLines(m.loadout, run.combo[i]!.echo).length : 1));
@@ -737,11 +752,11 @@ function comparisonTable(rows: TeamRow[]): string {
   // no `.teamdpr` on the ghost's Total cell: `drawWindow()` measures the row pitch off it
   // the heading is as wide as the figures under it can be too
   const ghost = (): string => `<div class="trow tghost" aria-hidden="true">`
-    + `<div class="c pin">${PIN_MARK}</div>`
     + ghostPos(0) + ghostPos(1) + ghostPos(2)
     + `<div class="c num total">${esc(widest(wide.total, TEAM_HEAD[teamMode]))}</div>`
     + `<div class="c num total baseline">${esc(wide.pct)}</div>`
     + `<div class="c gotodetail">view rotation<span class="arrow">›</span></div>`
+    + `<div class="c pin">${PIN_MARK}</div>`
     + `</div>`;
   tableView = { sorted, ranks, head, ghost, rowHtml, lines, extra };
   return `<main><div class="tclayout">`
@@ -752,6 +767,30 @@ function comparisonTable(rows: TeamRow[]): string {
     + `<div class="tcwrap"><div class="tgrid${hueShown ? " hued" : ""}" style="${gridStyle}">${head}${ghost()}</div></div>`
     + `</div></div></main>`;
 }
+
+/** A banner shows its resonator's teams; a sub-banner shows each of its resonators' teams and compares
+ *  the banner's on its axis. Each only adds what is missing, under the cost (`costTag`). */
+document.addEventListener("click", (e) => {
+  const el = (e.target as Element).closest<HTMLElement>(".banner");
+  const banner = BANNERS.find((b) => b.id === +(el?.dataset.banner ?? NaN));
+  const m = banner && memberOfId(banner.id);
+  if (!el || !banner || !m) return;
+  const sub = el.dataset.sub === undefined ? undefined : banner.subs?.[+el.dataset.sub];
+  withRowCap(() => {
+    const kept = [...resonatorFilters], before = sub ? [...filters[sub.compare]] : [];
+    for (const id of sub?.show ?? [banner.id]) {
+      const who = memberOfId(id);
+      if (who && !included(who.name)) resonatorFilters.set(costTag(who), "include");
+    }
+    if (sub && !filters[sub.compare].includes(m.name)) filters[sub.compare].push(m.name);
+    settleLevels();
+    return () => {
+      resonatorFilters.clear();
+      for (const [n, mode] of kept) resonatorFilters.set(n, mode);
+      if (sub) filters[sub.compare] = before;
+    };
+  });
+});
 
 /* ------------------------------------------------------------------------ scroll window */
 
@@ -854,14 +893,15 @@ let dotAt: [number, number] | null = null;
 let blockPress: { at: number; scale: number; moved: boolean } | null = null;
 let blocking = false;
 let bx = 0, by = 0;
-/** The two copy buttons under a finished block (`showCopyMenu`). */
+/** The copy buttons under a finished block (`showCopyMenu`). */
 let copyMenu: HTMLElement | null = null;
-/** What Ctrl+C copies as: the last of those two buttons pressed, kept across reloads — Discord
+/** What Ctrl+C copies as: the last of those buttons pressed, kept across reloads — an image
  *  until one is. */
 const COPY_MODE_KEY = "wuwa.copyMode";
-let copyMode: CopyMode = "discord";
+let copyMode: CopyMode = "image";
 try {
-  if (localStorage.getItem(COPY_MODE_KEY) === "sheets") copyMode = "sheets";
+  const kept = localStorage.getItem(COPY_MODE_KEY);
+  if (kept === "sheets" || kept === "discord") copyMode = kept;
 } catch { /* no storage */ }
 
 const rowTopOf = (i: number): number => i * rowHeight + tableView!.extra[i]! * lineHeight;
@@ -877,25 +917,22 @@ function clearBlock(): void {
   copyMenu = null;
 }
 
-/** The cell pressed, where a block can hold it: never Pin (the first track) or the rotation link (the last). */
+/** The cell pressed, where a block can hold it: never the heading, the rotation link or Pin (the last two tracks). */
 function pickable(target: Element): Element | null {
   const cell = target.closest?.(".tgrid .c");
   const row = cell?.parentElement;
-  if (!cell || !row) return null;
+  if (!cell || !row || row.classList.contains("thead")) return null;
   const at = [...row.children].indexOf(cell);
-  return at > 0 && at < row.children.length - 1 ? cell : null;
+  return at < row.children.length - 2 ? cell : null;
 }
 
-/** The row and track under page point `x`/`y`: the heading wherever it is pinned, else the row its
- *  height puts there. */
+/** The row and track under page point `x`/`y`: the row its height puts there, never the heading. */
 function blockCellAt(grid: HTMLElement, x: number, y: number): [number, number] {
   const heads = [...grid.querySelectorAll(".thead > .c")].map(rect);
-  // Pin (the first track) is never in a block: a drag over it stops at the column beside it
-  let col = 1;
-  while (col < heads.length - 1 && x >= heads[col + 1]!.left) col++;
-  const head = heads[0]!;
-  if (y < head.bottom) return [-1, col];
-  const at = y - rect(grid).top - head.height;
+  // the rotation link and Pin (the last two tracks) are never in a block: a drag stops beside them
+  let col = 0;
+  while (col < heads.length - 3 && x >= heads[col + 1]!.left) col++;
+  const at = y - rect(grid).top - heads[0]!.height;
   let lo = 0, hi = tableView!.sorted.length - 1;
   while (lo < hi) {
     const mid = (lo + hi + 1) >> 1;
@@ -906,21 +943,21 @@ function blockCellAt(grid: HTMLElement, x: number, y: number): [number, number] 
 }
 
 /** The row and track edges nearest page point `x`/`y` (cellpick.ts's `DotGrid`), from the heading's
- *  top (-1, unpinned) to the last row's bottom, and from Pin's right to the rotation link's left. */
+ *  first row's top to the last row's bottom, and from the table's left to the rotation link's left. */
 function blockEdgeAt(grid: HTMLElement, x: number, y: number): [number, number] {
   const heads = [...grid.querySelectorAll(".thead > .c")].map(rect);
   const n = tableView!.sorted.length;
   const at = y - rect(grid).top;
   const edgeY = (e: number): number => (e < 0 ? 0 : heads[0]!.height + rowTopOf(e));
-  let lo = -1, hi = n;
+  let lo = 0, hi = n;
   while (lo < hi) {
     const mid = (lo + hi + 1) >> 1;
     if (edgeY(mid) <= at) lo = mid;
     else hi = mid - 1;
   }
   const row = lo < n && edgeY(lo + 1) - at < at - edgeY(lo) ? lo + 1 : lo;
-  let col = 1;
-  for (let c = 2; c < heads.length; c++) if (Math.abs(heads[c]!.left - x) < Math.abs(heads[col]!.left - x)) col = c;
+  let col = 0;
+  for (let c = 1; c < heads.length - 1; c++) if (Math.abs(heads[c]!.left - x) < Math.abs(heads[col]!.left - x)) col = c;
   return [row, col];
 }
 
@@ -959,19 +996,19 @@ function paintBlock(): void {
   }
 }
 
-/** Under a finished block holding any column but Pin and the rotation link: Copy to Sheets and Copy
- *  to Discord, each copying the block and becoming what Ctrl+C copies as from then on. */
+/** Under a finished block holding any column but the rotation link and Pin: Copy as Image, Copy to
+ *  Sheets and Copy to Discord, each copying the block and becoming what Ctrl+C copies as from then on. */
 function showCopyMenu(): void {
   const wrap = app.querySelector<HTMLElement>(".tcwrap");
   const tracks = app.querySelectorAll(".tgrid .thead > .c").length;
-  // Pin is the first track and the rotation link the last, and neither is ever copied
-  if (!block || !wrap || block.c1 < 1 || block.c0 > tracks - 2) return;
+  // the rotation link and Pin are the last two tracks, and neither is ever copied
+  if (!block || !wrap || block.c0 > tracks - 3) return;
   copyMenu?.remove();
   const item = (mode: CopyMode, label: string): string =>
     `<button type="button" class="ctxitem" data-copy="${mode}">${label}</button>`;
   copyMenu = wrap.appendChild(document.createElement("div"));
   copyMenu.className = "copymenu";
-  copyMenu.innerHTML = item("sheets", "Copy to Sheets") + item("discord", "Copy to Discord");
+  copyMenu.innerHTML = item("image", "Copy as Image") + item("sheets", "Copy to Sheets") + item("discord", "Copy to Discord");
   paintBlock();
 }
 
@@ -1033,7 +1070,7 @@ function grabBlockDot(e: PointerEvent): void {
       const heads = [...grid.querySelectorAll(".thead > .c")].map(rect);
       return [heads[c]!.left, rect(grid).top + (r < 0 ? 0 : heads[0]!.height + rowTopOf(r))];
     },
-    limits: () => [[-1, 1], [tableView!.sorted.length, grid.querySelectorAll(".thead > .c").length - 1]],
+    limits: () => [[0, 0], [tableView!.sorted.length, grid.querySelectorAll(".thead > .c").length - 2]],
     aim: (from, to) => {
       const [r0, r1] = from[0] <= to[0] ? [from[0], to[0]] : [to[0], from[0]];
       const [c0, c1] = from[1] <= to[1] ? [from[1], to[1]] : [to[1], from[1]];
@@ -1116,14 +1153,18 @@ const cellText = (c: Element): string => {
 };
 
 /** Copy the block as `mode`, a row to a line — rows off the scroll window are drawn for it on the
- *  side. The Pin and rotation-link columns (the first and last tracks) are left out, headings and all.
+ *  side. The rotation-link and Pin columns (the last two tracks) are left out, headings and all.
  *  For Sheets, DPR's rotation time is a column of its own beside it, in plain seconds. */
 function copyTableBlock(mode: CopyMode): void {
   const view = tableView;
   const tracks = app.querySelectorAll(".tgrid .thead > .c").length;
   if (!block || !view) return;
-  const c0 = Math.max(block.c0, 1), c1 = Math.min(block.c1, tracks - 2);
+  const c0 = Math.max(block.c0, 0), c1 = Math.min(block.c1, tracks - 3);
   if (c0 > c1) return;
+  if (mode === "image") {
+    copyTableImage(block.r0, block.r1, c0, c1);
+    return;
+  }
   const tpl = document.createElement("template");
   const lines: string[][] = [];
   for (let i = block.r0; i <= block.r1; i++) {
@@ -1139,6 +1180,32 @@ function copyTableBlock(mode: CopyMode): void {
     }));
   }
   copyBlock(lines, mode);
+}
+
+/** Copy rows `r0`..`r1` over tracks `c0`..`c1` as a picture under their headings, as the table draws
+ *  them: the rows are drawn into a copy of the grid out of sight, with the same columns, and painted
+ *  off that (`snapshotCells`). */
+function copyTableImage(r0: number, r1: number, c0: number, c1: number): void {
+  const view = tableView;
+  const grid = app.querySelector<HTMLElement>(".tgrid");
+  const clip = navigator.clipboard;
+  if (!view || !grid || !clip || typeof ClipboardItem === "undefined") return;
+  const copy = grid.cloneNode(false) as HTMLElement;
+  let html = view.ghost();
+  for (let i = Math.min(r0, -1); i <= r1; i++) {
+    const at = view.sorted[i];
+    html += i < 0 ? view.head : view.rowHtml(at![0], at![1], view.ranks[i]!);
+  }
+  copy.innerHTML = html;
+  copy.querySelectorAll("img").forEach((img) => { img.loading = "eager"; });
+  // out of sight but laid out; the heading stops sticking, so it sits where its row is
+  Object.assign(copy.style, { position: "fixed", left: "-100000px", top: "0", pointerEvents: "none" });
+  copy.querySelectorAll<HTMLElement>(".thead > .c").forEach((c) => { c.style.position = "relative"; c.style.top = "0"; });
+  grid.parentElement!.appendChild(copy);
+  const cells = [...copy.querySelectorAll<HTMLElement>(":scope > .trow:not(.tghost)")]
+    .flatMap((row) => [...row.children].slice(c0, c1 + 1) as HTMLElement[]);
+  const png = snapshotCells(cells, getComputedStyle(grid.parentElement!).backgroundColor).finally(() => copy.remove());
+  clip.write([new ClipboardItem({ "image/png": png })]).catch(() => { /* nowhere to put it */ });
 }
 
 /** Ctrl+C copies the block as the copy button pressed last did. */
@@ -1214,15 +1281,6 @@ export function fitSide(): void {
   sideFit.observe(side);
 }
 
-/** The `i`th row of the sorted table as it stands in the DOM, clamped to the last row and null
- *  while the scroll window has it undrawn — the tutorial's anchor. */
-export function rowElementAt(i: number): HTMLElement | null {
-  const sorted = tableView?.sorted;
-  if (!sorted?.length) return null;
-  const key = sorted[Math.min(i, sorted.length - 1)]![0];
-  return [...app.querySelectorAll<HTMLElement>(".tgrid .trow[data-team]")].find((el) => el.dataset.team === key) ?? null;
-}
-
 /** Where the table was scrolled to when a detail page replaced it. */
 export let tableScrollTop = 0;
 export const rememberTableScroll = (): void => {
@@ -1240,7 +1298,6 @@ for (const type of ["pointerdown", "keydown", "wheel"]) {
 }
 
 export function renderComparison(): void {
-  topbar.hidden = true;
   clearPops();
   const scrollTop = app.querySelector(".tgrid") ? (app.querySelector("main")?.scrollTop ?? 0) : tableScrollTop;
   clearBlock();
@@ -1308,7 +1365,8 @@ document.addEventListener("change", (e) => {
   withRowCap(() => {
     const was = filters.cost, kept = [...resonatorFilters];
     filters.cost = select.value as TeamCost;
-    // a level filter follows the resonator to the level the new cost runs them at
+    // each tag follows the resonator to the build the new cost runs them at (`carryTags`)
+    carryTags(was, filters.cost);
     settleLevels();
     return () => {
       filters.cost = was;
@@ -1344,13 +1402,8 @@ const openNameMenu = (el: HTMLElement, x: number, y: number): void => {
   });
   // one block per tag the cell carries: its own two filters, then the compares scoped to it in the
   // same axis order the resonator's own lines above read in (`scopedItems` offers its own)
-  const scopedBlock = (tag: string | undefined, on: ScopedCompare["on"], gate: string, map: Map<string, ResonatorFilter>): MenuItem[] => (tag ? [
-    { label: `Show only ${tag} teams`, run: () => setFilter(map, tag, "include"), alt: () => setFilter(map, tag, "exclude") },
-    { label: `Hide ${tag} teams`, run: () => setFilter(map, tag, "exclude") },
-    ...scopedItems(resonator, on, gate).sort((a, b) => AXES.indexOf(a.axis) - AXES.indexOf(b.axis)),
-  ] : []);
-  // the resonator at the level this row runs them at, as the name cell reads it
-  const label = resonatorLabel(resonator, row?.run.combo[row.pos]!.sequence ?? 0);
+  // the resonator as this row runs them, level and weapon, as their tag reads (`memberTag`)
+  const label = row ? memberTag(row.run.members[row.pos]!, row.run.combo[row.pos]!) : resonator;
   const items: MenuItem[] = [
     // nothing to offer once they are already the ones shown — the bubble is where that comes back off
     ...(resonatorFilters.get(label) === "include" ? [] : [{
@@ -1372,7 +1425,8 @@ const openNameMenu = (el: HTMLElement, x: number, y: number): void => {
     ...(el.dataset.sequence ? scopedItems(resonator, "sequence", el.dataset.seqGate ?? "").sort((a, b) => AXES.indexOf(a.axis) - AXES.indexOf(b.axis)) : []),
     // with no weapon compare the row's own weapon takes its other ranks from here
     ...(row && !axisOpen(row.run.members[row.pos]!, filters, "weapons") ? rankItems(row.run, row.pos) : []),
-    ...scopedBlock(el.dataset.refine, "refine", el.dataset.refGate ?? "", refineFilters),
+    // the rank rides in the tag above; what is left is the compares scoped to it
+    ...(el.dataset.refine ? scopedItems(resonator, "refine", el.dataset.refGate ?? "").sort((a, b) => AXES.indexOf(a.axis) - AXES.indexOf(b.axis)) : []),
   ];
   showMenu(x, y, items);
 };
@@ -1390,9 +1444,9 @@ document.addEventListener("contextmenu", openNameMenuAt);
 // a gear pick cell, keyed by `data-kind`/`data-value` so one pair of handlers covers every axis
 const optionPick = (e: Event): [Map<string, ResonatorFilter>, string] | undefined => {
   const el = (e.target as Element).closest<HTMLElement>(".c.option");
-  const kind = el?.dataset.kind as OptionKind | undefined;
+  const kind = el?.dataset.kind as OptionKind | "weapon" | undefined;
   const value = el?.dataset.value;
-  return kind && value ? [OPTION_FILTER_MAPS[kind], value] : undefined;
+  return kind && value ? [kind === "weapon" ? resonatorFilters : OPTION_FILTER_MAPS[kind], value] : undefined;
 };
 /** A weapon cell reads "Verdant Summit R3": the weapon and, while ranks are what the rows differ
  *  by, the weapon at that rank each get their own lines. */
@@ -1403,13 +1457,16 @@ const openOptionMenu = (e: MouseEvent): void => {
   const [x, y] = [e.clientX, e.clientY];
   const [map, key] = pick;
   const el = (e.target as Element).closest<HTMLElement>(".c.option")!;
-  const kind = el.dataset.kind as OptionKind;
+  const kind = el.dataset.kind as OptionKind | "weapon";
   const resonator = el.dataset.resonator ?? "";
   const row = cellRun(el, resonator);
   const base = kind === "weapon" ? key.replace(/ R\d$/, "") : key;
-  // a weapon filters as the member wearing it, at the level they wear it at (`weaponTag`)
-  const tag = (name: string): string => (kind === "weapon" && row
-    ? weaponTag(row.run.members[row.pos]!, row.run.combo[row.pos]!.sequence, name) : name);
+  // a weapon filters as the member's tag wearing it, at the level they wear it at (`memberTag`)
+  const tag = (name: string): string => {
+    if (kind !== "weapon" || !row) return name;
+    const m = row.run.members[row.pos]!, w = m.loadout.refinements.flat().find((x) => x.name === name);
+    return w ? joinTag(m.name, row.run.combo[row.pos]!.sequence, weaponPart(m, w)) : name;
+  };
   const ranked = kind === "weapon" && (filters.refines.includes(resonator)
     || filters.scoped.some((s) => s.resonator === resonator && s.axis === "refines"));
   const axis = kind === "weapon" ? "weapons" : "echoes";
@@ -1417,8 +1474,8 @@ const openOptionMenu = (e: MouseEvent): void => {
   const items: MenuItem[] = [
     // the pick's own filters lead, so "Show only" is the top line whatever else the cell offers; a
     // weapon filters at the rank its cell reads
-    { label: `Show only ${key}`, run: () => setFilter(map, tag(key), "include"), alt: () => setFilter(map, tag(key), "exclude") },
-    { label: `Hide ${key}`, run: () => setFilter(map, tag(key), "exclude") },
+    { label: `Show only ${tag(key)}`, run: () => setFilter(map, tag(key), "include"), alt: () => setFilter(map, tag(key), "exclude") },
+    { label: `Hide ${tag(key)}`, run: () => setFilter(map, tag(key), "exclude") },
     // the weapon's own refines compare, then the ranks it would open shown one at a time
     ...(resonator && kind === "weapon" ? scopedItems(resonator, "weapon", base).flatMap((it) =>
       (it.axis === "refines" && row ? [it, ...rankItems(row.run, row.pos)] : [it])) : []),

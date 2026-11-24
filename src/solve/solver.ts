@@ -220,7 +220,7 @@ export const grantToOne = (cost: TeamCost): boolean => cost.includes("mdps");
  *  grant where they hold it. Null where the build declares no rotation that low (`minSequence`).
  *  Read the same whether or not the box is open — the search settles who holds the grant, and
  *  `picksKey()` does not carry the chain boxes, so opening one must not move it. */
-function costLevel(m: Member, cost: TeamCost, holds: boolean): number | null {
+export function costLevel(m: Member, cost: TeamCost, holds: boolean): number | null {
   const l = m.loadout;
   const max = l.sequences.length;
   if (!max) return l.minSequence ? null : 0;
@@ -230,7 +230,7 @@ function costLevel(m: Member, cost: TeamCost, holds: boolean): number | null {
 
 /** The rank index a lifted member runs `weapon` at: the cost's, capped by the ranks that weapon
  *  actually lists (a loadout may pin one rank rather than the whole five). */
-const costRefine = (m: Member, weapon: number, cost: TeamCost, holds: boolean): number =>
+export const costRefine = (m: Member, weapon: number, cost: TeamCost, holds: boolean): number =>
   Math.min(costGrant(cost, holds).refine, m.loadout.refinements[weapon]!.length - 1);
 
 /** Ranks a row at `p` runs its weapon at: every listed rank while refines are compared there, else
@@ -513,6 +513,28 @@ function bestMainstats(teamKey: string, members: Member[], picks: Pick[], who: n
   });
 }
 
+/** Who may hold the cost's grant on this team (`optimizeTeam` searches them): a main DPS it lifts —
+ *  a higher level, a higher rank, or (s0r1mdps) the one signature — else anyone it lifts, since a
+ *  main DPS already past it (a free S6) leaves it to the rest. Everyone where the cost lifts all. */
+export function grantHolders(members: Member[], filters: Filters): number[] {
+  if (!grantToOne(filters.cost)) return members.map((_, i) => i);
+  const lifts = (m: Member): boolean => costLevel(m, filters.cost, true) !== costLevel(m, filters.cost, false)
+    || m.loadout.refinements.some((_, w) => costRefine(m, w, filters.cost, true) > costRefine(m, w, filters.cost, false))
+    || (!sigForAll(filters.cost) && m.loadout.weapons.some((_, w) => isSignature(m.loadout, w)));
+  const main = members.flatMap((m, i) => (m.mainDps && lifts(m) ? [i] : []));
+  return main.length ? main : members.flatMap((m, i) => (lifts(m) ? [i] : []));
+}
+
+/** A member's build under `cost` with every box shut, holding its grant or not: the level, weapon and
+ *  rank `optimizeTeam` gives them. Null below every level their rotation covers. */
+export function costBuild(m: Member, cost: TeamCost, holds: boolean): { sequence: number; weapon: number; refine: number } | null {
+  const held = !grantToOne(cost) || holds;
+  const sequence = costLevel(m, cost, held);
+  if (sequence === null) return null;
+  const weapon = sigForAll(cost) || (cost === "s0r1mdps" && held) ? 0 : standardWeapon(m.loadout);
+  return { sequence, weapon, refine: costRefine(m, weapon, cost, held) };
+}
+
 /**
  * The team's best build: every weapon and echo set the cost allows on every member — and, where the
  * cost's grant goes to one main DPS, every choice of which one holds it — each with every
@@ -529,10 +551,7 @@ export function optimizeTeam(teamKey: string, members: Member[], filters: Filter
     shortOf(teamKey, members, trial.map((p, j) => comboOf(members[j]!.loadout, p))).every((s) => s === null);
   // who the one grant goes to: a main DPS, never a support, whatever it would buy — and never nobody
   // while one stands to take it, since a grant only adds kit and leaving it unheld ties at best
-  const holders: (number | null)[] = [];
-  if (one) {
-    for (let i = 0; i < members.length; i++) if (members[i]!.mainDps) holders.push(i);
-  }
+  const holders: (number | null)[] = one ? grantHolders(members, filters) : [];
   if (!holders.length) holders.push(null);
   const everyone = members.map((_, k) => k);
   let best: { picks: Pick[]; total: number; fills: boolean } | null = null;

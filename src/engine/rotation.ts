@@ -1858,7 +1858,9 @@ function staysOnField(a: Action): Action {
  * A section closes on the *last* slot's own Outro or swap — one full trip round the team — and the
  * next opens on that handoff frame: the incoming Intro, the outro's follow-ups and every hit landing
  * past it are the next section's. Trips go on until `count` sections have closed; the fight ends on
- * the final Outro or swap itself, and nothing landing past it counts.
+ * the final Outro or swap itself, and nothing landing past it counts. With a `limit` (game frames) they
+ * go on until the game timer reaches it instead: the fight is cut there, mid-visit, nothing pressed past
+ * it, and `complete` counts the sections that closed by then.
  */
 /** Why a team can't be scheduled at all, or `null` if it can — the checks the scheduler makes
  *  up front, per team, so a failure names the composition rather than surfacing mid-fight. Also
@@ -1907,21 +1909,26 @@ const rotationsKey = (rotations: Rotation[]): string => rotations.map((r) => {
 }).join(",");
 const ROTATION_ID_NEXT = { n: 0 };
 
-/** `blind`: a handoff found no successor learned yet (see `State.successorMissed`) — the caller
- *  plays the fight again, every successor now known. */
-export function runRotations(state: State, rotations: Rotation[], count: number): { sections: Result[][]; starts: number[]; end: number; blind: boolean } {
+/** A fight's rotations: each section's rows, the game frame each opens on, where the fight ended, how
+ *  many sections closed (all of them but a cut one), and `blind`: a handoff found no successor learned
+ *  yet (see `State.successorMissed`) — the caller plays the fight again, every successor now known. */
+export interface Fight { sections: Result[][]; starts: number[]; end: number; complete: number; blind: boolean }
+
+export function runRotations(state: State, rotations: Rotation[], count: number, limit = Infinity): Fight {
   // each member presses at their own rotation's delays (run() puts them in effect), the defaults after
   rotations.forEach((r, i) => {
     state.slots[i]!.delays = r.delays;
   });
+  state.fightEnd = limit;
   try {
-    return playRotations(state, rotations, count);
+    return playRotations(state, rotations, count, limit);
   } finally {
     useDelays(null);
+    state.fightEnd = Infinity;
   }
 }
 
-function playRotations(state: State, rotations: Rotation[], count: number): { sections: Result[][]; starts: number[]; end: number; blind: boolean } {
+function playRotations(state: State, rotations: Rotation[], count: number, limit: number): Fight {
   const why = teamPlayable(rotations, state.slots.map((s) => s.name));
   if (why) throw new Error(why);
   // Whoever has already played, and so which of the two forms of a chain an arrival takes: the
@@ -2000,16 +2007,31 @@ function playRotations(state: State, rotations: Rotation[], count: number): { se
   const starts: number[] = [0];
   let opensAt = 0;
   let section = 0;
-  // another visit is due until `count` sections have closed
-  const going = (): boolean => section + (closing ? 1 : 0) < count;
+  // another visit is due until `count` sections have closed, or the game timer reaches the limit
+  const going = (): boolean => section + (closing ? 1 : 0) < count && state.gameOf(Math.max(state.real, state.playsTo)) < limit;
   // the fight ends past the last handoff's swap, where the next Intro would have begun; the hits
   // still in flight land then, in the section that cast them
-  const finish = (): { sections: Result[][]; starts: number[]; end: number; blind: boolean } => {
+  const finish = (): Fight => {
     state.plannedGates = null;
     state.handoffWaits = false;
     const blind = state.successorMissed;
     state.successor = null;
     state.lastHandoff = null;
+    // Cut at the limit: a section opened at or past it never began, every row cast past it is gone,
+    // and a section counts as complete only where its closing handoff came by then
+    if (section + (closing ? 1 : 0) < count) {
+      const ends = [...starts.slice(1), closing ? opensAt : Infinity];
+      while (starts.length > 1 && starts[starts.length - 1]! >= limit) {
+        starts.pop();
+        out.pop();
+        ends.pop();
+      }
+      for (let k = 0; k < out.length; k++) out[k] = out[k]!.filter((r) => r.starts < limit);
+      out.forEach((rows, k) => {
+        for (const r of rows) r.section = k;
+      });
+      return { sections: out, starts, end: limit, complete: ends.filter((at) => at <= limit).length, blind };
+    }
     // The fight ends on the last trip's Outro or swap: that row stays, and whatever is still in
     // flight past it never lands.
     let end = 0, endReal = 0, cutoff = 0;
@@ -2041,7 +2063,7 @@ function playRotations(state: State, rotations: Rotation[], count: number): { se
     out.forEach((rows, k) => {
       for (const r of rows) r.section = k;
     });
-    return { sections: out, starts, end, blind };
+    return { sections: out, starts, end, complete: out.length, blind };
   };
 
   // The section the last slot has just outro'd or swapped out of ends with that visit: `closing`

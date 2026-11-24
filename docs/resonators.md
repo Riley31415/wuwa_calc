@@ -64,6 +64,8 @@ Wolflame). a value that needs decimals means the gauge needs a finer scale, neve
   own where it counts the whole press as it is cast (`RING_CONSUMED`'s spend)
 
 # wuwalab
+- `https://api.wuwalab.com/api/app/characters/<slug>` (e.g. `.../characters/lynae`) may be used to
+  implement and update kits: stats, `abilities[*]` frames and hits, per-hit resources, buffs
 - wuwalab's per-hit energy/concerto/off-tune/forte win over the kit's, but only where its hits' MV
   totals the kit's: it lists a repeated hit once (Lucy's Stage 1 is `12.15%*6+48.59%`, wuwalab shows
   two hits) and leaves out folded-in hits (Shorekeeper's Illation butterflies). a mismatch keeps the

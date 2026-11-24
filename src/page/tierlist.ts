@@ -3,26 +3,23 @@
  * blocks — Main DPS (the team's main DPS), Sub DPS (not its main DPS, 1 vigor) and Support (not its
  * main DPS, 2 vigor), at the link's Team Cost and with Matrix Buffs on or off as the link says.
  * Rows are banded into tiers of roughly equal size, cut per Team Cost on the solves without Matrix.
- * Clicking a Best Team DPR heading switches to Best Team DPS (plain DPS), ranked and tiered on that.
  */
-import { iconNamed } from "./icons.js";
+import { portraitNamed } from "./icons.js";
 import { fmt } from "./display.js";
 import { defaultFilters, hasBuild, bestKey } from "../solve/solver.js";
 import type { Filters, TeamCost } from "../solve/solver.js";
-import { TEAMS, RESONATOR_HUE, FALLBACK_HUE, bestPicks, loadSolves, saveSolves, filters, MATRIX_RESONATORS, applyHash, syncHash } from "./model.js";
+import { TEAMS, RESONATOR_HUE, FALLBACK_HUE, bestPicks, loadSolves, saveSolves, filters, MATRIX_RESONATORS, applyHash, syncHash, weaponPart } from "./model.js";
 import { costBox, matrixBox } from "./options.js";
 import { paint } from "./pool.js";
 import { overlay, overlayPhase, showError, ensureBestPicks } from "./loading.js";
-import { TWO_VIGOR, esc, dprOf, pageOf, drawPage, wireHelp, openHelp, clearBuilds } from "./roster.js";
+import { TWO_VIGOR, esc, dprOf, pageOf, buildOf, drawPage, wireHelp, openHelp, clearBuilds } from "./roster.js";
 
 const app = document.getElementById("app")!;
 
-/** A resonator's best team in one block: its figure (DPR, or DPS in DPS mode) and the team, for the label and the link. */
+/** A resonator's best team in one block: its Team Avg DPR and the team, for the card and the link. */
 interface Entry { name: string; dpr: number; teamKey: string }
-/** What the table ranks by: Best Team DPR (the default) or Best Team DPS — a heading's click flips it. */
-let dpsMode = false;
-/** The step every tier cut lands on: 100k DPR, or 1k DPS. */
-const cutStep = (): number => (dpsMode ? 1_000 : 100_000);
+/** The step every tier cut lands on: 100k DPR. */
+const CUT_STEP = 100_000;
 const BLOCKS = ["Main DPS", "Sub DPS", "Support"] as const;
 /** The tiers, best first. Where each starts is worked out per Team Cost (`cutsOf`). */
 const TIERS = [
@@ -32,7 +29,7 @@ const TIERS = [
   { name: "T3", color: "#45d6a4" },
   { name: "T4", color: "#5b9cff" },
 ];
-/** The lowest figure each tier but the last takes, best first: always a multiple of `cutStep()`. */
+/** The lowest figure each tier but the last takes, best first: always a multiple of `CUT_STEP`. */
 let cuts: number[] = [];
 const tierOf = (dpr: number): number => {
   const at = cuts.findIndex((from) => dpr >= from);
@@ -51,7 +48,7 @@ function cutsOf(entries: Entry[]): number[] {
   for (let t = 1; t < TIERS.length; t++) {
     const share = (dprs.length * t) / TIERS.length;
     const at = Math.min(dprs.length - 1, Math.max(1, Math.round(share)));
-    const step = cutStep();
+    const step = CUT_STEP;
     const mid = Math.sqrt(dprs[at - 1]! * dprs[at]!) / step;
     const off = (cut: number): number => Math.abs(dprs.filter((d) => d >= cut).length - share);
     const [down, up] = [Math.floor(mid) * step, Math.ceil(mid) * step];
@@ -76,7 +73,7 @@ function blocksOf(f: Filters): Entry[][] {
     if (!members.every((m) => hasBuild(m, f))) continue;
     const score = bestPicks.get(bestKey(teamKey, members, f))?.scores[0];
     if (!score) continue;
-    const dpr = dpsMode ? score.total : dprOf(score.sectionTotals);
+    const dpr = dprOf(score.sectionTotals);
     for (const m of members) {
       const block = best[m.mainDps ? 0 : TWO_VIGOR.has(m.name) ? 2 : 1]!;
       if ((block.get(m.name)?.dpr ?? -1) < dpr) block.set(m.name, { name: m.name, dpr, teamKey });
@@ -92,45 +89,46 @@ function compute(): void {
   blocks = blocksOf(tierFilters());
 }
 
+/** What a member costs in their best team: chain level and their signature's rank, "S0" at S0 on
+ *  anything else ("S0", "R1", "S2R1", "S6"). */
+function costOf(e: Entry): string {
+  const row = buildOf(e.teamKey);
+  const at = row ? row.members.findIndex((m) => m.name === e.name) : -1;
+  if (!row || at < 0) return "";
+  const combo = row.combo[at]!, part = weaponPart(row.members[at]!, combo.weapon);
+  return ((combo.sequence ? `S${combo.sequence}` : "") + (/^R\d$/.test(part) ? part : "")) || "S0";
+}
+
 function render(): void {
-  const cell = (e: Entry | undefined, i: number, band: string): string => {
-    // a sliver of gap opens each block after the first, outside its hover group
-    const gap = i ? `<div class="c tiergap${band}"></div>` : "";
-    const start = band;
-    if (!e) return `${gap}<div class="sec"><div class="c${start}"></div><div class="c${band}"></div></div>`;
+  // a card: the portrait on the resonator's colour with its bar under it, their cost over its corner, and
+  // the best team's figure centred beneath, linking to that team, with a green arrow where Matrix Buffs
+  // are on and their kit has one
+  const matrixOn = filters.matrix.length > 0;
+  const card = (e: Entry): string => {
     const href = pageOf(e.teamKey);
     const hue = RESONATOR_HUE.get(e.name) ?? FALLBACK_HUE;
-    const figure = href ? `<a href="${esc(href)}">${fmt(e.dpr)}</a>` : fmt(e.dpr);
-    // each block of a row its own box-less group, so a hover lights that block alone (index.css `.sec`)
-    return `${gap}<div class="sec"><div class="c name res${start}" style="--mem:${hue};color:${hue}">${iconNamed(e.name)}<span class="res-label">${esc(e.name)}</span></div>`
-      + `<div class="c num total${band}">${figure}</div></div>`;
+    const cost = costOf(e);
+    const mx = matrixOn && MATRIX_RESONATORS.has(e.name) ? `<span class="tcard-up" title="Matrix Buff">▲</span>` : "";
+    const tag = href ? "a" : "div";
+    return `<${tag} class="tcard"${href ? ` href="${esc(href)}"` : ""} style="--mem:${hue}" title="${esc(e.name)}${cost ? ` ${cost}` : ""}">`
+      + `<span class="tcard-art">${portraitNamed(e.name, "tcard-img")}${cost ? `<span class="tcard-cost">${esc(cost)}</span>` : ""}</span>`
+      + `<span class="tcard-dpr">${fmt(e.dpr)}${mx}</span></${tag}>`;
   };
-  // a band of rows per tier, as tall as its longest block, its name standing down the first column
+  // a row per tier: its name down the first column, then each block's cards wrapping in its own column
   const body = TIERS.map((tier, t) => {
     const inTier = blocks.map((b) => b.filter((e) => tierOf(e.dpr) === t));
-    const height = Math.max(...inTier.map((b) => b.length));
-    if (!height) return "";
-    return Array.from({ length: height }, (_, k) => {
-      const band = k === 0 && t > 0 ? " bandstart" : "";
-      // the tier's name, and a sliver of gap between it and the blocks, both standing down the band
-      const label = k === 0 ? `<div class="c tier${band}" style="--tier:${tier.color};grid-row:span ${height}">${tier.name}</div>`
-        + `<div class="c tiergap${band}" style="grid-row:span ${height}"></div>` : "";
-      return `<div class="trow">${label}${inTier.map((b, i) => cell(b[k], i, band)).join("")}</div>`;
-    }).join("");
+    if (!inTier.some((b) => b.length)) return "";
+    const band = t > 0 ? " bandstart" : "";
+    return `<div class="trow"><div class="c tier${band}" style="--tier:${tier.color}">${tier.name}</div>`
+      + inTier.map((b) => `<div class="c tiergap${band}"></div><div class="c tiercards${band}">${b.map(card).join("")}</div>`).join("")
+      + `</div>`;
   }).join("");
-  const head = `<div class="c"></div><div class="c tiergap"></div>` + BLOCKS.map((title, i) => `${i ? `<div class="c tiergap"></div>` : ""}<div class="c">${title}</div><div class="c num modehead" title="Click to switch between Best Team DPR and Best Team DPS">Best Team ${dpsMode ? "DPS" : "DPR"}</div>`).join("");
+  const head = `<div class="c"></div>` + BLOCKS.map((title) => `<div class="c tiergap"></div><div class="c tierhead">${title}</div>`).join("");
   const boxes = matrixBox(filters.matrix.length > 0, openHelp.has("matrix")) + costBox(filters.cost, openHelp.has("cost"));
-  drawPage(app, boxes, "", BLOCKS.length * 3 + 1, head, body);
+  drawPage(app, boxes, "", BLOCKS.length * 2 + 1, head, body);
 }
 
 wireHelp(app, render);
-
-app.addEventListener("click", (e) => {
-  if (!(e.target as Element).closest(".modehead")) return;
-  dpsMode = !dpsMode;
-  compute();
-  render();
-});
 
 // both options live in the link, as the main page's do (`tc=`, `mx=`)
 app.addEventListener("change", (e) => {

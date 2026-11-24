@@ -6,11 +6,12 @@ import { iconNamed, iconOf, weaponIconByName, echoLabelHtml } from "./icons.js";
 import { README } from "./readme.js";
 import { costBox, matrixBox } from "./options.js";
 import { TUNE_BREAK_ENEMY } from "../resonators/tunebreak.js";
-import { eligibleWeapons, sequenceLevels, scopedKey, axisUsed, weaponBase, echoLabel, echoPicks, axisOpen, AXES } from "../solve/solver.js";
+import { eligibleWeapons, sequenceLevels, scopedKey, axisUsed, weaponBase, echoLabel, echoPicks, axisOpen, costBuild, rankShown, AXES } from "../solve/solver.js";
 import type { Axis, TeamCost, ScopedCompare } from "../solve/solver.js";
-import { TEAMS, RESONATOR_HUE, filters, resonatorFilters, OPTION_FILTER_MAPS, tagOwner, weaponTag, weaponOwner, comparable, pinnedRows, rowFromKey, resonatorLabel, memberLevels, visibleRows } from "./model.js";
+import { TEAMS, RESONATOR_HUE, filters, resonatorFilters, OPTION_FILTER_MAPS, tagOwner, parseTag, joinTag, weaponPart, memberTag, isTagShow, comparable, pinnedRows, rowFromKey, memberLevels, visibleRows } from "./model.js";
 import type { ResonatorFilter, OptionKind } from "./model.js";
 import { esc, CLICK } from "./panels.js";
+import { BANNERS, bannerUrl, memberOfId } from "./banners.js";
 
 const app = document.getElementById("app")!;
 
@@ -52,23 +53,22 @@ function searchCandidates(): SearchHit[] {
   };
   for (const members of Object.values(TEAMS)) {
     for (const m of members) {
-      // each level they can run, named as the table names it
-      for (const level of memberLevels(m)) add("resonator", resonatorLabel(m.name, level));
-      // a weapon always by its rank: every rank while refines are compared, else the ones on screen
-      if (axisOpen(m, filters, "weapons") && axisUsed(m, filters, "refines")) {
+      // their builds under the cost, holding its grant or not, named as the table names them
+      for (const holds of [true, false]) {
+        const b = costBuild(m, filters.cost, holds);
+        if (b) add("resonator", joinTag(m.name, b.sequence, weaponPart(m, m.loadout.refinements[b.weapon]![b.refine]!)));
+      }
+      // ...and every weapon and rank they can wear while their Weapons or refines are compared
+      if (axisOpen(m, filters, "weapons") || axisUsed(m, filters, "refines")) {
         for (const level of memberLevels(m)) for (const i of eligibleWeapons(m, filters)) {
-          for (const w of m.loadout.refinements[i]!) add("weapon", weaponTag(m, level, w.name));
+          for (const w of m.loadout.refinements[i]!) add("resonator", joinTag(m.name, level, weaponPart(m, w)));
         }
       }
-      if (axisUsed(m, filters, "refines")) for (const i of eligibleWeapons(m, filters)) for (const w of m.loadout.refinements[i]!) add("refine", `${m.name} R${w.refinement}`);
       if (axisOpen(m, filters, "echoes")) for (const e of echoPicks(m, members)) add("echo", echoLabel(m.loadout, m.loadout.echoLoadouts[e]!));
     }
   }
-  for (const row of visibleRows) {
-    row.members.forEach((m, i) => {
-      if (axisOpen(m, filters, "weapons")) add("weapon", weaponTag(m, row.combo[i]!.sequence, row.combo[i]!.weapon.name));
-    });
-  }
+  // whatever the rows on screen run
+  for (const row of visibleRows) row.members.forEach((m, i) => add("resonator", memberTag(m, row.combo[i]!)));
   // a shown resonator also offers every compare their own name menu would, worded as the chip it
   // makes ("Qingxiao Sequences") — one already open is left to that chip to close
   for (const name of new Set([...resonatorFilters].filter(([, mode]) => mode === "include").map(([key]) => tagOwner(key)))) {
@@ -136,15 +136,13 @@ export function drawSearch(): void {
 function searchResults(): string {
   if (!searchText.trim()) return "";
   const KIND_LABEL: Record<SearchKind, string> = {
-    resonator: "Resonator", weapon: "Weapon", echo: "Echo", refine: "Refine",
-    compare: "Compare",
+    resonator: "Resonator", echo: "Echo", compare: "Compare",
   };
   const hits = searchHits();
   if (!hits.length) return `<div class="sresult none">no matches</div>`;
   return hits.map(({ kind, value, axis, resonator }, i) => {
     const hue = (kind === "resonator" ? RESONATOR_HUE.get(tagOwner(value))
-      : kind === "compare" ? RESONATOR_HUE.get(resonator ?? "")
-      : kind === "weapon" ? RESONATOR_HUE.get(weaponOwner(value)) : undefined) ?? TUNE_BREAK_ENEMY.color;
+      : kind === "compare" ? RESONATOR_HUE.get(resonator ?? "") : undefined) ?? TUNE_BREAK_ENEMY.color;
     // one target, not two halves: a result is only ever added to the pool, and the chip it makes
     // is where it is taken back off
     return `<button type="button" class="sresult${i === searchAt ? " sel" : ""}" data-kind="${kind}" data-value="${esc(value)}"`
@@ -166,19 +164,17 @@ function searchResults(): string {
 const openHelp = new Set<string>(["readme"]);
 
 export function comparisonFilters(): string {
-  // `extra` is markup of its own at the end of the list, which only the README has: the line that
-  // starts the tutorial over (page/tutorial.ts listens for it)
-  const note = (id: string, label: string, lines: string[], extra = "") => {
+  const note = (id: string, label: string, lines: string[]) => {
     const open = openHelp.has(id);
     return `<div class="tcopt note${open ? " open" : ""}" data-note="${id}"><div class="tcopt-head">`
       + `<button type="button" class="tcopt-name" data-help="${id}" aria-expanded="${open}">`
       + `${esc(label)}<span class="arrow">›</span></button></div>`
       + `<div class="tcopt-desc"${open ? "" : " hidden"}>`
-      + `<ul>${lines.map((l) => `<li>${l}</li>`).join("")}${extra}</ul></div></div>`;
+      + `<ul>${lines.map((l) => `<li>${l}</li>`).join("")}</ul></div></div>`;
   };
   return `<div class="tcfilters">
     <div class="tcfilter-row note">
-      ${note("readme", "README", README, `<li><button type="button" class="tutstart">How do I use this website? ${CLICK} here.</button></li>`)}
+      ${note("readme", "README", README)}
       ${matrixBox(filters.matrix.length > 0, openHelp.has("matrix"))}
       ${costBox(filters.cost, openHelp.has("cost"))}
       <div class="tcsearchrow">
@@ -188,9 +184,31 @@ export function comparisonFilters(): string {
           <div class="tcsearch-results" id="searchResults">${searchResults()}</div>
         </div>
         ${resonatorChips()}
+        ${bannersHtml()}
       </div>
     </div>
   </div>`;
+}
+
+/** The banner tabs under the search bar while no filter is set: each resonator's art from its top edge, the title in
+ *  their colour. A click shows their teams under the cost (table.ts, `costTag`). */
+function bannersHtml(): string {
+  const unfiltered = [...Object.values(OPTION_FILTER_MAPS), resonatorFilters].every((m) => m.size === 0) && filters.scoped.length === 0 && AXES.every((a) => !filters[a].length);
+  if (!unfiltered) return "";
+  const tabs = BANNERS.flatMap(({ id, title, subs = [] }) => {
+    const m = memberOfId(id);
+    const url = m && bannerUrl(m.loadout.resonator);
+    if (!m || !url) return [];
+    const arrow = `<span class="arrow">›</span>`;
+    // one piece of art under every box, each cutting out its own strip (index.css `.bannerset`)
+    return [`<div class="bannerset" style="--mem:${m.color};--art:url('${url}')">`
+      + `<button type="button" class="banner" data-banner="${id}" title="${CLICK} to show ${esc(m.name)}'s teams">`
+      + `<span class="banner-title">${esc(title)}${arrow}</span></button>`
+      + subs.map((s, k) => `<button type="button" class="banner sub" data-banner="${id}" data-sub="${k}"`
+        + ` title="${CLICK} to compare ${esc(m.name)}'s ${esc(AXIS_LABEL[s.compare])}"><span class="banner-title">${esc(s.title)}${arrow}</span></button>`).join("")
+      + `</div>`];
+  });
+  return tabs.length ? `<div class="banners">${tabs.join("")}</div>` : "";
 }
 
 export const AXIS_LABEL: Record<Axis, string> = {
@@ -201,15 +219,14 @@ export const AXIS_LABEL: Record<Axis, string> = {
 export const scopedLabel = (s: ScopedCompare): string =>
   s.on === "sequence" ? `${s.resonator} S${s.value}` : s.on === "refine" ? `${s.resonator} R${s.value}` : s.value;
 
-/** A filter as the table shows it: the resonator behind their portrait, at their level ("Qiuyuan
- *  S2"), and a weapon behind its art at its rank. */
+/** A filter as the table shows it: the resonator behind their portrait at their level and rank
+ *  ("Qiuyuan S2R1"), and any other weapon they wear behind its art at its rank. */
 function filterHtml(kind: SearchKind, value: string, resonator = ""): string {
   if (kind === "echo") return echoLabelHtml(value, esc);
   if (kind === "compare") return iconNamed(resonator) + esc(value);
-  if (kind !== "weapon") return iconNamed(tagOwner(value)) + esc(value);
-  const owner = weaponOwner(value);
-  const [, level = "", weapon = value] = /^( S\d+)? (.*)$/.exec(value.slice(owner.length)) ?? [];
-  return `${iconNamed(owner)}${esc(owner + level)}${weaponIconByName(value)}${esc(weapon)}`;
+  const t = parseTag(value);
+  if (!t.part || /^R\d$/.test(t.part)) return iconNamed(t.owner) + esc(value);
+  return `${iconNamed(t.owner)}${esc(joinTag(t.owner, t.sequence, ""))}${weaponIconByName(t.part)}${esc(t.part)}`;
 }
 
 /** One chip per filter set and per compare, in Shown/Hidden sections, plus Clear Filters — then
@@ -226,20 +243,19 @@ function resonatorChips(): string {
   }
   for (const [kind, map] of Object.entries(OPTION_FILTER_MAPS) as [OptionKind, Map<string, ResonatorFilter>][]) {
     for (const [name, mode] of map) {
-      const hue = kind === "refine" ? RESONATOR_HUE.get(tagOwner(name))
-        : kind === "weapon" ? RESONATOR_HUE.get(weaponOwner(name)) : undefined;
       bucket(mode).push(`<button type="button" class="rchip" data-kind="${kind}" data-value="${esc(name)}"`
-        + (hue ? ` style="--mem:${hue}"` : "")
         + ` title="${esc(name)} — rows using ${MODE_TITLE[mode]}. ${CLICK} to remove.">`
         + `${filterHtml(kind, name)}</button>`);
     }
   }
   for (const s of filters.scoped) {
+    // a tag's own rank show is that tag's chip
+    if (isTagShow(s)) continue;
     if (s.on === "rank") {
       inc.push(`<button type="button" class="rchip" data-scoped="${esc(scopedKey(s))}"`
         + ` style="--mem:${RESONATOR_HUE.get(s.resonator) ?? TUNE_BREAK_ENEMY.color}"`
         + ` title="Showing ${esc(s.resonator)} ${esc(s.value)} beside their own rank. ${CLICK} to remove.">`
-        + `${filterHtml("weapon", `${s.resonator} ${s.value}`)}</button>`);
+        + `${iconNamed(s.resonator)}${esc(joinTag(s.resonator, rankShown(s.value).sequence, ""))}${weaponIconByName(rankShown(s.value).weapon)}${esc(rankShown(s.value).weapon)}</button>`);
       continue;
     }
     inc.push(`<button type="button" class="rchip" data-scoped="${esc(scopedKey(s))}"`

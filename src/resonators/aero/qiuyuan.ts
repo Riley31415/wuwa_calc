@@ -391,7 +391,7 @@ const QY_ROTATION = new Rotation([
 
   Intro, EBA34.instaCancel(),
   FENRICO.instaCancel(), HERON.instaDodge(), BELL_BORNE_GEOCHELONE.instaCancel(), FALLACY.instaCancel(), 
-  Liberation, SkillHold.holdCancel(),
+  Liberation, SkillHold.cancel(),
   FHA123.cancel(), 
   Outro,
 ]);

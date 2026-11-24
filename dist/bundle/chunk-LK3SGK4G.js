@@ -4,7 +4,7 @@ import {
   memberLabel,
   pageUrl,
   solvedRows
-} from "./chunk-DU4TDG6K.js";
+} from "./chunk-V6NQUF3X.js";
 
 // dist/src/page/roster.js
 var TWO_VIGOR = /* @__PURE__ */ new Set(["Shorekeeper", "Mornye", "Suisui", "Lily", "Verina", "Buling", "Baizhi"]);
@@ -61,6 +61,7 @@ export {
   dprOf,
   clearBuilds,
   setBuildFilters,
+  buildOf,
   pageOf,
   labelIn,
   openHelp,

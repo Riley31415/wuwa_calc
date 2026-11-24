@@ -573,7 +573,7 @@ export const HIYUKI_RESONATOR = new Resonator({
   dodge: (after) => (forte2() >= 100 && IaiFlash.follows(after) ? IaiFlash : null),
   // the flash out of her mid-air presses is an air dodge
   airDodge: (after) => (forte2() >= 100 && IaiFlash.follows(after) ? IaiFlash : null),
-  color: "#87e6e6",
+  color: "#cdeeee",
   intro: () => (isHeld(FORECLAIMED_SELF) ? FIntro : Intro),
   swapIn: () => (isHeld(FORECLAIMED_SELF) ? UBA1 : BA1),
   swapInAir: () => (isHeld(FORECLAIMED_SELF) ? FMA1 : MA),

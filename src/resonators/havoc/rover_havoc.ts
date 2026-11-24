@@ -193,7 +193,7 @@ const ROVER_HAVOC_RESONATOR = new Resonator({
   inherent2: RH_INHERENT_2,
   element: Attribute.Havoc,
   weapon: WeaponType.Sword,
-  color: "#823ac6",
+  color: "#c63a9c",
   intro: Intro,
   swapIn: () => (isHeld(DARK_SURGE) ? EBA1 : BA1),
   swapInAir: () => (isHeld(DARK_SURGE) ? EMA : MA),

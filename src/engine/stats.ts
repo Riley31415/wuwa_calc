@@ -217,14 +217,14 @@ export const enum BuffTarget { Self, Team, Enemy, Next }
  *  never inside its `hold` minimum; a mash cancel's input lands `mash` after that moment, and a mash swap swaps
  *  out `mash` after its no-swap frames end. */
 export interface Delays { cancel: number; insta: number; hold: number; mash: number }
-let BASE_DELAYS: Delays = { cancel: 9, insta: 6, mash: 3, hold: 0 };
+let BASE_DELAYS: Delays = { cancel: 10, insta: 6, mash: 6, hold: 0 };
 /** The set in effect — the defaults, or a rotation's own while its member presses (`useDelays()`) — one
  *  object per set, so a cache made under one can tell it no longer stands; and each of it by name. */
 export let DELAYS: Delays = BASE_DELAYS;
 export let CANCEL_DELAY = BASE_DELAYS.cancel, INSTA_DELAY = BASE_DELAYS.insta;
 export let HOLD_MINIMUM = BASE_DELAYS.hold, MASH_DELAY = BASE_DELAYS.mash;
 /** How long ahead a held input may be pressed and still come out: unused for now. */
-export const HOLD_BUFFER = 16;
+export const HOLD_BUFFER = 17;
 
 /** The defaults with `d` laid over them, a key left undefined keeping its default: a rotation's own set
  *  (`Rotation.withDelays()`). */

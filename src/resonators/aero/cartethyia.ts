@@ -34,7 +34,7 @@
  * the loop always leaves Manifest on the Blade — so no number here depends on it.
  */
 import { Rarity, Stat, Attribute, WeaponType, Type, Subtype, Cast, Node, Scaling, Position } from "../../engine/stats.js";
-import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
+import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, matrix } from "../../engine/gear.js";
 import {
   addStat,
   appliedByMember,
@@ -535,13 +535,14 @@ const TB_FORM = tuneBreak(94, 94, [0, 94], [0, 64], BROADBLADE_BREAK);
 export const CARTETHYIA_RESONATOR = new Resonator({
   id: 1409,
   name: "Cartethyia",
+  matrix: matrix("Cartethyia", 25),
   talent: CARTETHYIA_TALENTS,
   inherent1: CT_INHERENT_1,
   inherent2: CT_INHERENT_2,
   tier: Rarity.Limited,
   element: Attribute.Aero,
   weapon: WeaponType.Sword,
-  color: "#3553fb",
+  color: "#5770fc",
   // resolved when its row is reached: whichever Intro the kit's state calls for there
   intro: () => (isHeld(MANIFEST) ? FIntro : Intro),
   swapIn: () => (isHeld(MANIFEST) ? FBA1 : BA1),

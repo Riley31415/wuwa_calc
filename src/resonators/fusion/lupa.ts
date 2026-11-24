@@ -24,7 +24,7 @@
  *    bare base-kit Liberation effect (see GLORY's own trigger below).
  */
 import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, BuffTarget, Position } from "../../engine/stats.js";
-import { Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
+import { Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence, matrix } from "../../engine/gear.js";
 import {
   isType,
   isHeld,
@@ -452,11 +452,21 @@ const LUPA_TALENTS = new Talent({
   stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 11.9999997]],
 });
 
+/** Matrix (4.0 beta): her Liberation grants the team +20% Fusion DMG Bonus; duration unlisted, 30s like the others. */
+const LUPA_MATRIX_TEAM = new Buff({
+  name: "Lupa: Matrix Buff", duration: 60 * 30,
+  stats: [[Stat.DmgBonus, 20, Attribute.Fusion]],
+});
+const LUPA_MATRIX = matrix("Lupa", 20, {
+  updateBuffs: () => { if (casting(Cast.Liberation)) applyTeam(LUPA_MATRIX_TEAM); },
+});
+
 /** Her, as a Resonator: name/element/weapon, every grant/spend/queue rule her kit needs, and her
  *  own base stat line. Sequence-0 only — a limited 5-star (`Tier.Limited`). */
 const LUPA_RESONATOR = new Resonator({
   id: 1207,
   name: "Lupa",
+  matrix: LUPA_MATRIX,
   stats: [[Stat.BaseHp, 11912.5], [Stat.BaseAtk, 387.5], [Stat.BaseDef, 1185.5534]],
   talent: LUPA_TALENTS,
   inherent1: LP_INHERENT_1,

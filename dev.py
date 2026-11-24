@@ -30,8 +30,10 @@ does not reliably die with its parent. --preserveWatchOutput keeps the log reada
 default watch mode clears the screen on every rebuild, which through a pipe is a stream of escape
 codes.
 """
+import hashlib
 import json
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -68,6 +70,120 @@ POLL_SECONDS = 0.4
 # to survive a restart and still change the moment any source file does.
 _stamp = "0"
 _lock = threading.Lock()
+
+# What /__solvestamp reports: which code each cached team solve depends on, so the page keeps every
+# solve whose inputs did not change. Content hashes of tsc's output over the worker's import graph:
+# a kit file (and the kits it imports) per resonator, and one hash for everything else it reaches
+# (engine, echoes, weapons, teams.ts...). Page-only files, .html and .css are outside the graph.
+_solve_stamp = b'{"global":"0","kits":{}}'
+SOLVER_ROOT = ROOT / "dist" / "src" / "solve" / "solver.js"
+KITS_DIR = ROOT / "dist" / "src" / "resonators"
+_IMPORT = re.compile(r'(?:\bfrom\s*|\bimport\s*\(?\s*)"(\.{1,2}/[^"]+)"')
+_KIT_NAME = re.compile(r'new Resonator\(\{.{0,400}?\bname:\s*"([^"]+)"', re.S)
+_code_cache: dict[str, str] = {}
+
+
+def _code_of(text: str) -> str:
+    """`text` with comments dropped and whitespace outside strings collapsed, so a comment or
+    formatting edit hashes the same. Strings, templates and regex literals are copied verbatim."""
+    if (hit := _code_cache.get(text)) is not None:
+        return hit
+    out, i, n = [], 0, len(text)
+    braces = []  # per open `${`: the brace depth its code started at
+    depth, prev = 0, ""  # prev: the last code char, to tell a regex `/` from division
+
+    def template_end(i: int) -> int:
+        """From inside a template's text to just past its closing backtick or its next `${`."""
+        while i < n:
+            if text[i] == "\\":
+                i += 2
+            elif text[i] == "`":
+                return i + 1
+            elif text.startswith("${", i):
+                braces.append(depth)
+                return i + 2
+            else:
+                i += 1
+        return i
+
+    while i < n:
+        c = text[i]
+        if text.startswith("//", i):
+            j = text.find("\n", i)
+            i = n if j < 0 else j
+        elif text.startswith("/*", i):
+            j = text.find("*/", i + 2)
+            i = n if j < 0 else j + 2
+        elif c.isspace():
+            while i < n and text[i].isspace():
+                i += 1
+            out.append(" ")
+        elif c in "'\"":
+            j = i + 1
+            while j < n and text[j] != c and text[j] != "\n":
+                j += 2 if text[j] == "\\" else 1
+            out.append(text[i:j + 1])
+            i, prev = j + 1, c
+        elif c == "`" or (c == "}" and braces and depth == braces[-1]):
+            if c == "}":
+                braces.pop()
+            j = template_end(i + 1)
+            out.append(text[i:j])
+            i, prev = j, "`"
+        elif c == "/" and (prev == "" or prev in "(,=:[!&|?{};+-*%<>~^"):
+            j, klass = i + 1, False
+            while j < n and text[j] != "\n" and (klass or text[j] != "/"):
+                if text[j] == "\\":
+                    j += 1
+                elif text[j] == "[":
+                    klass = True
+                elif text[j] == "]":
+                    klass = False
+                j += 1
+            out.append(text[i:j + 1])
+            i, prev = j + 1, "/"
+        else:
+            depth += (c == "{") - (c == "}")
+            out.append(c)
+            i, prev = i + 1, c
+    code = "".join(out)
+    if len(_code_cache) > 4000:
+        _code_cache.clear()
+    _code_cache[text] = code
+    return code
+
+
+def _solve_stamps() -> bytes:
+    """The import closure of the worker, each file's code (`_code_of`) hashed; a kit is a file one
+    folder under resonators/ (an element) that builds a named Resonator."""
+    texts, deps, todo = {}, {}, [SOLVER_ROOT]
+    while todo:
+        p = todo.pop()
+        if p in texts:
+            continue
+        try:
+            texts[p] = _code_of(p.read_text(encoding="utf-8"))
+        except OSError:
+            continue  # mid-rebuild or not built yet: hashed as absent, the next bundle change rehashes
+        deps[p] = [(p.parent / m).resolve() for m in _IMPORT.findall(texts[p])]
+        todo.extend(deps[p])
+    kits = {}
+    for p, text in texts.items():
+        if p.parent.parent == KITS_DIR and (m := _KIT_NAME.search(text)):
+            kits[p] = m.group(1)
+    digest = lambda files: hashlib.sha1("".join(hashlib.sha1(texts[f].encode()).hexdigest() for f in sorted(files)).encode()).hexdigest()[:12]
+    stamps = {}
+    for p, name in kits.items():
+        seen, todo = set(), [p]
+        while todo:
+            q = todo.pop()
+            if q in seen or q not in kits:
+                continue
+            seen.add(q)
+            todo.extend(deps.get(q, []))
+        stamps[name] = digest(seen)
+    out = {"global": digest(f for f in texts if f not in kits), "kits": stamps}
+    return json.dumps(out, sort_keys=True).encode()
 
 def _snapshot() -> dict:
     """path -> mtime for every watched file. node_modules is excluded (huge, irrelevant, slow to
@@ -108,10 +224,11 @@ def _sweep_chunks() -> None:
 
 
 def _watch_loop() -> None:
-    global _stamp
+    global _stamp, _solve_stamp
     last = _snapshot()
     with _lock:
         _stamp = str(zlib.crc32(repr(sorted(last.items())).encode()))
+        _solve_stamp = _solve_stamps()
     while True:
         time.sleep(POLL_SECONDS)
         cur = _snapshot()
@@ -119,8 +236,11 @@ def _watch_loop() -> None:
             # before the stamp, so the deletions are already in the snapshot the page reloads onto
             _sweep_chunks()
             cur = _snapshot()
+            # rehashed only as the bundle changes, so a page never pairs new hashes with an old bundle
+            solve = _solve_stamps()
             with _lock:
                 _stamp = str(zlib.crc32(repr(sorted(cur.items())).encode()))
+                _solve_stamp = solve
             last = cur
 
 
@@ -143,6 +263,15 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
                 body = _stamp.encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/plain")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if self.path == "/__solvestamp":
+            with _lock:
+                body = _solve_stamp
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)

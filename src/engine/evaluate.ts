@@ -1046,6 +1046,8 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
     const up = steps.peek()!;
     if ((!up.queued || up.event) && state.real < state.playsTo) continue;
     const step = steps.take();
+    // the fight is cut at its time limit: from then on nothing is pressed at all
+    if (state.frame >= state.fightEnd) continue;
     // the presser's own delays (their rotation's), a step of the slot it names or of whoever is active
     useDelays(state.slots[step.slot >= 0 ? step.slot : state.active]?.delays ?? null);
     // the fight is over at its end: nothing is cast past it (a break queued behind the last outro) —

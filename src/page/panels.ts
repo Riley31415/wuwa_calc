@@ -65,8 +65,8 @@ export const rect = (el: Element): DOMRect => {
   return z === 1 ? r : new DOMRect(r.x / z, r.y / z, r.width / z, r.height / z);
 };
 
-/** Where a copied block is headed: Discord's plain text, or a spreadsheet's cells. */
-export type CopyMode = "discord" | "sheets";
+/** Where a copied block is headed: a picture of it, Discord's plain text, or a spreadsheet's cells. */
+export type CopyMode = "image" | "discord" | "sheets";
 
 /** Copy a block of cells, with an HTML table for spreadsheets and rich editors, which split it into
  *  cells. Its plain text is, for Discord, padded to each column's longest in a ``` block, which lines
@@ -597,13 +597,13 @@ export function loadoutTable(run: TeamRun, needs?: Map<string, Map<string, strin
 
 /* -------------------------------------------------------------------------------- DPR table */
 
-/** Damage per rotation: a row per member, Tune Break and Total, over the opener and each loop, then
- *  all four rotations. With `lines` (the detail page) the team's damage over time across all four
- *  rotations fills a row under it; the comparison table's Total DPR hover passes none. */
+/** Damage per rotation: a row per member, Tune Break and Total, over the opener and loops 1-3 (however
+ *  many more the 2 minutes fit), then the whole fight. With `lines` (the detail page) the team's damage
+ *  over the whole fight fills a row under it; the comparison table's Total DPR hover passes none. */
 export function dprTable(run: TeamRun, lines?: ChainGroup[][]): string {
   const grand = run.fightTotal;
-  // the four rotations
-  const whole = run.sectionTotals.length;
+  // the opener and loops 1-3 shown
+  const whole = Math.min(run.sectionTotals.length, 4);
   const slotHue = new Map([...run.members.map((m): [string, string] => [m.name, m.color]),
     [TUNE_BREAK_ENEMY.name, TUNE_BREAK_ENEMY.color]]);
   const sections = ["Opener", ...Array.from({ length: whole - 1 }, (_, i) => `Loop ${i + 1}`)];
@@ -617,7 +617,7 @@ export function dprTable(run: TeamRun, lines?: ChainGroup[][]): string {
 
   const dataRow = (slot: string, color: string): string => `<div class="rtrow">`
     + rowLabel(slot, ` style="--mem:${color}"`)
-    + run.sectionBySlot.map((by) => valueCell(by.get(slot) ?? 0)).join("")
+    + run.sectionBySlot.slice(0, whole).map((by) => valueCell(by.get(slot) ?? 0)).join("")
     + valueCell(run.fightBySlot.get(slot) ?? 0, " tot")
     + `</div>`;
 
@@ -625,7 +625,7 @@ export function dprTable(run: TeamRun, lines?: ChainGroup[][]): string {
   const tuneBreakRow = dataRow(TUNE_BREAK_ENEMY.name, TUNE_BREAK_ENEMY.color);
   const totalRow = `<div class="rtrow total">`
     + rowLabel(TEAM_ROW, "")
-    + run.sectionTotals.map((v) => valueCell(v)).join("")
+    + run.sectionTotals.slice(0, whole).map((v) => valueCell(v)).join("")
     + valueCell(grand, " tot")
     + `</div>`;
 

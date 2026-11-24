@@ -19,7 +19,6 @@ import {
 import type { TeamRow } from "./model.js";
 import { wireSourcePanels } from "./panels.js";
 import { renderComparison, onRefresh } from "./table.js";
-import { maybeShowTutorial } from "./tutorial.js";
 import { overlayPhase, overlayNow, overlayHide, showError, barReset, barProgress, ensureBestPicks } from "./loading.js";
 
 const app = document.getElementById("app")!;
@@ -58,8 +57,6 @@ let generation = 0;
 
 const route = (): void => {
   renderComparison();
-  // measured off the table it points at, so it goes up once that table is on screen
-  maybeShowTutorial();
 };
 
 /**
@@ -118,8 +115,6 @@ async function refresh(): Promise<void> {
     return;
   }
   overlayHide();
-  // the run is what it was waiting on: the table it points into is drawn and the overlay is down
-  maybeShowTutorial();
 }
 
 async function boot(): Promise<void> {
