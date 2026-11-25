@@ -18,7 +18,7 @@
  *   every point of Delusion for +100% DMG Multiplier on the Unfurled chain and Whirling Thunder,
  *   +5 Concerto a stage on hit, +100% Crit. DMG, 12s or until switched out.
  */
-import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, BuffTarget, Position } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, BuffTarget, Position, Input } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   addStat,
@@ -33,7 +33,15 @@ import {
   onCast,
   runningAnyOf,
   addGain,
-  saveChain,
+  chainAs,
+  notAfter,
+  holds,
+  lacks,
+  after,
+  midair,
+  forte1,
+  concerto,
+  grounded,
 } from "../../engine/context.js";
 import { Action, ActionGroup, Rotation, START, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
 import { applyRupture } from "../tunebreak.js";
@@ -68,65 +76,65 @@ function annaAction(id: string, def: object): Action {
 }
 
 // --- Furled Canopy, the Awakened Mind chain
-const BA1 = annaAction("Basic - Furled Canopy 1", { notAfter: () => [BA1, BA2, RiftCleaver, DC, CrimsonGleamParry], requireBuff: AWAKENED_MIND, animFrames: 24, castPriority: 2, bullets: [{ hitFrame: 10, mv: 3155, energy: 191, concerto: 159, offtune: 3174, forte1: 120 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
-const BA2 = annaAction("Basic - Furled Canopy 2", { after: () => [BA1, RiftCleaver], requireBuff: AWAKENED_MIND, animFrames: 47, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = annaAction("Basic - Furled Canopy 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [BA1, BA2, RiftCleaver, DC, CrimsonGleamParry], position: Position.Grounded, holds: AWAKENED_MIND, valid: () => !isHeld(DEEP_MIND), animFrames: 24, castPriority: 2, bullets: [{ hitFrame: 10, mv: 3155, energy: 191, concerto: 159, offtune: 3174, forte1: 120 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
+const BA2 = annaAction("Basic - Furled Canopy 2", { input: Input.Basic, after: () => [BA1, RiftCleaver], holds: AWAKENED_MIND, animFrames: 47, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 1573, energy: 95, concerto: 80, offtune: 1583, forte1: 40 },
     { hitFrame: 19, commitFrame: 14, mv: 1573, energy: 95, concerto: 80, offtune: 1583, forte1: 40 },
     { hitFrame: 31, mv: 3146, energy: 190, concerto: 159, offtune: 3165, forte1: 80 },
   ]});
-const BA3 = annaAction("Basic - Furled Canopy 3", { after: () => [BA2, DC, CrimsonGleamParry], requireBuff: AWAKENED_MIND, animFrames: 82, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = annaAction("Basic - Furled Canopy 3", { input: Input.Basic, after: () => [BA2, DC, CrimsonGleamParry], holds: AWAKENED_MIND, animFrames: 82, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 16, mv: 2201, energy: 133, concerto: 111, offtune: 2214, forte1: 36 },
     { hitFrame: 21, commitFrame: 16, mv: 2201, energy: 133, concerto: 111, offtune: 2214, forte1: 36 },
     { hitFrame: 27, commitFrame: 16, mv: 2201, energy: 133, concerto: 111, offtune: 2214, forte1: 36 },
     { hitFrame: 63, mv: 4402, energy: 266, concerto: 222, offtune: 4428, forte1: 72 },
   ]});
-const MA = annaAction("Mid-air - Furled Canopy Plunge", { castPosition: Position.Midair, endPosition: Position.Grounded, animFrames: 41, animPriority: { 40: 2 }, castPriority: 4, bullets: [{ hitFrame: 29, mv: 8420, energy: 509, concerto: 424, offtune: 8470 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
-const DC = annaAction("Dodge Counter - Furled Canopy", { after: [SUCCESSFUL_DODGE], requireBuff: AWAKENED_MIND, animFrames: 47, animPriority: { 0: 2 }, castPriority: 7, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const MA = annaAction("Mid-air - Furled Canopy Plunge", { input: [Input.Basic, Input.SwapIn], position: Position.Midair, endPosition: Position.Grounded, animFrames: 41, animPriority: { 40: 2 }, castPriority: 4, bullets: [{ hitFrame: 29, mv: 8420, energy: 509, concerto: 424, offtune: 8470 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
+const DC = annaAction("Dodge Counter - Furled Canopy", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], holds: AWAKENED_MIND, animFrames: 47, animPriority: { 0: 2 }, castPriority: 7, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 2766, energy: 167, concerto: 140, offtune: 2783, forte1: 40 },
     { hitFrame: 19, commitFrame: 14, mv: 2766, energy: 167, concerto: 140, offtune: 2783, forte1: 40 },
     { hitFrame: 31, mv: 5532, energy: 334, concerto: 279, offtune: 5565, forte1: 80 },
   ], castConcerto: 1000});
 
 // --- Unfurled Canopy, the Deep Mind chain, and Whirling Thunder held out of its stage 2
-const UBA1 = annaAction("Basic - Unfurled Canopy 1", { forbidBuff: ENGRAVED_HEART_READY, notAfter: () => [UBA1, UBA2, UBA3, RiftCleaver, UDC, CrimsonGleamParry, UHA1, IntroThunderRending], requireBuff: DEEP_MIND, animFrames: 39, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const UBA1 = annaAction("Basic - Unfurled Canopy 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [UBA1, UBA2, UBA3, RiftCleaver, UDC, CrimsonGleamParry, UHA1, IntroThunderRending], position: Position.Grounded, holds: DEEP_MIND, lacks: ENGRAVED_HEART_READY, valid: () => isHeld(DEEP_MIND), animFrames: 39, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 23, mv: 6542, energy: 158, concerto: 132, offtune: 3949, forte1: 60 },
     { hitFrame: 31, mv: 3271, energy: 79, concerto: 66, offtune: 1975, forte1: 30 },
     { hitFrame: 35, commitFrame: 31, mv: 3271, energy: 79, concerto: 66, offtune: 1975, forte1: 30 },
   ]});
-const UBA2 = annaAction("Basic - Unfurled Canopy 2", { forbidBuff: ENGRAVED_HEART_READY, after: [UBA1], requireBuff: DEEP_MIND, animFrames: 68, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const UBA2 = annaAction("Basic - Unfurled Canopy 2", { input: Input.Basic, after: () => [UBA1], holds: DEEP_MIND, lacks: ENGRAVED_HEART_READY, animFrames: 68, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 12, mv: 11440, energy: 277, concerto: 231, offtune: 6905, forte1: 80 },
     { hitFrame: 37, mv: 3814, energy: 93, concerto: 77, offtune: 2302, forte1: 27 },
     { hitFrame: 43, commitFrame: 37, mv: 3814, energy: 93, concerto: 77, offtune: 2302, forte1: 27 },
     { hitFrame: 49, commitFrame: 37, mv: 3814, energy: 93, concerto: 77, offtune: 2302, forte1: 27 },
   ]});
-const UBA3 = annaAction("Basic - Unfurled Canopy 3", { forbidBuff: ENGRAVED_HEART_READY, after: () => [UBA2, RiftCleaver, UDC], requireBuff: DEEP_MIND, animFrames: 70, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const UBA3 = annaAction("Basic - Unfurled Canopy 3", { input: Input.Basic, after: () => [UBA2, RiftCleaver, UDC], holds: DEEP_MIND, lacks: ENGRAVED_HEART_READY, animFrames: 70, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 30, mv: 5864, energy: 142, concerto: 118, offtune: 3540, forte1: 45 },
     { hitFrame: 35, commitFrame: 30, mv: 5864, energy: 142, concerto: 118, offtune: 3540, forte1: 45 },
     { hitFrame: 50, mv: 5864, energy: 142, concerto: 118, offtune: 3540, forte1: 45 },
     { hitFrame: 60, commitFrame: 50, mv: 5864, energy: 142, concerto: 118, offtune: 3540, forte1: 45 },
   ]});
-const UBA4 = annaAction("Basic - Unfurled Canopy 4", { forbidBuff: ENGRAVED_HEART_READY, after: () => [UBA3, CrimsonGleamParry], requireBuff: DEEP_MIND, animFrames: 115, animPriority: { 0: 4, 103: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const UBA4 = annaAction("Basic - Unfurled Canopy 4", { input: Input.Basic, after: () => [UBA3, CrimsonGleamParry], holds: DEEP_MIND, lacks: ENGRAVED_HEART_READY, animFrames: 115, animPriority: { 0: 4, 103: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 15, mv: 10725, energy: 259, concerto: 216, offtune: 6474, forte1: 54 },
     { hitFrame: 53, mv: 10725, energy: 259, concerto: 216, offtune: 6474, forte1: 54 },
     { hitFrame: 95, mv: 4767, energy: 116, concerto: 96, offtune: 2878, forte1: 24 },
     { hitFrame: 102, mv: 4767, energy: 116, concerto: 96, offtune: 2878, forte1: 24 },
     { hitFrame: 109, mv: 4767, energy: 116, concerto: 96, offtune: 2878, forte1: 24 },
   ]});
-const UHA1 = annaAction("Heavy - Unfurled Canopy: Whirling Thunder 1", { forbidBuff: ENGRAVED_HEART_READY, after: () => [UBA2, UDC], requireBuff: DEEP_MIND, animFrames: 88, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const UHA1 = annaAction("Heavy - Unfurled Canopy: Whirling Thunder 1", { input: Input.Basic, after: () => [UBA2, UDC], holds: DEEP_MIND, lacks: ENGRAVED_HEART_READY, animFrames: 88, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 11, mv: 7332, energy: 177, concerto: 148, offtune: 4425, forte1: 45 },
     { hitFrame: 27, mv: 3666, energy: 89, concerto: 74, offtune: 2213, forte1: 23 },
     { hitFrame: 30, commitFrame: 27, mv: 3666, energy: 89, concerto: 74, offtune: 2213, forte1: 23 },
     { hitFrame: 38, mv: 7332, energy: 177, concerto: 148, offtune: 4425, forte1: 45 },
     { hitFrame: 63, mv: 7332, energy: 177, concerto: 148, offtune: 4425, forte1: 45 },
   ]});
-const UHA2 = annaAction("Heavy - Unfurled Canopy: Whirling Thunder 2", { forbidBuff: ENGRAVED_HEART_READY, after: () => [UHA1, IntroThunderRending], requireBuff: DEEP_MIND, animFrames: 85, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const UHA2 = annaAction("Heavy - Unfurled Canopy: Whirling Thunder 2", { input: Input.Basic, after: () => [UHA1, IntroThunderRending], holds: DEEP_MIND, lacks: ENGRAVED_HEART_READY, animFrames: 85, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 33, mv: 5669, energy: 137, concerto: 115, offtune: 3422, forte1: 36 },
     { hitFrame: 38, commitFrame: 33, mv: 5669, energy: 137, concerto: 115, offtune: 3422, forte1: 36 },
     { hitFrame: 43, commitFrame: 33, mv: 5669, energy: 137, concerto: 115, offtune: 3422, forte1: 36 },
     { hitFrame: 48, commitFrame: 33, mv: 5669, energy: 137, concerto: 115, offtune: 3422, forte1: 36 },
     { hitFrame: 52, commitFrame: 33, mv: 5669, energy: 137, concerto: 115, offtune: 3422, forte1: 36 },
   ]});
-const UDC = annaAction("Dodge Counter - Unfurled Canopy", { after: [SUCCESSFUL_DODGE], requireBuff: DEEP_MIND, animFrames: 68, animPriority: { 0: 2 }, castPriority: 7, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const UDC = annaAction("Dodge Counter - Unfurled Canopy", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], holds: DEEP_MIND, animFrames: 68, animPriority: { 0: 2 }, castPriority: 7, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 12, mv: 17404, energy: 421, concerto: 351, offtune: 7004, forte1: 80 },
     { hitFrame: 37, mv: 5802, energy: 141, concerto: 117, offtune: 2335, forte1: 27 },
     { hitFrame: 43, commitFrame: 37, mv: 5802, energy: 141, concerto: 117, offtune: 2335, forte1: 27 },
@@ -135,7 +143,7 @@ const UDC = annaAction("Dodge Counter - Unfurled Canopy", { after: [SUCCESSFUL_D
 
 // --- Rift Cleaver, the plain Resonance Skill in either state; inside the Seal window it spends
 //     it, 20 Concerto and every point of Delusion for Seal Master
-const RiftCleaver = annaAction("Skill - Furled Canopy: Rift Cleaver", { forbidBuff: ENGRAVED_HEART_READY, maxForte1: 799, animFrames: 42, animPriority: { 40: 2 }, castPriority: 4, bullets: [{ hitFrame: 21, commitFrame: 0, mv: 10661, energy: 368, concerto: 307, offtune: 6128 }], cooldown: 60 * 8,
+const RiftCleaver = annaAction("Skill - Furled Canopy: Rift Cleaver", { input: Input.Skill, maxForte1: 799, lacks: ENGRAVED_HEART_READY, animFrames: 42, animPriority: { 40: 2 }, castPriority: 4, bullets: [{ hitFrame: 21, commitFrame: 0, mv: 10661, energy: 368, concerto: 307, offtune: 6128 }], cooldown: 60 * 8,
   node: Node.Skill, cast: Cast.Skill, type: Type.Skill,
   updateBuffs: () => {
     if (!isHeld(SEAL_WINDOW)) return;
@@ -145,7 +153,7 @@ const RiftCleaver = annaAction("Skill - Furled Canopy: Rift Cleaver", { forbidBu
     applyCurrent(SEAL_MASTER, 1);
   },
 });
-const CrimsonGleamParry = annaAction("Skill - Unfurled Canopy: Crimson Gleam", { after: [RiftCleaver], animFrames: 67, animPriority: { 67: 0 }, castPriority: 5, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+const CrimsonGleamParry = annaAction("Skill - Unfurled Canopy: Crimson Gleam", { input: Input.Skill, after: () => [RiftCleaver], animFrames: 67, animPriority: { 67: 0 }, castPriority: 5, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 2, mv: 4725, energy: 163, concerto: 136, offtune: 2717, forte1: 48 },
     { hitFrame: 10, mv: 2363, energy: 82, concerto: 68, offtune: 1359, forte1: 24 },
     { hitFrame: 19, commitFrame: 10, mv: 2363, energy: 82, concerto: 68, offtune: 1359, forte1: 24 },
@@ -154,7 +162,7 @@ const CrimsonGleamParry = annaAction("Skill - Unfurled Canopy: Crimson Gleam", {
 
 // --- Umbral Canopy: Miasma Lock, Deep Mind only: its first hit applies Tune Rupture - Shifting
 //     (Suoming's Unison grant), and the cast opens the Seal window and 200 Delusion
-const Liberation = annaAction("Liberation - Umbral Canopy: Miasma Lock", { requireBuff: DEEP_MIND,
+const Liberation = annaAction("Liberation - Umbral Canopy: Miasma Lock", { input: Input.Liberation, holds: DEEP_MIND,
   animFrames: 335, noSwapFrames: 332, animPriority: { 332: 0 }, castPriority: 10, timestop: [0, 332], motionStop: [0, 332],
   cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [
@@ -175,7 +183,7 @@ const Liberation = annaAction("Liberation - Umbral Canopy: Miasma Lock", { requi
 //     Delusion cleared), Thunder Rending from Deep Mind (+200 Delusion)
 const IntroFlashRift = annaAction("Intro - Furled Canopy: Flash Rift", {
   endPosition: Position.Grounded, animFrames: 103, noSwapFrames: 90, motionStop: [0, 90], animPriority: { 88: 2 }, castPriority: 11,
-  requireBuff: AWAKENED_MIND, node: Node.Intro, cast: Cast.Intro, resetForte1: true, type: Type.Basic,
+  input: Input.Intro, valid: () => !isHeld(DEEP_MIND), node: Node.Intro, cast: Cast.Intro, resetForte1: true, type: Type.Basic,
   bullets: [
     { hitFrame: 61, mv: 11089, energy: 300, offtune: 5578 },
     { hitFrame: 67, commitFrame: 61, mv: 11089, energy: 300, offtune: 5578 },
@@ -192,7 +200,7 @@ const IntroFlashRift = annaAction("Intro - Furled Canopy: Flash Rift", {
   },
 });
 const IntroThunderRending = annaAction("Intro - Unfurled Canopy: Thunder Rending", {
-  endPosition: Position.Grounded, requireBuff: DEEP_MIND, animFrames: 83, motionStop: [0, 68], animPriority: { 66: 2 }, castPriority: 11, noSwapFrames: 68, node: Node.Intro, cast: Cast.Intro, type: Type.Basic, bullets: [
+  endPosition: Position.Grounded, input: Input.Intro, valid: () => isHeld(DEEP_MIND), animFrames: 83, motionStop: [0, 68], animPriority: { 66: 2 }, castPriority: 11, noSwapFrames: 68, node: Node.Intro, cast: Cast.Intro, type: Type.Basic, bullets: [
     { hitFrame: 11, mv: 13143, energy: 250, offtune: 4407 },
     { hitFrame: 26, mv: 6572, energy: 125, offtune: 2204 },
     { hitFrame: 29, commitFrame: 26, mv: 6572, energy: 125, offtune: 2204 },
@@ -204,7 +212,7 @@ const IntroThunderRending = annaAction("Intro - Unfurled Canopy: Thunder Rending
 const INTROS = new Set<Action>([IntroFlashRift, IntroThunderRending]);
 
 // --- Forte Circuit: the two full-bar skills and Engraved Heart behind them, all Basic Attack DMG
-const SealedDelusion = annaAction("Forte Skill - Furled Canopy: Sealed Delusion", { minForte1: 800, requireBuff: AWAKENED_MIND,
+const SealedDelusion = annaAction("Forte Skill - Furled Canopy: Sealed Delusion", { input: Input.Skill, minForte1: 800, holds: AWAKENED_MIND,
   animFrames: 107, animPriority: { 104: 2 }, castPriority: 5,
   node: Node.Forte, cast: Cast.Skill, type: Type.Basic, bullets: [
     { hitFrame: 61, mv: 6278, energy: 217, concerto: 181, offtune: 3609 },
@@ -222,15 +230,13 @@ const SealedDelusion = annaAction("Forte Skill - Furled Canopy: Sealed Delusion"
     resetCooldown(RiftCleaver);
   },
 });
-const UnforsakenMind = annaAction("Skill - Unfurled Canopy: Unforsaken Mind", { forbidBuff: ENGRAVED_HEART_READY, minForte1: 800, requireBuff: DEEP_MIND, animFrames: 68, castPriority: 5, bullets: [{ hitFrame: 59, mv: 15267, offtune: 8776 }], node: Node.Forte, cast: Cast.Skill, type: Type.Basic,
+const UnforsakenMind = annaAction("Skill - Unfurled Canopy: Unforsaken Mind", { input: Input.Skill, minForte1: 800, holds: DEEP_MIND, lacks: ENGRAVED_HEART_READY, animFrames: 68, castPriority: 5, bullets: [{ hitFrame: 59, mv: 15267, offtune: 8776 }], node: Node.Forte, cast: Cast.Skill, type: Type.Basic,
   updateBuffs: () => {
     applyCurrent(ENGRAVED_HEART_READY, 1);
-    // Engraved Heart is "within a certain period after", not only next
-    saveChain(UnforsakenMind);
   },
 });
 /** Calamity Mind for its own duration, Awakened Mind once it ends: Deep Mind is simply over. */
-const EngravedHeart = annaAction("Forte Basic - Umbral Canopy: Engraved Heart", { after: [UnforsakenMind], requireBuff: ENGRAVED_HEART_READY,
+const EngravedHeart = annaAction("Forte Basic - Umbral Canopy: Engraved Heart", { input: Input.Basic, holds: ENGRAVED_HEART_READY,
   animFrames: 308, noSwapFrames: 256, timestop: [107, 240], motionStop: [107, 240], animPriority: { 108: 12, 263: 2 }, castPriority: 12,
   node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 11, mv: 15514, energy: 205, offtune: 2602 },
@@ -274,7 +280,7 @@ const EngravedHeart = annaAction("Forte Basic - Umbral Canopy: Engraved Heart", 
 /** Canopy Rumble: the incoming resonator's Fusion DMG Amplification handoff. */
 const Outro = annaAction("Outro - Canopy Rumble", {
   animFrames: 0,
-  cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000,
+  cast: Cast.Outro, input: Input.Outro, minConcerto: 10000, castConcerto: -10000,
   updateBuffs: () => queueQTE(CANOPY_RUMBLE),
 });
 
@@ -304,7 +310,7 @@ const SEAL_MASTER: Buff = new Buff({
     if (casting(Cast.Liberation)) revokeCurrent(SEAL_MASTER);
     else if (runningAnyOf(SEAL_MASTER_STAGES)) addGain({ concerto: 500 });
     // "shortly after casting Basic Attack - Unfurled Canopy Stage 4 ... chain into ... Stage 2"
-    if (runningAction(UBA4)) saveChain(UBA1);
+    if (runningAction(UBA4)) chainAs(UBA1);
   },
   applyStats: () => {
     addStat(Stat.CritDmg, 100);
@@ -395,9 +401,7 @@ export const ANNA_RESONATOR = new Resonator({
   element: Attribute.Fusion,
   weapon: WeaponType.Rectifier,
   color: "#ff3d77",
-  intro: () => (isHeld(DEEP_MIND) ? IntroThunderRending : IntroFlashRift),
-  swapIn: () => (isHeld(DEEP_MIND) ? UBA1 : BA1),
-  swapInAir: MA,
+  actions: [BA1, BA2, BA3, MA, DC, UBA1, UBA2, UBA3, UBA4, UHA1, UHA2, UDC, RiftCleaver, CrimsonGleamParry, Liberation, IntroFlashRift, IntroThunderRending, SealedDelusion, UnforsakenMind, EngravedHeart, Outro],
   maxEnergy: 12500,
   maxForte1: 800,
   combatStart: () => applyCurrent(AWAKENED_MIND, 1),

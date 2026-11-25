@@ -10,6 +10,7 @@ import type { ChainGroup, ResolvedSnapshot } from "../engine/evaluate.js";
 import { buildReport, fmt, fmtPct, fmtPctCell, digitsOf, PAD_DIGITS_COLUMNS, GROUPED_COLUMNS, RATE_SECTIONS } from "./display.js";
 import type { Report, Column, ReportRow, ReportPart } from "./display.js";
 import type { TeamRun } from "../solve/teamrun.js";
+import type { Member } from "../solve/solver.js";
 import { hitsOf, erRollsFor } from "../solve/teamrun.js";
 import { ER_TOLERANCE } from "../echoes/substats.js";
 import { results, detailFor, FALLBACK_HUE } from "./model.js";
@@ -538,11 +539,14 @@ function barsOf(run: TeamRun, report: Report): Bars | null {
 }
 let shownKey = "";
 
-/** The page's backdrop: the banner art of the member dealing the most damage who has one, fixed
- *  and blurred under the tables; none of them having art leaves the plain background. */
-function setBackdrop(run: TeamRun): void {
-  const best = run.members.filter((m) => bannerUrl(m.loadout.resonator))
-    .sort((a, b) => (run.bySlot.get(b.name) ?? 0) - (run.bySlot.get(a.name) ?? 0))[0];
+/** The page's backdrop, fixed and blurred under the tables: the first main DPS's banner art, else the
+ *  first member with any; none having art leaves the plain background. Shown before the run too. */
+export function previewBackdrop(members: Member[]): void {
+  const art = members.filter((m) => bannerUrl(m.loadout.resonator));
+  showBackdrop(art.find((m) => m.mainDps) ?? art[0]);
+}
+const setBackdrop = (run: TeamRun): void => previewBackdrop(run.members);
+function showBackdrop(best: Member | undefined): void {
   let el = document.querySelector<HTMLElement>("body > .backdrop");
   document.body.classList.toggle("backdropped", !!best);
   if (!best) {

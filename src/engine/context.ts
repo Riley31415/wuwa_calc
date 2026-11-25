@@ -3,7 +3,7 @@
  * `addStat`, the `applied`/`consumed` questions, the forte gauges and concerto, every
  * grant/spend/revoke path, and the queues. All of it reads `ctx` for whose turn it is.
  */
-import { Stat, EnemyStat, Attribute, Type, Subtype, Cast, scopedStat, tagBand, SUBTYPE_BITS } from "./stats.js";
+import { Stat, EnemyStat, Attribute, Type, Subtype, Cast, Position, scopedStat, tagBand, SUBTYPE_BITS } from "./stats.js";
 import type { Tag, StatKey } from "./stats.js";
 import { foldStat } from "./damage.js";
 import type { Action, Bullet, Cooldown } from "./rotation.js";
@@ -149,12 +149,12 @@ export const castFrame = (): number => (ctx.act!.half === "hit" || ctx.act!.half
 
 const cooldownOf = (of: Action | Cooldown): Cooldown | null => ("wait" in of ? of : of.cooldown);
 
-/** Let the acting member's next press needing `action` before it follow it as if just pressed, once
- *  this visit (Brant's Intro: `saveChain(MA1)`; a string kept through a dodge: `saveChain(previousPress())`). */
-export function saveChain(action: Action | null): void {
+/** The acting member's next press follows `action` in place of the one being cast, which the chain never
+ *  sees (Brant's Intro: `chainAs(MA1)`; a stage kept through a dodge: `chainAs(previousPress())`). */
+export function chainAs(action: Action | null): void {
   noteMutation(0x5e, 1);
   if (ctx.dryRun || !action) return;
-  ctx.slot!.savedChains.push(action);
+  ctx.slot!.chainKept = action;
 }
 /** The next press the rotation has its acting member make, resolved — null where none is left in reach. */
 export const nextPress = (): Action | null => {
@@ -163,9 +163,43 @@ export const nextPress = (): Action | null => {
 };
 /** Every press the rotation still has the acting member make this visit, each resolved as it is reached. */
 export const nextPresses = (): Iterable<Action> => ctx.nextPresses();
-/** The acting member's press before the one being cast this visit, OFF_FIELD ones aside — null
- *  first in it. Read it from a cast hook: a hit may already find the press itself. */
+/** What the acting member's press being cast follows this visit (OFF_FIELD ones aside, `chainAs()` read) —
+ *  null first in it. Read it from a cast hook: a hit may already find the press itself. */
 export const previousPress = (): Action | null => ctx.slot!.lastPress;
+
+/* The reads a `valid` handler is written from (`ActionDef.valid`), beside the bars and buff counts. */
+
+/** Is `prev`, any form of it, one of `presses` — a DODGE/JUMP marker standing for any press of its cast? */
+function formOfAny(prev: Action | null, presses: readonly Action[]): boolean {
+  if (!prev) return false;
+  for (const entry of presses) {
+    const cast = ctx.castMarker(entry);
+    for (let a: Action | null = prev; a; a = a.cancelOf ?? a.formOf) if (cast >= 0 ? a.cast === cast : a === entry) return true;
+  }
+  return false;
+}
+/** Does the press being checked directly follow one of `presses`: what its owner's next press follows
+ *  (their last press, or what an effect stood in for it — `chainAs()`). False first in a visit. */
+export function after(...presses: Action[]): boolean {
+  if (ctx.validChainFree) return true;
+  return missed(formOfAny(ctx.validPrev !== undefined ? ctx.validPrev : ctx.slot!.lastPress, presses));
+}
+/** ...follows none of `presses`. True first in a visit. */
+export function notAfter(...presses: Action[]): boolean {
+  if (ctx.validChainFree) return true;
+  return missed(!formOfAny(ctx.validPrev !== undefined ? ctx.validPrev : ctx.slot!.lastPress, presses));
+}
+/** The acting member's last press as cast this visit, whatever the chain follows in its place (`chainAs()`). */
+export const previousCast = (): Action | null => ctx.slot!.lastCast;
+/** Where the press being checked finds its owner standing. */
+const standing = (): Position | null => (ctx.validPosition !== undefined ? ctx.validPosition : ctx.slot!.position);
+export const grounded = (): boolean => ctx.validAnyStand || missed(standing() === Position.Grounded);
+export const midair = (): boolean => ctx.validAnyStand || missed(standing() === Position.Midair);
+/** `ok`, noting a false one as a miss on the chain or the stand (`ctx.validMiss`). */
+const missed = (ok: boolean): boolean => {
+  if (!ok) ctx.validMiss = true;
+  return ok;
+};
 
 /** Give back `charges` of the acting member's cooldown on `of` (a cast or a shared Cooldown) —
  *  every charge where none is named, the kit text's "resets the Cooldown". */
@@ -609,6 +643,20 @@ export function basicDmgBonus(): number { if (ctx.recording) recordRead(BASIC_DM
 // established once, by equip(), and never granted/revoked again mid-fight.
 export function stacksOf(gear: Gear): number { return ctx.slot!.stacksOf(gear); }
 export function isHeld(gear: Gear): boolean { return ctx.slot!.isHeld(gear); }
+/** Does every one of `gears` stand on the acting member, the team or the target — a stance or window a press needs. */
+export function holds(...gears: Gear[]): boolean {
+  if (ctx.validAnyBuff) return true;
+  const slot = ctx.slot!, state = ctx.state!;
+  for (const g of gears) if (!(slot.isHeld(g) || state.globalStacks.has(g) || state.enemyStacks.has(g))) return false;
+  return true;
+}
+/** Does none of `gears` stand on the acting member, the team or the target — a form a press can't be under. */
+export function lacks(...gears: Gear[]): boolean {
+  if (ctx.validAnyBuff) return true;
+  const slot = ctx.slot!, state = ctx.state!;
+  for (const g of gears) if (slot.isHeld(g) || state.globalStacks.has(g) || state.enemyStacks.has(g)) return false;
+  return true;
+}
 export function maxEnergy(): number { return ctx.slot!.resonator?.maxEnergy ?? 0; }
 
 /** The acting resonator's own forte gauges, 1-5 — plain numbers, not a Buff's stack count

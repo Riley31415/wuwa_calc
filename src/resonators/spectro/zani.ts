@@ -37,7 +37,7 @@
  * wuwalab imports: its forte_2 is Blaze, the forte2 gauge mirrored by the team buff BLAZE (each grant banks both,
  *  each Heavy Slash bullet spends both); its forte_1 is Redundant Energy, forte1.
  */
-import { Stat, Attribute, WeaponType, Type, Subtype, Cast, Node, Scaling, BuffTarget, Position } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type, Subtype, Cast, Node, Scaling, BuffTarget, Position, Input } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, matrix } from "../../engine/gear.js";
 import {
   addStat,
@@ -64,8 +64,16 @@ import {
   runningBullet,
   casting,
   previousPress,
-  saveChain,
+  chainAs,
   addStatAs,
+  notAfter,
+  after,
+  holds,
+  midair,
+  forte1,
+  concerto,
+  grounded,
+  lacks,
 } from "../../engine/context.js";
 import { Action, Rotation, ActionGroup, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
 import { tuneBreak } from "../tunebreak.js";
@@ -100,28 +108,29 @@ const BLOCK_STANCE = new Buff({ name: "Zani: Block Stance", lostOnSwap: true });
 
 // --- Routine Negotiation: the ordinary chain, every hit of which banks Redundant Energy. Stage 3
 //     has a second form, the one the block stance hands back — the same press for 10 more.
-const BA1 = zaniAction("Basic - Routine Negotiation 1", { notAfter: () => [BA1, BA2, BA3, BA3Follow, HA, MA, Skill, Breakthrough], animFrames: 24, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 16, mv: 5885, energy: 93, concerto: 185, offtune: 2960, forte1: 5 }]});
-const BA2 = zaniAction("Basic - Routine Negotiation 2", { after: [BA1], animFrames: 32, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 18, mv: 7953, energy: 125, concerto: 250, offtune: 4000, forte1: 5 }]});
+const BA1 = zaniAction("Basic - Routine Negotiation 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [BA1, BA2, BA3, BA3Follow, HA, MA, Skill, Breakthrough, Dawning, Lightsmash], position: Position.Grounded, yieldsTo: () => [Daybreak, Dawning, Nightfall], animFrames: 24, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 16, mv: 5885, energy: 93, concerto: 185, offtune: 2960, forte1: 5 }]});
+const BA2 = zaniAction("Basic - Routine Negotiation 2", { input: Input.Basic, after: () => [BA1], animFrames: 32, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 18, mv: 7953, energy: 125, concerto: 250, offtune: 4000, forte1: 5 }]});
 // the Heavy and the plunge each "Press Normal Attack within a certain time to perform Basic Attack Stage 3"
-const BA3 = zaniAction("Basic - Routine Negotiation 3", { after: () => [BA2, HA, MA], animFrames: 60, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = zaniAction("Basic - Routine Negotiation 3", { input: Input.Basic, after: () => [BA2, HA, MA], animFrames: 60, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 12, mv: 4242, energy: 67, concerto: 134, offtune: 2134, forte1: 5 },
     { hitFrame: 33, mv: 4242, energy: 67, concerto: 134, offtune: 2134, forte1: 5 },
     { hitFrame: 51, mv: 4242, energy: 67, concerto: 134, offtune: 2134, forte1: 10 },
   ]});
-const BA3Follow = zaniAction("Basic - Routine Negotiation 3 (Follow-Up)", { after: () => [Skill], requireBuff: BLOCK_STANCE, updateBuffs: () => revokeCurrent(BLOCK_STANCE), animFrames: 57, castPriority: 2, bullets: [
+const BA3Follow = zaniAction("Basic - Routine Negotiation 3 (Follow-Up)", { input: Input.Basic, after: () => [Skill], holds: BLOCK_STANCE, updateBuffs: () => revokeCurrent(BLOCK_STANCE), animFrames: 57, castPriority: 2, bullets: [
     { hitFrame: 12, mv: 4242, energy: 67, concerto: 134, offtune: 2134, forte1: 5 },
     { hitFrame: 33, mv: 4242, energy: 67, concerto: 134, offtune: 2134, forte1: 5 },
     { hitFrame: 51, mv: 4242, energy: 67, concerto: 134, offtune: 2134, forte1: 20 },
   ], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
 // Breakthrough "can be followed by Basic Attack Stage 4"
-const BA4 = zaniAction("Basic - Routine Negotiation 4", { after: () => [BA3, BA3Follow, Breakthrough], animFrames: 103, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+// Stage 4 or Breakthrough is a press's timing ("at the right time"): Stage 4 is disabled
+const BA4 = zaniAction("Basic - Routine Negotiation 4", { input: Input.Basic, valid: () => false, animFrames: 103, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 26, mv: 6760, energy: 107, concerto: 213, offtune: 3400, forte1: 5 },
     { hitFrame: 42, mv: 6760, energy: 107, concerto: 213, offtune: 3400, forte1: 5 },
     { hitFrame: 69, mv: 6760, energy: 107, concerto: 213, offtune: 3400, forte1: 5 },
     { hitFrame: 77, mv: 6760, energy: 107, concerto: 213, offtune: 3400, forte1: 10 },
   ]});
 // after Stage 3, or the Dodge Counter: "Then press Normal Attack at the right time to cast Basic Attack Breakthrough"
-const Breakthrough = zaniAction("Basic - Breakthrough", { after: () => [BA3, BA3Follow, DC], animFrames: 110, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const Breakthrough = zaniAction("Basic - Breakthrough", { input: Input.Basic, after: () => [BA3, BA3Follow, DC], animFrames: 110, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 26, mv: 6150, energy: 97, concerto: 194, offtune: 3094, forte1: 15 },
     { hitFrame: 50, mv: 1758, energy: 28, concerto: 56, offtune: 884, forte1: 10 },
     { hitFrame: 60, mv: 1758, energy: 28, concerto: 56, offtune: 884, forte1: 10 },
@@ -131,14 +140,14 @@ const Breakthrough = zaniAction("Basic - Breakthrough", { after: () => [BA3, BA3
     { hitFrame: 100, mv: 1758, energy: 28, concerto: 56, offtune: 884, forte1: 10 },
     { hitFrame: 110, mv: 1758, energy: 28, concerto: 56, offtune: 884, forte1: 10 },
   ]});
-const MA = zaniAction("Mid-air - Routine Negotiation", { castPosition: Position.Midair, endPosition: Position.Grounded, animFrames: 60, animPriority: { 56: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 48, mv: 10498, energy: 165, concerto: 330, offtune: 5280, forte1: 5 }]});
-const HA = zaniAction("Heavy - Routine Negotiation", { animFrames: 63, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+const MA = zaniAction("Mid-air - Routine Negotiation", { input: [Input.Basic, Input.SwapIn], position: Position.Midair, endPosition: Position.Grounded, animFrames: 60, animPriority: { 56: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 48, mv: 10498, energy: 165, concerto: 330, offtune: 5280, forte1: 5 }]});
+const HA = zaniAction("Heavy - Routine Negotiation", { input: Input.BasicHold, animFrames: 63, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 12, mv: 4108, energy: 65, concerto: 130, offtune: 2066, forte1: 5 },
     { hitFrame: 35, mv: 4108, energy: 65, concerto: 130, offtune: 2066, forte1: 5 },
     { hitFrame: 41, mv: 4108, energy: 65, concerto: 130, offtune: 2066, forte1: 5 },
     { hitFrame: 47, mv: 4108, energy: 65, concerto: 130, offtune: 2066, forte1: 5 },
   ]});
-const DC = zaniAction("Dodge Counter - Routine Negotiation", { after: [SUCCESSFUL_DODGE], animFrames: 57, animPriority: { 2: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const DC = zaniAction("Dodge Counter - Routine Negotiation", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], animFrames: 57, animPriority: { 2: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 12, mv: 7423, energy: 117, concerto: 234, offtune: 2134, forte1: 5 },
     { hitFrame: 33, mv: 7423, energy: 117, concerto: 234, offtune: 2134, forte1: 5 },
     { hitFrame: 51, mv: 7423, energy: 117, concerto: 234, offtune: 2134, forte1: 10 },
@@ -148,13 +157,13 @@ const DC = zaniAction("Dodge Counter - Routine Negotiation", { after: [SUCCESSFU
 //     Redundant Energy is full. Targeted Action deals Spectro Frazzle DMG without inflicting any
 //     Frazzle — it lays the Ember itself — and opens Sunburst.
 const Skill = zaniAction("Skill - Standard Defense Protocol", {
-  animFrames: 18, animPriority: { 0: 2 }, castPriority: 7,
+  input: Input.Skill, animFrames: 18, animPriority: { 0: 2 }, castPriority: 7,
   cooldown: 60 * 5,
   node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [{ hitFrame: 8, mv: 6394, energy: 567, offtune: 2144 }], castConcerto: 500, castForte1: 20,
   updateBuffs: () => applyCurrent(BLOCK_STANCE, 1),
 });
 // "When Zani is not in Inferno Mode and has full Redundant Energy"
-const TargetedAction = zaniAction("Forte Skill - Targeted Action", { minForte1: 100,
+const TargetedAction = zaniAction("Forte Skill - Targeted Action", { input: Input.Skill, minForte1: 100,
   animFrames: 124, animPriority: { 134: 2 }, castPriority: 4, noSwapFrames: 29,
   node: Node.Forte, cast: Cast.Skill, type: Type.Skill, subtype: Subtype.SpectroFrazzle,
   bullets: [
@@ -174,19 +183,22 @@ const TargetedAction = zaniAction("Forte Skill - Targeted Action", { minForte1: 
 // --- Scorching Light: the Inferno Mode chain, pressed on Basic Attack but dealing Heavy Attack
 //     DMG that also counts as Spectro Frazzle DMG. Each spends Blaze, and Nightfall's own spend
 //     is what pays for its multiplier (SCORCHING_LIGHT below).
-const HEAVY_SLASH = { requireBuff: INFERNO_MODE, node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, subtype: Subtype.SpectroFrazzle };
+const HEAVY_SLASH = { node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, subtype: Subtype.SpectroFrazzle };
 
 /** One Heavy Slash. Its Blaze is spent hit by hit (SLASH_SPEND below), by BLAZE itself. */
-const blazeSlash = (name: string, def: object): Action => zaniAction(name, { ...HEAVY_SLASH, ...def });
+const blazeSlash = (name: string, def: { valid?: () => boolean; [k: string]: unknown }): Action => {
+  const stage = def.valid;
+  return zaniAction(name, { input: Input.Basic, ...HEAVY_SLASH, ...def, holds: INFERNO_MODE, valid: () => !stage || stage()});
+};
 
 // "When Blaze is no less than 30, Basic Attack is replaced with Heavy Slash - Daybreak"
-const Daybreak = blazeSlash("Forte Basic - Heavy Slash: Daybreak", { notAfter: () => [Daybreak, Dawning, Lightsmash], minForte2: 30, animFrames: 31, animPriority: { 31: 2 }, castPriority: 4, bullets: [
+const Daybreak = blazeSlash("Forte Basic - Heavy Slash: Daybreak", { input: [Input.Basic, Input.SwapIn], notAfter: () => [Daybreak, Dawning, Lightsmash], minForte2: 30, position: Position.Grounded, valid: () => isHeld(INFERNO_MODE) && forte2() >= 30, animFrames: 31, animPriority: { 31: 2 }, castPriority: 4, bullets: [
     { hitFrame: 20, mv: 4971, energy: 57, concerto: 75, offtune: 1000 },
     { hitFrame: 29, mv: 11929, energy: 135, concerto: 180, offtune: 2400, forte2: -10 },
     { hitFrame: 31, mv: 2983, energy: 34, concerto: 45, offtune: 600 },
   ] });
 // "After performing Heavy Slash - Daybreak, press Basic Attack immediately"
-const Dawning = blazeSlash("Forte Basic - Heavy Slash: Dawning", { after: [Daybreak], animFrames: 79, animPriority: { 79: 2 }, castPriority: 4, bullets: [
+const Dawning = blazeSlash("Forte Basic - Heavy Slash: Dawning", { after: () => [Daybreak], animFrames: 79, animPriority: { 79: 2 }, castPriority: 4, bullets: [
     { hitFrame: 18, mv: 14843, energy: 179, concerto: 210, offtune: 3173, forte2: -10 },
     { hitFrame: 28, mv: 3393, energy: 41, concerto: 48, offtune: 726 },
     { hitFrame: 56, mv: 14843, energy: 179, concerto: 210, offtune: 3173, forte2: -10 },
@@ -206,7 +218,7 @@ const Nightfall = blazeSlash("Forte Basic - Heavy Slash: Nightfall", { after: ()
     { hitFrame: 133, mv: 13917, energy: 315, concerto: 420, offtune: 5600, forte2: -20 },
   ]});
 // "... and Zani has no less than 30 Blazes, ... perform Heavy Slash - Lightsmash"
-const Lightsmash = blazeSlash("Forte Dodge Counter - Heavy Slash: Lightsmash", { after: [SUCCESSFUL_DODGE], minForte2: 30,
+const Lightsmash = blazeSlash("Forte Dodge Counter - Heavy Slash: Lightsmash", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], minForte2: 30,
   animFrames: 77, animPriority: { 2: 4, 73: 2 }, castPriority: 8, bullets: [
     { hitFrame: 12, mv: 14843, energy: 179, concerto: 210, offtune: 3173, forte2: -10 },
     { hitFrame: 22, mv: 3393, energy: 41, concerto: 48, offtune: 726 },
@@ -225,7 +237,7 @@ function slashSpend(): number {
 // --- Between Dawn and Dusk: Rekindle opens Inferno Mode with 50 Blaze, The Last Stand closes it.
 //     Only Rekindle costs the bar.
 const Lib1 = zaniAction("Liberation - Rekindle", {
-  animFrames: 200, animPriority: { 200: 2 }, castPriority: 10, timestop: [0, 200], motionStop: [0, 200],
+  input: Input.Liberation, animFrames: 200, animPriority: { 200: 2 }, castPriority: 10, timestop: [0, 200], motionStop: [0, 200],
   cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, 
   bullets: [{ hitFrame: 120, mv: 31852, offtune: 67200 }], castConcerto: 2000, castEnergy: -12500,
@@ -236,7 +248,7 @@ const Lib1 = zaniAction("Liberation - Rekindle", {
   },
 });
 // "When in Inferno Mode, Resonance Liberation The Last Stand becomes available"
-const Lib2 = zaniAction("Liberation - The Last Stand", { requireBuff: INFERNO_MODE,
+const Lib2 = zaniAction("Liberation - The Last Stand", { input: Input.Liberation, holds: INFERNO_MODE,
   animFrames: 134, animPriority: { 134: 2 }, castPriority: 10, timestop: [0, 134], motionStop: [0, 134],
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, 
   bullets: [{ hitFrame: 44, mv: 19112, offtune: 15120 }, { hitFrame: 128, mv: 108296, offtune: 85680 }], castConcerto: 1000,
@@ -251,7 +263,7 @@ const Lib2 = zaniAction("Liberation - The Last Stand", { requireBuff: INFERNO_MO
 });
 
 const Intro = zaniAction("Intro - Immediate Execution", {
-  endPosition: Position.Grounded, qteFrames: 74, animFrames: 90, noSwapFrames: 80, animPriority: { 78: 5, 90: 2 }, castPriority: 11, motionStop: [4, 80],
+  input: Input.Intro, endPosition: Position.Grounded, qteFrames: 74, animFrames: 90, noSwapFrames: 80, animPriority: { 78: 5, 90: 2 }, castPriority: 11, motionStop: [4, 80],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 20, mv: 2424, energy: 120, offtune: 1220 },
     { hitFrame: 26, commitFrame: 20, mv: 2424, energy: 120, offtune: 1220 },
@@ -269,7 +281,7 @@ const Intro = zaniAction("Intro - Immediate Execution", {
  *  afterAction, so this cast pays for the ones it is about to clear. */
 const Outro = zaniAction("Outro - Beacon For the Future", {
   animFrames: 0,
-  cast: Cast.Outro, type: Type.Outro, subtype: Subtype.SpectroFrazzle, bullets: [{ hitFrame: 0, mv: 15000 }], minConcerto: 10000, castConcerto: -10000,
+  cast: Cast.Outro, type: Type.Outro, subtype: Subtype.SpectroFrazzle, bullets: [{ hitFrame: 0, mv: 15000 }], input: Input.Outro, minConcerto: 10000, castConcerto: -10000,
   // +10% a stack, sourced to the Embers themselves so the row says which of them paid for it
   applyStats: () => addStatAs(HELIACAL_EMBER, Stat.TotalDmg, 10 * stacksOfEnemy(HELIACAL_EMBER)),
   updateBuffs: () => applyTeam(BEACON, 1),
@@ -434,11 +446,7 @@ const ZANI_RESONATOR = new Resonator({
   element: Attribute.Spectro,
   weapon: WeaponType.Gauntlets,
   color: "#b8a897",
-  intro: Intro,
-  // "When Blaze is no less than 30, Basic Attack is replaced with Heavy Slash - Daybreak" in Inferno Mode
-  swapIn: () => (isHeld(INFERNO_MODE) && forte2() >= 30 ? Daybreak : BA1),
-  swapInAir: MA,
-  tuneBreak: tuneBreak(94, 94, [0, 94], [0, 70], [[72, 160000]]),
+  actions: [BA1, BA2, BA3, BA3Follow, BA4, Breakthrough, MA, HA, DC, Skill, TargetedAction, Daybreak, Dawning, Nightfall, Lightsmash, Lib1, Lib2, Intro, Outro, tuneBreak(94, 94, [0, 94], [0, 70], [[72, 160000]])],
   maxEnergy: 12500,
   maxForte1: 100,
   // Blaze's mirror: Inferno Mode's 150, the lower 100 clamped where it is granted
@@ -450,7 +458,7 @@ const ZANI_RESONATOR = new Resonator({
   updateBuffs: () => {
     if (!casting(Cast.Dodge)) return;
     for (let p = previousPress(); p; p = p.cancelOf ?? p.formOf) {
-      if (p === Dawning || p === Lightsmash) saveChain(p);
+      if (p === Dawning || p === Lightsmash) chainAs(p);
     }
   },
   hitGlobal: () => {

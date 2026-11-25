@@ -6,6 +6,7 @@ import {
   cancelHits,
   addStat, stacksOf, stacksOfEnemy, stacksOfTeam, applyCurrent, casting, maxEnergy, queue, applied, appliedByMe,
   onCast, onType, onApplied,
+  grounded,
 } from "../engine/context.js";
 import { Action, Cooldown } from "../engine/rotation.js";
 import { SHIELD, HAVOC_BANE } from "../resonators/status.js";
@@ -38,7 +39,7 @@ export const FALSE_SOVEREIGN_MAINSLOT = new Mainslot({
   stats: [[Stat.DmgBonus, 12, Attribute.Electro], [Stat.DmgBonus, 12, Type.Heavy]],
 });
 export const FALSE_SOVEREIGN = new TransformEcho("Echo - False Sovereign", {
-  mainslot: FALSE_SOVEREIGN_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, animFrames: 55,
+  mainslot: FALSE_SOVEREIGN_MAINSLOT, position: Position.Grounded, endPosition: Position.Grounded, animFrames: 55,
   // wuwalab commits each hit 19 frames ahead of it
   bullets: [25, 31, 40, 48].map((f) => ({ hitFrame: f, commitFrame: f - 19, mv: 5535, energy: 76 })),
   cooldown: new Cooldown({ frames: 60 * 8, charges: 2 }),
@@ -160,7 +161,7 @@ export const FENRICO_MAINSLOT = new Mainslot({
   stats: [[Stat.DmgBonus, 12, Attribute.Aero], [Stat.DmgBonus, 12, Type.Heavy]],
 });
 export const FENRICO = new SummonEcho("Echo - Reminiscence: Fenrico", {
-  mainslot: FENRICO_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, cooldown: 60 * 20,
+  mainslot: FENRICO_MAINSLOT, position: Position.Grounded, endPosition: Position.Grounded, cooldown: 60 * 20,
   element: Attribute.Aero, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 22, commitFrame: 0, mv: 27360, energy: 380 }],
 });
 
@@ -202,7 +203,7 @@ export const THRENODIAN_LEVIATHAN_MAINSLOT = new Mainslot({
   stats: [[Stat.DmgBonus, 12, Attribute.Havoc], [Stat.DmgBonus, 12, Type.Liberation]],
 });
 export const THRENODIAN_LEVIATHAN = new PseudoTransformEcho("Echo - Reminiscence: Leviathan", {
-  mainslot: THRENODIAN_LEVIATHAN_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, cooldown: 60 * 25, animFrames: 32,
+  mainslot: THRENODIAN_LEVIATHAN_MAINSLOT, position: Position.Grounded, endPosition: Position.Grounded, cooldown: 60 * 25, animFrames: 32,
   element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo,
   bullets: [
     // one summon at a time: a fresh one cuts off whatever hits the last had left

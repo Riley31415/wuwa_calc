@@ -5,6 +5,7 @@ import { NM_TEMPEST_MEPHIS_MAINSLOT } from "./jinzhou.js";
 import {
   addStat, casting, hitting, getStat, queue, queueOutro, stacksOfEnemy, currentMember, isActive,
   onApplied, onCast, onType, onInflict, inflicting,
+  grounded,
 } from "../engine/context.js";
 import { Action } from "../engine/rotation.js";
 import { AERO_EROSION, HELIACAL_EMBER, SPECTRO_FRAZZLE } from "../resonators/status.js";
@@ -61,7 +62,7 @@ export const NM_HERON_MAINSLOT = new Mainslot({
   stats: [[Stat.DmgBonus, 12, Attribute.Havoc], [Stat.DmgBonus, 12, Type.Heavy]],
 });
 export const NM_HERON = new TransformEcho("Echo - Nightmare: Impermanence Heron", {
-  mainslot: NM_HERON_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, animFrames: 122,
+  mainslot: NM_HERON_MAINSLOT, position: Position.Grounded, endPosition: Position.Grounded, animFrames: 122,
   // wuwalab commits each hit 19 frames ahead of it
   bullets: [11, 17, 23, 29, 35, 41, 47, 53, 59, 65].map((f) => ({ hitFrame: f, commitFrame: Math.max(0, f - 19), mv: 4050, energy: 56 })),
   cooldown: 60 * 25,
@@ -144,7 +145,7 @@ export const NM_HECATE_MAINSLOT = new Mainslot({
   stats: [[Stat.DmgBonus, 12, Attribute.Havoc], [Stat.DmgBonus, 20, Type.Echo]],
 });
 export const NM_HECATE = new TransformEcho("Echo - Nightmare: Hecate", {
-  mainslot: NM_HECATE_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, animFrames: 50, cooldown: 60 * 25,
+  mainslot: NM_HECATE_MAINSLOT, position: Position.Grounded, endPosition: Position.Grounded, animFrames: 50, cooldown: 60 * 25,
   // wuwalab commits each hit 19 frames ahead of it
   bullets: [7, 35, 40].map((f) => ({ hitFrame: f, commitFrame: Math.max(0, f - 19), mv: 15239, energy: 105 })),
   element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo,
@@ -207,7 +208,7 @@ export const NM_KELPIE_MAINSLOT = new Mainslot({
   updateBuffs: () => { if (casting(Cast.Outro)) queue(NM_KELPIE_OUTRO); },
 });
 export const NM_KELPIE = new TransformEcho("Echo - Nightmare: Kelpie", {
-  mainslot: NM_KELPIE_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, animFrames: 138,
+  mainslot: NM_KELPIE_MAINSLOT, position: Position.Grounded, endPosition: Position.Grounded, animFrames: 138,
   bullets: [{ hitFrame: 91, commitFrame: 72, mv: 40500, energy: 281 }],
   cooldown: 60 * 25,
   element: Attribute.Glacio, scaling: Scaling.Atk, type: Type.Echo,
@@ -303,7 +304,7 @@ export const CAPITANEUS_MAINSLOT = new Mainslot({
   stats: [[Stat.DmgBonus, 12, Attribute.Spectro], [Stat.DmgBonus, 12, Type.Heavy]],
 });
 export const CAPITANEUS = new SummonEcho("Echo - Capitaneus", {
-  mainslot: CAPITANEUS_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, cooldown: 60 * 20,
+  mainslot: CAPITANEUS_MAINSLOT, position: Position.Grounded, endPosition: Position.Grounded, cooldown: 60 * 20,
   element: Attribute.Spectro, scaling: Scaling.Atk, type: Type.Echo,
   bullets: [{ hitFrame: 41, commitFrame: 0, mv: 11880, energy: 165 }, ...[0, 1, 2, 3].map(() => ({ hitFrame: 43, commitFrame: 0, mv: 5940, energy: 82 }))],
 });

@@ -14,7 +14,7 @@
  * MVs from nanoka.cc (character 1606); frames, energy/concerto/off-tune and Imagination from
  * wuwalab, cross-checked against encore.moe's per-hit rows.
  */
-import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, BuffTarget, Position } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, BuffTarget, Position, Input } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence, matrix } from "../../engine/gear.js";
 import {
   applyCurrent,
@@ -31,6 +31,13 @@ import {
   forte1,
   isHeld,
   revokeCurrent,
+  notAfter,
+  after,
+  midair,
+  holds,
+  concerto,
+  grounded,
+  lacks,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, SWAPIN, JUMP, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
 import { TRAGICOMEDY } from "../../weapons/gauntlet.js";
@@ -54,24 +61,24 @@ function rocciaAction(id: string, def: object): Action {
 const BEYOND_IMAGINATION = new Buff({ name: "Roccia: Beyond Imagination", lostOnSwap: true });
 
 // --- basics, mid-air, dodge counter (Pero, Easy)
-const BA1 = rocciaAction("Basic - Pero, Easy 1", { notAfter: () => [BA1, BA2, BA3, Intro], animFrames: 27, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 10, mv: 7318, energy: 109, concerto: 347, offtune: 3464, forte1: 19 }] });
-const BA2 = rocciaAction("Basic - Pero, Easy 2", { after: [BA1], animFrames: 45, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = rocciaAction("Basic - Pero, Easy 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [BA1, BA2, BA3, Intro], position: Position.Grounded, animFrames: 27, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 10, mv: 7318, energy: 109, concerto: 347, offtune: 3464, forte1: 19 }] });
+const BA2 = rocciaAction("Basic - Pero, Easy 2", { input: Input.Basic, after: () => [BA1], animFrames: 45, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 11, mv: 3814, energy: 57, concerto: 181, offtune: 1806, forte1: 11 },
     { hitFrame: 14, mv: 3814, energy: 57, concerto: 181, offtune: 1806, forte1: 11 },
     { hitFrame: 18, mv: 3814, energy: 57, concerto: 181, offtune: 1806, forte1: 11 },
   ]});
-const BA3 = rocciaAction("Basic - Pero, Easy 3", { after: [BA2], animFrames: 64, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = rocciaAction("Basic - Pero, Easy 3", { input: Input.Basic, after: () => [BA2], animFrames: 64, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 9, mv: 3380, energy: 50, concerto: 160, offtune: 1600, forte1: 10 },
     { hitFrame: 22, mv: 3380, energy: 50, concerto: 160, offtune: 1600, forte1: 10 },
     { hitFrame: 43, mv: 10140, energy: 150, concerto: 480, offtune: 4800, forte1: 29 },
   ]});
 // Pero, Help: "Use Basic Attack right after casting this skill to cast Basic Attack Stage 4"
-const BA4 = rocciaAction("Basic - Pero, Easy 4", { after: () => [BA3, Intro], animFrames: 87, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA4 = rocciaAction("Basic - Pero, Easy 4", { input: Input.Basic, after: () => [BA3, Intro], animFrames: 87, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 24, mv: 10419, energy: 155, concerto: 494, offtune: 4932, forte1: 50 },
     { hitFrame: 34, mv: 10419, energy: 155, concerto: 494, offtune: 4932, forte1: 50 },
   ]});
-const MA = rocciaAction("Mid-air - Pero, Easy Plunge", { castPosition: Position.Midair, endPosition: Position.Grounded, animFrames: 66, animPriority: { 66: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 36, mv: 10478, energy: 155, concerto: 496, offtune: 4960, forte1: 38 }] });
-const DC = rocciaAction("Dodge Counter - Pero, Easy", { after: [SUCCESSFUL_DODGE], animFrames: 45, castPriority: 2, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const MA = rocciaAction("Mid-air - Pero, Easy Plunge", { input: [Input.Basic, Input.SwapIn], position: Position.Midair, lacks: BEYOND_IMAGINATION, endPosition: Position.Grounded, animFrames: 66, animPriority: { 66: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 36, mv: 10478, energy: 155, concerto: 496, offtune: 4960, forte1: 38 }] });
+const DC = rocciaAction("Dodge Counter - Pero, Easy", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], animFrames: 45, castPriority: 2, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 11, mv: 6890, energy: 52, concerto: 167, offtune: 1662, forte1: 13 },
     { hitFrame: 14, mv: 6890, energy: 52, concerto: 167, offtune: 1662, forte1: 13 },
     { hitFrame: 18, mv: 6890, energy: 52, concerto: 167, offtune: 1662, forte1: 13 },
@@ -79,9 +86,9 @@ const DC = rocciaAction("Dodge Counter - Pero, Easy", { after: [SUCCESSFUL_DODGE
 
 // the held Heavy as wuwalab plays it: the press, a 12f loop per beat held (+19 Imagination each),
 // and the release — which, at 100+ Imagination, launches Beyond Imagination at 30f (End Success)
-const HA = rocciaAction("Heavy - Pero, Easy", { animFrames: 16, castPriority: 2, node: Node.Normal, cast: Cast.Heavy });
-const HALoop = rocciaAction("Heavy - Pero, Easy (Loop)", { after: () => [HA, HALoop], animFrames: 12, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, bullets: [{ hitFrame: 1, element: null, type: null, subtype: null, forte1: 19 }] });
-const HAEnd = rocciaAction("Heavy - Pero, Easy (End)", { after: [HA, HALoop], animFrames: 44, animPriority: { 0: 4, 44: 2 }, castPriority: 4, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+const HA = rocciaAction("Heavy - Pero, Easy", { input: Input.BasicHold, animFrames: 16, castPriority: 2, node: Node.Normal, cast: Cast.Heavy });
+const HALoop = rocciaAction("Heavy - Pero, Easy (Loop)", { input: Input.BasicHold, after: () => [HA, HALoop], animFrames: 12, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, bullets: [{ hitFrame: 1, element: null, type: null, subtype: null, forte1: 19 }] });
+const HAEnd = rocciaAction("Heavy - Pero, Easy (End)", { input: Input.BasicHold, after: () => [HA, HALoop], animFrames: 44, animPriority: { 0: 4, 44: 2 }, castPriority: 4, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 25, mv: 16899, energy: 250, concerto: 800, offtune: 8000, forte1: 100 },
     // the release's own +100 is banked by now, so 100+ at release reads 200+ here
     { hitFrame: 30, element: null, type: null, subtype: null, updateDebuffs: () => {
@@ -90,7 +97,7 @@ const HAEnd = rocciaAction("Heavy - Pero, Easy (End)", { after: [HA, HALoop], an
   ] });
 
 // pulls in targets and always launches Beyond Imagination: "She then launches into mid-air"
-const Skill = rocciaAction("Skill - Acrobatic Trick", { endPosition: Position.Midair, animFrames: 95, animPriority: { 0: 4, 26: 6 }, castPriority: 4, cooldown: 60 * 10, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+const Skill = rocciaAction("Skill - Acrobatic Trick", { input: Input.Skill, endPosition: Position.Midair, animFrames: 95, animPriority: { 0: 4, 26: 6 }, castPriority: 4, cooldown: 60 * 10, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 23, mv: 6147, energy: 175, offtune: 1374 },
     { hitFrame: 31, mv: 6147, energy: 175, offtune: 1374 },
     { hitFrame: 38, mv: 6147, energy: 175, offtune: 1374 },
@@ -113,37 +120,39 @@ const relaunchInGoldenWings = (): void => {
   if (isHeld(GOLDEN_WINGS)) applyCurrent(BEYOND_IMAGINATION, 1);
 };
 // Beyond Imagination ends "when she is not airborne": every stage is cast in mid-air
-const FBA1 = rocciaAction("Forte Basic - Real Fantasy 1", { notAfter: () => [FBA1, FBA2, FBA3Success, RealityRecreation], castPosition: Position.Midair, endPosition: Position.Midair, animFrames: 63, animPriority: { 69: 5 }, castPriority: 6, requireBuff: BEYOND_IMAGINATION, node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, bullets: [
+const FBA1 = rocciaAction("Forte Basic - Real Fantasy 1", { input: Input.Basic, notAfter: () => [FBA1, FBA2, FBA3Success, RealityRecreation], position: Position.Midair, minForte1: 100, holds: BEYOND_IMAGINATION, endPosition: Position.Midair, animFrames: 63, animPriority: { 69: 5 }, castPriority: 6, node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, bullets: [
     { hitFrame: 35, mv: 32208, energy: 800, concerto: 1000, offtune: 7200, forte1: -100, updateDebuffs: landed },
     { hitFrame: 54, element: null, type: null, subtype: null, updateDebuffs: relaunchOnImagination },
-  ], minForte1: 100 });
-const FBA2 = rocciaAction("Forte Basic - Real Fantasy 2", { after: [FBA1], castPosition: Position.Midair, endPosition: Position.Midair, animFrames: 63, animPriority: { 69: 5 }, castPriority: 6, requireBuff: BEYOND_IMAGINATION, node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, bullets: [
+  ],  });
+const FBA2 = rocciaAction("Forte Basic - Real Fantasy 2", { input: Input.Basic, after: () => [FBA1], position: Position.Midair, minForte1: 100, holds: BEYOND_IMAGINATION, endPosition: Position.Midair, animFrames: 63, animPriority: { 69: 5 }, castPriority: 6, node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, bullets: [
     { hitFrame: 34, mv: 33997, energy: 800, concerto: 1600, offtune: 7600, forte1: -100, updateDebuffs: landed },
     { hitFrame: 52, element: null, type: null, subtype: null, updateDebuffs: relaunchOnImagination },
-  ], minForte1: 100 });
-const FBA3 = rocciaAction("Forte Basic - Real Fantasy 3", { after: [FBA2], castPosition: Position.Midair, endPosition: Position.Grounded, animFrames: 86, animPriority: { 43: 2 }, castPriority: 6, requireBuff: BEYOND_IMAGINATION, node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, bullets: [{ hitFrame: 34, mv: 35786, energy: 800, concerto: 2500, offtune: 8000, forte1: -100, updateDebuffs: landed }], minForte1: 100 });
+  ],  });
+// the S6 window (Golden Wings) relaunches her off Stage 3: the Success form there, this one outside it
+const FBA3 = rocciaAction("Forte Basic - Real Fantasy 3", { input: Input.Basic, after: () => [FBA2], position: Position.Midair, minForte1: 100, holds: BEYOND_IMAGINATION, lacks: () => [GOLDEN_WINGS], endPosition: Position.Grounded, animFrames: 86, animPriority: { 43: 2 }, castPriority: 6, node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, bullets: [{ hitFrame: 34, mv: 35786, energy: 800, concerto: 2500, offtune: 8000, forte1: -100, updateDebuffs: landed }],  });
 /** S6: the Stage 3 that relaunches her into Beyond Imagination for Reality Recreation (wuwalab's Success row). */
-const FBA3Success = FBA3.variant("Forte Basic - Real Fantasy 3 (Success)", { endPosition: Position.Midair, animFrames: 66, animPriority: { 72: 5 }, castPriority: 6, bullets: [
+const FBA3Success = FBA3.variant("Forte Basic - Real Fantasy 3 (Success)", { after: () => [FBA2], position: Position.Midair, minForte1: 100, holds: () => [BEYOND_IMAGINATION, GOLDEN_WINGS], endPosition: Position.Midair, animFrames: 66, animPriority: { 72: 5 }, castPriority: 6, bullets: [
     ...FBA3.def.bullets!,
     { hitFrame: 56, element: null, type: null, subtype: null, updateDebuffs: relaunchInGoldenWings },
   ] });
 /** Stages 1-2 landing under 100 Imagination: no relaunch, the chain ends on the ground (wuwalab's Fail rows). */
-const FBA1Fail = FBA1.variant("Forte Basic - Real Fantasy 1 (Fail)", { endPosition: Position.Grounded, animFrames: 83, animPriority: { 39: 2 }, castPriority: 6, bullets: FBA1.def.bullets!.slice(0, 1) });
-const FBA2Fail = FBA2.variant("Forte Basic - Real Fantasy 2 (Fail)", { endPosition: Position.Grounded, animFrames: 83, animPriority: { 39: 2 }, castPriority: 6, bullets: FBA2.def.bullets!.slice(0, 1) });
+// the Fail rows are an outcome, not a state: disabled
+const FBA1Fail = FBA1.variant("Forte Basic - Real Fantasy 1 (Fail)", { valid: () => false, endPosition: Position.Grounded, animFrames: 83, animPriority: { 39: 2 }, castPriority: 6, bullets: FBA1.def.bullets!.slice(0, 1) });
+const FBA2Fail = FBA2.variant("Forte Basic - Real Fantasy 2 (Fail)", { valid: () => false, endPosition: Position.Grounded, animFrames: 83, animPriority: { 39: 2 }, castPriority: 6, bullets: FBA2.def.bullets!.slice(0, 1) });
 
 /** S6: the Basic in Beyond Imagination after Stage 3 lands within 12s of the Liberation — 100% of
  *  Stage 3's DMG, Heavy DMG, its own nanoka row (357.86%, energy 1.2, off-tune 8000; no Concerto
  *  Regen row, so none), no Imagination spent — she relaunches off every landing. */
-const RealityRecreation = rocciaAction("Basic - Reality Recreation (S6)", { after: () => [FBA3Success, RealityRecreation], castPosition: Position.Midair, endPosition: Position.Midair, animFrames: 68, animPriority: { 72: 5 }, castPriority: 6, requireBuff: BEYOND_IMAGINATION, node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, bullets: [
+const RealityRecreation = rocciaAction("Basic - Reality Recreation (S6)", { input: Input.Basic, after: () => [FBA3Success, RealityRecreation], position: Position.Midair, holds: BEYOND_IMAGINATION, endPosition: Position.Midair, animFrames: 68, animPriority: { 72: 5 }, castPriority: 6, node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, bullets: [
     { hitFrame: 34, mv: 35786, energy: 120, offtune: 8000, updateDebuffs: landed },
     { hitFrame: 55, element: null, type: null, subtype: null, updateDebuffs: relaunchInGoldenWings },
   ] });
 /** The last one: cast inside the S6 window but landing after it, so no relaunch (wuwalab's Fail row). */
-const RealityRecreationFail = RealityRecreation.variant("Basic - Reality Recreation (S6 Fail)", { endPosition: Position.Grounded, animFrames: 86, animPriority: { 43: 2 }, castPriority: 6, bullets: RealityRecreation.def.bullets!.slice(0, 1) });
+const RealityRecreationFail = RealityRecreation.variant("Basic - Reality Recreation (S6 Fail)", { valid: () => false, endPosition: Position.Grounded, animFrames: 86, animPriority: { 43: 2 }, castPriority: 6, bullets: RealityRecreation.def.bullets!.slice(0, 1) });
 
 // Resonance Cost 125 (maxEnergy below) is nanoka's own declared cost, not the migrated sheet's 0
 const Liberation = rocciaAction("Liberation - Commedia Improvviso!", {
-  animFrames: 200, castPriority: 10, timestop: [0, 200], motionStop: [0, 112],
+  input: Input.Liberation, animFrames: 200, castPriority: 10, timestop: [0, 200], motionStop: [0, 112],
   cooldown: 60 * 20,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Heavy, bullets: [
     { hitFrame: 116, mv: 27834, offtune: 32000 },
@@ -153,9 +162,9 @@ const Liberation = rocciaAction("Liberation - Commedia Improvviso!", {
   updateBuffs: () => applyTeam(COMMEDIA_TEAM_ATK),
 });
 
-const Intro = rocciaAction("Intro - Pero, Help", { endPosition: Position.Grounded, qteFrames: 48, animFrames: 68, noSwapFrames: 84, animPriority: { 68: 2 }, castPriority: 11, motionStop: [6, 32], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 52, mv: 16899, energy: 1000, offtune: 10824 }], castConcerto: 1000, castForte1: 100 });
+const Intro = rocciaAction("Intro - Pero, Help", { input: Input.Intro, endPosition: Position.Grounded, qteFrames: 48, animFrames: 68, noSwapFrames: 84, animPriority: { 68: 2 }, castPriority: 11, motionStop: [6, 32], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 52, mv: 16899, energy: 1000, offtune: 10824 }], castConcerto: 1000, castForte1: 100 });
 const Outro = rocciaAction("Outro - Applause, Please!", {
-  cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000,
+  cast: Cast.Outro, input: Input.Outro, minConcerto: 10000, castConcerto: -10000,
   updateBuffs: () => queueQTE(APPLAUSE_HANDOFF),
 });
 
@@ -229,13 +238,9 @@ const ROCCIA_RESONATOR = new Resonator({
   element: Attribute.Havoc,
   weapon: WeaponType.Gauntlets,
   color: "#9634b2",
-  intro: Intro,
-  swapIn: BA1,
-  swapInAir: MA,
+  actions: [BA1, BA2, BA3, BA4, MA, DC, HA, HALoop, HAEnd, Skill, FBA1, FBA2, FBA3, RealityRecreation, Liberation, Intro, Outro, FBA3Success, FBA1Fail, FBA2Fail, RealityRecreationFail, tuneBreak(94, 94, [0, 94], [0, 70], [[72, 160000]])],
   maxEnergy: 12500,
   maxForte1: 300,
-  // her Tune Break Skill runs 2 frames past the gauntlet default
-  tuneBreak: tuneBreak(94, 94, [0, 94], [0, 70], [[72, 160000]]),
 
   stats: [[Stat.BaseHp, 12250], [Stat.BaseAtk, 375], [Stat.BaseDef, 1197.7756]],
 });

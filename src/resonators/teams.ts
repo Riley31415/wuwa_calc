@@ -134,10 +134,10 @@ const TEAMS: Slot[][] = [
   // hiyuki: glacio chafe/bite — every stack the team lands calculates at the target's own limit,
   // which is why Chisa (+3 to it) and Lucilla's Chafe build stand behind her
   [[SUISUI], [PHRO_9s], HIYUKI],
-  [[SUISUI], CARLOTTA_FAST, HIYUKI],
-  [[SUISUI], LINGYANG, HIYUKI],
+  [[SUISUI], [CARLOTTA_FAST], HIYUKI],
+  [[SUISUI], [LINGYANG], HIYUKI],
   [[PHRO_9s], [LUCILLA], HIYUKI],
-  [HIYUKI, CARLOTTA_FAST, [LUCILLA_CHAFE]],
+  [HIYUKI, [CARLOTTA_FAST], [LUCILLA_CHAFE]],
   [[SUISUI, CHISA, LILY, MORNYE, VERINA, BAIZHI, SHOREKEEPER], [LUCILLA_CHAFE, LYNAE_RUPTURE, CHISA, JIANXIN, ROVER_ELECTRO], HIYUKI],
 
 
@@ -280,8 +280,8 @@ const TEAMS: Slot[][] = [
   // brant: fusion basic
   [[SHOREKEEPER, DENIA_BURST, LILY, MORNYE, VERINA, BAIZHI, SUISUI], [SANHUA, DENIA_BURST], BRANT_MDPS],
   [[MORNYE, SHOREKEEPER, LILY, DENIA_BURST, VERINA, BAIZHI, SUISUI], [LUPA], BRANT_MDPS],
-  [[LUPA], BRANT, CHANGLI],
-  //[[LUPA], BRANT, ENCORE],
+  [[LUPA], [BRANT], CHANGLI],
+  //[[LUPA], [BRANT], ENCORE],
 
   // cantarella: havoc basic, echo
   [[SHOREKEEPER], [SANHUA, ROCCIA], CANTARELLA_MDPS],
@@ -333,7 +333,6 @@ const TEAMS: Slot[][] = [
   //[[MORNYE, LUPA, SHOREKEEPER, DENIA_BURST, VERINA, SUISUI], [LYNAE_RUPTURE], CHANGLI],
 
   // jiyan: aero heavy
-  [[CIACCONA], [IUNO], JIYAN],
   [[SHOREKEEPER, VERINA, BAIZHI, CIACCONA, MORNYE, SUISUI], [MORTEFI, IUNO, CIACCONA, YANGYANG], JIYAN],
   [[SHOREKEEPER, VERINA, BAIZHI, CIACCONA, MORNYE, SUISUI], [PHRO_9s], JIYAN],
   [[MORNYE, SHOREKEEPER, LILY, VERINA, BAIZHI, CIACCONA, SUISUI], [REBECCA], JIYAN],
@@ -357,7 +356,7 @@ const TEAMS: Slot[][] = [
   [[SHOREKEEPER, VERINA, BAIZHI, MORNYE, BULING, SUISUI, LILY], PHRO_9s, [ROVER_HAVOC]],
 ];
 
-/** `mdps[i]`: whether slot i is one of the team's main DPS — per team, never stamped on the shared
+/** `mdps[i]`: whether slot i is the team's one main DPS — per team, never stamped on the shared
  *  Loadout. `lead`: where this team's interchangeable support stood in the slot list it was picked
  *  from, so the list's own order says which of them the group runs (`PRIMARY_TEAM`); -1 for a team
  *  with no interchangeable support at all. `from`: which line of `TEAMS` named it, which is as far
@@ -382,9 +381,10 @@ const EXPANDED: TeamEntry[] = TEAMS.flatMap((slots, from) => {
   // a bare loadout is a main DPS; a list is a support position, however many choices it holds
   const mdps = slots.map((s) => !Array.isArray(s));
   const [a, b, c] = slots.map((s) => (Array.isArray(s) ? [...new Set(s)] : [s]));
-  if (!mdps.some(Boolean)) {
+  // exactly one main DPS per team: the cost modes' grant goes to them alone
+  if (mdps.filter(Boolean).length !== 1) {
     const names = [a, b, c].map((s) => s!.map((l) => l.resonator.name).join("/")).join(", ");
-    throw new Error(`the team [${names}] has no bare loadout naming its main DPS`);
+    throw new Error(`the team [${names}] needs exactly one bare loadout naming its main DPS, has ${mdps.filter(Boolean).length}`);
   }
   return a!.flatMap((x, i) => b!.flatMap((y, j) => c!.map((z, k) => ({
     loadouts: [x, y, z], mdps, from,

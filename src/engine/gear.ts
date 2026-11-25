@@ -4,7 +4,7 @@
  * `Weapon`/`Resonator`), plus `EchoLoadout` and `Loadout`. Definitions only — what a piece
  * *does* is the hooks it declares, which `evaluate.ts` runs.
  */
-import { Stat, EnemyStat, Attribute, WeaponType, Rarity, Cast, BuffTarget, ActionTag, FULL_CONCERTO } from "./stats.js";
+import { Stat, EnemyStat, Attribute, WeaponType, Rarity, Cast, BuffTarget, ActionTag, FULL_CONCERTO, Input } from "./stats.js";
 import type { Tag } from "./stats.js";
 import type { Rotation, Action, ActionField } from "./rotation.js";
 import { ctx } from "./runtime.js";
@@ -785,25 +785,9 @@ export interface ResonatorDef extends GearDef {
    *  damage popovers all key off it, read straight off the Resonator rather than re-declared per
    *  team in index.ts. */
   color: string;
-  /** The Intro this resonator casts — the kit's Intro, or where it has more than one, which comes
-   *  out as it is reached (`() => (isHeld(X) ? IntroB : Intro)`): what picks the Intro chain an
-   *  arrival plays, and the one that chain's entry casts. */
-  intro?: Action | (() => Action);
-  /** The press a swap-in (arriving with no Intro) must open on, coming in grounded / in mid-air —
-   *  as `intro`, a function where it depends on state. */
-  swapIn?: Action | (() => Action);
-  swapInAir?: Action | (() => Action);
-  /** This resonator's own Tune Break, where it isn't their weapon class's (Qingxiao's) — as `intro`, a
-   *  function where it depends on their form, null where no break is allowed. Unset is the class's (tunebreak.ts). */
-  tuneBreak?: Action | (() => Action | null);
-  /** The dash this resonator makes, where it has one of its own (Jingran's Shadow Step) — or the
-   *  one it makes cutting `after` short, read when the dash is reached (Hiyuki's Iai Stance flash);
-   *  null, or unset, is the plain DODGE. */
-  dodge?: Action | ((after: Action) => Action | null);
-  /** The same for a dash made in mid-air; unset is the plain air dodge (DEFAULT_AIR_DODGE). */
-  airDodge?: Action | ((after: Action) => Action | null);
-  /** The same for a jump. */
-  jump?: Action | ((after: Action) => Action | null);
+  /** Every press of the kit, each on its `input`: what a search walks and a marker picks from (the valid
+   *  Intro, dodge, jump, Tune Break, Outro). Its own on an input replace `defaultActions` there. */
+  actions?: Action[];
   /** A wait the resonator handing this one the field must play before `next` (the arrival's first
    *  cast; an Outro asks with the Intro) — Phrolova's Hecate. Asked again after it; null goes ahead. */
   holdBefore?: (next: Action) => Action | null;
@@ -828,6 +812,12 @@ export interface ResonatorDef extends GearDef {
   /** The enemy's own off-tune ceiling (tunebreak.ts), held the way a member holds `maxEnergy`. */
   maxOfftune?: number;
 }
+
+/** The presses every resonator makes without listing them, filled in where they are made (gear.ts can
+ *  import neither): the fallbacks — the plain dashes, jump and the Swap (rotation.ts), made where none of a
+ *  kit's own on their input is valid — and each weapon class's Tune Break (tunebreak.ts), which a kit's own
+ *  Tune Break replaces outright (its own say when no break comes, Phrolova's in Maestro). */
+export const DEFAULT_PRESSES: { fallbacks: readonly Action[]; tuneBreak: ((weapon: WeaponType) => Action) | null } = { fallbacks: [], tuneBreak: null };
 
 /** No gauge capped: energy, concerto, forte 1-5, as `Resonator.caps` reads. */
 export const NO_CAPS: readonly number[] = [0, 0, 0, 0, 0, 0, 0];
@@ -858,15 +848,8 @@ export class Resonator extends Gear {
   maxOfftune: number;
   forteScale: [number, number, number, number, number];
   color: string;
-  /** `ResonatorDef.intro`, read as it is reached. */
-  intro?: () => Action;
-  /** `ResonatorDef.swapIn`/`swapInAir`, read as a swap-in reaches them. */
-  swapIn?: () => Action;
-  swapInAir?: () => Action;
-  tuneBreak?: () => Action | null;
-  dodgeFn?: (after: Action) => Action | null;
-  airDodgeFn?: (after: Action) => Action | null;
-  jumpFn?: (after: Action) => Action | null;
+  /** `ResonatorDef.actions`: every press of the kit's own. */
+  actions: readonly Action[];
   holdFn?: (next: Action) => Action | null;
   sentOff?: () => void;
   atCut?: (behind: Action, cut: ActionTag) => void;
@@ -917,20 +900,39 @@ export class Resonator extends Gear {
     const scale = def.forteScale ?? 1;
     this.forteScale = Array.isArray(scale) ? scale : [scale, scale, scale, scale, scale];
     this.color = def.color;
-    const { intro, dodge, airDodge, jump, swapIn, swapInAir, tuneBreak } = def;
-    this.intro = typeof intro === "function" ? intro : intro && (() => intro);
-    this.swapIn = typeof swapIn === "function" ? swapIn : swapIn && (() => swapIn);
-    this.swapInAir = typeof swapInAir === "function" ? swapInAir : swapInAir && (() => swapInAir);
-    this.tuneBreak = typeof tuneBreak === "function" ? tuneBreak : tuneBreak && (() => tuneBreak);
-    this.dodgeFn = typeof dodge === "function" ? dodge : dodge && (() => dodge);
-    this.airDodgeFn = typeof airDodge === "function" ? airDodge : airDodge && (() => airDodge);
+    // a def typed loosely would drop an old resolver unread
+    for (const k of ["intro", "dodge", "airDodge", "jump", "tuneBreak", "swapIn", "swapInAir"]) {
+      if (k in def) throw new Error(`${def.name}: \`${k}\` is gone — list the presses in \`actions\`, each picked by its \`valid\``);
+    }
+    if (!def.enemy && !def.actions?.length) throw new Error(`${def.name}: a resonator lists its presses in \`actions\``);
+    this.actions = def.actions ?? [];
+    for (const a of this.actions) {
+      if (a.inputs.includes(Input.None)) throw new Error(`${def.name}: ${a.name} is listed in actions but declares no input`);
+    }
     this.holdFn = def.holdBefore;
     this.sentOff = def.sentOff;
     this.atCut = def.atCut;
     this.takesCut = def.takesCut;
-    this.jumpFn = typeof jump === "function" ? jump : jump && (() => jump);
     this.tier = def.tier ?? Rarity.Limited;
   }
+  /** The presses every resonator makes without listing them: their weapon class's Tune Break (where the kit
+   *  has none), and the fallbacks — the plain dashes (grounded, mid-air, out of an echo), jump and Swap. */
+  get defaultActions(): readonly Action[] {
+    return (this.defaults ??= [...(DEFAULT_PRESSES.tuneBreak ? [DEFAULT_PRESSES.tuneBreak(this.weapon)] : []), ...DEFAULT_PRESSES.fallbacks]);
+  }
+  private defaults?: readonly Action[];
+  /** Their presses on `input`: the kit's own, then the fallbacks on it (picked only where none of the kit's
+   *  own is valid); the weapon's Tune Break only where the kit lists none. */
+  inputActions(input: Input): readonly Action[] {
+    let out = this.byInput.get(input);
+    if (!out) {
+      const own = this.actions.filter((a) => a.inputs.includes(input));
+      const defaults = this.defaultActions.filter((a) => a.inputs.includes(input) && (DEFAULT_PRESSES.fallbacks.includes(a) || !own.length));
+      this.byInput.set(input, (out = [...own, ...defaults]));
+    }
+    return out;
+  }
+  private readonly byInput = new Map<Input, readonly Action[]>();
 }
 
 export interface MainslotDef extends GearDef {
@@ -945,6 +947,8 @@ export interface MainslotDef extends GearDef {
  *  it is worn. */
 export class Mainslot extends Gear {
   cost: 4 | 3;
+  /** Its presses, as its wearer makes them (echoes/echo.ts's `EchoAction` lists each): `Input.Echo`. */
+  readonly actions: Action[] = [];
   /** Its constant stats, run by the build's echo it is (echoes/echoes.ts); the mainslot itself
    *  carries none. */
   echoStatsFn?: () => void;

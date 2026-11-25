@@ -45,7 +45,7 @@
  * does not expose; the two agree on every MV/energy/concerto/off-tune figure they share. Her
  * `weakness_mastery` is 0, so she carries no flat Tune Break Boost.
  */
-import { Stat, Attribute, WeaponType, Type, Subtype, Cast, Node, Scaling, Position } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type, Subtype, Cast, Node, Scaling, Position, Input } from "../../engine/stats.js";
 import { Buff, Debuff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, coordinatedBuff } from "../../engine/gear.js";
 import {
   addBuff,
@@ -74,8 +74,16 @@ import {
   ticksOfTeam,
   isHeld,
   runningAnyOf,
-  saveChain,
+  chainAs,
   previousPress,
+  notAfter,
+  holds,
+  lacks,
+  after,
+  midair,
+  forte1,
+  concerto,
+  grounded,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Cooldown, Rotation, SWAPIN, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
 import {
@@ -108,18 +116,18 @@ const DRIZZLE_STANCE = new Buff({ name: "Suisui: Drizzle Stance", duration: 60 *
 //     Awakening Spring. Resonance Skill - Zephyr Stance's own 40 is the kit page's, not the
 //     per-hit table's — wuwalab carries no gauge on those six hits either.
 // Drizzle Stance replaces her Basic, Mid-air, Dodge Counter and Skill presses
-const BA1 = suisuiAction("Basic - Zephyr Stance 1", { notAfter: () => [BA1, BA2, BA3, DC], forbidBuff: DRIZZLE_STANCE, animFrames: 24, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 8, commitFrame: 2, mv: 6315, energy: 100, concerto: 318, offtune: 3176, forte1: 24 }]});
-const BA2 = suisuiAction("Basic - Zephyr Stance 2", { after: [BA1], animFrames: 46, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = suisuiAction("Basic - Zephyr Stance 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [BA1, BA2, BA3, DC], position: Position.Grounded, lacks: DRIZZLE_STANCE, valid: () => !isHeld(DRIZZLE_STANCE), animFrames: 24, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 8, commitFrame: 2, mv: 6315, energy: 100, concerto: 318, offtune: 3176, forte1: 24 }]});
+const BA2 = suisuiAction("Basic - Zephyr Stance 2", { input: Input.Basic, after: () => [BA1], animFrames: 46, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 12, commitFrame: 9, mv: 6100, energy: 96, concerto: 307, offtune: 3068, forte1: 23 },
     { hitFrame: 30, commitFrame: 27, mv: 6100, energy: 96, concerto: 307, offtune: 3068, forte1: 23 },
   ]});
-const BA3 = suisuiAction("Basic - Zephyr Stance 3", { after: [BA2], animFrames: 51, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = suisuiAction("Basic - Zephyr Stance 3", { input: Input.Basic, after: () => [BA2], animFrames: 51, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 22, commitFrame: 16, mv: 4180, energy: 66, concerto: 211, offtune: 2103, forte1: 16 },
     { hitFrame: 29, commitFrame: 23, mv: 4180, energy: 66, concerto: 211, offtune: 2103, forte1: 16 },
     { hitFrame: 41, commitFrame: 35, mv: 5574, energy: 88, concerto: 281, offtune: 2804, forte1: 21 },
   ]});
 // the dodge counter leads into Stage 4 too
-const BA4 = suisuiAction("Basic - Zephyr Stance 4", { after: () => [BA3, DC], animFrames: 60, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA4 = suisuiAction("Basic - Zephyr Stance 4", { input: Input.Basic, after: () => [BA3, DC], animFrames: 60, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 2, commitFrame: 0, mv: 1591, energy: 25, concerto: 80, offtune: 800, forte1: 6 },
     { hitFrame: 8, commitFrame: 0, mv: 1591, energy: 25, concerto: 80, offtune: 800, forte1: 6 },
     { hitFrame: 14, commitFrame: 0, mv: 1591, energy: 25, concerto: 80, offtune: 800, forte1: 6 },
@@ -127,8 +135,8 @@ const BA4 = suisuiAction("Basic - Zephyr Stance 4", { after: () => [BA3, DC], an
     { hitFrame: 26, commitFrame: 0, mv: 1591, energy: 25, concerto: 80, offtune: 800, forte1: 6 },
     { hitFrame: 41, commitFrame: 0, mv: 7953, energy: 125, concerto: 400, offtune: 4000, forte1: 30 },
   ]});
-const MA = suisuiAction("Mid-air - Zephyr Stance Plunge", { animFrames: 45, animPriority: { 0: 5, 45: 2 }, forbidBuff: DRIZZLE_STANCE, castPosition: Position.Midair, endPosition: Position.Grounded, castPriority: 5, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 37, mv: 7072, energy: 186, concerto: 761, offtune: 5928 }] });
-const DC = suisuiAction("Dodge Counter - Zephyr Stance 3", { after: [SUCCESSFUL_DODGE], forbidBuff: DRIZZLE_STANCE, animFrames: 35, animPriority: { 34: 2 }, castPriority: 5, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const MA = suisuiAction("Mid-air - Zephyr Stance Plunge", { animFrames: 45, animPriority: { 0: 5, 45: 2 }, input: [Input.Basic, Input.SwapIn], position: Position.Midair, lacks: DRIZZLE_STANCE, valid: () => !isHeld(DRIZZLE_STANCE), endPosition: Position.Grounded, castPriority: 5, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 37, mv: 7072, energy: 186, concerto: 761, offtune: 5928 }] });
+const DC = suisuiAction("Dodge Counter - Zephyr Stance 3", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], lacks: DRIZZLE_STANCE, animFrames: 35, animPriority: { 34: 2 }, castPriority: 5, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 13, mv: 5120, energy: 81, concerto: 258, offtune: 2576, forte1: 9 },
     { hitFrame: 17, mv: 5120, energy: 81, concerto: 258, offtune: 2576, forte1: 9 },
     { hitFrame: 26, mv: 6827, energy: 108, concerto: 344, offtune: 3434, forte1: 12 },
@@ -136,7 +144,7 @@ const DC = suisuiAction("Dodge Counter - Zephyr Stance 3", { after: [SUCCESSFUL_
 // the Zephyr and Drizzle Stance skills share one 6s cooldown
 const SKILL_CD = new Cooldown({ frames: 60 * 6 });
 // "while in Zephyr Stance and Cloud Breath is not full"
-const Skill = suisuiAction("Skill - Vernal Screen: Zephyr Stance", { forbidBuff: DRIZZLE_STANCE, animFrames: 55, animPriority: { 54: 2 }, castPriority: 5, cooldown: SKILL_CD, maxForte1: 119, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+const Skill = suisuiAction("Skill - Vernal Screen: Zephyr Stance", { input: Input.Skill, maxForte1: 119, lacks: DRIZZLE_STANCE, animFrames: 55, animPriority: { 54: 2 }, castPriority: 5, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 25, mv: 2386, energy: 38, concerto: 120, offtune: 1200, forte1: 40 },
     { hitFrame: 31, mv: 2386, energy: 38, concerto: 120, offtune: 1200 },
     { hitFrame: 37, mv: 2386, energy: 38, concerto: 120, offtune: 1200 },
@@ -151,7 +159,7 @@ const SKY_CD = new Cooldown({ frames: 60 * 25 });
 /** Awakening Spring: replaces the Zephyr skill at full Cloud Breath, spends the whole bar and drops
  *  her into Drizzle Stance, which clears Floral Epistle on the way in. HP-scaled, and one of the
  *  two casts Sky Over Water enhances. */
-const SPRING = { minForte1: 120, forbidBuff: DRIZZLE_STANCE,
+const SPRING = { 
   animFrames: 78, animPriority: { 78: 2 }, castPriority: 7,endPosition: Position.Midair,
   node: Node.Skill, cast: Cast.Skill, type: Type.Skill, scaling: Scaling.Hp,
   castForte1: -120, resetForte2: true,
@@ -161,20 +169,20 @@ const SPRING = { minForte1: 120, forbidBuff: DRIZZLE_STANCE,
     applyTeam(ENRICHMENT, 2);
   },
 };
-const ESkill = suisuiAction("Skill - Awakening Spring", { ...SPRING, cooldown: 60 * 15, 
+const ESkill = suisuiAction("Skill - Awakening Spring", { input: Input.Skill, minForte1: 120, lacks: DRIZZLE_STANCE, ...SPRING, cooldown: 60 * 15,
   bullets: [{ hitFrame: 60, mv: 2863, energy: 500, concerto: 960, offtune: 9600 }] });
-const ESkillSky = suisuiAction("Skill - Awakening Spring (Sky Over Water)", { ...SPRING, cooldown: SKY_CD,
+const ESkillSky = suisuiAction("Skill - Awakening Spring (Sky Over Water)", { input: Input.Skill, minForte1: 120, lacks: DRIZZLE_STANCE, ...SPRING, cooldown: SKY_CD,
   bullets: [{ hitFrame: 60, mv: 2863, energy: 1800, concerto: 2760, offtune: 81600 }] });
 
 // --- Drizzle Stance: the same buttons, banking Floral Epistle (forte2) for the Outro. Illuminating
 //     Dew and Swallow's Cut are the two ways out of the Heavy, so a chain only ever takes one.
-const FBA1 = suisuiAction("Basic - Drizzle Stance 1", { notAfter: () => [FBA1, FBA2, FBA3], animFrames: 31, castPriority: 2, requireBuff: DRIZZLE_STANCE, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
+const FBA1 = suisuiAction("Basic - Drizzle Stance 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [FBA1, FBA2, FBA3], position: Position.Grounded, holds: DRIZZLE_STANCE, animFrames: 31, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 20, commitFrame: 17, mv: 1957, energy: 31, concerto: 99, offtune: 984, forte2: 21 },
     { hitFrame: 24, commitFrame: 17, mv: 1957, energy: 31, concerto: 99, offtune: 984, forte2: 21 },
     { hitFrame: 31, commitFrame: 28, mv: 1957, energy: 31, concerto: 99, offtune: 984, forte2: 21 },
     { hitFrame: 34, commitFrame: 28, mv: 1957, energy: 31, concerto: 99, offtune: 984, forte2: 21 },
   ]});
-const FBA2 = suisuiAction("Basic - Drizzle Stance 2", { after: [FBA1], animFrames: 70, castPriority: 2, requireBuff: DRIZZLE_STANCE, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
+const FBA2 = suisuiAction("Basic - Drizzle Stance 2", { input: Input.Basic, after: () => [FBA1], holds: DRIZZLE_STANCE, animFrames: 70, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 23, mv: 3181, energy: 50, concerto: 160, offtune: 1600, forte2: 34 },
     { hitFrame: 32, mv: 3181, energy: 50, concerto: 160, offtune: 1600, forte2: 34 },
     { hitFrame: 36, mv: 1591, energy: 25, concerto: 80, offtune: 800, forte2: 17 },
@@ -183,7 +191,7 @@ const FBA2 = suisuiAction("Basic - Drizzle Stance 2", { after: [FBA1], animFrame
     { hitFrame: 47, commitFrame: 36, mv: 1591, energy: 25, concerto: 80, offtune: 800, forte2: 17 },
     { hitFrame: 51, commitFrame: 36, mv: 3181, energy: 50, concerto: 160, offtune: 1600, forte2: 34 },
   ]});
-const FBA3 = suisuiAction("Basic - Drizzle Stance 3", { after: [FBA2], animFrames: 66, castPriority: 2, requireBuff: DRIZZLE_STANCE, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
+const FBA3 = suisuiAction("Basic - Drizzle Stance 3", { input: Input.Basic, after: () => [FBA2], holds: DRIZZLE_STANCE, animFrames: 66, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 11, mv: 1376, energy: 22, concerto: 70, offtune: 692, forte2: 15 },
     { hitFrame: 16, commitFrame: 11, mv: 1376, energy: 22, concerto: 70, offtune: 692, forte2: 15 },
     { hitFrame: 20, mv: 1376, energy: 22, concerto: 70, offtune: 692, forte2: 15 },
@@ -198,11 +206,11 @@ const FBA3 = suisuiAction("Basic - Drizzle Stance 3", { after: [FBA2], animFrame
     { hitFrame: 61, commitFrame: 56, mv: 1376, energy: 22, concerto: 70, offtune: 692, forte2: 15 },
   ]});
 const FBA4 = suisuiAction("Basic - Drizzle Stance 4", {
-  after: [FBA3], animFrames: 64, castPriority: 2, requireBuff: DRIZZLE_STANCE,
+  input: Input.Basic, after: () => [FBA3], holds: DRIZZLE_STANCE, animFrames: 64, castPriority: 2,
   node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 48, mv: 15905, energy: 250, concerto: 800, offtune: 8000, forte2: 170 }],
   updateDebuffs: () => applyEnemy(GLACIO_CHAFE, 1),
 });
-const FHA = suisuiAction("Heavy - Drizzle Stance", { animFrames: 97, castPriority: 4, endPosition: Position.Midair, requireBuff: DRIZZLE_STANCE, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+const FHA = suisuiAction("Heavy - Drizzle Stance", { animFrames: 97, castPriority: 4, endPosition: Position.Midair, input: Input.BasicHold, notAfter: () => [FHA], holds: DRIZZLE_STANCE, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 14, mv: 1193, energy: 19, concerto: 60, offtune: 600, forte2: 13 },
     { hitFrame: 17, commitFrame: 14, mv: 1193, energy: 19, concerto: 60, offtune: 600, forte2: 13 },
     { hitFrame: 20, commitFrame: 14, mv: 1193, energy: 19, concerto: 60, offtune: 600, forte2: 13 },
@@ -216,15 +224,15 @@ const FHA = suisuiAction("Heavy - Drizzle Stance", { animFrames: 97, castPriorit
     { hitFrame: 82, mv: 11929, energy: 188, concerto: 600, offtune: 6000, forte2: 128 },
   ]});
 // held on out of the Heavy, a Plunging Attack
-const FHA2 = suisuiAction("Basic - Illuminating Dew", { after: [FHA], endPosition: Position.Grounded, animFrames: 64, animPriority: { 64: 2 }, castPriority: 5, requireBuff: DRIZZLE_STANCE, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 30, mv: 10498, energy: 275, concerto: 880, offtune: 8800 }]});
-// a Plunging Attack, out of the Heavy or from mid-air, so no `after` or castPosition can say which
+const FHA2 = suisuiAction("Basic - Illuminating Dew", { input: Input.BasicHold, after: () => [FHA], holds: DRIZZLE_STANCE, endPosition: Position.Grounded, animFrames: 64, animPriority: { 64: 2 }, castPriority: 5, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 30, mv: 10498, energy: 275, concerto: 880, offtune: 8800 }]});
+// a Plunging Attack, out of the Heavy or from mid-air, so no `after()` or stand can say which
 const FMA = suisuiAction("Basic - Swallow's Cut", { 
-  castPosition: Position.Midair,
+  input: [Input.Basic, Input.SwapIn], position: Position.Midair, holds: DRIZZLE_STANCE,
   endPosition: Position.Grounded, animFrames: 60, animPriority: { 58: 2 }, castPriority: 5, 
-  requireBuff: DRIZZLE_STANCE, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 33, mv: 10765, energy: 282, concerto: 903, offtune: 9024 }]});
+  node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 33, mv: 10765, energy: 282, concerto: 903, offtune: 9024 }]});
 const FSkill = suisuiAction("Skill - Vernal Screen: Drizzle Stance", {
   endPosition: Position.Grounded,  animFrames: 54, animPriority: { 54: 2 }, castPriority: 5, 
-  requireBuff: DRIZZLE_STANCE, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+  input: Input.Skill, holds: DRIZZLE_STANCE, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 26, mv: 1193, energy: 19, concerto: 60, offtune: 600, forte2: 100 },
     { hitFrame: 30, commitFrame: 26, mv: 1193, energy: 19, concerto: 60, offtune: 600 },
     { hitFrame: 35, commitFrame: 26, mv: 1193, energy: 19, concerto: 60, offtune: 600 },
@@ -236,7 +244,7 @@ const FSkill = suisuiAction("Skill - Vernal Screen: Drizzle Stance", {
 
 /** Song of Thoroughfare: no damage of its own, just the Landscape and its 20 Concerto. */
 const Liberation = suisuiAction("Liberation - Song of Thoroughfare", {
-  animFrames: 264, castPriority: 10, timestop: [0, 264], motionStop: [0, 264], cooldown: 60 * 25,endPosition: Position.Midair, 
+  input: Input.Liberation, animFrames: 264, castPriority: 10, timestop: [0, 264], motionStop: [0, 264], cooldown: 60 * 25,endPosition: Position.Midair,
   node: Node.Liberation, cast: Cast.Liberation, castConcerto: 2000, castEnergy: -17500,
   updateBuffs: () => applyTeam(CEASELESS_LANDSCAPE, 1)
 });
@@ -253,9 +261,10 @@ const JADE = {
     applyTeam(ENRICHMENT, 2);
   },
 };
-const Intro = suisuiAction("Intro - Tinkling Jade", { ...JADE,
+// never valid: we enforce the enhanced (Sky Over Water) Intro, waiting out SKY_CD for it
+const Intro = suisuiAction("Intro - Tinkling Jade", { input: Input.Intro, valid: () => false, ...JADE,
   bullets: [{ hitFrame: 60, mv: 2863, energy: 1000, concerto: 960, offtune: 9600 }] });
-const IntroSky = suisuiAction("Intro - Tinkling Jade (Sky Over Water)", { ...JADE, cooldown: SKY_CD,
+const IntroSky = suisuiAction("Intro - Tinkling Jade (Sky Over Water)", { input: Input.Intro, ...JADE, cooldown: SKY_CD,
   bullets: [{ hitFrame: 60, mv: 2863, energy: 2300, concerto: 2760, offtune: 81600 }] });
 
 /** Enrichment: a stack on each teammate off Awakening Spring / Tinkling Jade, spent by their next
@@ -278,7 +287,7 @@ const SPRINGS_BIRTH = coordinatedBuff("Suisui: Spring's Birth", 20, () => SUISUI
  *  nothing here tests what it held: 600 consumed — the top tier — is simply taken as read. */
 const Outro = suisuiAction("Outro - Rippling Waters", {
   animFrames: 0,
-  cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000, resetForte2: true,
+  cast: Cast.Outro, input: Input.Outro, minConcerto: 10000, castConcerto: -10000, resetForte2: true,
   updateBuffs: () => {
     revokeCurrent(DRIZZLE_STANCE);
     applyTeam(RIPPLING_WATERS, 1);
@@ -509,7 +518,7 @@ const KINGFISHER = new Buff({
 const SS_S3 = new Sequence({
   name: "Suisui S3: Sparse Curtains Invite Evening Glow",
   updateBuffs: () => {
-    if (runningAction(FSkill)) saveChain(FBA3);
+    if (runningAction(FSkill)) chainAs(FBA3);
   },
   grants: [{ on: onAction(FSkill), buff: KINGFISHER }],
 });
@@ -564,10 +573,7 @@ const SUISUI_RESONATOR = new Resonator({
   element: Attribute.Glacio,
   weapon: WeaponType.Rectifier,
   color: "#e8e6a6",
-  intro: IntroSky,
-  // Drizzle Stance replaces her basics; there, Swallow's Cut is the press made in mid-air
-  swapIn: () => (isHeld(DRIZZLE_STANCE) ? FBA1 : BA1),
-  swapInAir: () => (isHeld(DRIZZLE_STANCE) ? FMA : MA),
+  actions: [BA1, BA2, BA3, BA4, MA, DC, Skill, ESkill, ESkillSky, FBA1, FBA2, FBA3, FBA4, FHA, FHA2, FMA, FSkill, Liberation, Intro, IntroSky, Outro],
   maxEnergy: 17500,
   maxForte1: 120,
   maxForte2: 600,
@@ -575,7 +581,7 @@ const SUISUI_RESONATOR = new Resonator({
   stats: [[Stat.BaseHp, 16712.5], [Stat.BaseAtk, 287.5], [Stat.BaseDef, 1099.998]],
   // a successful Parting Mist in Drizzle Stance "does not reset the cycle of Basic Attack - Drizzle Stance"
   updateBuffs: () => {
-    if (runningAction(SUCCESSFUL_DODGE) && isHeld(DRIZZLE_STANCE)) saveChain(previousPress());
+    if (runningAction(SUCCESSFUL_DODGE) && isHeld(DRIZZLE_STANCE)) chainAs(previousPress());
   },
 });
 
@@ -605,9 +611,9 @@ const SS_ROTATION = new Rotation([
   FBA12.cancel(),
   FHA.hitCancel(), 
   Liberation, FORBIDDEN_BASTION.instaSwap(), Outro,
+  //FHA.hitCancel(), FSkill, FBA12.cancel(), FHA.hitCancel(), // needs r3 weapon, 4.33s loop
 
   IntroSky,
-  //FHA.hitCancel(), FSkill, FBA12.cancel(), FHA.hitCancel(), // needs r3 weapon, 4.33s loop
   FHA.hitCancel(), FSkill, FBA12.cancel(), FHA.hitCancel(), FMA.cancel(), // needs r1 weapons, 5.03 loop
   Liberation, FORBIDDEN_BASTION.instaSwap(), Outro,
 ]);

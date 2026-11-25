@@ -15,7 +15,7 @@
  * Damage Data's own Energy/Elemental DMG/Weakness Break columns (the last x10000), except where a
  * skill states its own Concerto Regen outright, which wins.
  */
-import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, Subtype, Position } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, Subtype, Position, Input } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence, matrix } from "../../engine/gear.js";
 import {
   applyTeam,
@@ -31,8 +31,14 @@ import {
   addGain,
   casting,
   previousPress,
-  saveChain,
+  chainAs,
   addStatAs,
+  notAfter,
+  after,
+  midair,
+  forte1,
+  concerto,
+  grounded,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Cooldown, Rotation, SWAPIN, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
 import { tuneBreak } from "../tunebreak.js";
@@ -55,16 +61,16 @@ function ciacconaAction(id: string, def: object): Action {
 
 // --- basics, heavy/aimed, mid-air, dodge counter. Stage 4 is the one that matters: it banks a
 //     segment of Musical Essence (forte1), inflicts Aero Erosion, and opens the Solo Concert.
-const BA1 = ciacconaAction("Basic - Quadruple Time Steps 1", { notAfter: () => [BA1, BA2, BA3, Skill, Intro, DC, MA2], animFrames: 18, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 10, mv: 5706, energy: 88, concerto: 280, offtune: 2800 }]});
+const BA1 = ciacconaAction("Basic - Quadruple Time Steps 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [BA1, BA2, BA3, Skill, Intro, DC, MA2], position: Position.Grounded, animFrames: 18, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 10, mv: 5706, energy: 88, concerto: 280, offtune: 2800 }]});
 // Harmonic Allegro: "Press Normal Attack in time to cast Basic Attack Stage 2"
-const BA2 = ciacconaAction("Basic - Quadruple Time Steps 2", { after: () => [BA1, Skill], animFrames: 63, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA2 = ciacconaAction("Basic - Quadruple Time Steps 2", { input: Input.Basic, after: () => [BA1, Skill], animFrames: 63, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 19, mv: 4891, energy: 75, concerto: 240, offtune: 2400 },
     { hitFrame: 41, mv: 2446, energy: 38, concerto: 120, offtune: 1200 },
     { hitFrame: 47, mv: 2446, energy: 38, concerto: 120, offtune: 1200 },
     { hitFrame: 56, mv: 6521, energy: 100, concerto: 320, offtune: 3200 },
   ]});
 // the Intro's "in time to cast Basic Attack Stage 3", and the input list's "Dodge Counter+LMB+LMB"
-const BA3 = ciacconaAction("Basic - Quadruple Time Steps 3", { after: () => [BA2, Intro, DC], animFrames: 42, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = ciacconaAction("Basic - Quadruple Time Steps 3", { input: Input.Basic, after: () => [BA2, Intro, DC], animFrames: 42, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 3302, energy: 51, concerto: 162, offtune: 1620 },
     { hitFrame: 28, mv: 3302, energy: 51, concerto: 162, offtune: 1620 },
     { hitFrame: 34, commitFrame: 28, mv: 3302, energy: 51, concerto: 162, offtune: 1620 },
@@ -74,7 +80,7 @@ const BA3 = ciacconaAction("Basic - Quadruple Time Steps 3", { after: () => [BA2
 const EROSION = { updateDebuffs: () => applyEnemy(AERO_EROSION, 1) };
 // "Press Normal Attack after Mid-air Attack Stage 2 to cast Basic Attack Stage 4"
 const BA4 = ciacconaAction("Basic - Quadruple Time Steps 4", {
-  after: () => [BA3, MA2], animFrames: 90, animPriority: { 83: 0 }, castPriority: 2,
+  input: Input.Basic, after: () => [BA3, MA2], animFrames: 90, animPriority: { 83: 0 }, castPriority: 2,
   node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 18, commitFrame: 0, mv: 6114, energy: 94, concerto: 300, offtune: 3000 },
     { hitFrame: 26, commitFrame: 0, mv: 6114, energy: 94, concerto: 300, offtune: 3000 },
@@ -93,20 +99,21 @@ const BA4 = ciacconaAction("Basic - Quadruple Time Steps 4", {
 const SoloConcertS6 = ciacconaAction("Basic - Solo Concert (S6)", { node: Node.Normal, type: Type.Liberation, bullets: [{ hitFrame: 0, mv: 22000 }] });
 
 // "Consume STA to jump into mid-air and attack the target"
-const HA = ciacconaAction("Heavy - Attack", { endPosition: Position.Midair, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 10760, energy: 165, concerto: 528, offtune: 5280 }] });
-const AimedShot = ciacconaAction("Heavy - Aimed Shot", { castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 3261, energy: 50, concerto: 160, offtune: 1600 }] });
-const ChargedShot = ciacconaAction("Heavy - Fully Charged Aimed Shot", { castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 7337, energy: 113, concerto: 360, offtune: 3600 }] });
-const MA1 = ciacconaAction("Mid-air - Attack 1", { notAfter: () => [MA1], castPosition: Position.Midair, animFrames: 33, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const HA = ciacconaAction("Heavy - Attack", { input: Input.BasicHold, maxForte1: 2, endPosition: Position.Midair, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 10760, energy: 165, concerto: 528, offtune: 5280 }] });
+// the aimed shots are the hold's length, not a state: disabled
+const AimedShot = ciacconaAction("Heavy - Aimed Shot", { input: Input.BasicHold, valid: () => false, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 3261, energy: 50, concerto: 160, offtune: 1600 }] });
+const ChargedShot = ciacconaAction("Heavy - Fully Charged Aimed Shot", { input: Input.BasicHold, valid: () => false, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 7337, energy: 113, concerto: 360, offtune: 3600 }] });
+const MA1 = ciacconaAction("Mid-air - Attack 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [MA1], position: Position.Midair, animFrames: 33, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 10, mv: 5543, energy: 85, concerto: 272, offtune: 2720 },
     { hitFrame: 26, mv: 5543, energy: 85, concerto: 272, offtune: 2720 },
   ] });
-const MA2 = ciacconaAction("Mid-air - Attack 2", { after: [MA1], castPosition: Position.Midair, endPosition: Position.Grounded, animFrames: 43, animPriority: { 3: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MA2 = ciacconaAction("Mid-air - Attack 2", { input: Input.Basic, after: () => [MA1], position: Position.Midair, endPosition: Position.Grounded, animFrames: 43, animPriority: { 3: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 36, mv: 2446, energy: 38, concerto: 120, offtune: 1200 },
     { hitFrame: 41, commitFrame: 36, mv: 2446, energy: 38, concerto: 120, offtune: 1200 },
     { hitFrame: 48, commitFrame: 36, mv: 2446, energy: 38, concerto: 120, offtune: 1200 },
     { hitFrame: 53, commitFrame: 36, mv: 2446, energy: 38, concerto: 120, offtune: 1200 },
   ] });
-const DC = ciacconaAction("Dodge Counter - Quadruple Time Steps", { after: [SUCCESSFUL_DODGE], animFrames: 42, animPriority: { 66: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const DC = ciacconaAction("Dodge Counter - Quadruple Time Steps", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], animFrames: 42, animPriority: { 66: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 5717, energy: 51, concerto: 162, offtune: 1620 },
     { hitFrame: 28, mv: 5717, energy: 51, concerto: 162, offtune: 1620 },
     { hitFrame: 28, mv: 5717, energy: 51, concerto: 162, offtune: 1620 },
@@ -115,7 +122,7 @@ const DC = ciacconaAction("Dodge Counter - Quadruple Time Steps", { after: [SUCC
 
 // S3 "gains 1 more charge" on the 10s cooldown
 const SKILL_CD = new Cooldown({ frames: 60 * 10, charges: () => (isHeld(CI_S3) ? 2 : 1) });
-const Skill = ciacconaAction("Skill - Harmonic Allegro", { animFrames: 39, animPriority: { 39: 2 }, castPriority: 4, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+const Skill = ciacconaAction("Skill - Harmonic Allegro", { input: Input.Skill, animFrames: 39, animPriority: { 39: 2 }, castPriority: 4, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 12, mv: 4039, energy: 240, offtune: 1250,
       ...EROSION },
     { hitFrame: 12, mv: 4039, energy: 240, offtune: 1250 },
@@ -124,7 +131,7 @@ const Skill = ciacconaAction("Skill - Harmonic Allegro", { animFrames: 39, animP
   ], castConcerto: 1500});
 
 /** Forte Circuit: replaces the Heavy Attack at 3 segments and spends all of them. */
-const Downbeat = ciacconaAction("Forte Heavy - Quadruple Downbeat", { minForte1: 3, animFrames: 75, animPriority: { 1: 4, 66: 2 }, castPriority: 7, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+const Downbeat = ciacconaAction("Forte Heavy - Quadruple Downbeat", { input: Input.BasicHold, minForte1: 3, animFrames: 75, animPriority: { 1: 4, 66: 2 }, castPriority: 7, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 45, mv: 3141, energy: 75, offtune: 468 },
     { hitFrame: 57, commitFrame: 45, mv: 3141, energy: 75, offtune: 468 },
     { hitFrame: 69, commitFrame: 45, mv: 3141, energy: 75, offtune: 468 },
@@ -142,10 +149,10 @@ const Downbeat = ciacconaAction("Forte Heavy - Quadruple Downbeat", { minForte1:
 //     own bullets, committed where the time stop ends so she can swap out there.
 /** Recital's whole press: the Improvised Symphonic Poem, then twenty Tonics of one colour, the last
  *  of which ends Recital (nanoka's "6.12%*20"; off-tune the row's split the same way). */
-function cadenza(name: string, inflict: () => void): Action {
+function cadenza(name: string, input: Input, inflict: () => void): Action {
   const TONIC = { updateDebuffs: inflict };
   return ciacconaAction(name, {
-    animFrames: 2240, castPriority: 10, timestop: [0, 220], motionStop: [0, 215], cooldown: 60 * 20,
+    input, animFrames: 2240, castPriority: 10, timestop: [0, 220], motionStop: [0, 215], cooldown: 60 * 20,
     node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [
       { hitFrame: 200, mv: 110042, offtune: 48000, updateDebuffs: () => gainShield() }, // Interlude Tune
       { hitFrame: 246, commitFrame: 220, mv: 612, offtune: 2182, ...TONIC },
@@ -178,13 +185,14 @@ function cadenza(name: string, inflict: () => void): Action {
     updateBuffs: () => applyTeam(RECITAL, 1),
   });
 }
-const Liberation = cadenza("Liberation - Singer's Triple Cadenza", () => applyEnemy(AERO_EROSION, 1));
+const Liberation = cadenza("Liberation - Singer's Triple Cadenza", Input.Liberation, () => applyEnemy(AERO_EROSION, 1));
 /** The same cast with the yellow button pressed before she leaves: every Tonic after the swap
  *  matches it, so the whole Recital lays Spectro Frazzle instead (wuwalab's "Select Yellow Tonic"). */
-const LiberationYellow = cadenza("Liberation - Singer's Triple Cadenza (Yellow Tonic)", () => applyEnemy(SPECTRO_FRAZZLE, 1));
+// a Liberation hold is a workaround for the in-game custom (yellow) button, so the two forms take separate inputs
+const LiberationYellow = cadenza("Liberation - Singer's Triple Cadenza (Yellow Tonic)", Input.LiberationHold, () => applyEnemy(SPECTRO_FRAZZLE, 1));
 const CADENZAS = new Set<Action>([Liberation, LiberationYellow]);
 const Intro = ciacconaAction("Intro - Roaming with the Wind", {
-  endPosition: Position.Grounded, qteFrames: 40, animFrames: 54, noSwapFrames: 61, animPriority: { 54: 2 }, castPriority: 11, motionStop: [6, 44],
+  input: Input.Intro, endPosition: Position.Grounded, qteFrames: 40, animFrames: 54, noSwapFrames: 61, animPriority: { 54: 2 }, castPriority: 11, motionStop: [6, 44],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 40, mv: 18911, energy: 1000, offtune: 9280, ...EROSION }], castConcerto: 1000, castForte1: 1,
   // switching back in exits Recital, cutting whatever Tonics are left
   updateBuffs: () => {
@@ -194,7 +202,7 @@ const Intro = ciacconaAction("Intro - Roaming with the Wind", {
 });
 const Outro = ciacconaAction("Outro - Windcalling Tune", {
   animFrames: 0,
-  cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000,
+  cast: Cast.Outro, input: Input.Outro, minConcerto: 10000, castConcerto: -10000,
   updateBuffs: () => applyTeam(WINDCALLING_TUNE, 1),
 });
 
@@ -267,10 +275,7 @@ export const CIACCONA_RESONATOR = new Resonator({
   element: Attribute.Aero,
   weapon: WeaponType.Pistols,
   color: "#5ac46b",
-  intro: Intro,
-  swapIn: BA1,
-  swapInAir: MA1,
-  tuneBreak: tuneBreak(97, 96, [0, 97], [0, 70], [[72, 160000]], { 0: 11, 97: 3 }),
+  actions: [BA1, BA2, BA3, BA4, HA, AimedShot, ChargedShot, MA1, MA2, DC, Skill, Downbeat, Liberation, LiberationYellow, Intro, Outro, tuneBreak(97, 96, [0, 97], [0, 70], [[72, 160000]], { 0: 11, 97: 3 })],
   maxEnergy: 12500,
   maxForte1: 3,
 
@@ -279,7 +284,7 @@ export const CIACCONA_RESONATOR = new Resonator({
   updateBuffs: () => {
     if (!casting(Cast.Dodge)) return;
     for (let p = previousPress(); p; p = p.cancelOf ?? p.formOf) {
-      if (p === BA1 || p === BA2 || p === BA3) saveChain(p);
+      if (p === BA1 || p === BA2 || p === BA3) chainAs(p);
     }
   },
 

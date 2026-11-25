@@ -32,7 +32,7 @@
  *  S5 the Array inflicts 6 more Electro Flare the moment it is generated.
  *  S6 Heaven, Earth, Mind grants 50% Resonance Skill DMG Bonus instead of 25% — its own +25 on top.
  */
-import { Rarity, Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, Position } from "../../engine/stats.js";
+import { Rarity, Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, Position, Input } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, coordinatedBuff } from "../../engine/gear.js";
 import {
   applyTeam,
@@ -55,6 +55,14 @@ import {
   queue,
   cancelHits,
   addStatAs,
+  notAfter,
+  after,
+  midair,
+  forte1,
+  holds,
+  concerto,
+  grounded,
+  lacks,
 } from "../../engine/context.js";
 import { Action, ActionField, Cooldown, Rotation, SWAPIN, ActionGroup, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
 import type { BulletDef } from "../../engine/rotation.js";
@@ -91,24 +99,24 @@ const THUNDER = { updateDebuffs: () => gainTrigram(2) };
 
 // --- basics, mid-air, dodge counter (Hexagram Calls, Lightning Falls) — Stage 2 banks Trigram:
 //     Mountain, Stage 4 and Mid-air bank Trigram: Thunder
-const BA1 = bulingAction("Basic - Hexagram Calls, Lightning Falls 1", { notAfter: () => [BA1, BA2, BA3, Skill, DC], animFrames: 28, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = bulingAction("Basic - Hexagram Calls, Lightning Falls 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [BA1, BA2, BA3, Skill, DC], position: Position.Grounded, animFrames: 28, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 14, commitFrame: 8, mv: 2073, energy: 53, concerto: 167, offtune: 1668 },
     { hitFrame: 20, commitFrame: 8, mv: 2073, energy: 53, concerto: 167, offtune: 1668 },
   ]});
-const BA2 = bulingAction("Basic - Hexagram Calls, Lightning Falls 2", { after: [BA1], animFrames: 45, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA2 = bulingAction("Basic - Hexagram Calls, Lightning Falls 2", { input: Input.Basic, after: () => [BA1], animFrames: 45, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 8, commitFrame: 2, mv: 3345, energy: 85, concerto: 270, offtune: 2692,
       ...MOUNTAIN },
     { hitFrame: 15, commitFrame: 2, mv: 3345, energy: 85, concerto: 270, offtune: 2692 },
   ]});
-const BA3 = bulingAction("Basic - Hexagram Calls, Lightning Falls 3", { after: [BA2], animFrames: 31, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = bulingAction("Basic - Hexagram Calls, Lightning Falls 3", { input: Input.Basic, after: () => [BA2], animFrames: 31, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 1, mv: 2351, energy: 60, concerto: 190, offtune: 1892 },
     { hitFrame: 10, commitFrame: 1, mv: 2351, energy: 60, concerto: 190, offtune: 1892 },
   ]});
 // "Right after casting Resonance Skill, press Normal Attack to perform Basic Attack Stage 4", and the same after Dodge Counter
-const BA4 = bulingAction("Basic - Hexagram Calls, Lightning Falls 4", { after: () => [BA3, Skill, DC], animFrames: 60, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 23, mv: 9364, energy: 236, concerto: 754, offtune: 7536 }], ...THUNDER });
+const BA4 = bulingAction("Basic - Hexagram Calls, Lightning Falls 4", { input: Input.Basic, after: () => [BA3, Skill, DC], animFrames: 60, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 23, mv: 9364, energy: 236, concerto: 754, offtune: 7536 }], ...THUNDER });
 // the kit text calls it a plain "Mid-air Attack", no Plunging Attack, so it lands her nowhere
-const MA = bulingAction("Mid-air - Hexagram Calls, Lightning Falls Plunge", { castPosition: Position.Midair, animFrames: 46, animPriority: { 41: 3 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 39, mv: 7396, energy: 124, concerto: 496, offtune: 4960 }], ...THUNDER });
-const DC = bulingAction("Dodge Counter - Hexagram Calls, Lightning Falls 3", { after: [SUCCESSFUL_DODGE], animFrames: 31, castPriority: 2, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const MA = bulingAction("Mid-air - Hexagram Calls, Lightning Falls Plunge", { input: [Input.Basic, Input.SwapIn], position: Position.Midair, endPosition: Position.Grounded, animFrames: 46, animPriority: { 41: 3 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 39, mv: 7396, energy: 124, concerto: 496, offtune: 4960 }], ...THUNDER });
+const DC = bulingAction("Dodge Counter - Hexagram Calls, Lightning Falls 3", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], animFrames: 31, castPriority: 2, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 1, mv: 2351, energy: 60, concerto: 190, offtune: 1892 },
     { hitFrame: 10, commitFrame: 1, mv: 2351, energy: 60, concerto: 190, offtune: 1892 },
   ], castConcerto: 1000});
@@ -131,17 +139,19 @@ const banksMinor = (minor: Buff, other: Buff): void => {
 // all of it, the 15 Concerto and the 2-Trigram spend land on wuwalab's frame-40 consume, not the cast
 const consume = (effect: () => void) => ({ hitFrame: 40, concerto: 1500, forte1: -2, element: null, type: null, subtype: null, updateDebuffs: effect });
 const YANG = consume(() => banksMinor(MINOR_YANG, MINOR_YIN));
-const HA_MOUNTAIN_OVER_THUNDER = bulingAction("Heavy - Mountain Over Thunder", { minForte1: 2, animFrames: 70, animPriority: { 70: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [YANG, { hitFrame: 46, commitFrame: 40, mv: 17893, energy: 300, offtune: 8000 }] });
-const HA_THUNDER_OVER_MOUNTAIN = bulingAction("Heavy - Thunder Over Mountain", { minForte1: 2, animFrames: 70, animPriority: { 70: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [YANG, { hitFrame: 46, commitFrame: 40, mv: 8947, energy: 300, offtune: 8000 }] });
+/** Are the store's two leftmost Trigrams `a` then `b` (1 Mountain, 2 Thunder): which form the held Heavy is. */
+const leftmost = (a: number, b: number): boolean => (stacksOf(TRIGRAMS) & 15) === (a | (b << 2));
+const HA_MOUNTAIN_OVER_THUNDER = bulingAction("Heavy - Mountain Over Thunder", { input: Input.BasicHold, minForte1: 2, valid: () => leftmost(1, 2), animFrames: 70, animPriority: { 70: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [YANG, { hitFrame: 46, commitFrame: 40, mv: 17893, energy: 300, offtune: 8000 }] });
+const HA_THUNDER_OVER_MOUNTAIN = bulingAction("Heavy - Thunder Over Mountain", { input: Input.BasicHold, minForte1: 2, valid: () => leftmost(2, 1), animFrames: 70, animPriority: { 70: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [YANG, { hitFrame: 46, commitFrame: 40, mv: 8947, energy: 300, offtune: 8000 }] });
 // the heal lands with the consume (wuwalab's heals[0] at 40)
-const HA_TWIN_MOUNTAINS = bulingAction("Heavy - Twin Mountains", { minForte1: 2, animFrames: 60, animPriority: { 60: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, bullets: [
+const HA_TWIN_MOUNTAINS = bulingAction("Heavy - Twin Mountains", { input: Input.BasicHold, minForte1: 2, valid: () => leftmost(1, 1), animFrames: 60, animPriority: { 60: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, bullets: [
     consume(() => {
       banksMinor(MINOR_YIN, MINOR_YANG);
       applyCurrent(HEALS, 1);
     }),
   ]});
 // its first heal on the consume, then 7 more a second apart (wuwalab: 40 to 460, eight in all)
-const HA_TWIN_THUNDERS = bulingAction("Heavy - Twin Thunders", { minForte1: 2, animFrames: 60, animPriority: { 60: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, bullets: [
+const HA_TWIN_THUNDERS = bulingAction("Heavy - Twin Thunders", { input: Input.BasicHold, minForte1: 2, valid: () => leftmost(2, 2), animFrames: 60, animPriority: { 60: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, bullets: [
     consume(() => {
       banksMinor(MINOR_YIN, MINOR_YANG);
       applyCurrent(HEALS, 1);
@@ -153,7 +163,7 @@ const TWIN_THUNDERS_HEALS = coordinatedBuff("Buling: Twin Thunders (heals)", 7, 
 /** The failed divination — held with fewer than two Trigrams: no hit, and every Trigram lost
  *  (the 20% HP it costs is out of scope). */
 const GhostGateOmen = bulingAction("Heavy - Ghost Gate Omen", { castPriority: 2,
-  maxForte1: 1, node: Node.Normal, cast: Cast.Heavy, resetForte1: true,
+  input: Input.BasicHold, maxForte1: 1, node: Node.Normal, cast: Cast.Heavy, resetForte1: true,
   updateBuffs: () => setStacksSelf(TRIGRAMS, 1 << 8),
 });
 /** The one Heavy a rotation writes: resolved off the store's two leftmost Trigrams when the row
@@ -169,7 +179,7 @@ const HA = new Action("Heavy - Trigram", {
 });
 
 // banks a Trigram: Thunder on cast
-const Skill = bulingAction("Skill - In Shadow Thunder Stirs", { animFrames: 53, animPriority: { 47: 2 }, castPriority: 4, cooldown: 60 * 15, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+const Skill = bulingAction("Skill - In Shadow Thunder Stirs", { input: Input.Skill, animFrames: 53, animPriority: { 47: 2 }, castPriority: 4, cooldown: 60 * 15, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 9, commitFrame: 0, mv: 5840, energy: 750, offtune: 3916 },
     { hitFrame: 60, commitFrame: 0, mv: 584, energy: 75, offtune: 392 },
     { hitFrame: 84, commitFrame: 0, mv: 584, energy: 75, offtune: 392 },
@@ -189,7 +199,7 @@ const Skill = bulingAction("Skill - In Shadow Thunder Stirs", { animFrames: 53, 
 /** Both Liberation forms draw on the one 24s cooldown. */
 const LIB_CD = new Cooldown({ frames: 60 * 24 });
 const Harmony = bulingAction("Liberation - Flashing Thunder Spell - Harmony", {
-  requireBuff: YIN_YANG_BALANCE, animFrames: 244, animPriority: { 238: 2 }, castPriority: 10, timestop: [0, 231], motionStop: [0, 187],
+  input: Input.Liberation, holds: YIN_YANG_BALANCE, animFrames: 244, animPriority: { 238: 2 }, castPriority: 10, timestop: [0, 231], motionStop: [0, 187],
   cooldown: LIB_CD,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [
     // S5: the Array's 6 more Electro Flare the moment it is generated, at frame 0
@@ -207,7 +217,7 @@ const Harmony = bulingAction("Liberation - Flashing Thunder Spell - Harmony", {
   },
 });
 const FlashingThunderSpell = bulingAction("Liberation - Flashing Thunder Spell", {
-  animFrames: 244, animPriority: { 238: 2 }, castPriority: 10, timestop: [0, 231], motionStop: [0, 187],
+  input: Input.Liberation, lacks: YIN_YANG_BALANCE, animFrames: 244, animPriority: { 238: 2 }, castPriority: 10, timestop: [0, 231], motionStop: [0, 187],
   cooldown: LIB_CD,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 187, mv: 35786, offtune: 36000 }], castConcerto: 2000, castEnergy: -15000,
 });
@@ -239,7 +249,7 @@ const FiveThundersArray = bulingAction("Liberation - Five Thunders Spell Array",
 const ARRAYS = new Set<Action>([FiveThundersArray]);
 
 const Intro = bulingAction("Intro - Summon and Smite", {
-  endPosition: Position.Grounded, qteFrames: 7, animFrames: 80, noSwapFrames: 59, animPriority: { 70: 2 }, castPriority: 11, motionStop: [7, 60],
+  input: Input.Intro, endPosition: Position.Grounded, qteFrames: 7, animFrames: 80, noSwapFrames: 59, animPriority: { 70: 2 }, castPriority: 11, motionStop: [7, 60],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     // her team heal, at the cast (wuwalab's heals[0])
     { hitFrame: 0, element: null, type: null, subtype: null, updateDebuffs: () => applyCurrent(HEALS, 1) },
@@ -248,7 +258,7 @@ const Intro = bulingAction("Intro - Summon and Smite", {
 });
 const Outro = bulingAction("Outro - Exorcism Spell", {
   animFrames: 0,
-  cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000,
+  cast: Cast.Outro, input: Input.Outro, minConcerto: 10000, castConcerto: -10000,
   updateBuffs: () => {
     applyTeam(BULING_OUTRO, 1);
     applyTeam(EXORCISM_HEALS, 16);
@@ -384,9 +394,7 @@ const BULING_RESONATOR = new Resonator({
   element: Attribute.Electro,
   weapon: WeaponType.Rectifier,
   color: "#7a6ff0",
-  intro: Intro,
-  swapIn: BA1,
-  swapInAir: MA,
+  actions: [BA1, BA2, BA3, BA4, MA, DC, HA_MOUNTAIN_OVER_THUNDER, HA_THUNDER_OVER_MOUNTAIN, HA_TWIN_MOUNTAINS, HA_TWIN_THUNDERS, GhostGateOmen, Skill, Harmony, FlashingThunderSpell, Intro, Outro],
   maxEnergy: 15000,
   maxForte1: 4,
 

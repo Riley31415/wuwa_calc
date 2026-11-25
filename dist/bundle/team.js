@@ -35,7 +35,7 @@ import {
   wireDistribution,
   wireSourcePanels,
   zoom
-} from "./chunk-4NLD7ZYF.js";
+} from "./chunk-EEQGQ6Y3.js";
 import {
   FALLBACK_HUE,
   GROUPED_COLUMNS,
@@ -84,7 +84,7 @@ import {
   tagTeam,
   weaponHue,
   workerPool
-} from "./chunk-TDFOAYWI.js";
+} from "./chunk-OXAR545D.js";
 import {
   ActionTag,
   CONCERTO_UNIT,
@@ -108,7 +108,7 @@ import {
   sequenceLevels,
   statLabel,
   weaponBase
-} from "./chunk-QDZSVQYL.js";
+} from "./chunk-JC7DESRL.js";
 
 // dist/src/page/pickmenu.js
 var FIELDS = ["weapon", "echo", "mainstat", "sequence", "refine", "highSubs"];
@@ -811,8 +811,12 @@ function barsOf(run, report) {
   };
 }
 var shownKey = "";
-function setBackdrop(run) {
-  const best = run.members.filter((m) => bannerUrl(m.loadout.resonator)).sort((a, b) => (run.bySlot.get(b.name) ?? 0) - (run.bySlot.get(a.name) ?? 0))[0];
+function previewBackdrop(members) {
+  const art = members.filter((m) => bannerUrl(m.loadout.resonator));
+  showBackdrop(art.find((m) => m.mainDps) ?? art[0]);
+}
+var setBackdrop = (run) => previewBackdrop(run.members);
+function showBackdrop(best) {
   let el = document.querySelector("body > .backdrop");
   document.body.classList.toggle("backdropped", !!best);
   if (!best) {
@@ -1732,6 +1736,10 @@ async function boot() {
   onSwitch(switchTo2);
   onSolve(solveQuiet);
   applyHash();
+  const named = hashTeam();
+  const teamKey = named && (TEAMS[named.split("-")[0]] ? named.split("-")[0] : tagTeam(named));
+  if (teamKey)
+    previewBackdrop(TEAMS[teamKey]);
   await loadSolves();
   let shown = await bootDetail().catch((err) => {
     if (!discardRestoredSolves())

@@ -9,7 +9,7 @@ import {
   rowFromKey, solvedRows, admitBuild, reopenDetail, tagTeam, gearShut, tagFilters,
 } from "./model.js";
 import { wireSourcePanels } from "./panels.js";
-import { renderDetail } from "./detail.js";
+import { renderDetail, previewBackdrop } from "./detail.js";
 import { onSwitch, onSolve } from "./pickmenu.js";
 import type { Attempt } from "./pickmenu.js";
 import { paint, workerPool, cancelQueued } from "./pool.js";
@@ -93,6 +93,10 @@ async function boot(): Promise<void> {
   onSwitch(switchTo);
   onSolve(solveQuiet);
   applyHash();
+  // the art up while the solves load and the team runs, off the members the link already names
+  const named = hashTeam();
+  const teamKey = named && (TEAMS[named.split("-")[0]!] ? named.split("-")[0]! : tagTeam(named));
+  if (teamKey) previewBackdrop(TEAMS[teamKey]!);
   await loadSolves();
   let shown = await bootDetail().catch((err: unknown) => {
     if (!discardRestoredSolves()) throw err;

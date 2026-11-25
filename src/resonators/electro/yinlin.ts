@@ -23,7 +23,7 @@
  *  - Deadly Focus: Lightning Execution +10% DMG against Sinner's Mark, and +10% ATK for 4s when
  *    triggered.
  */
-import { Stat, Attribute, WeaponType, Type, Subtype, Cast, Node, Scaling, BuffTarget, Position } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type, Subtype, Cast, Node, Scaling, BuffTarget, Position, Input } from "../../engine/stats.js";
 import { Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence, coordinatedBuff, matrix } from "../../engine/gear.js";
 import {
   applyCurrent,
@@ -43,7 +43,15 @@ import {
   queueQTE,
   applyTeam,
   frozenStacks,
-  saveChain,
+  chainAs,
+  notAfter,
+  after,
+  midair,
+  holds,
+  lacks,
+  forte1,
+  concerto,
+  grounded,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, ActionField, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
 import { LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";
@@ -62,14 +70,14 @@ function yinlinAction(id: string, def: object): Action {
 }
 
 // --- basics, mid-air, dodge counter, heavy (Zapstring's Dance)
-const BA1 = yinlinAction("Basic - Zapstring's Dance 1", { notAfter: () => [BA1, BA2, BA3], animFrames: 16, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 16, mv: 2881, energy: 60, concerto: 200, offtune: 3144, forte1: 250 }] });
+const BA1 = yinlinAction("Basic - Zapstring's Dance 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [BA1, BA2, BA3], position: Position.Grounded, animFrames: 16, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 16, mv: 2881, energy: 60, concerto: 200, offtune: 3144, forte1: 250 }] });
 // PLACEHOLDER FRAMES
-const BA2 = yinlinAction("Basic - Zapstring's Dance 2", { after: [BA1], animFrames: 45, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA2 = yinlinAction("Basic - Zapstring's Dance 2", { input: Input.Basic, after: () => [BA1], animFrames: 45, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 45, mv: 3382, energy: 75, concerto: 250, offtune: 3076 },
     { hitFrame: 45, mv: 3382, energy: 75, concerto: 250, offtune: 3076, forte1: 250 },
   ]});
 // PLACEHOLDER FRAMES
-const BA3 = yinlinAction("Basic - Zapstring's Dance 3", { after: [BA2], animFrames: 63, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = yinlinAction("Basic - Zapstring's Dance 3", { input: Input.Basic, after: () => [BA2], animFrames: 63, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 63, mv: 1399, energy: 35, concerto: 100, offtune: 1021 },
     { hitFrame: 63, mv: 1399, energy: 35, concerto: 100, offtune: 1021 },
     { hitFrame: 63, mv: 1399, energy: 35, concerto: 100, offtune: 1021 },
@@ -78,16 +86,16 @@ const BA3 = yinlinAction("Basic - Zapstring's Dance 3", { after: [BA2], animFram
     { hitFrame: 63, mv: 1399, energy: 35, concerto: 100, offtune: 1021 },
     { hitFrame: 63, mv: 1399, energy: 35, concerto: 100, offtune: 1021, forte1: 750 },
   ]});
-const BA4 = yinlinAction("Basic - Zapstring's Dance 4", { after: [BA3], animFrames: 58, castPriority: 2, bullets: [{ hitFrame: 24, mv: 7516, energy: 150, concerto: 600, offtune: 4976, forte1: 1000 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
+const BA4 = yinlinAction("Basic - Zapstring's Dance 4", { input: Input.Basic, after: () => [BA3], animFrames: 58, castPriority: 2, bullets: [{ hitFrame: 24, mv: 7516, energy: 150, concerto: 600, offtune: 4976, forte1: 1000 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
 
 // PLACEHOLDER FRAMES
-const HA = yinlinAction("Heavy - Zapstring's Dance", { animFrames: 64, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+const HA = yinlinAction("Heavy - Zapstring's Dance", { input: Input.BasicHold, maxForte1: 9999, animFrames: 64, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 40, mv: 2983, energy: 90, concerto: 225, offtune: 4696 },
     { hitFrame: 40, mv: 2983, energy: 90, concerto: 225, offtune: 4696, forte1: 2000 },
   ]});
-const MA = yinlinAction("Mid-air - Zapstring's Dance Plunge", { castPosition: Position.Midair, endPosition: Position.Grounded, animFrames: 30, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 30, mv: 12327, energy: 51, concerto: 500, offtune: 4960, forte1: 500 }] });
+const MA = yinlinAction("Mid-air - Zapstring's Dance Plunge", { input: [Input.Basic, Input.SwapIn], position: Position.Midair, endPosition: Position.Grounded, animFrames: 30, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 30, mv: 12327, energy: 51, concerto: 500, offtune: 4960, forte1: 500 }] });
 // PLACEHOLDER FRAMES
-const DC = yinlinAction("Dodge Counter - Zapstring's Dance", { after: [SUCCESSFUL_DODGE], castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const DC = yinlinAction("Dodge Counter - Zapstring's Dance", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 0, mv: 2422, energy: 57, concerto: 100, offtune: 1678 },
     { hitFrame: 0, mv: 2422, energy: 57, concerto: 100, offtune: 1678 },
     { hitFrame: 0, mv: 2422, energy: 57, concerto: 100, offtune: 1678 },
@@ -104,7 +112,7 @@ const LIGHTNING_EXECUTION_READY = new Buff({ name: "Yinlin: Lightning Execution 
 // Magnetic Roar opens Execution Mode; Lightning Execution is the follow-up Skill press
 // PLACEHOLDER FRAMES
 const Skill1 = yinlinAction("Skill - Magnetic Roar", {
-  notAfter: () => [Skill1], forbidBuff: LIGHTNING_EXECUTION_READY, animFrames: 29, castPriority: 4, cooldown: 60 * 12,
+  input: Input.Skill, notAfter: () => [Skill1], lacks: LIGHTNING_EXECUTION_READY, animFrames: 29, castPriority: 4, cooldown: 60 * 12,
   node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 29, mv: 5965, energy: 500, offtune: 2222 },
     { hitFrame: 29, mv: 5965, energy: 500, offtune: 2222 },
@@ -113,12 +121,10 @@ const Skill1 = yinlinAction("Skill - Magnetic Roar", {
   updateBuffs: () => {
     setStacksSelf(EXECUTION_MODE, 4);
     applyCurrent(LIGHTNING_EXECUTION_READY, 1);
-    // Lightning Execution stays pressable after it while the window stands, not only next
-    saveChain(Skill1);
   },
 });
 // PLACEHOLDER FRAMES
-const Skill2 = yinlinAction("Skill - Lightning Execution", { after: [Skill1], requireBuff: LIGHTNING_EXECUTION_READY, animFrames: 77, castPriority: 4, node: Node.Skill, cast: Cast.Skill, type: Type.Skill,
+const Skill2 = yinlinAction("Skill - Lightning Execution", { input: Input.Skill, holds: LIGHTNING_EXECUTION_READY, animFrames: 77, castPriority: 4, node: Node.Skill, cast: Cast.Skill, type: Type.Skill,
   updateBuffs: () => revokeCurrent(LIGHTNING_EXECUTION_READY), bullets: [
     { hitFrame: 38, mv: 8947, energy: 375, offtune: 1332 },
     { hitFrame: 38, mv: 8947, energy: 375, offtune: 1332 },
@@ -130,7 +136,7 @@ const Skill2 = yinlinAction("Skill - Lightning Execution", { after: [Skill1], re
 const ACTION_BLAST = yinlinAction("Skill - Electromagnetic Blast", { node: Node.Skill, type: Type.Skill, bullets: [{ hitFrame: 0, mv: 1989, concerto: 500, forte1: 500 }] });
 
 // PLACEHOLDER FRAMES
-const Liberation = yinlinAction("Liberation - Thundering Wrath", { animFrames: 191, timestop: [0, 191], motionStop: [0, 191], castPriority: 10, cooldown: 60 * 16, node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [
+const Liberation = yinlinAction("Liberation - Thundering Wrath", { input: Input.Liberation, animFrames: 191, timestop: [0, 191], motionStop: [0, 191], castPriority: 10, cooldown: 60 * 16, node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [
     { hitFrame: 191, mv: 11656, offtune: 5143 },
     { hitFrame: 191, mv: 11656, offtune: 5143 },
     { hitFrame: 191, mv: 11656, offtune: 5143 },
@@ -142,7 +148,7 @@ const Liberation = yinlinAction("Liberation - Thundering Wrath", { animFrames: 1
 
 /** Chameleon Cipher: spends every Judgement Point, upgrades Sinner's Mark to Punishment Mark. */
 // PLACEHOLDER FRAMES
-const FHA = yinlinAction("Forte Heavy - Chameleon Cipher", { minForte1: 10000,
+const FHA = yinlinAction("Forte Heavy - Chameleon Cipher", { input: Input.BasicHold, minForte1: 10000,
   animFrames: 103, castPriority: 6,
   node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 45, mv: 17893, energy: 500, concerto: 1000, offtune: 26000,
@@ -166,7 +172,7 @@ const ACTION_JUDGMENT_STRIKE = yinlinAction("Forte - Judgment Strike", { node: N
 const FuriousThunder = yinlinAction("Skill - Furious Thunder (S6)", { node: Node.Skill, type: Type.Skill, bullets: [{ hitFrame: 0, mv: 41959 }] });
 
 // PLACEHOLDER FRAMES
-const Intro = yinlinAction("Intro - Raging Storm", { endPosition: Position.Grounded, animFrames: 82, castPriority: 11, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
+const Intro = yinlinAction("Intro - Raging Storm", { input: Input.Intro, endPosition: Position.Grounded, animFrames: 82, castPriority: 11, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 76, mv: 1432, energy: 20, offtune: 952 },
     { hitFrame: 76, mv: 1432, energy: 20, offtune: 952 },
     { hitFrame: 76, mv: 1432, energy: 20, offtune: 952 },
@@ -179,7 +185,7 @@ const Intro = yinlinAction("Intro - Raging Storm", { endPosition: Position.Groun
     { hitFrame: 76, mv: 1432, energy: 20, offtune: 952, forte1: 3000 },
   ], castEnergy: 800, castConcerto: 1000});
 const Outro = yinlinAction("Outro - Strategist", {
-  cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000,
+  cast: Cast.Outro, input: Input.Outro, minConcerto: 10000, castConcerto: -10000,
   updateBuffs: () => queueQTE(YINLIN_OUTRO),
 });
 
@@ -266,9 +272,7 @@ const YINLIN_RESONATOR = new Resonator({
   element: Attribute.Electro,
   weapon: WeaponType.Rectifier,
   color: "#a45ee8",
-  intro: Intro,
-  swapIn: BA1,
-  swapInAir: MA,
+  actions: [BA1, BA2, BA3, BA4, HA, MA, DC, Skill1, Skill2, Liberation, FHA, Intro, Outro],
   maxEnergy: 12500,
   forteScale: [0.01, 1, 1, 1, 1],
   maxForte1: 10000,

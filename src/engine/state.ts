@@ -548,22 +548,21 @@ export class TeamMember {
   cooldowns = new Map<Cooldown, { charges: number; next: number }>();
   /** The rotation chain this member is playing now (rotation.ts's `runChain`), null outside one. */
   visitChain: object | null = null;
-  /** This member's last press of the visit (OFF_FIELD ones aside), what the next one's `after`
-   *  reads — null on arriving. */
+  /** What this member's next press follows (`after()`/`notAfter()`): their last press of the visit (OFF_FIELD
+   *  ones aside), or what an effect stood in for it (`chainAs()`, a summon echo's press before) — null on arriving. */
   lastPress: Action | null = null;
-  /** Presses an effect lets this member's next ones follow as if just pressed (`saveChain()`): a
-   *  press whose `after` its last press fails spends the first it follows. Emptied on arriving. */
-  savedChains: Action[] = [];
-  /** Where in `savedChains` the ones the last press saved begin, which its next press's `notAfter` reads too. */
-  savedFrom = 0;
-  /** Where they stand (`ActionDef.castPosition`), null while despawned; and the real frame their
+  /** Their last press as cast, whatever the chain follows in its place (`previousCast()`). */
+  lastCast: Action | null = null;
+  /** What the press being cast hands its place in the chain to (`chainAs()`), null where it keeps it. */
+  chainKept: Action | null = null;
+  /** Where they stand (`grounded()`/`midair()`), null while despawned; and the real frame their
    *  last press (OFF_FIELD ones aside) ends, `DESPAWN_TIME` past which they despawn. */
   position: Position | null = null;
   endsAt = -Infinity;
   /** The frame the field was last handed to this member, and the visit that handed it — a repeating
    *  schedule always follows one visit with the same next one, so that visit names this one. */
   handoffAt = -1;
-  /** Game frame this member's transform stops holding 13+ priority: nobody swaps or intros into them before it. */
+  /** Game frame this member's transform window ends (`transformFrames`): nobody swaps or intros into them before it. */
   transformUntil = -Infinity;
   /** Real frame (the timer runs through time stop) before which nobody swaps back into this member: 60f
    *  from leaving the field, unless they left during their Intro; an Intro into them clears it. */
@@ -1003,7 +1002,7 @@ export class State {
   /** Where the last press (or the handoff's swap frames) ends, on the real timer: `run()` walks
    *  there, landing every queued hit due on the way. */
   playsTo = 0;
-  /** A hold or mash cancel waiting on its next press's `requireBuff` (`run()`'s `settleHold()`). */
+  /** A hold or mash cancel waiting on its next press's buffs (`run()`'s `settleHold()`). */
   holdWatch: HoldWatch | null = null;
   /** Which way the next Outro hands the field over: +1 for the ordinary handoff to the next
    *  resonator in team order, -1 for the outro closing a DOUBLE_INTRO section (rotation.ts). The scheduler

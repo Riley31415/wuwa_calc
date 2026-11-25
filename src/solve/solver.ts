@@ -108,6 +108,9 @@ export function shownRanks(m: Member, f: Filters): [number, number, number][] {
     return weapon < 0 ? [] : [[weapon, l.refinements[weapon]!.findIndex((w) => w.name === name), sequence]];
   });
 }
+/** The shown entries standing at a chain level other than `own` that this kit has a rotation for. */
+export const shownExtraLevels = (m: Member, f: Filters, own: number): [number, number, number][] =>
+  shownRanks(m, f).filter(([, , s]) => s !== own && s >= m.loadout.minSequence && s <= m.loadout.sequences.length);
 /** The weapons only a shown rank brings onto this member's rows: none of `listed`, the ones they run anyway. */
 export const shownWeapons = (m: Member, f: Filters, listed: number[]): number[] =>
   [...new Set(shownRanks(m, f).map(([w]) => w))].filter((w) => !listed.includes(w));
@@ -513,16 +516,11 @@ function bestMainstats(teamKey: string, members: Member[], picks: Pick[], who: n
   });
 }
 
-/** Who may hold the cost's grant on this team (`optimizeTeam` searches them): a main DPS it lifts —
- *  a higher level, a higher rank, or (s0r1mdps) the one signature — else anyone it lifts, since a
- *  main DPS already past it (a free S6) leaves it to the rest. Everyone where the cost lifts all. */
+/** Who holds the cost's grant on this team: its one main DPS, always — one already past it (a free
+ *  S6 under s3r1) simply stays as they are, and nobody else gets it. Everyone where the cost lifts all. */
 export function grantHolders(members: Member[], filters: Filters): number[] {
   if (!grantToOne(filters.cost)) return members.map((_, i) => i);
-  const lifts = (m: Member): boolean => costLevel(m, filters.cost, true) !== costLevel(m, filters.cost, false)
-    || m.loadout.refinements.some((_, w) => costRefine(m, w, filters.cost, true) > costRefine(m, w, filters.cost, false))
-    || (!sigForAll(filters.cost) && m.loadout.weapons.some((_, w) => isSignature(m.loadout, w)));
-  const main = members.flatMap((m, i) => (m.mainDps && lifts(m) ? [i] : []));
-  return main.length ? main : members.flatMap((m, i) => (lifts(m) ? [i] : []));
+  return members.flatMap((m, i) => (m.mainDps ? [i] : []));
 }
 
 /** A member's build under `cost` with every box shut, holding its grant or not: the level, weapon and
@@ -646,6 +644,12 @@ function buildsOf(m: Member, members: Member[], home: Pick, f: Filters, sig: boo
     for (const refine of refineLevels(m, f, at, weapons.includes(weapon))) for (const echo of echoes) for (const highSubs of subs) {
       picks.push(fitPick(l, { ...at, refine, echo, highSubs }));
     }
+  }
+  // a shown entry at a level the rows don't otherwise run ("Show S3") adds just that weapon and rank there
+  if (!axisOpen(m, f, "sequences")) for (const [weapon, refine, sequence] of shownExtraLevels(m, f, home.sequence)) {
+    const at = { ...home, weapon, sequence, refine };
+    const echoes = compares(m, f, "echoes", gateOf(l, at)) ? echoPicks(m, members) : [home.echo];
+    for (const echo of echoes) for (const highSubs of subs) picks.push(fitPick(l, { ...at, echo, highSubs }));
   }
   // a pick whose gear cannot fill this member's Energy bar is no build at all — drop it and let the
   // sonatas and mainslots that carry ER stand. Everything dropped means the kit itself is short, so

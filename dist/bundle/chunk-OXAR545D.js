@@ -6,6 +6,7 @@ import {
   CAST_NAME,
   CONCERTO_UNIT,
   ENERGY_UNIT,
+  INPUT_NAME,
   INTERCHANGEABLE,
   LEVEL_90_DOT,
   LEVEL_90_TUNE,
@@ -62,6 +63,7 @@ import {
   scopedKey,
   scopedStat,
   sequenceLevels,
+  shownExtraLevels,
   shownRanks,
   shownWeapons,
   solveTeam,
@@ -73,7 +75,7 @@ import {
   teamAt,
   teamKey,
   weaponBase
-} from "./chunk-QDZSVQYL.js";
+} from "./chunk-JC7DESRL.js";
 
 // dist/src/page/display.js
 var shown = (s, i) => s.shownAfter?.[i] ?? [s.energy, s.concerto, s.offtune, ...s.forte][i];
@@ -369,7 +371,7 @@ var actionInfo = (snap) => {
   let press = action;
   while ((press.cancelOf ?? press.formOf) && (press.cancelOf ?? press.formOf) !== TUNE_BREAK)
     press = press.cancelOf ?? press.formOf;
-  push("Cast Position", press.castPosition === null ? null : POSITION_NAME[press.castPosition]);
+  push("Input", press.inputs.length ? press.inputs.map((i) => INPUT_NAME[i]).join(", ") : null);
   push("End Position", press.endPosition === null ? null : POSITION_NAME[press.endPosition]);
   push("Animation", `${press.animFrames}f`);
   push("Cast Priority", press.castPriority === null ? null : String(press.castPriority));
@@ -380,17 +382,7 @@ var actionInfo = (snap) => {
   push("Motion Stop", press.motionStop ? `${press.motionStopFrom}f-${press.motionStopFrom + press.motionStop}f` : null);
   push("Bullets", press.bullets.length ? press.bullets.map((h) => `${h.hitFrame}f`).join(", ") : null);
   push("Commits", press.bullets.some((h) => h.commitFrame !== h.hitFrame) ? press.bullets.map((h) => `${h.commitFrame}f`).join(", ") : null);
-  const bars = ["Energy", "Concerto", ...FORTE_GAUGES.map((_, i) => `Forte ${i + 1}`)];
-  const scale = [1 / ENERGY_UNIT, 1 / CONCERTO_UNIT, ...snap.forteScale];
-  bars.forEach((bar, k) => {
-    const min = press.castMin?.[k] ?? -Infinity, max = press.castMax?.[k] ?? Infinity;
-    if (min !== -Infinity)
-      push(`Min ${bar}`, fmtExact(min * scale[k]));
-    if (max !== Infinity)
-      push(`Max ${bar}`, fmtExact(max * scale[k]));
-  });
-  const conds = [...(press.requireBuffs ?? []).map((g) => ["Require Buff", g]), ...(press.forbidBuffs ?? []).map((g) => ["Forbid Buff", g])];
-  conds.forEach(([label, g], i) => info.push({ label, value: g.name, source: snap.buffSources?.[i] ?? snap.member }));
+  push("Valid", snap.invalid ? "no" : null);
   if (source)
     info.push({ label: "Source", value: source.name, source: source.source });
   return info;
@@ -567,14 +559,13 @@ function rowValues(snap, { mv, avg }, members = []) {
       raw[`max:gauge:${RESOURCE_NAME[key]}`] = snap.maxForte[i] * unit;
   });
   const low = (i) => snap.shownShort?.[i] ?? shown(snap, i) < 0;
-  raw["short:energy"] = snap.castUnmet?.[0] || low(0) ? 1 : 0;
-  raw["short:concerto"] = snap.castUnmet?.[1] || low(1) ? 1 : 0;
+  raw["short:energy"] = low(0) ? 1 : 0;
+  raw["short:concerto"] = low(1) ? 1 : 0;
   raw["short:offtune"] = low(2) ? 1 : 0;
   FORTE_GAUGES.forEach((key, i) => {
-    raw[`short:gauge:${RESOURCE_NAME[key]}`] = snap.castUnmet?.[2 + i] || low(3 + i) ? 1 : 0;
+    raw[`short:gauge:${RESOURCE_NAME[key]}`] = low(3 + i) ? 1 : 0;
   });
-  const buffs = [...(snap.buffUnmet ?? []).map((b) => b.name), ...(snap.buffForbidden ?? []).map((b) => `not ${b.name}`)];
-  raw["short:buff"] = buffs.length ? buffs.join(", ") : 0;
+  raw["short:buff"] = snap.invalid ? "not valid" : 0;
   const sources = {};
   for (const [key, feeds] of Object.entries(FEEDS))
     sources[key] = tracing(snap, feeds(snap.action));
@@ -1309,9 +1300,14 @@ function tagWeapon(m, part, cost) {
     return signatureOf(m) ? l.refinements[0].find((w) => `R${w.refinement}` === part) : void 0;
   return all.find((w) => `${weaponBase(w)} R${w.refinement}` === part);
 }
-var memberLevels = (m, f = filters) => [.../* @__PURE__ */ new Set([...sequenceLevels(m, f, true), ...grantToOne(f.cost) ? sequenceLevels(m, f, false) : []])].sort((a, b) => a - b);
+var memberLevels = (m, f = filters) => [...new Set(grantToOne(f.cost) ? sequenceLevels(m, f, m.mainDps) : sequenceLevels(m, f, true))].sort((a, b) => a - b);
 var included = (name) => [...resonatorFilters].some(([key, mode]) => mode === "include" && tagOwner(key) === name);
 function tagHolds(tag, m, combo, f = filters) {
+  const tiers = [true, false].map((h) => buildTag(m, f.cost, h));
+  if (tiers.includes(tag) && tiers.includes(memberTag(m, combo, f.cost)))
+    return true;
+  if (shownRanks(m, f).some(([w, r, s]) => s === combo.sequence && m.loadout.refinements[w]?.[r]?.name === combo.weapon.name))
+    return true;
   const t = parseTag(tag);
   if (t.sequence !== combo.sequence && !axisOpen(m, f, "sequences"))
     return false;
@@ -1713,6 +1709,9 @@ function solveFits(key, solved, f) {
         for (const refine of refineLevels(m, f, { ...solved.picks[i], weapon, sequence }, weapons.includes(weapon)))
           pairs.add(`${sequence}.${refine}`);
       }
+    if (!axisOpen(m, f, "sequences"))
+      for (const [, refine, sequence] of shownExtraLevels(m, f, solved.picks[i].sequence))
+        pairs.add(`${sequence}.${refine}`);
     return n * pairs.size;
   }, 1);
   const patterns = new Set(solved.rows.map((r) => r.map((p) => `${p.sequence}.${p.refine}`).join(".")));

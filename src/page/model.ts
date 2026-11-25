@@ -11,7 +11,7 @@ import { teamCode, readTeamCode } from "./teamcode.js";
 import { TUNE_BREAK_ENEMY } from "../resonators/tunebreak.js";
 import { buildReport } from "./display.js";
 import type { Report } from "./display.js";
-import { member, comboOf, eligibleWeapons, refineLevels, shownRanks, shownWeapons, sequenceLevels, grantToOne, scopedKey, axisUsed, weaponBase, echoLabel, echoPicks, defaultFilters, bestKey, picksKey, axisOpen, filterSignature, loadoutName, compares, AXES, costBuild, costRefine, grantHolders, hasBuild, isSignature, standardWeapon, rankValue } from "../solve/solver.js";
+import { member, comboOf, eligibleWeapons, refineLevels, shownRanks, shownWeapons, sequenceLevels, grantToOne, scopedKey, axisUsed, weaponBase, echoLabel, echoPicks, defaultFilters, bestKey, picksKey, axisOpen, filterSignature, loadoutName, compares, AXES, costBuild, costRefine, grantHolders, hasBuild, isSignature, standardWeapon, rankValue, shownExtraLevels } from "../solve/solver.js";
 import type { Member, Combo, Pick, Filters, Solved, SolveSave, Axis, TeamCost, ScopedCompare } from "../solve/solver.js";
 import { runTeam, runFromScore, erRollsFor } from "../solve/teamrun.js";
 import type { TeamRun } from "../solve/teamrun.js";
@@ -230,15 +230,21 @@ function tagWeapon(m: Member, part: string, cost: TeamCost): Weapon | undefined 
   if (/^R\d$/.test(part)) return signatureOf(m) ? l.refinements[0]!.find((w) => `R${w.refinement}` === part) : undefined;
   return all.find((w) => `${weaponBase(w)} R${w.refinement}` === part);
 }
-/** Every level a member can run on some row here: an `mdps` grant may land on any of them. */
+/** Every level a member can run on some row here: an `mdps` grant lands on the main DPS alone. */
 export const memberLevels = (m: Member, f: Filters = filters): number[] =>
-  [...new Set([...sequenceLevels(m, f, true), ...(grantToOne(f.cost) ? sequenceLevels(m, f, false) : [])])].sort((a, b) => a - b);
+  [...new Set(grantToOne(f.cost) ? sequenceLevels(m, f, m.mainDps) : sequenceLevels(m, f, true))].sort((a, b) => a - b);
 /** Whether `name` has a tag of theirs in the include pool. */
 export const included = (name: string): boolean =>
   [...resonatorFilters].some(([key, mode]) => mode === "include" && tagOwner(key) === name);
 /** Whether include `tag` holds for this member: its level unless their Sequences are compared, its
  *  weapon unless their Weapons are, its rank unless their refines are. */
 function tagHolds(tag: string, m: Member, combo: Combo, f: Filters = filters): boolean {
+  // a cost-tier build (with or without the grant) stands for the other too: "Phrolova R1" under s3m
+  // is also her S3R1 where she holds it
+  const tiers = [true, false].map((h) => buildTag(m, f.cost, h));
+  if (tiers.includes(tag) && tiers.includes(memberTag(m, combo, f.cost))) return true;
+  // a row a "Show" entry put there (another rank or level) stands beside the build the tag names
+  if (shownRanks(m, f).some(([w, r, s]) => s === combo.sequence && m.loadout.refinements[w]?.[r]?.name === combo.weapon.name)) return true;
   const t = parseTag(tag);
   if (t.sequence !== combo.sequence && !axisOpen(m, f, "sequences")) return false;
   if (axisOpen(m, f, "weapons")) return true;
@@ -767,6 +773,7 @@ export function solveFits(key: string, solved: Solved, f?: Filters): boolean {
     for (const sequence of levels) for (const weapon of [...weapons, ...shownWeapons(m, f, weapons)]) {
       for (const refine of refineLevels(m, f, { ...solved.picks[i]!, weapon, sequence }, weapons.includes(weapon))) pairs.add(`${sequence}.${refine}`);
     }
+    if (!axisOpen(m, f, "sequences")) for (const [, refine, sequence] of shownExtraLevels(m, f, solved.picks[i]!.sequence)) pairs.add(`${sequence}.${refine}`);
     return n * pairs.size;
   }, 1);
   const patterns = new Set(solved.rows.map((r) => r.map((p) => `${p.sequence}.${p.refine}`).join(".")));

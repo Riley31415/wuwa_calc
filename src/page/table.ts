@@ -231,8 +231,13 @@ function rankItems(run: TeamRun, pos: number): MenuItem[] {
   const here = filters.scoped.filter((s) => s.resonator === m.name && s.on === "rank"
     && rankShown(s.value).sequence === combo.sequence);
   const own = here.find((s) => rankShown(s.value).weapon === combo.weapon.name);
-  const stop: MenuItem[] = own ? [{ label: `Stop showing ${combo.weapon.name}`, run: () => setScoped(own) }] : [];
-  if (compares(m, filters, "refines", combo)) return stop;
+  const stop: MenuItem[] = own ? [{ label: `Stop showing ${joinTag(m.name, combo.sequence, combo.weapon.name)}`, run: () => setScoped(own) }] : [];
+  // every rank of this weapon for this resonator, at any level: the weapon's own scoped refines compare
+  const all: ScopedCompare = { resonator: m.name, on: "weapon", value: weaponBase(combo.weapon), axis: "refines" };
+  const allSet = filters.scoped.some((s) => scopedKey(s) === scopedKey(all));
+  if (compares(m, filters, "refines", combo)) {
+    return [...(allSet ? [{ label: `Stop comparing ${weaponBase(combo.weapon)} refinements`, run: () => setScoped(all) }] : []), ...stop];
+  }
   const ranks = m.loadout.refinements.find((r) => r.some((w) => w.name === combo.weapon.name)) ?? [];
   // a combo key's fifth part is the rank (solver.ts's own `comboOf()`)
   const unranked = (c: Combo): string => c.key.split(".").filter((_, k) => k !== 4).join(".");
@@ -247,8 +252,27 @@ function rankItems(run: TeamRun, pos: number): MenuItem[] {
     label: `Show ${w.name}`,
     run: () => setScoped({ resonator: m.name, on: "rank", value: rankValue(w.name, combo.sequence), axis: "refines" }),
   }));
-  // the ranks gather under one line that opens them to its right on hover
-  return [...(show.length ? [{ label: `Show ${weaponBase(combo.weapon)} Refinement...`, run: () => {}, sub: show }] : []), ...stop];
+  // the ranks gather under one line that opens them to its right on hover; pressed, it compares them all
+  return [...(show.length ? [{ label: `Compare ${weaponBase(combo.weapon)} refinements`, run: () => setScoped(all), sub: show }] : []), ...stop];
+}
+
+/** "Compare sequences" with each level this row's member could run, at the row's own weapon and
+ *  rank, beside it to show one at a time ("Show Phrolova S3"). Pressed, it opens the whole ladder. */
+function sequenceItem(resonator: string, row: { run: TeamRun; pos: number } | undefined): MenuItem {
+  const item: MenuItem = {
+    label: `${filters.sequences.includes(resonator) ? "Stop comparing" : "Compare"} ${resonator} ${AXIS_LABEL.sequences.toLowerCase()}`,
+    run: () => setCompare(resonator, "sequences"),
+  };
+  if (!row || filters.sequences.includes(resonator)) return item;
+  const [m, combo] = [row.run.members[row.pos]!, row.run.combo[row.pos]!];
+  const shown = new Set(filters.scoped.filter((s) => s.resonator === m.name && s.on === "rank" && rankShown(s.value).weapon === combo.weapon.name)
+    .map((s) => rankShown(s.value).sequence));
+  const ladder = sequenceLevels(m, { ...filters, sequences: [...filters.sequences, m.name] });
+  const show = ladder.filter((n) => n !== combo.sequence && !shown.has(n)).map((n) => ({
+    label: `Show ${m.name} S${n}`,
+    run: () => setScoped({ resonator: m.name, on: "rank", value: rankValue(combo.weapon.name, n), axis: "refines" }),
+  }));
+  return show.length ? { ...item, sub: show } : item;
 }
 /** The run a cell's row is and the position `resonator` holds in it, for a menu opened on it. */
 function cellRun(el: HTMLElement, resonator: string): { run: TeamRun; pos: number } | undefined {
@@ -308,9 +332,10 @@ export function showMenu(x: number, y: number, items: MenuItem[], onClose?: () =
     e.stopPropagation();
     e.preventDefault();
     const parent = items[Number(item.dataset.i)]!;
-    // a press on a line with a card opens it (a touch has no hover); one inside it runs that line
-    if (parent.sub && item.dataset.s === undefined) {
-      if (e.type === "click") openSub(item);
+    // a left press on a line with a card runs the line itself (the card opens on hover); a right
+    // press opens the card, for a touch that has no hover
+    if (parent.sub && item.dataset.s === undefined && e.type === "contextmenu") {
+      openSub(item);
       return;
     }
     const it = item.dataset.s === undefined ? parent : parent.sub![Number(item.dataset.s)]!;
@@ -356,10 +381,9 @@ function optionCell(kind: OptionKind | "weapon", value: string, color: string, l
 }
 
 let hueShown = true;
-/** Which positions show a Personal DPR column of their own. The reader opens and shuts one on that
- *  position's Slot heading; it opens itself the moment a position starts comparing anything, since
- *  every Compare beside it is a share of that figure. Closing the last Compare leaves it standing —
- *  it is the reader's from then on, and the heading is where it comes back off. */
+/** Which positions show a Personal DPR column of their own, opened and shut on that position's Slot
+ *  heading. It opens itself only for a new Sequences or Weapons compare; every Compare % column shows
+ *  only while it is open, being a share of that figure. */
 const personalOpen = [false, false, false];
 /** The `axis|position` Compare columns standing on the last draw — a key arriving is the edge
  *  `personalOpen` opens on, so each new Compare opens the figure it is a share of. */
@@ -543,14 +567,26 @@ function comparisonTable(rows: TeamRow[]): string {
   /** Whether this row's member at `pos` has a Weapon cell of their own. */
   const weaponCell = (run: TeamRun, m: Member, pos: number): boolean =>
     axisOpen(m, filters, "weapons") || multiWeapon.has(`${run.teamKey}|${pos}`);
-  /** Whether this axis draws a Compare cell at this position — every open column does, bar the two
-   *  that have nothing to measure: a Weapon column standing on one weapon, and a refine one beside
-   *  a Weapon Compare that already measures against R1. */
-  const cmpAt = (axis: CmpAxis, i: number): boolean =>
+  // the Personal column, which the reader holds (`personalOpen`), opens itself only for a new
+  // Sequences or Weapons column: those are what it is read against by eye
+  for (let i = 0; i < personalOpen.length; i++) for (const axis of CMP_AXES) {
+    const key = `${axis}|${i}`;
+    if (!openAt[axis][i]) cmpDrawn.delete(key);
+    else if (!cmpDrawn.has(key)) {
+      cmpDrawn.add(key);
+      if (axis === "sequences" || axis === "weapons") personalOpen[i] = true;
+    }
+  }
+  const dprAt = (i: number): boolean => !!personalOpen[i];
+  /** Whether this axis draws a Compare cell at this position: only beside the Personal figure it is a
+   *  share of, and never where there is nothing to measure — a Weapon column standing on one weapon,
+   *  or a refine one beside a Weapon Compare that already measures against R1. */
+  const cmpOpen = (axis: CmpAxis, i: number): boolean =>
     !openAt[axis][i] ? false
     : axis === "weapons" ? !soloWeapon[i]
-    : axis === "refines" ? !cmpAt("weapons", i)
+    : axis === "refines" ? !cmpOpen("weapons", i)
     : true;
+  const cmpAt = (axis: CmpAxis, i: number): boolean => dprAt(i) && cmpOpen(axis, i);
   // indexed only for the axes and positions with a Compare on screen, over the teams on screen —
   // `results` holds every run of the session, and the default table has no compare at all
   const onScreen = new Set(rows.map((r) => r.key));
@@ -632,18 +668,6 @@ function comparisonTable(rows: TeamRow[]): string {
     return ratio == null ? "" : pctTrunc(ratio);
   };
 
-  // ...and the Personal column, which the reader holds (`personalOpen`) but a new column opens for
-  // them: it is the figure every Compare beside it is a share of, and the one a name-only Weapon
-  // column is read against by eye, so it earns its place the moment either arrives
-  for (let i = 0; i < personalOpen.length; i++) for (const axis of CMP_AXES) {
-    const key = `${axis}|${i}`;
-    if (!openAt[axis][i]) cmpDrawn.delete(key);
-    else if (!cmpDrawn.has(key)) {
-      cmpDrawn.add(key);
-      personalOpen[i] = true;
-    }
-  }
-  const dprAt = (i: number): boolean => !!personalOpen[i];
   const rowHtml = (key: string, run: TeamRun, rank: RowRank): string => {
     const grand = teamFigure(run);
     const memberNames = run.members.map((m) => m.name).join("|");
@@ -1418,7 +1442,7 @@ const openNameMenu = (el: HTMLElement, x: number, y: number): void => {
     // does nothing when pressed.
     // refines are not among them: a weapon's are compared from its own cell (`openOptionMenu`),
     // and a rank shown one at a time below
-    ...MENU_AXES.flatMap((axis) => (comparable(resonator, axis) ? [compareItem(axis)]
+    ...MENU_AXES.flatMap((axis) => (comparable(resonator, axis) ? [axis === "sequences" ? sequenceItem(resonator, row) : compareItem(axis)]
       : axis === "sequences" ? [{ label: "Sequences Not Implemented!", run: () => {} }] : [])),
     ...(comparable(resonator, "substats") ? [compareItem("substats")] : []),
     // the level's own show and hide are the two lines up top
@@ -1476,9 +1500,9 @@ const openOptionMenu = (e: MouseEvent): void => {
     // weapon filters at the rank its cell reads
     { label: `Show only ${tag(key)}`, run: () => setFilter(map, tag(key), "include"), alt: () => setFilter(map, tag(key), "exclude") },
     { label: `Hide ${tag(key)}`, run: () => setFilter(map, tag(key), "exclude") },
-    // the weapon's own refines compare, then the ranks it would open shown one at a time
+    // the weapon's own refines compare, its ranks one at a time beside it (`rankItems`)
     ...(resonator && kind === "weapon" ? scopedItems(resonator, "weapon", base).flatMap((it) =>
-      (it.axis === "refines" && row ? [it, ...rankItems(row.run, row.pos)] : [it])) : []),
+      (it.axis === "refines" && row ? rankItems(row.run, row.pos) : [it])) : []),
     ...(resonator && ranked ? scopedItems(resonator, "weaponRank", key) : []),
     ...(resonator && kind === "echo" ? scopedItems(resonator, "echo", key) : []),
     // ...and last, the compares that opened this column, offered back as a way to close it

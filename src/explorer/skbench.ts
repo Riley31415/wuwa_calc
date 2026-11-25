@@ -106,7 +106,7 @@ const WATCH = new Buff({ name: "Explorer: Outro Concerto", updateBuffs: () => {
     outroConcerto = Math.min(outroConcerto, m.concerto);
     return;
   }
-  if (unmetCast === null && currentCast().castUnmet([m.energy, m.concerto, ...m.forte])) unmetCast = currentCast().name;
+  if (unmetCast === null && !currentCast().isValid()) unmetCast = currentCast().name;
 } });
 
 /** `rotation` played in the duo for `sections` rotations; traced where a caller reads the rows' hits. `extra`
@@ -225,7 +225,7 @@ function read({ state, rows }: { state: State; rows: Result[] }, visitNo: number
     steps,
     lastStart: game(visit[last]!) - zero - benchWait(last),
     outroAt: outro < 0 ? null : game(visit[outro]!) - zero - benchWait(outro),
-    concOk: outroConcerto >= SK.Outro.castMin![1]!,
+    concOk: outroConcerto >= 10000,
     concerto: probed,
     concertoNow: castConcerto,
     forte: probedForte,

@@ -212,15 +212,13 @@ export function substats(sub1: Substat, sub2: Substat, sub3: Substat, sub4: Subs
   return new ErSpread(named, tiers);
 }
 
-/** The high-investment spread's own shape: seven named stats in priority order, and a single roll
- *  for anything an ER promotion pushes past the end. 22 of the 25 rolls at every tier, since ER takes
- *  a named stat's place rather than adding one — the rest are left empty rather than spent on stats
- *  the kit has no use for. */
-const HIGH_SHAPE = [5, 5, 5, 3, 2, 1, 1];
+/** The high-investment spread's own shape: seven named stats in priority order, all 25 rolls. ER
+ *  takes a named stat's place rather than adding one. */
+const HIGH_SHAPE = [5, 5, 5, 4, 3, 2, 1];
 
-/** Where ER slots in when the bar wants more than its one line, against `HIGH_SHAPE`'s own places
- *  — the same rule ChemX32 follows, and it stops at three for the same reason. */
-const HIGH_PROMOTIONS: [number, number][] = [[2, 4], [3, 3]];
+/** Each ER tier as [rolls, place in `HIGH_SHAPE`]: one line last, promoted as far as the 4-roll slot,
+ *  so a high-invest build pays its bar in substats rather than on an ER 3-cost. */
+const HIGH_PROMOTIONS: [number, number][] = [[1, 6], [2, 5], [3, 4], [4, 3]];
 
 /** One high-investment piece from the stats it names, in priority order. `extras` are the sixth and
  *  seventh stats the kit asked for — a single roll each wherever the tier puts them, and left out of
@@ -240,15 +238,13 @@ function highPiece(named: Substat[], extras: Substat[], ownEr = false): Spread {
 
 /**
  * The high-investment spread (the "High Invest Substats" boxes, shown as "CN Subs" against the
- * default "ChemX32"): seven distinct stats, most important first, taking 5/5/5/3/2/1/1 of the
- * twenty-five rolls at `HIGH_PERCENTILE` rather than ChemX32's median. Crit is named here rather
- * than assumed — every one of these builds wants it, but not always at the top. The sixth and
- * seventh are single rolls of whatever the kit still deals a little of, the better of the two sixth.
+ * default "ChemX32"): seven distinct stats, most important first, taking 5/5/5/4/3/2/1 of the
+ * twenty-five rolls at `HIGH_PERCENTILE` rather than ChemX32's median. The sixth and seventh are
+ * whatever the kit still deals a little of.
  *
- * ER works exactly as it does on ChemX32: a kit that names it holds whatever slot it named, and a
- * kit that does not gets one line for the bar (none at all where the Liberation costs nothing) and
- * is promoted to two or three only where the rotation cannot fill without. ER is inserted at its
- * place and every stat below it shifts down one, the seventh off the end.
+ * A kit that names ER holds whatever slot it named. One that does not gets one line for the bar
+ * (none where the Liberation costs nothing), promoted to two, three or four only where the rotation
+ * cannot fill without; ER is inserted at its place and every stat below shifts down, the seventh off.
  */
 export function highSubs(sub1: Substat, sub2: Substat, sub3: Substat, sub4: Substat, sub5: Substat, sub6: Substat, sub7: Substat): ErSpread {
   const named = [sub1, sub2, sub3, sub4, sub5, sub6, sub7];
@@ -256,13 +252,10 @@ export function highSubs(sub1: Substat, sub2: Substat, sub3: Substat, sub4: Subs
   const own = named.indexOf(Substat.Er);
   // a kit that named ER wears all seven as written: there ER is the build, not the bar's own tax
   if (own >= 0) return new ErSpread(named, [{ rolls: HIGH_SHAPE[own]!, piece: highPiece(named, [sub6, sub7], true) }]);
-  // everyone else pays for their bar inside the seven rather than on top of them: the ER line goes in
-  // sixth and pushes `sub6` to the last, `sub7` off it. Only a kit with no Liberation to pay for
-  // (`maxEnergy: 0`, the `noEr` piece) wears all seven it asked for.
+  // everyone else pays for their bar inside the seven, `sub7` dropping off; only a kit with no
+  // Liberation to pay for (`maxEnergy: 0`, the `noEr` piece) wears all seven it asked for
   const six = named.slice(0, 6);
-  return new ErSpread(named, [
-    { rolls: 1, piece: highPiece([...six.slice(0, 5), Substat.Er, sub6], [sub6, sub7]) },
-    ...HIGH_PROMOTIONS.map(([rolls, place]) => (
-      { rolls: rolls!, piece: highPiece([...six.slice(0, place), Substat.Er, ...six.slice(place)], [sub6, sub7]) })),
-  ], highPiece(named, [sub6, sub7]));
+  return new ErSpread(named, HIGH_PROMOTIONS.map(([rolls, place]) => (
+    { rolls, piece: highPiece([...six.slice(0, place), Substat.Er, ...six.slice(place)], [sub6, sub7]) })),
+  highPiece(named, [sub6, sub7]));
 }

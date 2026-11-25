@@ -6,7 +6,7 @@ import {
   Stat, EnemyStat, Resource, Scaling,
   scopedStat, splitStat, statLabel, tagKind,
   TAG_NAME, CAST_NAME, NODE_NAME, SCALING_NAME, RESOURCE_NAME,
-  ActionTag, Cast, POSITION_NAME,
+  ActionTag, Cast, POSITION_NAME, INPUT_NAME,
   statDisplayScale, ENERGY_UNIT, CONCERTO_UNIT, MV_UNIT,
 } from "../engine/stats.js";
 import type { Type, Subtype, StatKey, Tag } from "../engine/stats.js";
@@ -226,7 +226,7 @@ const actionInfo = (snap: ResolvedSnapshot): InfoEntry[] => {
   let press = action;
   // a kit's own Tune Break is a form of the placeholder one: stop on the kit's
   while ((press.cancelOf ?? press.formOf) && (press.cancelOf ?? press.formOf) !== TUNE_BREAK) press = (press.cancelOf ?? press.formOf)!;
-  push("Cast Position", press.castPosition === null ? null : POSITION_NAME[press.castPosition]);
+  push("Input", press.inputs.length ? press.inputs.map((i) => INPUT_NAME[i]).join(", ") : null);
   push("End Position", press.endPosition === null ? null : POSITION_NAME[press.endPosition]);
   push("Animation", `${press.animFrames}f`);
   push("Cast Priority", press.castPriority === null ? null : String(press.castPriority));
@@ -239,16 +239,8 @@ const actionInfo = (snap: ResolvedSnapshot): InfoEntry[] => {
   push("Bullets", press.bullets.length ? press.bullets.map((h) => `${h.hitFrame}f`).join(", ") : null);
   // a bullet committing ahead of its hit
   push("Commits", press.bullets.some((h) => h.commitFrame !== h.hitFrame) ? press.bullets.map((h) => `${h.commitFrame}f`).join(", ") : null);
-  // the cast's condition, each bar in its own units, then the buffs it needs or can't be under
-  const bars = ["Energy", "Concerto", ...FORTE_GAUGES.map((_, i) => `Forte ${i + 1}`)];
-  const scale = [1 / ENERGY_UNIT, 1 / CONCERTO_UNIT, ...snap.forteScale];
-  bars.forEach((bar, k) => {
-    const min = press.castMin?.[k] ?? -Infinity, max = press.castMax?.[k] ?? Infinity;
-    if (min !== -Infinity) push(`Min ${bar}`, fmtExact(min * scale[k]!));
-    if (max !== Infinity) push(`Max ${bar}`, fmtExact(max * scale[k]!));
-  });
-  const conds = [...(press.requireBuffs ?? []).map((g) => ["Require Buff", g] as const), ...(press.forbidBuffs ?? []).map((g) => ["Forbid Buff", g] as const)];
-  conds.forEach(([label, g], i) => info.push({ label, value: g.name, source: snap.buffSources?.[i] ?? snap.member }));
+  // cast where its `valid` handler read false
+  push("Valid", snap.invalid ? "no" : null);
   // what queued it — a buff, a piece of gear, the cast it followed — in its owner's colour
   if (source) info.push({ label: "Source", value: source.name, source: source.source });
   return info;
@@ -460,16 +452,15 @@ function rowValues(
     raw[`before:gauge:${RESOURCE_NAME[key]}`] = shownBefore(snap, 3 + i) * unit;
     if (snap.maxForte[i]) raw[`max:gauge:${RESOURCE_NAME[key]}`] = snap.maxForte[i]! * unit;
   });
-  // red flags for the action table, every bar alike: one the cast found outside its own condition,
-  // or one a step of the press left below empty (a spend it couldn't cover)
+  // red flags for the action table, every bar alike: one a step of the press left below empty (a spend
+  // it couldn't cover)
   const low = (i: number): boolean => snap.shownShort?.[i] ?? shown(snap, i) < 0;
-  raw["short:energy"] = snap.castUnmet?.[0] || low(0) ? 1 : 0;
-  raw["short:concerto"] = snap.castUnmet?.[1] || low(1) ? 1 : 0;
+  raw["short:energy"] = low(0) ? 1 : 0;
+  raw["short:concerto"] = low(1) ? 1 : 0;
   raw["short:offtune"] = low(2) ? 1 : 0;
-  FORTE_GAUGES.forEach((key, i) => { raw[`short:gauge:${RESOURCE_NAME[key]}`] = snap.castUnmet?.[2 + i] || low(3 + i) ? 1 : 0; });
-  // ...and a buff it needed and didn't find, or found and couldn't have, by name
-  const buffs = [...(snap.buffUnmet ?? []).map((b) => b.name), ...(snap.buffForbidden ?? []).map((b) => `not ${b.name}`)];
-  raw["short:buff"] = buffs.length ? buffs.join(", ") : 0;
+  FORTE_GAUGES.forEach((key, i) => { raw[`short:gauge:${RESOURCE_NAME[key]}`] = low(3 + i) ? 1 : 0; });
+  // ...and the press itself, cast where its `valid` read false
+  raw["short:buff"] = snap.invalid ? "not valid" : 0;
 
   // a panel with a heading and Total 0 is an answer; only blank cells drop theirs
   const sources: Sources = {};

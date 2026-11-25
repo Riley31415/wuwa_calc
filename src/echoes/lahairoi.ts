@@ -10,6 +10,7 @@ import {
   isType, addStat, applyCurrent, casting, getStat, queueOutro, revokeCurrent, frozenStacks, isHeld, currentMember, wears,
   extendCurrent, stacksOf,
   onType, onCast, onApplied, onInflict, both,
+  grounded,
 } from "../engine/context.js";
 import { Action, Cooldown } from "../engine/rotation.js";
 import { FUSION_BURST, HEALS, GLACIO_CHAFE, gainShield } from "../resonators/status.js";
@@ -124,7 +125,7 @@ export const GLOMMOTH_MAINSLOT = new Mainslot({
   cost: 3,
 });
 export const GLOMMOTH = new SummonEcho("Echo - Glommoth", {
-  mainslot: GLOMMOTH_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, cooldown: 60 * 20,
+  mainslot: GLOMMOTH_MAINSLOT, position: Position.Grounded, endPosition: Position.Grounded, cooldown: 60 * 20,
   element: Attribute.Glacio, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 54, commitFrame: 0, mv: 27360, energy: 380 }],
   updateBuffs: () => queueOutro(GLOMMOTH_HANDOFF),
 });
@@ -407,17 +408,17 @@ export const ADAM_SMASHER_MAINSLOT = new Mainslot({
   constantStats: () => { if (wears("Lucy") || wears("Rebecca")) addStat(Stat.CritRate, 15); },
 });
 export const ADAM_SMASHER_LUCY = new SummonEcho("Echo - Adam Smasher", {
-  mainslot: ADAM_SMASHER_MAINSLOT, cooldown: 60 * 20,
+  mainslot: ADAM_SMASHER_MAINSLOT, cooldown: 60 * 20, valid: () => wears("Lucy"),
   element: Attribute.Spectro, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 27360, energy: 380 }],
 });
 
 export const ADAM_SMASHER_REBECCA = new SummonEcho("Echo - Adam Smasher", {
-  mainslot: ADAM_SMASHER_MAINSLOT, cooldown: 60 * 20,
+  mainslot: ADAM_SMASHER_MAINSLOT, cooldown: 60 * 20, valid: () => wears("Rebecca"),
   element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
   bullets: [32, 42, 48, 53, 56, 64, 70, 81, 84, 87, 95, 102, 106, 118, 123, 130].map((f) => ({ hitFrame: f, commitFrame: 0, mv: 1710, energy: 23 })),
 });
 export const ADAM_SMASHER = new SummonEcho("Echo - Adam Smasher", {
-  mainslot: ADAM_SMASHER_MAINSLOT, cooldown: 60 * 20,
+  mainslot: ADAM_SMASHER_MAINSLOT, cooldown: 60 * 20, valid: () => !wears("Lucy") && !wears("Rebecca"),
   element: Attribute.Physical, scaling: Scaling.Atk, type: Type.Echo,
   bullets: [85, 92, 97, 104, 110, 116, 122, 128].flatMap((f) => [0, 1].map(() => ({ hitFrame: f, commitFrame: 0, mv: 1026, energy: 14 }))),
 });

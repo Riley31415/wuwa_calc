@@ -31,13 +31,13 @@ every motion value is a bullet's
   plays on behind the swap to its own end — until its owner presses again, which ends it there (its
   hits a hold kept past their own frame landing first). any cut into an Outro inside `noSwapFrames`
   or under its priority throws, a mash cancel aside, which waits out both. a `holdCancel` / `mashCancel` instead lets go the moment the next press can come out —
-  its cast condition met (`minConcerto`, `maxForte2`, `requireBuff`, ...; on its cast or on a bullet, an earlier press's
-  still-landing ones included) and the window below open — at its last bullet if the condition never is; the next press
-  starts right there: bullets not committed by then are lost. a hold goes only into a held input (`heldInput`: every
-  `Cast.Heavy` by default, and a Skill or Basic hold that says so), a mash only into a press that isn't; a hold lets
+  it valid (its `valid` read on the bars its cast and bullets bank, an earlier press's still-landing ones included,
+  else as the fight plays — a buff landing) and the window below open — at its last bullet if it never is; the next press
+  starts right there: bullets not committed by then are lost. a hold goes only into a held input (`Input.BasicHold`,
+  `SkillHold`, `LiberationHold`), a mash only into a press that isn't; a hold lets
   go no earlier than `HOLD_MINIMUM` (6), a mash `MASH_DELAY` (6) after the moment it could, its input landing on the
   next tap; either throws where it lets go at the press's end. `HOLD_BUFFER` (16) is unused for now. a cut that runs longer than the whole press, or cuts inside `INSTA_DELAY` (6), throws.
-- a transform (13+ animation priority) may be swapped out of, but holds its owner until it drops below 13: a swap-in or Intro into them before then throws (`Slot.arrive`); their own next press ends it
+- a transform echo casts and holds at 5 (wuwalab's `skill_priority`) with `transformFrames` over its whole animation: inside them only a Dodge-input press cuts it — a mash or hold cancel into anything else waits them out, a plain cut throws — while a swap or an Outro is free. it holds its owner through them: a swap-in or Intro into them before then throws (`Slot.arrive`); their own next press ends it
 - swap cooldown: leaving the field (a swap or an Outro) starts 60 real frames (they run through time stop) before a swap may bring that member back, else it throws (`TeamMember.swappedInto`); an Intro into them bypasses and clears it, and leaving during their own Intro starts none. An exit resolver that plays a plain `SWAP` hands over as a swap form: the next member opens on their SWAPIN chain
 - priority: a press's `animPriority` (`{ 0: 5, 10: 2 }`, frame -> tier) is what it holds while it
   plays, its `castPriority` what it cuts in at; one press cuts another only with a `castPriority`
@@ -61,9 +61,9 @@ every motion value is a bullet's
   of them all swaps out or none does. echo frames are wuwalab's (`/api/app/echoes/<slug>`); a transform's
   hits commit at wuwalab's own `commit_frame`, which already lands ahead of the hit (the transform staying on
   field to finish its attack), so its def lists that `commitFrame` (left out where it is the hit's).
-  wuwalab's `airCastable: false` = `castPosition: Position.Grounded`. a multi-stage echo (wuwalab's
-  "X 1", "X 2", ...) is an action a stage, all on one mainslot, each chaining off the last (`after:
-  [X_1.press]`), the cooldown on the first; a rotation writes as many stages as it presses.
+  wuwalab's `airCastable: false` = `position: Position.Grounded`. a multi-stage echo (wuwalab's
+  "X 1", "X 2", ...) is an action a stage, all on one mainslot, each chaining off the last (`after(X_1.press)`),
+  the cooldown on the first; a rotation writes as many stages as it presses.
   an insta cut keeps the bullets committed by `INSTA_DELAY`; `.cancelOnHit()` (CANCEL ON HIT),
   `.dodgeOnHit()` and `.jumpOnHit()` cut `CANCEL_DELAY` after the first bullet hits, keeping the
   bullets committed by the end of that delay — bullets keep firing until the next press truly starts; each throws on a press whose bullets hit on one frame.

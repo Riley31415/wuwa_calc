@@ -3,8 +3,8 @@
  * enemy states around it. The engine owns nothing but the off-tune bar as a counter — the rest is
  * here, equipped onto `State.enemy` the way a member's own kit is equipped onto them.
  */
-import { ActionTag, Attribute, Cast, EnemyStat, Position, Scaling, Stat, Type, WeaponType } from "../engine/stats.js";
-import { Buff, BuffDef, Debuff, Gear, Resonator } from "../engine/gear.js";
+import { ActionTag, Attribute, Cast, EnemyStat, Input, Position, Scaling, Stat, Type, WeaponType } from "../engine/stats.js";
+import { Buff, BuffDef, Debuff, Gear, Resonator, DEFAULT_PRESSES } from "../engine/gear.js";
 import {
   addEnemyStat,
   addStat,
@@ -27,10 +27,10 @@ import {
   isActive,
   pressCut,
   replaceCut,
-  saveChain,
+  chainAs,
   nextPresses,
 } from "../engine/context.js";
-import { Action } from "../engine/rotation.js";
+import { Action, pickInput } from "../engine/rotation.js";
 import { currentMember } from "../engine/context.js";
 
 /* ---------------------------------------------------------------------------- the enemy */
@@ -114,25 +114,19 @@ function breakReady(behind: Readonly<Action>, dodged = false): boolean {
   if (isCast(behind, Cast.Dodge) || isCast(behind, Cast.Jump)) return false;
   // ...nor inside a time stop, standing or still to come: the first press ending past it fires it
   if (currentTeam().frozenAhead() !== 0) return false;
-  // ...nor where the next press is chained to the press before it and a break isn't among those,
-  // or its `notAfter` bars a break (in a dodge's place, the press after the dodge), or the first
-  // press after it needing a position (past ones that leave it be) isn't where the break leaves them
-  // ...nor while the on-field resonator's own break is barred
+  // ...nor while the on-field resonator's own break is barred (none of theirs valid)
   const tb = breakPress();
   if (!tb) return false;
-  const at = tb.endPosition ?? currentMember().position;
-  let first = true, barring = true;
+  // ...nor where the press after it can't follow a break, or stand where the break leaves them (in a
+  // dodge's place, the press after the dodge: the dodge is no press after it)
+  const member = currentMember(), at = tb.endPosition ?? member.position;
+  let skipped = false;
   for (const next of nextPresses()) {
-    if (first && next.chained && !next.follows(tb)) return false;
-    first = false;
-    // the dodge the break plays in place of is no press after it: neither its bar nor its position counts
-    if (barring && dodged && isCast(next, Cast.Dodge)) continue;
-    if (barring) {
-      if (next.barredAfter(tb)) return false;
-      barring = false;
+    if (dodged && !skipped && isCast(next, Cast.Dodge)) {
+      skipped = true;
+      continue;
     }
-    if (next.castPosition !== null) return next.castPosition === at;
-    if (next.endPosition !== null || isCast(next, Cast.Outro)) return true;
+    return !next.missesOn(member, tb, at);
   }
   return true;
 }
@@ -197,6 +191,8 @@ export const TUNE_BREAK_ENEMY = new Resonator({
     // ...where it cuts in over what the press still holds on that frame
     const c = behind.cost(cut as ActionTag), tb = breakPress();
     if (!tb || (tb.castPriority ?? 0) <= behind.priorityAt(c.action + c.global)) return;
+    // never inside a transform's window, which only a dodge cuts
+    if (c.action + c.global < behind.transformFor(tb)) return;
     applyEnemy(TUNE_BREAK_QUEUED, 1);
     replaceCut(plain);
     queueEvent(TUNE_BREAK_PRESS);
@@ -208,6 +204,8 @@ export const TUNE_BREAK_ENEMY = new Resonator({
  *  enemy's own bucket rather than whoever was on field. */
 export const TUNE_BREAK = new Action("Tune Break (Auto Generated)", {
   element: Attribute.Physical, scaling: Scaling.Tune, cast: Cast.TuneBreak, type: Type.Break,
+  // every break, a kit's own too: only on a full bar
+  input: Input.TuneBreak, valid: () => offtuneFull(),
   bullets: [{ hitFrame: 90, mv: 160000 }], slot: TUNE_BREAK_ENEMY.name,
   // the world stands still for all of it, so the game timer charges none
   animFrames: 90, castPriority: 11, timestop: [0, 90], motionStop: [0, 70],
@@ -220,8 +218,19 @@ export const TUNE_BREAK = new Action("Tune Break (Auto Generated)", {
   // nearly every break lands its caster on the ground (`midairBreak()` for the ones that don't)
   endPosition: Position.Grounded,
   // nobody's press, so no break in the chain — but what a kit says follows a Tune Break may follow it
-  updateBuffs: () => saveChain(currentCast() as Action),
+  updateBuffs: () => chainAs(currentCast() as Action),
 });
+
+/** Is the target's off-tune bar full — what every Tune Break needs to be cast. */
+export const offtuneFull = (): boolean => currentTeam().offtune >= ENEMY_MAX_OFFTUNE;
+
+/** A kit's break `tb`, castable only while `when` holds as well as on a full bar — still a form of
+ *  `TUNE_BREAK` (a kit with two forms lists one for each). */
+export function breakWhen(tb: Action, when: () => boolean): Action {
+  const out = tb.variant(tb.name, { valid: () => when() && offtuneFull() });
+  out.formOf = TUNE_BREAK;
+  return out;
+}
 
 /** A sword's and a broadblade's break hits (wuwalab), [frame, mv, commit?]; the other classes land one. */
 export type TuneBreakHit = [hitFrame: number, mv: number, commitFrame?: number];
@@ -253,14 +262,13 @@ export const CLASS_TUNE_BREAK: Record<WeaponType, Action> = {
   [WeaponType.Gauntlets]: tuneBreak(92, 92, [0, 92], [0, 70], [[72, 160000]]),
 };
 
-/** What a full bar queues: resolved when reached to the on-field resonator's own break — their kit's
- *  (`ResonatorDef.tuneBreak`), else their weapon class's. A kit's returning null bars the break in
- *  that state (Phrolova commanding Hecate): the bar waits full. */
+DEFAULT_PRESSES.tuneBreak = (weapon) => CLASS_TUNE_BREAK[weapon];
+
+/** What a full bar queues: the on-field resonator's valid `Input.TuneBreak` press, their kit's own else
+ *  their class's. None valid bars the break (Phrolova commanding Hecate): the bar waits full. */
 function breakPress(): Action | null {
-  const resonator = currentMember().resonator;
-  const own = resonator?.tuneBreak;
-  if (own) return own();
-  return resonator ? CLASS_TUNE_BREAK[resonator.weapon] : TUNE_BREAK;
+  const member = currentMember();
+  return member.resonator ? pickInput(member, Input.TuneBreak) : TUNE_BREAK;
 }
 const TUNE_BREAK_PRESS = new Action("Tune Break Placeholder", { resolve: breakPress });
 

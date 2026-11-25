@@ -38,7 +38,7 @@
  * multiplier on the row rather than points added to it — the Liberation plays each row as its own
  * form, off-tune and all. Base stats from the same nanoka file.
  */
-import { Stat, EnemyStat, Attribute, WeaponType, Type, Subtype, Cast, Node, Scaling, BuffTarget, Position } from "../../engine/stats.js";
+import { Stat, EnemyStat, Attribute, WeaponType, Type, Subtype, Cast, Node, Scaling, BuffTarget, Position, Input } from "../../engine/stats.js";
 import { Buff, Debuff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   addStat,
@@ -54,6 +54,13 @@ import {
   revokeCurrent,
   runningAction,
   stacksOfEnemy,
+  notAfter,
+  after,
+  midair,
+  holds,
+  concerto,
+  grounded,
+  lacks,
 } from "../../engine/context.js";
 import { Action, ActionGroup, Rotation, SWAPIN, ActionTag, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
 import { FRAZZLE_SLOWED, SPECTRO_FRAZZLE } from "../status.js";
@@ -93,12 +100,12 @@ function phoebeAction(id: string, def: object): Action {
 }
 
 // --- O Come Divine Light: her chain outside the Ring of Mirrors.
-const BA1 = phoebeAction("Basic - O Come Divine Light 1", { notAfter: () => [BA1, BA2], animFrames: 26, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 16, mv: 2953, energy: 100, concerto: 199, offtune: 3184 }]});
-const BA2 = phoebeAction("Basic - O Come Divine Light 2", { after: [BA1], animFrames: 33, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = phoebeAction("Basic - O Come Divine Light 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [BA1, BA2], position: Position.Grounded, valid: () => !isHeld(RING_OF_MIRRORS), animFrames: 26, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 16, mv: 2953, energy: 100, concerto: 199, offtune: 3184 }]});
+const BA2 = phoebeAction("Basic - O Come Divine Light 2", { input: Input.Basic, after: () => [BA1], animFrames: 33, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 16, mv: 2237, energy: 60, concerto: 120, offtune: 1920 },
     { hitFrame: 26, mv: 2734, energy: 74, concerto: 147, offtune: 2347 },
   ]});
-const BA3 = phoebeAction("Basic - O Come Divine Light 3", { after: [BA2], animFrames: 60, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = phoebeAction("Basic - O Come Divine Light 3", { input: Input.Basic, after: () => [BA2], animFrames: 60, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 36, mv: 1424, energy: 37, concerto: 73, offtune: 1164 },
     { hitFrame: 42, commitFrame: 36, mv: 1424, energy: 37, concerto: 73, offtune: 1164 },
     { hitFrame: 48, commitFrame: 36, mv: 1424, energy: 37, concerto: 73, offtune: 1164 },
@@ -108,7 +115,7 @@ const BA3 = phoebeAction("Basic - O Come Divine Light 3", { after: [BA2], animFr
     { hitFrame: 72, commitFrame: 36, mv: 1424, energy: 37, concerto: 73, offtune: 1164 },
     { hitFrame: 78, commitFrame: 36, mv: 1424, energy: 37, concerto: 73, offtune: 1164 },
   ], updateBuffs: () => readyStarflash()});
-const DC = phoebeAction("Dodge Counter - O Come Divine Light", { after: [SUCCESSFUL_DODGE], animFrames: 60, castPriority: 2, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const DC = phoebeAction("Dodge Counter - O Come Divine Light", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], animFrames: 60, castPriority: 2, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 36, mv: 2158, energy: 56, concerto: 111, offtune: 1764 },
     { hitFrame: 42, commitFrame: 36, mv: 2158, energy: 56, concerto: 111, offtune: 1764 },
     { hitFrame: 48, commitFrame: 36, mv: 2158, energy: 56, concerto: 111, offtune: 1764 },
@@ -119,11 +126,11 @@ const DC = phoebeAction("Dodge Counter - O Come Divine Light", { after: [SUCCESS
     { hitFrame: 78, commitFrame: 36, mv: 2158, energy: 56, concerto: 111, offtune: 1764 },
   ], castConcerto: 1000, updateBuffs: () => readyStarflash()});
 // "dive down from mid-air"
-const MA = phoebeAction("Mid-air - O Come Divine Light", { castPosition: Position.Midair, endPosition: Position.Grounded, animFrames: 111, animPriority: { 8: 3 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MA = phoebeAction("Mid-air - O Come Divine Light", { input: [Input.Basic, Input.SwapIn], position: Position.Midair, endPosition: Position.Grounded, animFrames: 111, animPriority: { 8: 3 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 37, mv: 4623, energy: 150, concerto: 300, offtune: 4800 },
     { hitFrame: 62, mv: 4623, energy: 150, concerto: 300, offtune: 4800 },
   ]});
-const HA = phoebeAction("Heavy - O Come Divine Light", { animFrames: 61, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+const HA = phoebeAction("Heavy - O Come Divine Light", { input: Input.BasicHold, minForte2: 1, lacks: STARFLASH_READY, animFrames: 61, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 40, mv: 4135, energy: 70, concerto: 139, offtune: 2218 },
     { hitFrame: 49, commitFrame: 40, mv: 4135, energy: 70, concerto: 139, offtune: 2218 },
     { hitFrame: 58, commitFrame: 40, mv: 4135, energy: 70, concerto: 139, offtune: 2218 },
@@ -132,12 +139,12 @@ const HA = phoebeAction("Heavy - O Come Divine Light", { animFrames: 61, castPri
 
 // --- Chamuel's Star: the same chain while she stands inside the Ring of Mirrors. Basic Attack
 //     DMG, and only castable while the ring stands.
-const CBA1 = phoebeAction("Basic - Chamuel's Star 1", { notAfter: () => [CBA1, CBA2], requireBuff: RING_OF_MIRRORS, animFrames: 22, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 18, mv: 5935, energy: 100, concerto: 199, offtune: 3184 }]});
-const CBA2 = phoebeAction("Basic - Chamuel's Star 2", { after: [CBA1], requireBuff: RING_OF_MIRRORS, animFrames: 32, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const CBA1 = phoebeAction("Basic - Chamuel's Star 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [CBA1, CBA2], position: Position.Grounded, holds: RING_OF_MIRRORS, valid: () => isHeld(RING_OF_MIRRORS), animFrames: 22, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 18, mv: 5935, energy: 100, concerto: 199, offtune: 3184 }]});
+const CBA2 = phoebeAction("Basic - Chamuel's Star 2", { input: Input.Basic, after: () => [CBA1], holds: RING_OF_MIRRORS, animFrames: 32, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 12, commitFrame: 0, mv: 3977, energy: 67, concerto: 134, offtune: 2134 },
     { hitFrame: 120, commitFrame: 0, mv: 3977, energy: 67, concerto: 134, offtune: 2134 },
   ]});
-const CBA3 = phoebeAction("Basic - Chamuel's Star 3", { after: [CBA2], requireBuff: RING_OF_MIRRORS, animFrames: 61, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const CBA3 = phoebeAction("Basic - Chamuel's Star 3", { input: Input.Basic, after: () => [CBA2], holds: RING_OF_MIRRORS, animFrames: 61, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 36, commitFrame: 0, mv: 2893, energy: 49, concerto: 97, offtune: 1552 },
     { hitFrame: 42, commitFrame: 0, mv: 2893, energy: 49, concerto: 97, offtune: 1552 },
     { hitFrame: 48, commitFrame: 0, mv: 2893, energy: 49, concerto: 97, offtune: 1552 },
@@ -145,7 +152,7 @@ const CBA3 = phoebeAction("Basic - Chamuel's Star 3", { after: [CBA2], requireBu
     { hitFrame: 60, commitFrame: 0, mv: 2893, energy: 49, concerto: 97, offtune: 1552 },
     { hitFrame: 66, commitFrame: 0, mv: 2893, energy: 49, concerto: 97, offtune: 1552 },
   ], updateBuffs: () => readyStarflash()});
-const CDC = phoebeAction("Dodge Counter - Chamuel's Star", { after: [SUCCESSFUL_DODGE], requireBuff: RING_OF_MIRRORS, animFrames: 60, castPriority: 2, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const CDC = phoebeAction("Dodge Counter - Chamuel's Star", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], holds: RING_OF_MIRRORS, animFrames: 60, castPriority: 2, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 36, commitFrame: 0, mv: 4384, energy: 74, concerto: 147, offtune: 2352 },
     { hitFrame: 42, commitFrame: 0, mv: 4384, energy: 74, concerto: 147, offtune: 2352 },
     { hitFrame: 48, commitFrame: 0, mv: 4384, energy: 74, concerto: 147, offtune: 2352 },
@@ -158,7 +165,7 @@ const CBA123 = new ActionGroup("Basic - Chamuel's Star 123", [CBA1, CBA2, CBA3])
 // --- To Where Light Shines: the ring itself, the re-press that teleports her to it, and the
 //     refraction a Basic or Dodge Counter causes while she is outside it.
 const Skill = phoebeAction("Skill - To Where Light Shines", {
-  animFrames: 70, castPriority: 3,
+  input: Input.Skill, yieldsTo: () => [SkillTeleport], animFrames: 70, castPriority: 3,
   cooldown: 60 * 12,
   node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 37, commitFrame: 0, mv: 6263, energy: 57, concerto: 114, offtune: 3360 },
@@ -168,8 +175,10 @@ const Skill = phoebeAction("Skill - To Where Light Shines", {
   updateBuffs: () => applyCurrent(RING_OF_MIRRORS, 1),
 });
 // "Using Resonance Skill again shortly after the summoning teleports Phoebe"
+/** Starflash readied with Divine Voice left: its stance's form takes the Heavy. */
+const starflash = (): boolean => holds(STARFLASH_READY) && forte2() >= 1;
 const SkillTeleport = phoebeAction("Skill - To Where Light Shines (Teleport)", {
-  after: [Skill], requireBuff: RING_OF_MIRRORS,
+  input: Input.Skill, after: () => [Skill], holds: RING_OF_MIRRORS,
   cooldown: 42,
   animFrames: 91, castPriority: 4,
   node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
@@ -189,7 +198,7 @@ const HeavyAbs = phoebeAction("Forte Heavy - Absolution Litany", {
     { hitFrame: 48, commitFrame: 0, mv: 63819, energy: 1000, offtune: 32872, updateDebuffs: () => applyEnemy(SPECTRO_FRAZZLE, 1) },
   ], castConcerto: 1000,
   // restores the full 60, and only once Divine Voice is exhausted
-  castForte2: 60, maxForte2: 0,
+  castForte2: 60, input: Input.BasicHold, maxForte2: 0,
   updateBuffs: () => {
     revokeCurrent(CONFESSION);
     applyCurrent(ABSOLUTION, 1);
@@ -200,7 +209,7 @@ const SkillConf = phoebeAction("Forte Skill - Utter Confession", {
   node: Node.Forte, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 48, commitFrame: 0, mv: 18788, energy: 1800, offtune: 24720, updateDebuffs: () => applyEnemy(SPECTRO_FRAZZLE, 1) },
   ], castConcerto: 4000,
-  castForte2: 60, maxForte2: 0,
+  castForte2: 60, input: Input.SkillHold, maxForte2: 0,
   updateBuffs: () => {
     revokeCurrent(ABSOLUTION);
     applyCurrent(CONFESSION, 1);
@@ -216,19 +225,18 @@ const FHA = phoebeAction("Forte Heavy - Starflash", {
     { hitFrame: 34, commitFrame: 28, mv: 8269, energy: 153, concerto: 138, offtune: 6467 },
     { hitFrame: 40, commitFrame: 28, mv: 8269, energy: 153, concerto: 138, offtune: 6467 },
   ],
-  castForte2: -30, minForte2: 1,
-  requireBuff: STARFLASH_READY,
+  castForte2: -30, input: Input.BasicHold, lacks: [ABSOLUTION, CONFESSION], valid: () => starflash(),
   updateBuffs: () => revokeCurrent(STARFLASH_READY),
 });
 /** Confession's Starflash: the same 30, laying five Spectro Frazzle. */
-const FHA_CONF = FHA.variant("Forte Heavy - Starflash (Confession)", { requireBuff: STARFLASH_READY, bullets: [
+const FHA_CONF = FHA.variant("Forte Heavy - Starflash (Confession)", { holds: CONFESSION, lacks: ABSOLUTION, valid: () => starflash() && !isHeld(PHOEBE_S3), bullets: [
     { hitFrame: 28, mv: 8269, energy: 153, concerto: 138, offtune: 6467, updateDebuffs: () => applyEnemy(SPECTRO_FRAZZLE, 5) },
     { hitFrame: 34, commitFrame: 28, mv: 8269, energy: 153, concerto: 138, offtune: 6467 },
     { hitFrame: 40, commitFrame: 28, mv: 8269, energy: 153, concerto: 138, offtune: 6467 },
   ]});
 /** Absolution's Starflash: 15 Divine Voice, and 256% amplification against a Frazzled target. */
 const FHA_ABS = FHA.variant("Forte Heavy - Starflash (Absolution)", { castPriority: 3,
-  requireBuff: STARFLASH_READY,
+  holds: ABSOLUTION, valid: () => starflash(),
   castForte2: -15,
   applyStats: () => {
     if (stacksOfEnemy(SPECTRO_FRAZZLE) > 0) addStat(Stat.Amp, 256);
@@ -236,7 +244,7 @@ const FHA_ABS = FHA.variant("Forte Heavy - Starflash (Absolution)", { castPriori
 });
 /** S3's Confession Starflash: nanoka's own twin row (288.56%), whose off-tune is 0.1467 against
  *  the base row's 0.6467 — a separate entry, so a form of its own rather than a multiplier. */
-const FHA_S3 = FHA.variant("Forte Heavy - Starflash (S3 Confession)", { requireBuff: STARFLASH_READY, bullets: [
+const FHA_S3 = FHA.variant("Forte Heavy - Starflash (S3 Confession)", { holds: CONFESSION, lacks: ABSOLUTION, valid: () => starflash() && isHeld(PHOEBE_S3), bullets: [
     { hitFrame: 28, mv: 28856, energy: 153, concerto: 138, offtune: 1467, updateDebuffs: () => applyEnemy(SPECTRO_FRAZZLE, 5) },
     { hitFrame: 34, commitFrame: 28, mv: 28856, energy: 153, concerto: 138, offtune: 1467 },
     { hitFrame: 40, commitFrame: 28, mv: 28856, energy: 153, concerto: 138, offtune: 1467 },
@@ -250,13 +258,13 @@ const Starflash = new Action("Starflash Resolver", { resolve: () => {
 /** S6's extra Starflash at the ring's location: no Divine Voice, and not a Heavy Attack cast —
  *  so it needs no readied Heavy, consumes none, and never opens or closes anything. */
 const StarflashFreeConf = FHA_CONF.variant("Forte Heavy - Starflash (Ring of Mirrors, Confession)", {
-  cast: null, castForte2: 0, minForte2: undefined, requireBuff: undefined, updateBuffs: undefined, tag: ActionTag.OffField,
+  cast: null, castForte2: 0, input: undefined, valid: undefined, updateBuffs: undefined, tag: ActionTag.OffField,
 });
 const StarflashFreeAbs = FHA_ABS.variant("Forte Heavy - Starflash (Ring of Mirrors, Absolution)", {
-  cast: null, castForte2: 0, minForte2: undefined, requireBuff: undefined, updateBuffs: undefined, tag: ActionTag.OffField,
+  cast: null, castForte2: 0, input: undefined, valid: undefined, updateBuffs: undefined, tag: ActionTag.OffField,
 });
 const StarflashFreeS3 = FHA_S3.variant("Forte Heavy - Starflash (Ring of Mirrors, S3 Confession)", {
-  cast: null, castForte2: 0, minForte2: undefined, requireBuff: undefined, updateBuffs: undefined, tag: ActionTag.OffField,
+  cast: null, castForte2: 0, input: undefined, valid: undefined, updateBuffs: undefined, tag: ActionTag.OffField,
 });
 
 /** Dawn of Enlightenment's one hit, by stance and S1: each its own nanoka row (encore 1506202092-095),
@@ -267,15 +275,15 @@ const libHit = (mv: number, offtune: number) => [{ hitFrame: 186, mv, offtune, u
   applyEnemy(SPECTRO_FRAZZLE, isHeld(PHOEBE_S1) ? currentTeam().enemyMax(SPECTRO_FRAZZLE) : 8);
 } }];
 const LibPlain = phoebeAction("Liberation - Dawn of Enlightenment", {
-  animFrames: 220, castPriority: 10, timestop: [0, 220], motionStop: [0, 218],
+  input: Input.Liberation, lacks: [ABSOLUTION, CONFESSION], animFrames: 220, castPriority: 10, timestop: [0, 220], motionStop: [0, 218],
   cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation,
   bullets: libHit(40160, 48000), castConcerto: 2000, castEnergy: -12500,
 });
-const LibAbsolution = LibPlain.variant("Liberation - Dawn of Enlightenment (Absolution)", { bullets: libHit(142567, 84000) });
-const LibAbsolutionS1 = LibPlain.variant("Liberation - Dawn of Enlightenment (Absolution S1)", { bullets: libHit(232926, 48000) });
-const LibConfession = LibPlain.variant("Liberation - Dawn of Enlightenment (Confession)", {});
-const LibConfessionS1 = LibPlain.variant("Liberation - Dawn of Enlightenment (Confession S1)", { bullets: libHit(76304, 84000) });
+const LibAbsolution = LibPlain.variant("Liberation - Dawn of Enlightenment (Absolution)", { holds: ABSOLUTION, valid: () => !isHeld(PHOEBE_S1), bullets: libHit(142567, 84000) });
+const LibAbsolutionS1 = LibPlain.variant("Liberation - Dawn of Enlightenment (Absolution S1)", { holds: ABSOLUTION, valid: () => isHeld(PHOEBE_S1), bullets: libHit(232926, 48000) });
+const LibConfession = LibPlain.variant("Liberation - Dawn of Enlightenment (Confession)", { holds: CONFESSION, lacks: ABSOLUTION, valid: () => !isHeld(PHOEBE_S1),});
+const LibConfessionS1 = LibPlain.variant("Liberation - Dawn of Enlightenment (Confession S1)", { holds: CONFESSION, lacks: ABSOLUTION, valid: () => isHeld(PHOEBE_S1), bullets: libHit(76304, 84000) });
 /** The Liberation a rotation writes: the row her stance and S1 call for, read at the cast. */
 const Liberation = new Action("Liberation Resolver", {
   cast: Cast.Liberation,
@@ -287,7 +295,7 @@ const Liberation = new Action("Liberation Resolver", {
 });
 
 const Intro = phoebeAction("Intro - Golden Grace", {
-  endPosition: Position.Grounded, qteFrames: 53, animFrames: 98, noSwapFrames: 69, animPriority: { 69: 9 }, castPriority: 11, motionStop: [4, 46],
+  input: Input.Intro, endPosition: Position.Grounded, qteFrames: 53, animFrames: 98, noSwapFrames: 69, animPriority: { 69: 9 }, castPriority: 11, motionStop: [4, 46],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 45, mv: 19881, energy: 1000, offtune: 8000 }], castConcerto: 1000,
 });
 
@@ -304,7 +312,7 @@ const Outro = phoebeAction("Outro - Attentive Heart", {
     { hitFrame: 105, mv: 6606 },
     { hitFrame: 120, mv: 6606 },
     { hitFrame: 135, mv: 6606 },
-  ], minConcerto: 10000, castConcerto: -10000,
+  ], input: Input.Outro, minConcerto: 10000, castConcerto: -10000,
   applyStats: () => {
     if (isHeld(ABSOLUTION)) addStat(Stat.MulMv, 255);
     if (isHeld(PHOEBE_S2) && isHeld(ABSOLUTION) && stacksOfEnemy(SPECTRO_FRAZZLE) > 0) addStat(Stat.Amp, 120);
@@ -427,10 +435,7 @@ const PHOEBE_RESONATOR = new Resonator({
   element: Attribute.Spectro,
   weapon: WeaponType.Rectifier,
   color: "#f2e5c0",
-  intro: Intro,
-  // inside the Ring of Mirrors her Basic Attack is Chamuel's Star
-  swapIn: () => (isHeld(RING_OF_MIRRORS) ? CBA1 : BA1),
-  swapInAir: MA,
+  actions: [BA1, BA2, BA3, DC, MA, HA, CBA1, CBA2, CBA3, CDC, Skill, SkillTeleport, HeavyAbs, SkillConf, FHA, LibPlain, Intro, Outro, FHA_CONF, FHA_ABS, FHA_S3, LibAbsolution, LibAbsolutionS1, LibConfession, LibConfessionS1],
   maxEnergy: 12500,
   maxForte2: 60,
 

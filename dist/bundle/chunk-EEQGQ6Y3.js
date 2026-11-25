@@ -44,7 +44,7 @@ import {
   weaponHue,
   weaponIconByName,
   weaponPart
-} from "./chunk-TDFOAYWI.js";
+} from "./chunk-OXAR545D.js";
 import {
   AXES,
   ActionTag,
@@ -89,7 +89,7 @@ import {
   substatRollBuffs,
   tierRoll,
   weaponBase
-} from "./chunk-QDZSVQYL.js";
+} from "./chunk-JC7DESRL.js";
 
 // dist/src/page/substatvalue.js
 var SUBSTAT_LABEL = {
@@ -1658,7 +1658,8 @@ function resonatorChips() {
       inc.push(`<button type="button" class="rchip" data-scoped="${esc(scopedKey(s))}" style="--mem:${RESONATOR_HUE.get(s.resonator) ?? TUNE_BREAK_ENEMY.color}" title="Showing ${esc(s.resonator)} ${esc(s.value)} beside their own rank. ${CLICK} to remove.">${iconNamed(s.resonator)}${esc(joinTag(s.resonator, rankShown(s.value).sequence, ""))}${weaponIconByName(rankShown(s.value).weapon)}${esc(rankShown(s.value).weapon)}</button>`);
       continue;
     }
-    inc.push(`<button type="button" class="rchip" data-scoped="${esc(scopedKey(s))}" style="--mem:${RESONATOR_HUE.get(s.resonator) ?? TUNE_BREAK_ENEMY.color}" title="Comparing ${esc(scopedLabel(s))}'s ${AXIS_LABEL[s.axis].toLowerCase()}. ${CLICK} to remove.">${iconNamed(s.resonator)}${esc(scopedLabel(s))} ${AXIS_LABEL[s.axis]}</button>`);
+    const weaponRefines = s.on === "weapon" && s.axis === "refines";
+    inc.push(`<button type="button" class="rchip" data-scoped="${esc(scopedKey(s))}" style="--mem:${RESONATOR_HUE.get(s.resonator) ?? TUNE_BREAK_ENEMY.color}" title="Comparing ${esc(weaponRefines ? `${s.resonator}'s ${s.value}` : scopedLabel(s))}'s ${AXIS_LABEL[s.axis].toLowerCase()}. ${CLICK} to remove.">` + (weaponRefines ? `${iconNamed(s.resonator)}${esc(s.resonator)} ${weaponIconByName(s.value)}${esc(s.value)} Refinements</button>` : `${iconNamed(s.resonator)}${esc(scopedLabel(s))} ${AXIS_LABEL[s.axis]}</button>`));
   }
   for (const axis of AXES) {
     for (const name of filters[axis]) {
@@ -1899,9 +1900,12 @@ function rankItems(run, pos) {
   const [m, combo] = [run.members[pos], run.combo[pos]];
   const here = filters.scoped.filter((s) => s.resonator === m.name && s.on === "rank" && rankShown(s.value).sequence === combo.sequence);
   const own = here.find((s) => rankShown(s.value).weapon === combo.weapon.name);
-  const stop = own ? [{ label: `Stop showing ${combo.weapon.name}`, run: () => setScoped(own) }] : [];
-  if (compares(m, filters, "refines", combo))
-    return stop;
+  const stop = own ? [{ label: `Stop showing ${joinTag(m.name, combo.sequence, combo.weapon.name)}`, run: () => setScoped(own) }] : [];
+  const all = { resonator: m.name, on: "weapon", value: weaponBase(combo.weapon), axis: "refines" };
+  const allSet = filters.scoped.some((s) => scopedKey(s) === scopedKey(all));
+  if (compares(m, filters, "refines", combo)) {
+    return [...allSet ? [{ label: `Stop comparing ${weaponBase(combo.weapon)} refinements`, run: () => setScoped(all) }] : [], ...stop];
+  }
   const ranks = m.loadout.refinements.find((r) => r.some((w) => w.name === combo.weapon.name)) ?? [];
   const unranked = (c) => c.key.split(".").filter((_, k) => k !== 4).join(".");
   const twin = (other) => other.teamKey === run.teamKey && other.combo.every((c, k) => k === pos ? unranked(c) === unranked(combo) : c.key === run.combo[k].key);
@@ -1914,8 +1918,23 @@ function rankItems(run, pos) {
     label: `Show ${w.name}`,
     run: () => setScoped({ resonator: m.name, on: "rank", value: rankValue(w.name, combo.sequence), axis: "refines" })
   }));
-  return [...show.length ? [{ label: `Show ${weaponBase(combo.weapon)} Refinement...`, run: () => {
-  }, sub: show }] : [], ...stop];
+  return [...show.length ? [{ label: `Compare ${weaponBase(combo.weapon)} refinements`, run: () => setScoped(all), sub: show }] : [], ...stop];
+}
+function sequenceItem(resonator, row) {
+  const item = {
+    label: `${filters.sequences.includes(resonator) ? "Stop comparing" : "Compare"} ${resonator} ${AXIS_LABEL.sequences.toLowerCase()}`,
+    run: () => setCompare(resonator, "sequences")
+  };
+  if (!row || filters.sequences.includes(resonator))
+    return item;
+  const [m, combo] = [row.run.members[row.pos], row.run.combo[row.pos]];
+  const shown = new Set(filters.scoped.filter((s) => s.resonator === m.name && s.on === "rank" && rankShown(s.value).weapon === combo.weapon.name).map((s) => rankShown(s.value).sequence));
+  const ladder = sequenceLevels(m, { ...filters, sequences: [...filters.sequences, m.name] });
+  const show = ladder.filter((n) => n !== combo.sequence && !shown.has(n)).map((n) => ({
+    label: `Show ${m.name} S${n}`,
+    run: () => setScoped({ resonator: m.name, on: "rank", value: rankValue(combo.weapon.name, n), axis: "refines" })
+  }));
+  return show.length ? { ...item, sub: show } : item;
 }
 function cellRun(el, resonator) {
   const run = results.get(el.closest(".trow")?.dataset.team ?? "");
@@ -1963,9 +1982,8 @@ function showMenu(x, y, items, onClose) {
     e.stopPropagation();
     e.preventDefault();
     const parent = items[Number(item.dataset.i)];
-    if (parent.sub && item.dataset.s === void 0) {
-      if (e.type === "click")
-        openSub(item);
+    if (parent.sub && item.dataset.s === void 0 && e.type === "contextmenu") {
+      openSub(item);
       return;
     }
     const it = item.dataset.s === void 0 ? parent : parent.sub[Number(item.dataset.s)];
@@ -2129,7 +2147,20 @@ function comparisonTable(rows) {
     openAt.weapons[pos] = true;
   }
   const weaponCell = (run, m, pos) => axisOpen(m, filters, "weapons") || multiWeapon.has(`${run.teamKey}|${pos}`);
-  const cmpAt = (axis, i) => !openAt[axis][i] ? false : axis === "weapons" ? !soloWeapon[i] : axis === "refines" ? !cmpAt("weapons", i) : true;
+  for (let i = 0; i < personalOpen.length; i++)
+    for (const axis of CMP_AXES) {
+      const key = `${axis}|${i}`;
+      if (!openAt[axis][i])
+        cmpDrawn.delete(key);
+      else if (!cmpDrawn.has(key)) {
+        cmpDrawn.add(key);
+        if (axis === "sequences" || axis === "weapons")
+          personalOpen[i] = true;
+      }
+    }
+  const dprAt = (i) => !!personalOpen[i];
+  const cmpOpen = (axis, i) => !openAt[axis][i] ? false : axis === "weapons" ? !soloWeapon[i] : axis === "refines" ? !cmpOpen("weapons", i) : true;
+  const cmpAt = (axis, i) => dprAt(i) && cmpOpen(axis, i);
   const onScreen = new Set(rows.map((r) => r.key));
   const teamsOnScreen = new Set(rows.map((r) => r.teamKey));
   const openAxes = CMP_AXES.filter((axis) => openAt[axis].some((_, pos) => cmpAt(axis, pos)));
@@ -2208,17 +2239,6 @@ function comparisonTable(rows) {
     const ratio = gearRatio(run, pos, axis);
     return ratio == null ? "" : pctTrunc(ratio);
   };
-  for (let i = 0; i < personalOpen.length; i++)
-    for (const axis of CMP_AXES) {
-      const key = `${axis}|${i}`;
-      if (!openAt[axis][i])
-        cmpDrawn.delete(key);
-      else if (!cmpDrawn.has(key)) {
-        cmpDrawn.add(key);
-        personalOpen[i] = true;
-      }
-    }
-  const dprAt = (i) => !!personalOpen[i];
   const rowHtml = (key, run, rank2) => {
     const grand = teamFigure(run);
     const memberNames = run.members.map((m) => m.name).join("|");
@@ -2905,7 +2925,7 @@ var openNameMenu = (el, x, y) => {
     // does nothing when pressed.
     // refines are not among them: a weapon's are compared from its own cell (`openOptionMenu`),
     // and a rank shown one at a time below
-    ...MENU_AXES.flatMap((axis) => comparable(resonator, axis) ? [compareItem(axis)] : axis === "sequences" ? [{ label: "Sequences Not Implemented!", run: () => {
+    ...MENU_AXES.flatMap((axis) => comparable(resonator, axis) ? [axis === "sequences" ? sequenceItem(resonator, row) : compareItem(axis)] : axis === "sequences" ? [{ label: "Sequences Not Implemented!", run: () => {
     } }] : []),
     ...comparable(resonator, "substats") ? [compareItem("substats")] : [],
     // the level's own show and hide are the two lines up top
@@ -2958,8 +2978,8 @@ var openOptionMenu = (e) => {
     // weapon filters at the rank its cell reads
     { label: `Show only ${tag(key)}`, run: () => setFilter(map, tag(key), "include"), alt: () => setFilter(map, tag(key), "exclude") },
     { label: `Hide ${tag(key)}`, run: () => setFilter(map, tag(key), "exclude") },
-    // the weapon's own refines compare, then the ranks it would open shown one at a time
-    ...resonator && kind === "weapon" ? scopedItems(resonator, "weapon", base).flatMap((it) => it.axis === "refines" && row ? [it, ...rankItems(row.run, row.pos)] : [it]) : [],
+    // the weapon's own refines compare, its ranks one at a time beside it (`rankItems`)
+    ...resonator && kind === "weapon" ? scopedItems(resonator, "weapon", base).flatMap((it) => it.axis === "refines" && row ? rankItems(row.run, row.pos) : [it]) : [],
     ...resonator && ranked ? scopedItems(resonator, "weaponRank", key) : [],
     ...resonator && kind === "echo" ? scopedItems(resonator, "echo", key) : [],
     // ...and last, the compares that opened this column, offered back as a way to close it

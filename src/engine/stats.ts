@@ -261,8 +261,8 @@ export function atDelays<T>(d: Delays | null, f: () => T): T {
  *  with nothing pressed since: then they despawn, their position gone. */
 export const DESPAWN_TIME = 18;
 
-/** Where a resonator stands: what an action's `castPosition` asks of its caster and its
- *  `endPosition` leaves them in. A despawned resonator has none (null). */
+/** Where a resonator stands: what an action's `valid` may ask of its caster (`grounded()`/`midair()`)
+ *  and its `endPosition` leaves them in. A despawned resonator has none (null). */
 export const enum Position { Grounded, Midair }
 export const POSITION_NAME: Record<Position, string> = { [Position.Grounded]: "GROUNDED", [Position.Midair]: "MIDAIR" };
 
@@ -282,13 +282,16 @@ export const statDisplayScale = (stat: Stat | EnemyStat): number => (stat === St
 export enum ActionTag {
   Default = "",
   OffField = "off field",
-  Cancel = "cancel",
+
   MashCancel = "mash cancel", // the next press, not a held one, mashed in: out the moment it can be cast
+  MashSwap = "mash swap", // swapped out of MASH_DELAY after its no-swap frames end
+
   HoldCancel = "hold cancel", // the next press, a held one, held through it: out the moment it can be cast
+
+  Cancel = "cancel",
   DodgeCancel = "dodge cancel",
   JumpCancel = "jump cancel",
   SwapCancel = "swap cancel", // swapped out of at its last commit, never inside its no-swap frames
-  MashSwap = "mash swap", // swapped out of MASH_DELAY after its no-swap frames end
 
   InstaCancel = "instant cancel",
   InstaDodge = "instant dodge",
@@ -316,7 +319,40 @@ export const enum Cast {
   TuneBreak,
   Dodge,
   Jump,
+  None, // a field's hit, a queued follow-up, a tick — nobody's cast
 }
+
+/** What leads to a press (`ActionDef.input`): a tap or a hold of Basic, Skill or Liberation, one of the rest,
+ *  `SwapIn` — arriving with no Intro — or `None`, nobody's press (a field's hit, a queued follow-up, a tick).
+ *  A hold is a held input (`Action.heldInput`). */
+export const enum Input {
+  Basic,
+  BasicHold,
+  Skill,
+  SkillHold,
+  Liberation,
+  LiberationHold,
+  Echo,
+  Dodge,
+  TuneBreak,
+  Jump,
+  Intro,
+  Outro,
+  SwapIn,
+  None,
+}
+export const INPUT_NAME: Record<Input, string> = {
+  [Input.Basic]: "Basic", [Input.BasicHold]: "Basic (Hold)", [Input.Skill]: "Skill", [Input.SkillHold]: "Skill (Hold)",
+  [Input.Liberation]: "Liberation", [Input.LiberationHold]: "Liberation (Hold)", [Input.Echo]: "Echo", [Input.Dodge]: "Dodge",
+  [Input.TuneBreak]: "Tune Break", [Input.Jump]: "Jump", [Input.Intro]: "Intro", [Input.Outro]: "Outro", [Input.SwapIn]: "Swap In",
+  [Input.None]: "None",
+};
+/** Every input a press can be made on, in enum order (`None` aside). */
+export const INPUTS: readonly Input[] = [Input.Basic, Input.BasicHold, Input.Skill, Input.SkillHold, Input.Liberation, Input.LiberationHold,
+  Input.Echo, Input.Dodge, Input.TuneBreak, Input.Jump, Input.Intro, Input.Outro, Input.SwapIn];
+/** The held inputs: what a hold cancel holds into and a mash cancel may never go into. */
+export const isHeldInput = (input: Input): boolean =>
+  input === Input.BasicHold || input === Input.SkillHold || input === Input.LiberationHold;
 
 export const CAST_NAME: Record<Cast, string> = {
   [Cast.DodgeCounter]: "Dodge Counter", [Cast.Basic]: "Basic", [Cast.Heavy]: "Heavy", [Cast.Skill]: "Skill",

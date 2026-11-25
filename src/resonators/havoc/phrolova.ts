@@ -12,7 +12,7 @@
  * wuwalab imports: Aftersound (its forte_1) is the stacking buff AFTERSOUND here (S6's Apparition grants 8);
  *  Volatile Notes are forte1, off the kit text — wuwalab lists no Note gains.
  */
-import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, BuffTarget, Position } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, BuffTarget, Position, Input } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence, matrix } from "../../engine/gear.js";
 import {
   applyCurrent,
@@ -40,9 +40,16 @@ import {
   runningAnyOf,
   triggeredAction,
   runningBullet,
+  notAfter,
+  holds,
+  lacks,
+  after,
+  grounded,
+  forte1,
+  concerto,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, SWAPIN, ActionTag, waitFor, DEFAULT_DODGE, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
-import { CLASS_TUNE_BREAK } from "../tunebreak.js";
+import { CLASS_TUNE_BREAK, breakWhen } from "../tunebreak.js";
 import { LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";
 import { COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { AUGMENT, RADIANT_DAWN } from "../../weapons/battlepass.js";
@@ -90,14 +97,14 @@ export const MAESTRO = new Buff({
 // energy/concerto come off the migrated sheet's combined BA12/BA23/BA123 rows — BA1/BA2 are
 // derived by subtraction, cross-checked both ways against BA12 and BA23.
 // "When in Reincarnate, press Normal Attack on the ground" casts Movement of Fate and Finality instead
-const BA1 = phroAction("Basic - Movement of Life and Death 1", { notAfter: () => [BA1, BA2, Intro, EIntro, HA, DC], forbidBuff: REINCARNATE, animFrames: 44, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = phroAction("Basic - Movement of Life and Death 1", { input: Input.Basic, notAfter: () => [BA1, BA2, Intro, EIntro, HA, DC], lacks: [REINCARNATE, MAESTRO], animFrames: 44, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 18, mv: 5345, energy: 84, concerto: 168, offtune: 2688 },
     { hitFrame: 35, mv: 5345, energy: 84, concerto: 168, offtune: 2688 },
   ]});
 // "Press Normal Attack shortly after casting [Heavy Attack] to cast Basic Attack Stage 2"
-const BA2 = phroAction("Basic - Movement of Life and Death 2", { after: () => [BA1, HA], forbidBuff: REINCARNATE, animFrames: 36, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 12, mv: 9543, energy: 150, concerto: 300, offtune: 4800 }]});
+const BA2 = phroAction("Basic - Movement of Life and Death 2", { input: [Input.Basic, Input.SwapIn], after: () => [BA1, HA], position: Position.Grounded, lacks: REINCARNATE, valid: () => !stacksOf(MAESTRO) && !stacksOf(CURTAIN_CALL_READY), animFrames: 36, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 12, mv: 9543, energy: 150, concerto: 300, offtune: 4800 }]});
 // "When performing Basic Attack Stage 3, enter Reincarnate state"; either Intro leads into it too
-const BA3 = phroAction("Basic - Movement of Life and Death 3", { after: () => [BA2, Intro, EIntro, DC], forbidBuff: REINCARNATE, animFrames: 81, animPriority: { 0: 4, 81: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic,
+const BA3 = phroAction("Basic - Movement of Life and Death 3", { input: Input.Basic, after: () => [BA2, Intro, EIntro, DC], lacks: REINCARNATE, animFrames: 81, animPriority: { 0: 4, 81: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic,
   updateBuffs: () => applyCurrent(REINCARNATE, 1), bullets: [
     { hitFrame: 30, mv: 3269, energy: 52, concerto: 103, offtune: 1644, forte1: 1,
       updateDebuffs: () => gainNote(1) },
@@ -107,16 +114,16 @@ const BA3 = phroAction("Basic - Movement of Life and Death 3", { after: () => [B
     { hitFrame: 54, mv: 3269, energy: 52, concerto: 103, offtune: 1644 },
     { hitFrame: 60, mv: 3269, energy: 52, concerto: 103, offtune: 1644 },
   ]});
-const HA = phroAction("Heavy - Movement of Life and Death", { animFrames: 62, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+const HA = phroAction("Heavy - Movement of Life and Death", { input: Input.BasicHold, maxForte1: 5, animFrames: 62, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 26, mv: 7985, energy: 126, concerto: 251, offtune: 4016 },
     { hitFrame: 49, mv: 7985, energy: 126, concerto: 251, offtune: 4016 },
   ]});
 // "Press Normal Attack shortly after casting this skill to cast Basic Attack Stage 3"
-const DC = phroAction("Dodge Counter - Movement of Life and Death", { after: [SUCCESSFUL_DODGE], animFrames: 50, animPriority: { 0: 8, 2: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const DC = phroAction("Dodge Counter - Movement of Life and Death", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], animFrames: 50, animPriority: { 0: 8, 2: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 24, mv: 12199, energy: 192, concerto: 384, offtune: 1336 },
   ], castConcerto: 1000 });
 
-const Skill = phroAction("Skill - Whispers in a Fleeting Dream", { forbidBuff: REINCARNATE, animFrames: 34, animPriority: { 32: 2 }, castPriority: 4, cooldown: 60 * 12, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+const Skill = phroAction("Skill - Whispers in a Fleeting Dream", { input: Input.Skill, lacks: REINCARNATE, animFrames: 34, animPriority: { 32: 2 }, castPriority: 4, cooldown: 60 * 12, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 10, mv: 10597, energy: 667, offtune: 2132, forte1: 1,
       updateDebuffs: () => gainNote(2) },
     { hitFrame: 48, commitFrame: 18, mv: 10597, energy: 667, offtune: 2132 },
@@ -125,8 +132,8 @@ const Skill = phroAction("Skill - Whispers in a Fleeting Dream", { forbidBuff: R
 });
 
 // both Forte casts: "When in Reincarnate, press ... on the ground"
-const FBA = phroAction("Forte Basic - Movement of Fate and Finality", { castPosition: Position.Grounded, animFrames: 92, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Skill,
-  requireBuff: REINCARNATE, updateBuffs: () => revokeCurrent(REINCARNATE), bullets: [
+const FBA = phroAction("Forte Basic - Movement of Fate and Finality", { input: Input.Basic, position: Position.Grounded, holds: REINCARNATE, animFrames: 92, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Skill,
+  updateBuffs: () => revokeCurrent(REINCARNATE), bullets: [
     { hitFrame: 8, commitFrame: 2, mv: 3788, energy: 24, concerto: 75, offtune: 762, forte1: 1,
       updateDebuffs: () => gainNote(1) },
     { hitFrame: 14, commitFrame: 2, mv: 3788, energy: 24, concerto: 75, offtune: 762 },
@@ -136,8 +143,8 @@ const FBA = phroAction("Forte Basic - Movement of Fate and Finality", { castPosi
     { hitFrame: 60, commitFrame: 2, mv: 11783, energy: 75, concerto: 234, offtune: 2371 },
     { hitFrame: 67, commitFrame: 2, mv: 11783, energy: 75, concerto: 234, offtune: 2371 },
   ]});
-const FSkill = phroAction("Forte Skill - Murmurs in a Haunting Dream", { castPosition: Position.Grounded, animFrames: 79, animPriority: { 79: 2 }, castPriority: 4, node: Node.Forte, cast: Cast.Skill, type: Type.Skill,
-  requireBuff: REINCARNATE, updateBuffs: () => revokeCurrent(REINCARNATE), bullets: [
+const FSkill = phroAction("Forte Skill - Murmurs in a Haunting Dream", { input: Input.Skill, position: Position.Grounded, holds: REINCARNATE, animFrames: 79, animPriority: { 79: 2 }, castPriority: 4, node: Node.Forte, cast: Cast.Skill, type: Type.Skill,
+  updateBuffs: () => revokeCurrent(REINCARNATE), bullets: [
     { hitFrame: 10, mv: 2321, energy: 15, concerto: 50, offtune: 467, forte1: 1,
       updateDebuffs: () => gainNote(2) },
     { hitFrame: 16, mv: 2321, energy: 15, concerto: 50, offtune: 467 },
@@ -148,7 +155,7 @@ const FSkill = phroAction("Forte Skill - Murmurs in a Haunting Dream", { castPos
   ]});
 
 /** Casting it sends Compose into its 25s cooldown, modelled as the cast's own. */
-const ScarletCoda = phroAction("Forte Heavy - Scarlet Coda", { minForte1: 6,
+const ScarletCoda = phroAction("Forte Heavy - Scarlet Coda", { input: Input.BasicHold, minForte1: 6,
   animFrames: 172, castPriority: 9, cooldown: 60 * 25,
   node: Node.Normal, cast: Cast.Heavy, subcast: Cast.Echo, type: Type.Skill, castForte1: -6,  bullets: [
     { hitFrame: 14, mv: 3301, energy: 35, offtune: 8307 },
@@ -172,7 +179,7 @@ const ScarletCoda = phroAction("Forte Heavy - Scarlet Coda", { minForte1: 6,
 const Liberation = phroAction("Liberation - Waltz of Forsaken Depths", {
   endPosition: Position.Midair, animFrames: 255, noSwapFrames: 225, castPriority: 10, timestop: [0, 225], motionStop: [0, 225],
   node: Node.Liberation, cast: Cast.Liberation, castConcerto: 2000, resetForte1: true,
-  requireBuff: RESOLVING_CHORD,
+  input: Input.Liberation, holds: RESOLVING_CHORD,
   updateBuffs: () => {
     revokeCurrent(RESOLVING_CHORD);
     startMaestro();
@@ -185,7 +192,7 @@ const Liberation = phroAction("Liberation - Waltz of Forsaken Depths", {
 });
 /** Recast during Maestro: ends it (and with it Suite of Immortality's replacement). */
 export const CurtainCall = phroAction("Liberation - Curtain Call", {
-  animFrames: 83, animPriority: { 47: 5, 83: 2 }, castPriority: 10, bullets: [{ hitFrame: 42, mv: 46522, energy: 293, concerto: 585, offtune: 9360 }],
+  input: [Input.Liberation, Input.SwapIn], position: Position.Grounded, valid: () => stacksOf(MAESTRO) > 0 || stacksOf(CURTAIN_CALL_READY) > 0, animFrames: 83, animPriority: { 47: 5, 83: 2 }, castPriority: 10, bullets: [{ hitFrame: 42, mv: 46522, energy: 293, concerto: 585, offtune: 9360 }],
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation,
   // its Resolving Chord form (held Liberation) ends that state too; either way it ends Maestro
   updateBuffs: () => {
@@ -195,7 +202,7 @@ export const CurtainCall = phroAction("Liberation - Curtain Call", {
 });
 
 const Intro = phroAction("Intro - Suite of Quietus", {
-  endPosition: Position.Grounded, qteFrames: 36, animFrames: 80, noSwapFrames: 76, animPriority: { 80: 1 }, castPriority: 11, motionStop: [6, 38],
+  input: Input.Intro, valid: () => !stacksOf(MAESTRO), endPosition: Position.Grounded, qteFrames: 36, animFrames: 80, noSwapFrames: 76, animPriority: { 80: 1 }, castPriority: 11, motionStop: [6, 38],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 43, commitFrame: 40, mv: 8061, energy: 400, offtune: 4055 }, { hitFrame: 62, commitFrame: 59, mv: 12091, energy: 600, offtune: 6082 }], castConcerto: 1000,
 });
 /** Maestro-replaced Intro — used whenever she re-enters with Maestro still open. Playing it is
@@ -203,14 +210,14 @@ const Intro = phroAction("Intro - Suite of Quietus", {
 const EIntro = phroAction("Intro - Suite of Immortality", {
   endPosition: Position.Grounded, qteFrames: 10, animFrames: 93, noSwapFrames: 90, animPriority: { 93: 1 }, castPriority: 11, motionStop: [6, 56],
   node: Node.Intro, cast: Cast.Intro, type: Type.Skill, bullets: [{ hitFrame: 60, mv: 59643, energy: 1000, offtune: 9600 }], castConcerto: 1000,resetForte1: true,
-  requireBuff: MAESTRO,
+  input: Input.Intro, valid: () => stacksOf(MAESTRO) > 0,
   // the Waltz ends here, and the notes it was playing through go with it
   updateBuffs: () => endMaestro(),
 });
 /** In Maestro the Outro also queues two enhanced Hecate attacks, not charge-gated. */
 const Outro = phroAction("Outro - Unfinished Piece", {
   animFrames: 0,
-  cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000,
+  cast: Cast.Outro, input: Input.Outro, minConcerto: 10000, castConcerto: -10000,
   updateBuffs: () => {
     queueQTE(PHROLOVA_OUTRO);
     if (stacksOf(MAESTRO)) queueEnhanced(2, true);
@@ -239,13 +246,17 @@ const NOTE_MOVES = [
 // The manual command, pressed on field: Hecate 1-2 by hand, then the leftmost note's attack as
 // its swap form (`EnhancedHecate.instaSwap()`), Hecate carrying on from its end once Phrolova is out.
 // the cues only exist in Maestro
-const HBA1 = HECATE_1.variant(HECATE_1.name, { notAfter: () => [HBA1], cast: Cast.Basic, tag: ActionTag.Default, afterAction: undefined, requireBuff: MAESTRO });
-const HBA2 = HECATE_2.variant(HECATE_2.name, { after: [HBA1], cast: Cast.Basic, tag: ActionTag.Default, afterAction: undefined, requireBuff: MAESTRO });
-const COMMANDS = NOTE_MOVES.map((move) => move.variant(`${move.name} (Command)`, {
-  cast: Cast.Basic, tag: ActionTag.Default, requireBuff: MAESTRO, updateBuffs: () => startEnhanced(),
+const HBA1 = HECATE_1.variant(HECATE_1.name, { input: Input.Basic, notAfter: () => [HBA1], holds: MAESTRO, yieldsTo: () => [...COMMANDS], cast: Cast.Basic, tag: ActionTag.Default, afterAction: undefined,  });
+const HBA2 = HECATE_2.variant(HECATE_2.name, { input: Input.Basic, after: () => [HBA1], holds: MAESTRO, cast: Cast.Basic, tag: ActionTag.Default, afterAction: undefined,  });
+/** The leftmost note held: 1 Strings, 2 Winds, 3 Cadenza, 0 none — which command Hecate 2 leads into. */
+const leftNote = (): number => stacksOf(NOTES) & 3;
+const COMMANDS = NOTE_MOVES.map((move, i) => move.variant(`${move.name} (Command)`, {
+  input: Input.Basic, cast: Cast.Basic, tag: ActionTag.Default, after: () => [HBA2], holds: MAESTRO, valid: () => leftNote() === i + 1, updateBuffs: () => startEnhanced(),
 }));
 /** Her dash while she commands Hecate in Maestro: the plain one under Hecate's name, ending nothing. */
-const HecateDodge = DEFAULT_DODGE.variant("Dodge - Hecate", {});
+const HecateDodge = DEFAULT_DODGE.variant("Dodge - Hecate", { position: Position.Grounded, valid: () => stacksOf(MAESTRO) > 0});
+/** Her Tune Break: none while she commands Hecate in Maestro (the bar waits full). */
+const PHRO_TUNE_BREAK = breakWhen(CLASS_TUNE_BREAK[WeaponType.Rectifier], () => !stacksOf(MAESTRO));
 /** The leftmost note's attack, commanded — resolved when reached. */
 const EnhancedHecate = new Action("Enhanced Hecate Resolver", {
   resolve: () => {
@@ -587,15 +598,7 @@ export const PHROLOVA_RESONATOR = new Resonator({
   element: Attribute.Havoc,
   weapon: WeaponType.Rectifier,
   color: "#a62c57",
-  // resolved when its row is reached: whichever Intro the kit's state calls for there
-  intro: () => (stacksOf(MAESTRO) ? EIntro : Intro),
-  // switching to her in Maestro without an Intro casts Curtain Call; no Plunging Attack is modelled
-  swapIn: () => (stacksOf(MAESTRO) || stacksOf(CURTAIN_CALL_READY) ? CurtainCall : BA2),
-  // Maestro still open means Suite of Immortality (EIntro) instead of plain Intro
-  // in Maestro her dash is Hecate's, which keeps it standing
-  dodge: () => (stacksOf(MAESTRO) ? HecateDodge : null),
-  // no break while she floats in Maestro commanding Hecate: the bar waits full for her to come down
-  tuneBreak: (): Action | null => (her().stacksOf(MAESTRO) ? null : CLASS_TUNE_BREAK[WeaponType.Rectifier]),
+  actions: [BA1, BA2, BA3, HA, DC, Skill, FBA, FSkill, ScarletCoda, Liberation, CurtainCall, Intro, EIntro, Outro, HBA1, HBA2, ...COMMANDS, HecateDodge, PHRO_TUNE_BREAK],
   maxEnergy: 0,
   maxForte1: 6,
   holdBefore: (next) => hecateHold(next),

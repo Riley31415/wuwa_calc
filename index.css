@@ -743,7 +743,7 @@ main {
 .sresult .sact { display: flex; align-items: center; align-self: stretch; padding: 5px 10px; color: var(--ink); }
 .sresult .sact.inc { flex: 1; justify-content: space-between; gap: 12px; min-width: 0; }
 .sresult .sact:hover { background: color-mix(in srgb, var(--ink) 10%, transparent); }
-.sresult .sname { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.sresult .sname { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .sresult .skind { color: var(--dim); font-size: 11px; }
 .sresult.none { padding: 5px 10px; color: var(--dim); cursor: default; }
 
@@ -826,6 +826,9 @@ main {
 .ctxitem.hassub { display: flex; justify-content: space-between; gap: 12px; }
 .ctxitem.hassub::after { content: "\203A"; color: var(--dim); }
 .ctxmenu.ctxsub[hidden] { display: none; }
+/* ...a card as wide as its longest line, no wider */
+.ctxmenu.ctxsub { min-width: 0; width: max-content; }
+.ctxmenu.ctxsub .ctxitem { white-space: nowrap; }
 
 /* an Equipment cell that opens a menu of other picks (page/pickmenu.ts) */
 .rtable.loadout .c[data-pick] { cursor: pointer; }

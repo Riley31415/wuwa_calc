@@ -258,10 +258,14 @@ function resonatorChips(): string {
         + `${iconNamed(s.resonator)}${esc(joinTag(s.resonator, rankShown(s.value).sequence, ""))}${weaponIconByName(rankShown(s.value).weapon)}${esc(rankShown(s.value).weapon)}</button>`);
       continue;
     }
+    // a weapon's refines compare reads as whose and which: "[icon] Phrolova [art] Lethean Elegy Refinements"
+    const weaponRefines = s.on === "weapon" && s.axis === "refines";
     inc.push(`<button type="button" class="rchip" data-scoped="${esc(scopedKey(s))}"`
       + ` style="--mem:${RESONATOR_HUE.get(s.resonator) ?? TUNE_BREAK_ENEMY.color}"`
-      + ` title="Comparing ${esc(scopedLabel(s))}'s ${AXIS_LABEL[s.axis].toLowerCase()}. ${CLICK} to remove.">`
-      + `${iconNamed(s.resonator)}${esc(scopedLabel(s))} ${AXIS_LABEL[s.axis]}</button>`);
+      + ` title="Comparing ${esc(weaponRefines ? `${s.resonator}'s ${s.value}` : scopedLabel(s))}'s ${AXIS_LABEL[s.axis].toLowerCase()}. ${CLICK} to remove.">`
+      + (weaponRefines
+        ? `${iconNamed(s.resonator)}${esc(s.resonator)} ${weaponIconByName(s.value)}${esc(s.value)} Refinements</button>`
+        : `${iconNamed(s.resonator)}${esc(scopedLabel(s))} ${AXIS_LABEL[s.axis]}</button>`));
   }
   for (const axis of AXES) {
     for (const name of filters[axis]) {

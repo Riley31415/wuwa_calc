@@ -11,6 +11,8 @@ import {
   addStat, addGain, frozenStacks, casting, applyCurrent, applyTeam, stacksOfTeam, revokeTeam, queueOutro, queue,
    isActive, isHeld, currentMember, both, onCast, onType, onApplied,
   lostOnSwap, lastHit,
+  grounded,
+  after,
 } from "../engine/context.js";
 import { Action, Cooldown } from "../engine/rotation.js";
 import { HEALS, gainShield } from "../resonators/status.js";
@@ -28,7 +30,7 @@ export const BELL_BORNE_GEOCHELONE_MAINSLOT = new Mainslot({
   cost: 4,
 });
 export const BELL_BORNE_GEOCHELONE = new PseudoTransformEcho("Echo - Bell-Borne Geochelone", {
-  mainslot: BELL_BORNE_GEOCHELONE_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, cooldown: 60 * 20, animFrames: 32,
+  mainslot: BELL_BORNE_GEOCHELONE_MAINSLOT, position: Position.Grounded, endPosition: Position.Grounded, cooldown: 60 * 20, animFrames: 32,
   element: Attribute.Glacio, scaling: Scaling.Def, type: Type.Echo, bullets: [{ hitFrame: 21, commitFrame: 0, mv: 14592, energy: 455 }],
   updateBuffs: () => applyTeam(BELL_BORNE_SHIELD),
 });
@@ -47,7 +49,7 @@ export const HERON_MAINSLOT = new Mainslot({
   cost: 4,
 });
 export const HERON = new TransformEcho("Echo - Impermanence Heron", {
-  mainslot: HERON_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, animFrames: 102,
+  mainslot: HERON_MAINSLOT, position: Position.Grounded, endPosition: Position.Grounded, animFrames: 102,
   // 4.85 off the hit itself, plus the flat 10 its own skill text hands back ("the current
   // character regains 10 Resonance Energy" once the smack-down lands)
   bullets: [{ hitFrame: 78, commitFrame: 59, mv: 31056, energy: 485, updateDebuffs: () => addGain({ energy: 1000 }) }],
@@ -74,14 +76,14 @@ export const STONEWALL_BRACER_MAINSLOT = new Mainslot({
   cost: 3,
 });
 export const STONEWALL_BRACER_1 = new TransformEcho("Echo - Stonewall Bracer 1", {
-  mainslot: STONEWALL_BRACER_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, animFrames: 54,
+  mainslot: STONEWALL_BRACER_MAINSLOT, position: Position.Grounded, endPosition: Position.Grounded, animFrames: 54,
   // the smash
   cooldown: 60 * 15,
   bullets: [{ hitFrame: 32, commitFrame: 13, mv: 16896, energy: 264 }],
   element: Attribute.Physical, scaling: Scaling.Atk, type: Type.Echo,
 });
 export const STONEWALL_BRACER_2 = new TransformEcho("Echo - Stonewall Bracer 2", {
-  mainslot: STONEWALL_BRACER_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, animFrames: 0, after: [STONEWALL_BRACER_1.press],
+  mainslot: STONEWALL_BRACER_MAINSLOT, after: () => [STONEWALL_BRACER_1.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 0,
   // the charge and the shield: wuwalab gives it no frames of its own
   bullets: [{ hitFrame: 0, mv: 11264, energy: 176, updateDebuffs: () => gainShield() }],
   element: Attribute.Physical, scaling: Scaling.Atk, type: Type.Echo,
@@ -153,18 +155,18 @@ export const INFERNO_RIDER_MAINSLOT = new Mainslot({
   cost: 4,
 });
 export const INFERNO_RIDER_1 = new TransformEcho("Echo - Inferno Rider 1", {
-  mainslot: INFERNO_RIDER_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, animFrames: 20,
+  mainslot: INFERNO_RIDER_MAINSLOT, position: Position.Grounded, endPosition: Position.Grounded, animFrames: 20,
   cooldown: 60 * 20,
   bullets: [{ hitFrame: 15, commitFrame: 0, mv: 24240, energy: 378 }],
   element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo,
 });
 export const INFERNO_RIDER_2 = new TransformEcho("Echo - Inferno Rider 2", {
-  mainslot: INFERNO_RIDER_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, animFrames: 39, after: [INFERNO_RIDER_1.press],
+  mainslot: INFERNO_RIDER_MAINSLOT, after: () => [INFERNO_RIDER_1.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 39,
   bullets: [{ hitFrame: 24, commitFrame: 5, mv: 28280, energy: 441 }],
   element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo,
 });
 export const INFERNO_RIDER_3 = new TransformEcho("Echo - Inferno Rider 3", {
-  mainslot: INFERNO_RIDER_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, animFrames: 116, after: [INFERNO_RIDER_2.press],
+  mainslot: INFERNO_RIDER_MAINSLOT, after: () => [INFERNO_RIDER_2.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 116,
   bullets: [{ hitFrame: 59, commitFrame: 40, mv: 28280, energy: 441 }],
   element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo,
   afterAction: () => applyCurrent(INFERNO_RIDER_WINDOW, 1),
@@ -220,24 +222,24 @@ export const CROWNLESS_MAINSLOT = new Mainslot({
   cost: 4,
 });
 export const CROWNLESS_1 = new TransformEcho("Echo - Crownless 1", {
-  mainslot: CROWNLESS_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, animFrames: 35,
+  mainslot: CROWNLESS_MAINSLOT, position: Position.Grounded, endPosition: Position.Grounded, animFrames: 35,
   cooldown: 60 * 20,
   bullets: [{ hitFrame: 10, commitFrame: 0, mv: 13408, energy: 209 }],
   element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo,
   updateBuffs: () => applyCurrent(CROWNLESS_WINDOW, 1),
 });
 export const CROWNLESS_2 = new TransformEcho("Echo - Crownless 2", {
-  mainslot: CROWNLESS_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, animFrames: 37, after: [CROWNLESS_1.press],
+  mainslot: CROWNLESS_MAINSLOT, after: () => [CROWNLESS_1.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 37,
   bullets: [{ hitFrame: 21, commitFrame: 2, mv: 13408, energy: 209 }],
   element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo,
 });
 export const CROWNLESS_3 = new TransformEcho("Echo - Crownless 3", {
-  mainslot: CROWNLESS_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, animFrames: 30, after: [CROWNLESS_2.press],
+  mainslot: CROWNLESS_MAINSLOT, after: () => [CROWNLESS_2.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 30,
   bullets: [{ hitFrame: 8, commitFrame: 0, mv: 10056, energy: 157 }, { hitFrame: 20, commitFrame: 1, mv: 10056, energy: 157 }],
   element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo,
 });
 export const CROWNLESS_4 = new TransformEcho("Echo - Crownless 4", {
-  mainslot: CROWNLESS_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, animFrames: 112, after: [CROWNLESS_3.press],
+  mainslot: CROWNLESS_MAINSLOT, after: () => [CROWNLESS_3.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 112,
   // wuwalab commits each hit 19 frames ahead of it
   bullets: [42, 49, 73].map((f) => ({ hitFrame: f, commitFrame: f - 19, mv: 6704, energy: 104 })),
   element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo,
@@ -273,7 +275,7 @@ export const LAMPYLUMEN_MYRIAD_MAINSLOT = new Mainslot({
   cost: 4,
 });
 export const LAMPYLUMEN_MYRIAD_1 = new TransformEcho("Echo - Lampylumen Myriad 1", {
-  mainslot: LAMPYLUMEN_MYRIAD_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, animFrames: 40,
+  mainslot: LAMPYLUMEN_MYRIAD_MAINSLOT, position: Position.Grounded, endPosition: Position.Grounded, animFrames: 40,
   cooldown: 60 * 20,
   bullets: [{ hitFrame: 32, commitFrame: 13, mv: 20016, energy: 312 }],
   element: Attribute.Glacio, scaling: Scaling.Atk, type: Type.Echo,
@@ -281,14 +283,14 @@ export const LAMPYLUMEN_MYRIAD_1 = new TransformEcho("Echo - Lampylumen Myriad 1
   updateDebuffs: () => applyCurrent(LAMPYLUMEN_MYRIAD_STACKS, 1),
 });
 export const LAMPYLUMEN_MYRIAD_2 = new TransformEcho("Echo - Lampylumen Myriad 2", {
-  mainslot: LAMPYLUMEN_MYRIAD_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, animFrames: 54, after: [LAMPYLUMEN_MYRIAD_1.press],
+  mainslot: LAMPYLUMEN_MYRIAD_MAINSLOT, after: () => [LAMPYLUMEN_MYRIAD_1.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 54,
   bullets: [{ hitFrame: 46, commitFrame: 27, mv: 20016, energy: 312 }],
   element: Attribute.Glacio, scaling: Scaling.Atk, type: Type.Echo,
   // a stack a shock
   updateDebuffs: () => applyCurrent(LAMPYLUMEN_MYRIAD_STACKS, 1),
 });
 export const LAMPYLUMEN_MYRIAD_3 = new TransformEcho("Echo - Lampylumen Myriad 3", {
-  mainslot: LAMPYLUMEN_MYRIAD_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, animFrames: 92, after: [LAMPYLUMEN_MYRIAD_2.press],
+  mainslot: LAMPYLUMEN_MYRIAD_MAINSLOT, after: () => [LAMPYLUMEN_MYRIAD_2.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 92,
   bullets: [{ hitFrame: 48, commitFrame: 29, mv: 26688, energy: 417 }],
   element: Attribute.Glacio, scaling: Scaling.Atk, type: Type.Echo,
   // a stack a shock
@@ -335,13 +337,13 @@ export const FEILIAN_BERINGAL_MAINSLOT = new Mainslot({
   cost: 4,
 });
 export const FEILIAN_BERINGAL_1 = new TransformEcho("Echo - Feilian Beringal 1", {
-  mainslot: FEILIAN_BERINGAL_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, animFrames: 24,
+  mainslot: FEILIAN_BERINGAL_MAINSLOT, position: Position.Grounded, endPosition: Position.Grounded, animFrames: 24,
   cooldown: 60 * 20,
   bullets: [{ hitFrame: 24, commitFrame: 5, mv: 23184, energy: 362 }],
   element: Attribute.Aero, scaling: Scaling.Atk, type: Type.Echo,
 });
 export const FEILIAN_BERINGAL_2 = new TransformEcho("Echo - Feilian Beringal 2", {
-  mainslot: FEILIAN_BERINGAL_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, animFrames: 144, after: [FEILIAN_BERINGAL_1.press],
+  mainslot: FEILIAN_BERINGAL_MAINSLOT, after: () => [FEILIAN_BERINGAL_1.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 144,
   bullets: [{ hitFrame: 84, commitFrame: 65, mv: 28336, energy: 442 }],
   element: Attribute.Aero, scaling: Scaling.Atk, type: Type.Echo,
   afterHit: () => applyCurrent(FEILIAN_BERINGAL_WINDOW, 1),
@@ -410,7 +412,7 @@ export const MOURNING_AIX_MAINSLOT = new Mainslot({
   cost: 4,
 });
 export const MOURNING_AIX = new TransformEcho("Echo - Mourning Aix", {
-  mainslot: MOURNING_AIX_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, cooldown: 60 * 20, animFrames: 102,
+  mainslot: MOURNING_AIX_MAINSLOT, position: Position.Grounded, endPosition: Position.Grounded, cooldown: 60 * 20, animFrames: 102,
   element: Attribute.Spectro, scaling: Scaling.Atk, type: Type.Echo, // 157.44%+236.16%
   bullets: [{ hitFrame: 23, commitFrame: 4, mv: 15744, energy: 246 }, { hitFrame: 68, commitFrame: 49, mv: 23616, energy: 369 }],
   updateBuffs: () => applyCurrent(MOURNING_AIX_WINDOW, 1),
@@ -446,7 +448,7 @@ export const MECH_ABOMINATION_MAINSLOT = new Mainslot({
   cost: 4,
 });
 export const MECH_ABOMINATION = new PseudoTransformEcho("Echo - Mech Abomination", {
-  mainslot: MECH_ABOMINATION_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, animFrames: 32, bullets: [{ hitFrame: 0, mv: 4864, energy: 76 }],
+  mainslot: MECH_ABOMINATION_MAINSLOT, position: Position.Grounded, endPosition: Position.Grounded, animFrames: 32, bullets: [{ hitFrame: 0, mv: 4864, energy: 76 }],
   cooldown: 60 * 20,
   element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
   // the strike's: on the hit, so Mech Waste lands after it
@@ -498,33 +500,33 @@ export const THUNDERING_MEPHIS_MAINSLOT = new Mainslot({
   cost: 4,
 });
 export const THUNDERING_MEPHIS_1 = new TransformEcho("Echo - Thundering Mephis 1", {
-  mainslot: THUNDERING_MEPHIS_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, animFrames: 29,
+  mainslot: THUNDERING_MEPHIS_MAINSLOT, position: Position.Grounded, endPosition: Position.Grounded, animFrames: 29,
   cooldown: 60 * 20,
   bullets: [{ hitFrame: 6, commitFrame: 0, mv: 13261, energy: 207 }],
   element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
 });
 export const THUNDERING_MEPHIS_2 = new TransformEcho("Echo - Thundering Mephis 2", {
-  mainslot: THUNDERING_MEPHIS_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, animFrames: 29, after: [THUNDERING_MEPHIS_1.press],
+  mainslot: THUNDERING_MEPHIS_MAINSLOT, after: () => [THUNDERING_MEPHIS_1.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 29,
   bullets: [{ hitFrame: 11, commitFrame: 0, mv: 13261, energy: 207 }],
   element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
 });
 export const THUNDERING_MEPHIS_3 = new TransformEcho("Echo - Thundering Mephis 3", {
-  mainslot: THUNDERING_MEPHIS_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, animFrames: 29, after: [THUNDERING_MEPHIS_2.press],
+  mainslot: THUNDERING_MEPHIS_MAINSLOT, after: () => [THUNDERING_MEPHIS_2.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 29,
   bullets: [{ hitFrame: 8, commitFrame: 0, mv: 13261, energy: 207 }],
   element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
 });
 export const THUNDERING_MEPHIS_4 = new TransformEcho("Echo - Thundering Mephis 4", {
-  mainslot: THUNDERING_MEPHIS_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, animFrames: 38, after: [THUNDERING_MEPHIS_3.press],
+  mainslot: THUNDERING_MEPHIS_MAINSLOT, after: () => [THUNDERING_MEPHIS_3.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 38,
   bullets: [{ hitFrame: 16, commitFrame: 0, mv: 13261, energy: 207 }],
   element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
 });
 export const THUNDERING_MEPHIS_5 = new TransformEcho("Echo - Thundering Mephis 5", {
-  mainslot: THUNDERING_MEPHIS_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, animFrames: 29, after: [THUNDERING_MEPHIS_4.press],
+  mainslot: THUNDERING_MEPHIS_MAINSLOT, after: () => [THUNDERING_MEPHIS_4.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 29,
   bullets: [{ hitFrame: 11, commitFrame: 0, mv: 13261, energy: 207 }],
   element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
 });
 export const THUNDERING_MEPHIS_6 = new TransformEcho("Echo - Thundering Mephis 6", {
-  mainslot: THUNDERING_MEPHIS_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, animFrames: 114, after: [THUNDERING_MEPHIS_5.press],
+  mainslot: THUNDERING_MEPHIS_MAINSLOT, after: () => [THUNDERING_MEPHIS_5.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 114,
   // the final strike, then wuwalab's three thunders
   // wuwalab commits each hit 19 frames ahead of it
   bullets: [{ hitFrame: 42, commitFrame: 23, mv: 18944, energy: 296 }, ...[55, 59, 65].map((f) => ({ hitFrame: f, commitFrame: f - 19, mv: 3156, energy: 49 }))],
@@ -545,14 +547,14 @@ export const TEMPEST_MEPHIS_MAINSLOT = new Mainslot({
   cost: 4,
 });
 export const TEMPEST_MEPHIS_1 = new TransformEcho("Echo - Tempest Mephis 1", {
-  mainslot: TEMPEST_MEPHIS_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, animFrames: 63,
+  mainslot: TEMPEST_MEPHIS_MAINSLOT, position: Position.Grounded, endPosition: Position.Grounded, animFrames: 63,
   cooldown: 60 * 20,
   // wuwalab commits each hit 19 frames ahead of it
   bullets: [44, 64, 83, 102].map((f) => ({ hitFrame: f, commitFrame: f - 19, mv: 10248, energy: 160 })),
   element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
 });
 export const TEMPEST_MEPHIS_2 = new TransformEcho("Echo - Tempest Mephis 2", {
-  mainslot: TEMPEST_MEPHIS_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, animFrames: 72, after: [TEMPEST_MEPHIS_1.press],
+  mainslot: TEMPEST_MEPHIS_MAINSLOT, after: () => [TEMPEST_MEPHIS_1.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 72,
   bullets: [{ hitFrame: 28, commitFrame: 9, mv: 17568, energy: 274 }],
   element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
   afterHit: () => applyCurrent(TEMPEST_MEPHIS_WINDOW, 1),
@@ -571,7 +573,7 @@ export const NM_MEPHIS_MAINSLOT = new Mainslot({
   stats: [[Stat.DmgBonus, 12, Attribute.Electro], [Stat.DmgBonus, 12, Type.Liberation]],
 });
 export const NM_MEPHIS = new TransformEcho("Echo - Nightmare: Thundering Mephis", {
-  mainslot: NM_MEPHIS_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, animFrames: 92,
+  mainslot: NM_MEPHIS_MAINSLOT, position: Position.Grounded, endPosition: Position.Grounded, animFrames: 92,
   bullets: [{ hitFrame: 59, commitFrame: 40, mv: 40500, energy: 562 }],
   cooldown: 60 * 25,
   element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
@@ -586,7 +588,7 @@ export const NM_TEMPEST_MEPHIS_MAINSLOT = new Mainslot({
   stats: [[Stat.DmgBonus, 12, Attribute.Electro], [Stat.DmgBonus, 12, Type.Skill]],
 });
 export const NM_TEMPEST_MEPHIS = new TransformEcho("Echo - Nightmare: Tempest Mephis", {
-  mainslot: NM_TEMPEST_MEPHIS_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, animFrames: 219,
+  mainslot: NM_TEMPEST_MEPHIS_MAINSLOT, position: Position.Grounded, endPosition: Position.Grounded, animFrames: 219,
   bullets: [{ hitFrame: 138, commitFrame: 119, mv: 40500, energy: 562 }],
   cooldown: 60 * 25,
   element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,

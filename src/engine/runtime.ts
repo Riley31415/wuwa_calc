@@ -4,7 +4,7 @@
  * what `context.ts` and `evaluate.ts` both write, and imports nothing from either.
  */
 import { Stat, Attribute, Type, Subtype } from "./stats.js";
-import type { Cast } from "./stats.js";
+import type { Cast, Position } from "./stats.js";
 import type { Action, Bullet } from "./rotation.js";
 import type { Gear } from "./gear.js";
 import type { State, TeamMember, HeldBuff } from "./state.js";
@@ -147,6 +147,22 @@ export const ctx: {
   trackWrites: boolean;
   /** Bumped whenever any pool's roster or counts are replaced, so a capture of unchanged pools is kept. */
   poolVersion: number;
+  /** What a `valid` handler reads as the press before (`after()`/`notAfter()`): undefined reads the
+   *  member's own last press and saved chains, anything else stands in for them. */
+  validPrev: Action | null | undefined;
+  /** Where a `valid` handler reads its owner standing (`grounded()`/`midair()`): undefined reads theirs. */
+  validPosition: Position | null | undefined;
+  /** Set while a swap-in's opening press is checked: `after()`/`notAfter()` read true. */
+  validChainFree: boolean;
+  /** Set by `after()`, `notAfter()`, `grounded()` or `midair()` reading false: the handler failed on what
+   *  the press follows or where it stands, not on a buff or a bar (`Action.missesOn()`). */
+  validMiss: boolean;
+  /** Set by `Action.follows()`: `grounded()` and `midair()` read true, the stand left out. */
+  validAnyStand: boolean;
+  /** Set by `Action.paysOn()`: `holds()` and `lacks()` read true, only the bars left to read. */
+  validAnyBuff: boolean;
+  /** rotation.ts's markers an `after`/`notAfter` reads as any press of a cast (DODGE, JUMP): that cast, else -1. */
+  castMarker: (a: Action) => number;
 } = {
   state: null,
   slot: null,
@@ -202,6 +218,13 @@ export const ctx: {
   insideGroup: false,
   trackWrites: false,
   poolVersion: 0,
+  validPrev: undefined,
+  validPosition: undefined,
+  validChainFree: false,
+  validMiss: false,
+  validAnyStand: false,
+  validAnyBuff: false,
+  castMarker: () => -1,
 };
 
 export const tagWord = (element: Attribute | null, type: Type | null, subtype: Subtype | null): number =>

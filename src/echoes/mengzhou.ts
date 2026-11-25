@@ -4,6 +4,7 @@ import { Buff, Sonata, Sonata2pc, Mainslot, handoff } from "../engine/gear.js";
 import {
   cancelHits,
   addStat, frozenStacks, queue, queueOutro, applied, onApplied, onInflict, onCast, either,
+  grounded, wears,
 } from "../engine/context.js";
 import { Action } from "../engine/rotation.js";
 import { SHIELD, HAVOC_BANE, GLACIO_CHAFE, ELECTRO_FLARE, HEALS } from "../resonators/status.js";
@@ -101,7 +102,7 @@ export const THOUSAND_PUPPET_PAVILION_MAINSLOT = new Mainslot({
   stats: [[Stat.DmgBonus, 12, Attribute.Havoc], [Stat.DmgBonus, 12, Type.Heavy]],
 });
 export const THOUSAND_PUPPET_PAVILION = new PseudoTransformEcho("Echo - Thousand-Puppet Pavilion", {
-  mainslot: THOUSAND_PUPPET_PAVILION_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, cooldown: 60 * 20, animFrames: 4,
+  mainslot: THOUSAND_PUPPET_PAVILION_MAINSLOT, position: Position.Grounded, endPosition: Position.Grounded, cooldown: 60 * 20, animFrames: 4,
   // its own hit; the blades' 41.04% ticks are BLADE_OF_THOUSAND_MEMORIES below
   element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 47, commitFrame: 0, mv: 10944, energy: 152 }],
   // one set of blades at a time: a fresh summon cuts off whatever the last had left
@@ -189,13 +190,13 @@ export const SUHSIN_MAINSLOT = new Mainslot({
   grants: SUHSIN_BUFF_GRANTS,
 });
 export const SUHSIN = new SummonEcho("Echo - Reminiscence: Suhsin", {
-  mainslot: SUHSIN_MAINSLOT, cooldown: 60 * 20,
+  mainslot: SUHSIN_MAINSLOT, cooldown: 60 * 20, valid: () => !wears("Hsin"),
   element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
   bullets: [...[14, 19, 23, 29].map((f) => ({ hitFrame: f, commitFrame: 0, mv: 2736, energy: 38 })), { hitFrame: 48, commitFrame: 0, mv: 16416, energy: 228 }],
 });
 /** Hsin's own form of it. */
 export const SUHSIN_HSIN = new SummonEcho("Echo - Reminiscence: Suhsin (Hsin)", {
-  mainslot: SUHSIN_MAINSLOT, cooldown: 60 * 20,
+  mainslot: SUHSIN_MAINSLOT, cooldown: 60 * 20, valid: () => wears("Hsin"),
   element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
   bullets: [...[11, 14, 21, 24, 31].map((f) => ({ hitFrame: f, commitFrame: 0, mv: 1368, energy: 19 })), { hitFrame: 54, commitFrame: 0, mv: 23256, energy: 323 }],
 });
@@ -211,7 +212,7 @@ export const SOULFRAYER_MAINSLOT = new Mainslot({
   cost: 3,
 });
 export const SOULFRAYER = new SummonEcho("Echo - Soulfrayer", {
-  mainslot: SOULFRAYER_MAINSLOT, castPosition: Position.Grounded, endPosition: Position.Grounded, cooldown: 60 * 20,
+  mainslot: SOULFRAYER_MAINSLOT, position: Position.Grounded, endPosition: Position.Grounded, cooldown: 60 * 20,
   element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo, bullets: [0, 1, 2].map(() => ({ hitFrame: 0, mv: 9118, energy: 126 })),
   updateBuffs: () => queueOutro(SOULFRAYER_OUTRO),
 });

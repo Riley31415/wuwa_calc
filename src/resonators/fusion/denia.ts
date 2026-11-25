@@ -39,7 +39,7 @@
  * wuwalab imports: its forte_2 is Dark Core, here the stacking buff DARK_CORE (the Intros' +1), and its forte_3
  *  is Conformal Charge, forte2 here; Breakdown attacks' Void Particle spends are missing there.
  */
-import { Stat, Attribute, WeaponType, Type, Subtype, Cast, Node, Scaling, Position } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type, Subtype, Cast, Node, Scaling, Position, Input } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, ResonanceMode, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
   asSource,
@@ -72,6 +72,14 @@ import {
   stacksOfTeam,
   addGain,
   runningBullet,
+  notAfter,
+  holds,
+  lacks,
+  after,
+  midair,
+  forte2,
+  concerto,
+  grounded,
 } from "../../engine/context.js";
 import { Action, Cooldown, Rotation, SWAPIN, ActionGroup, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
 import type { BulletDef } from "../../engine/rotation.js";
@@ -122,8 +130,8 @@ const BREAKDOWN_FORM = new Buff({
   },
   applyStats: () => { if (spendsVoid()) addStat(Stat.MulMv, 50); },
 });
-const STAGE = { requireBuff: STAGECRAFT_FORM };
-const BREAK = { requireBuff: BREAKDOWN_FORM };
+const STAGE = {  };
+const BREAK = {  };
 
 /** Banish Stage 2 spends every Dark Core held for +150% of its base multiplier apiece — read off
  *  the gauge before the cast's own -3 lands (deltas bank once the action has resolved). */
@@ -168,27 +176,27 @@ const LAYS_MIDAIR_3 = laysEvery2s("Mid-air Breakdown Form Stage 3", 1);
 
 // --- Stagecraft Form. Normal Attacks bank Void Particle (forte1). Dodge Counter carries the
 //     hidden +10 Concerto every dodge counter gets (CLAUDE.md).
-const BA1 = deniaAction("Basic - Stagecraft Form 1", { notAfter: () => [BA1, BA2, BA3, DC, Intro], ...STAGE, animFrames: 16, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 9, commitFrame: 3, mv: 3269, energy: 69, concerto: 137, offtune: 2192, forte1: 4 }]});
-const BA2 = deniaAction("Basic - Stagecraft Form 2", { after: [BA1], ...STAGE, animFrames: 33, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = deniaAction("Basic - Stagecraft Form 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [BA1, BA2, BA3, DC, Intro], position: Position.Grounded, holds: STAGECRAFT_FORM, valid: () => !stacksOf(BREAKDOWN_FORM), ...STAGE, animFrames: 16, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 9, commitFrame: 3, mv: 3269, energy: 69, concerto: 137, offtune: 2192, forte1: 4 }]});
+const BA2 = deniaAction("Basic - Stagecraft Form 2", { input: Input.Basic, after: () => [BA1], holds: STAGECRAFT_FORM, ...STAGE, animFrames: 33, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 16, commitFrame: 4, mv: 3018, energy: 64, concerto: 127, offtune: 2024, forte1: 4 },
     { hitFrame: 24, commitFrame: 4, mv: 3018, energy: 64, concerto: 127, offtune: 2024, forte1: 4 },
   ]});
-const BA3 = deniaAction("Basic - Stagecraft Form 3", { ...laysEvery2s("Stagecraft Form Stage 3", 1), after: [BA2], ...STAGE, animFrames: 38, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = deniaAction("Basic - Stagecraft Form 3", { ...laysEvery2s("Stagecraft Form Stage 3", 1), input: Input.Basic, after: () => [BA2], holds: STAGECRAFT_FORM, ...STAGE, animFrames: 38, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 20, commitFrame: 4, mv: 2549, energy: 54, concerto: 107, offtune: 1710, forte1: 3 },
     { hitFrame: 29, commitFrame: 4, mv: 2549, energy: 54, concerto: 107, offtune: 1710, forte1: 3 },
     { hitFrame: 38, commitFrame: 4, mv: 2549, energy: 54, concerto: 107, offtune: 1710, forte1: 3 },
   ]});
 // her Dodge Counter and It's Been A While! each lead into Stage 4 ("Press Normal Attack ... after casting this skill")
-const BA4 = deniaAction("Basic - Stagecraft Form 4", { ...laysEvery2s("Stagecraft Form Stage 4", 1), after: () => [BA3, DC, Intro], ...STAGE, animFrames: 57, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 18, commitFrame: 0, mv: 12800, energy: 69, concerto: 537, offtune: 8584, forte1: 30 }]});
-const HA = deniaAction("Heavy - Stagecraft Form", { ...STAGE, animFrames: 94, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+const BA4 = deniaAction("Basic - Stagecraft Form 4", { ...laysEvery2s("Stagecraft Form Stage 4", 1), input: Input.Basic, after: () => [BA3, DC, Intro], holds: STAGECRAFT_FORM, ...STAGE, animFrames: 57, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 18, commitFrame: 0, mv: 12800, energy: 69, concerto: 537, offtune: 8584, forte1: 30 }]});
+const HA = deniaAction("Heavy - Stagecraft Form", { input: Input.BasicHold, holds: STAGECRAFT_FORM, ...STAGE, animFrames: 94, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 42, mv: 8076, energy: 170, concerto: 339, offtune: 5416, forte1: 10 },
     { hitFrame: 54, commitFrame: 42, mv: 8076, energy: 170, concerto: 339, offtune: 5416, forte1: 10 },
   ]});
-const MA = deniaAction("Mid-air - Stagecraft Form Plunge", { castPosition: Position.Midair, endPosition: Position.Grounded, ...STAGE, animFrames: 41, animPriority: { 32: 2 }, castPriority: 4, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MA = deniaAction("Mid-air - Stagecraft Form Plunge", { input: [Input.Basic, Input.SwapIn], position: Position.Midair, holds: STAGECRAFT_FORM, valid: () => !stacksOf(BREAKDOWN_FORM), endPosition: Position.Grounded, ...STAGE, animFrames: 41, animPriority: { 32: 2 }, castPriority: 4, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 22, mv: 2959, energy: 62, concerto: 124, offtune: 1984, forte1: 4 },
     { hitFrame: 37, mv: 4438, energy: 93, concerto: 186, offtune: 2976, forte1: 6 },
   ]});
-const DC = deniaAction("Dodge Counter - Stagecraft Form 3", { after: [SUCCESSFUL_DODGE], ...STAGE, animFrames: 38, animPriority: { 33: 2 }, castPriority: 4, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const DC = deniaAction("Dodge Counter - Stagecraft Form 3", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], holds: STAGECRAFT_FORM, ...STAGE, animFrames: 38, animPriority: { 33: 2 }, castPriority: 4, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 20, commitFrame: 4, mv: 4935, energy: 104, concerto: 207, offtune: 1710, forte1: 6 },
     { hitFrame: 29, commitFrame: 4, mv: 4935, energy: 104, concerto: 207, offtune: 1710, forte1: 6 },
     { hitFrame: 38, commitFrame: 4, mv: 4935, energy: 104, concerto: 207, offtune: 1710, forte1: 6 },
@@ -197,37 +205,37 @@ const DC = deniaAction("Dodge Counter - Stagecraft Form 3", { after: [SUCCESSFUL
 // --- Breakdown Form: Basic Attack DMG, banking Conformal Charge (forte2). Each also declares the
 //     Void Particle (forte1) it spends when she holds any — the sheet's own figures, declared here
 //     rather than on the buff so the gauge shows the spend, and how far past 0 it runs.
-const UBA1 = deniaAction("Basic - Breakdown Form 1", { notAfter: () => [UBA1, UBA2, UBA3, UDC, UMDC, Banish1], ...BREAK, animFrames: 21, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 13, mv: 3651, energy: 77, concerto: 153, offtune: 2448, forte2: 3 }], castForte1: -18});
-const UBA2 = deniaAction("Basic - Breakdown Form 2", { after: [UBA1], ...BREAK, animFrames: 52, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const UBA1 = deniaAction("Basic - Breakdown Form 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [UBA1, UBA2, UBA3, UDC, UMDC, Banish1], position: Position.Grounded, holds: BREAKDOWN_FORM, valid: () => stacksOf(BREAKDOWN_FORM) > 0, ...BREAK, animFrames: 21, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 13, mv: 3651, energy: 77, concerto: 153, offtune: 2448, forte2: 3 }], castForte1: -18});
+const UBA2 = deniaAction("Basic - Breakdown Form 2", { input: Input.Basic, after: () => [UBA1], holds: BREAKDOWN_FORM, ...BREAK, animFrames: 52, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 3751, energy: 79, concerto: 158, offtune: 2516, forte2: 4 },
     { hitFrame: 26, commitFrame: 14, mv: 1407, energy: 30, concerto: 59, offtune: 944, forte2: 2 },
     { hitFrame: 32, commitFrame: 14, mv: 1407, energy: 30, concerto: 59, offtune: 944, forte2: 2 },
     { hitFrame: 38, commitFrame: 14, mv: 1407, energy: 30, concerto: 59, offtune: 944, forte2: 2 },
     { hitFrame: 44, commitFrame: 14, mv: 1407, energy: 30, concerto: 59, offtune: 944, forte2: 2 },
   ], castForte1: -46});
-const UBA3 = deniaAction("Basic - Breakdown Form 3", { ...LAYS_BREAKDOWN_3, after: [UBA2], ...BREAK, animFrames: 36, animPriority: { 32: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 23, mv: 6239, energy: 131, concerto: 262, offtune: 4184, forte2: 6 }], castForte1: -30});
+const UBA3 = deniaAction("Basic - Breakdown Form 3", { ...LAYS_BREAKDOWN_3, input: Input.Basic, after: () => [UBA2], holds: BREAKDOWN_FORM, ...BREAK, animFrames: 36, animPriority: { 32: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 23, mv: 6239, energy: 131, concerto: 262, offtune: 4184, forte2: 6 }], castForte1: -30});
 // the Breakdown Dodge Counter leads into "Basic Attack - Breakdown Form Stage 4 or Mid-air Attack - Breakdown Form Stage 4"
-const UBA4 = deniaAction("Basic - Breakdown Form 4", { ...laysEvery2s("Breakdown Form Stage 4", 1), after: () => [UBA3, UDC, UMDC], ...BREAK, animFrames: 63, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const UBA4 = deniaAction("Basic - Breakdown Form 4", { ...laysEvery2s("Breakdown Form Stage 4", 1), input: Input.Basic, after: () => [UBA3, UDC, UMDC], holds: BREAKDOWN_FORM, ...BREAK, animFrames: 63, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 3554, energy: 75, concerto: 149, offtune: 2384, forte2: 3 },
     { hitFrame: 36, commitFrame: 30, mv: 8292, energy: 174, concerto: 348, offtune: 5561, forte2: 8 },
   ], castForte1: -58});
 // the mid-air chain: every hit the ground one's, its Stage 4 a shorter 57 frames (wuwalab)
-const UMBA1 = deniaAction("Mid-air - Breakdown Form 1", { notAfter: () => [UMBA1, UMBA2, UMBA3, UDC, UMDC, Banish1], castPosition: Position.Midair, ...BREAK, animFrames: 21, castPriority: 4, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 13, mv: 3651, energy: 77, concerto: 153, offtune: 2448, forte2: 3 }], castForte1: -18});
-const UMBA2 = deniaAction("Mid-air - Breakdown Form 2", { after: [UMBA1], castPosition: Position.Midair, ...BREAK, animFrames: 52, castPriority: 4, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const UMBA1 = deniaAction("Mid-air - Breakdown Form 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [UMBA1, UMBA2, UMBA3, UDC, UMDC, Banish1], position: Position.Midair, holds: BREAKDOWN_FORM, valid: () => stacksOf(BREAKDOWN_FORM) > 0, ...BREAK, animFrames: 21, castPriority: 4, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 13, mv: 3651, energy: 77, concerto: 153, offtune: 2448, forte2: 3 }], castForte1: -18});
+const UMBA2 = deniaAction("Mid-air - Breakdown Form 2", { input: Input.Basic, after: () => [UMBA1], position: Position.Midair, holds: BREAKDOWN_FORM, ...BREAK, animFrames: 52, castPriority: 4, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 3751, energy: 79, concerto: 158, offtune: 2516, forte2: 4 },
     { hitFrame: 26, commitFrame: 14, mv: 1407, energy: 30, concerto: 59, offtune: 944, forte2: 2 },
     { hitFrame: 32, commitFrame: 14, mv: 1407, energy: 30, concerto: 59, offtune: 944, forte2: 2 },
     { hitFrame: 38, commitFrame: 14, mv: 1407, energy: 30, concerto: 59, offtune: 944, forte2: 2 },
     { hitFrame: 44, commitFrame: 14, mv: 1407, energy: 30, concerto: 59, offtune: 944, forte2: 2 },
   ], castForte1: -46});
-const UMBA3 = deniaAction("Mid-air - Breakdown Form 3", { ...LAYS_MIDAIR_3, after: [UMBA2], castPosition: Position.Midair, ...BREAK, animFrames: 36, animPriority: { 0: 4, 32: 4 }, castPriority: 4, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 23, mv: 6239, energy: 131, concerto: 262, offtune: 4184, forte2: 6 }], castForte1: -30});
-const UMBA4 = deniaAction("Mid-air - Breakdown Form 4", { ...laysEvery2s("Mid-air Breakdown Form Stage 4", 1), after: () => [UMBA3, UDC, UMDC], castPosition: Position.Midair, ...BREAK, animFrames: 57, animPriority: { 44: 2 }, castPriority: 4, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const UMBA3 = deniaAction("Mid-air - Breakdown Form 3", { ...LAYS_MIDAIR_3, input: Input.Basic, after: () => [UMBA2], position: Position.Midair, holds: BREAKDOWN_FORM, ...BREAK, animFrames: 36, animPriority: { 0: 4, 32: 4 }, castPriority: 4, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 23, mv: 6239, energy: 131, concerto: 262, offtune: 4184, forte2: 6 }], castForte1: -30});
+const UMBA4 = deniaAction("Mid-air - Breakdown Form 4", { ...laysEvery2s("Mid-air Breakdown Form Stage 4", 1), input: Input.Basic, after: () => [UMBA3, UDC, UMDC], position: Position.Midair, holds: BREAKDOWN_FORM, ...BREAK, animFrames: 57, animPriority: { 44: 2 }, castPriority: 4, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 3554, energy: 75, concerto: 149, offtune: 2384, forte2: 3 },
     { hitFrame: 36, commitFrame: 30, mv: 8292, energy: 174, concerto: 348, offtune: 5561, forte2: 8 },
   ], castForte1: -58});
-const UHA = deniaAction("Heavy - Breakdown Form", { ...BREAK, animFrames: 74, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 63, mv: 13706, energy: 288, concerto: 575, offtune: 9192, forte2: 13 }], castForte1: -66});
+const UHA = deniaAction("Heavy - Breakdown Form", { input: Input.BasicHold, position: Position.Grounded, holds: BREAKDOWN_FORM, ...BREAK, animFrames: 74, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 63, mv: 13706, energy: 288, concerto: 575, offtune: 9192, forte2: 13 }], castForte1: -66});
 // "Hold Normal Attack in the air to perform Mid-air Plunging Attack": it lands
-const UMHA = deniaAction("Heavy - Breakdown Form (Mid-Air)", { castPosition: Position.Midair, endPosition: Position.Grounded, ...BREAK, animFrames: 48, animPriority: { 32: 2 }, castPriority: 4, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
+const UMHA = deniaAction("Heavy - Breakdown Form (Mid-Air)", { input: Input.BasicHold, position: Position.Midair, holds: BREAKDOWN_FORM, endPosition: Position.Grounded, ...BREAK, animFrames: 48, animPriority: { 32: 2 }, castPriority: 4, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
     { hitFrame: 22, mv: 2959, energy: 62, concerto: 124, offtune: 1984, forte2: 3 },
     { hitFrame: 34, mv: 4438, energy: 93, concerto: 186, offtune: 2976, forte2: 4 },
   ], castForte1: -37});
@@ -236,14 +244,14 @@ const UMHA = deniaAction("Heavy - Breakdown Form (Mid-Air)", { castPosition: Pos
 // hidden +10 Concerto every dodge counter carries (CLAUDE.md); the mid-air one plays 65 frames to
 // the ground one's 36. nanoka has a single 108.08% "Dodge Counter - Breakdown Form" row instead,
 // matching neither.
-const UDC = deniaAction("Dodge Counter - Breakdown Form 3", { ...LAYS_BREAKDOWN_3, after: [SUCCESSFUL_DODGE], ...BREAK, animFrames: 36, animPriority: { 32: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 23, mv: 6239, energy: 131, concerto: 262, offtune: 4184, forte2: 6 }], castForte1: -30, castConcerto: 1000});
+const UDC = deniaAction("Dodge Counter - Breakdown Form 3", { ...LAYS_BREAKDOWN_3, input: Input.Basic, after: () => [SUCCESSFUL_DODGE], holds: BREAKDOWN_FORM, ...BREAK, animFrames: 36, animPriority: { 32: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 23, mv: 6239, energy: 131, concerto: 262, offtune: 4184, forte2: 6 }], castForte1: -30, castConcerto: 1000});
 // the "Can be cast in mid-air" case of the Breakdown Dodge Counter
-const UMDC = deniaAction("Dodge Counter - Breakdown Form 3 (Mid-Air)", { ...LAYS_MIDAIR_3, after: [SUCCESSFUL_DODGE], castPosition: Position.Midair, ...BREAK, animFrames: 36, animPriority: { 0: 4, 32: 2 }, castPriority: 4, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 23, mv: 6239, energy: 131, concerto: 262, offtune: 4184, forte2: 6 }], castForte1: -30, castConcerto: 1000});
+const UMDC = deniaAction("Dodge Counter - Breakdown Form 3 (Mid-Air)", { ...LAYS_MIDAIR_3, input: Input.Basic, after: () => [SUCCESSFUL_DODGE], position: Position.Midair, holds: BREAKDOWN_FORM, ...BREAK, animFrames: 36, animPriority: { 0: 4, 32: 2 }, castPriority: 4, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 23, mv: 6239, energy: 131, concerto: 262, offtune: 4184, forte2: 6 }], castForte1: -30, castConcerto: 1000});
 
 // --- Resonance Skill: Phantom Bubble in Stagecraft (its 24.4 Concerto is what makes her loop),
 //     Beckon in Breakdown, or Banish in its place while a Dark Core is held. Stage 2 spends every
 //     core for +150% of its base multiplier apiece (see BANISH_CORES) and is Liberation DMG.
-const Skill = deniaAction("Skill - Phantom Bubble", { ...STAGE, animFrames: 64, animPriority: { 60: 2 }, castPriority: 4, cooldown: 60 * 20, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+const Skill = deniaAction("Skill - Phantom Bubble", { input: Input.Skill, holds: STAGECRAFT_FORM, ...STAGE, animFrames: 64, animPriority: { 60: 2 }, castPriority: 4, cooldown: 60 * 20, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 5, mv: 1742, energy: 4, concerto: 407, offtune: 1168 },
     { hitFrame: 14, commitFrame: 5, mv: 1742, energy: 4, concerto: 407, offtune: 1168 },
     { hitFrame: 23, commitFrame: 5, mv: 1742, energy: 4, concerto: 407, offtune: 1168 },
@@ -251,7 +259,7 @@ const Skill = deniaAction("Skill - Phantom Bubble", { ...STAGE, animFrames: 64, 
   ], castForte1: 25});
 /** Beckon and Banish draw on one 4s cooldown. */
 const BECKON_CD = new Cooldown({ frames: 60 * 4 });
-const Beckon = deniaAction("Skill - Beckon", { notAfter: () => [Banish1], ...BREAK, forbidBuff: DARK_CORE, animFrames: 60, animPriority: { 45: 2 }, castPriority: 5, cooldown: BECKON_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+const Beckon = deniaAction("Skill - Beckon", { input: Input.Skill, notAfter: () => [Banish1], holds: BREAKDOWN_FORM, lacks: DARK_CORE, ...BREAK, animFrames: 60, animPriority: { 45: 2 }, castPriority: 5, cooldown: BECKON_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 0, mv: 3110, energy: 66, concerto: 131, offtune: 2086, forte2: 3 },
     { hitFrame: 9, commitFrame: 0, mv: 1452, energy: 31, concerto: 61, offtune: 974, forte2: 2 },
     { hitFrame: 24, commitFrame: 0, mv: 1452, energy: 31, concerto: 61, offtune: 974, forte2: 2 },
@@ -260,20 +268,20 @@ const Beckon = deniaAction("Skill - Beckon", { notAfter: () => [Banish1], ...BRE
     { hitFrame: 69, commitFrame: 0, mv: 1452, energy: 31, concerto: 61, offtune: 974, forte2: 2 },
   ]});
 // Breakdown Form is Banish 2's to check, which always follows: Banish 1 is the Dark Core's
-const Banish1 = deniaAction("Skill - Banish 1", { notAfter: () => [Banish1], requireBuff: DARK_CORE, animFrames: 57, castPriority: 5, cooldown: BECKON_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+const Banish1 = deniaAction("Skill - Banish 1", { input: Input.Skill, notAfter: () => [Banish1], holds: DARK_CORE, lacks: STAGECRAFT_FORM, animFrames: 57, castPriority: 5, cooldown: BECKON_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 28, commitFrame: 10, mv: 3468, energy: 73, concerto: 146, offtune: 2326 },
     { hitFrame: 35, commitFrame: 10, mv: 3468, energy: 73, concerto: 146, offtune: 2326 },
     { hitFrame: 42, commitFrame: 10, mv: 3468, energy: 73, concerto: 146, offtune: 2326 },
   ]});
 // "Press Normal Attack or Resonance Skill shortly after to cast Banish - Breakdown Form Stage 2"
-const Banish2 = deniaAction("Skill - Banish 2", { after: [Banish1], ...BREAK, animFrames: 71, animPriority: { 53: 2 }, castPriority: 5, cooldown: 30, node: Node.Skill, cast: Cast.Skill, type: Type.Liberation, bullets: [{ hitFrame: 23, commitFrame: 0, mv: 11201, energy: 235, concerto: 1470, offtune: 7512 }], castForte2: 40});
+const Banish2 = deniaAction("Skill - Banish 2", { input: Input.Skill, after: () => [Banish1], holds: BREAKDOWN_FORM, ...BREAK, animFrames: 71, animPriority: { 53: 2 }, castPriority: 5, cooldown: 30, node: Node.Skill, cast: Cast.Skill, type: Type.Liberation, bullets: [{ hitFrame: 23, commitFrame: 0, mv: 11201, energy: 235, concerto: 1470, offtune: 7512 }], castForte2: 40});
 
 // --- Final Act. Stagecraft spends the Energy bar (125); Breakdown spends the full Conformal
 //     Charge and every Void Particle instead (zeroed in DENIA_RESONATOR's update — "all", not a fixed
 //     delta), and sets the Erosion Field at its frame 0: one field action whose eight 136.33%
 //     Liberation pulls are its own bullets, 158 to 1838 (wuwalab), each its own cast to the modes
 //     below.
-const Lib1 = deniaAction("Liberation - Final Act (Stagecraft)", { ...laysEvery2s("Final Act - Stagecraft Form", 2), ...STAGE,
+const Lib1 = deniaAction("Liberation - Final Act (Stagecraft)", { input: Input.Liberation, holds: STAGECRAFT_FORM, ...laysEvery2s("Final Act - Stagecraft Form", 2), ...STAGE,
   animFrames: 259, animPriority: { 255: 2 }, castPriority: 10, timestop: [0, 251], motionStop: [0, 251], cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 257, commitFrame: 251, mv: 39762, offtune: 48000 }],
   castConcerto: 2000, castEnergy: -12500,
@@ -285,7 +293,7 @@ const Lib1 = deniaAction("Liberation - Final Act (Stagecraft)", { ...laysEvery2s
   },
 });
 /** Spends every Void Particle and all the Conformal Charge, and shifts back to Stagecraft. */
-const Lib2 = deniaAction("Liberation - Final Act (Breakdown)", { ...laysEvery2s("Final Act - Breakdown Form", 2), ...BREAK, minForte2: 100,
+const Lib2 = deniaAction("Liberation - Final Act (Breakdown)", { ...laysEvery2s("Final Act - Breakdown Form", 2), ...BREAK, input: Input.Liberation, minForte2: 100, holds: BREAKDOWN_FORM,
   animFrames: 171, noSwapFrames: 160, timestop: [0, 131], motionStop: [0, 131], cooldown: 60 * 25, animPriority: { 163: 2 }, castPriority: 10,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [
     {
@@ -327,13 +335,13 @@ const FIELDS = new Set<Action>([ErosionField]);
 const EROSION_SET = new Buff({ name: "Denia: Erosion Field" });
 
 // --- Intros, one per form. Both bank a Dark Core and 25 Void Particle.
-const Intro = deniaAction("Intro - It's Been A While!", { ...laysEvery2s("It's Been A While!", 2), endPosition: Position.Grounded, qteFrames: 25, ...STAGE,
+const Intro = deniaAction("Intro - It's Been A While!", { input: Input.Intro, valid: () => !stacksOf(BREAKDOWN_FORM), ...laysEvery2s("It's Been A While!", 2), endPosition: Position.Grounded, qteFrames: 25, ...STAGE,
   animFrames: 53, noSwapFrames: 47, animPriority: { 50: 2 }, castPriority: 11, motionStop: [5, 46],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 28, mv: 10462, energy: 1000, offtune: 7016 }], castConcerto: 1000, castForte1: 25,
   updateBuffs: () => applyCurrent(DARK_CORE),
 });
 // Knock Knock is the Breakdown-form Intro: it grants the Breakdown shift and banks its own Dark Core
-const EIntro = deniaAction("Intro - Knock Knock", { ...laysEvery2s("Knock Knock", 2), endPosition: Position.Grounded, qteFrames: 38, ...BREAK,
+const EIntro = deniaAction("Intro - Knock Knock", { input: Input.Intro, valid: () => stacksOf(BREAKDOWN_FORM) > 0, ...laysEvery2s("Knock Knock", 2), endPosition: Position.Grounded, qteFrames: 38, ...BREAK,
   animFrames: 81, noSwapFrames: 75, animPriority: { 77: 2 }, castPriority: 11, motionStop: [5, 43],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 73, commitFrame: 49, mv: 5174, energy: 334, offtune: 3470 },
@@ -349,7 +357,7 @@ const EIntro = deniaAction("Intro - Knock Knock", { ...laysEvery2s("Knock Knock"
 // mutually exclusive: Burst amplifies the team's Fusion Burst, Strain hands off to the incoming
 const Outro = deniaAction("Outro - Unfinished Lies", {
   animFrames: 0,
-  cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000,
+  cast: Cast.Outro, input: Input.Outro, minConcerto: 10000, castConcerto: -10000,
   updateBuffs: () => {
     if (isHeld(MODE_BURST)) applyTeam(UNFINISHED_LIES_BURST, 1);
     else queueQTE(UNFINISHED_LIES_STRAIN);
@@ -662,11 +670,7 @@ const DENIA_RESONATOR = new Resonator({
   // Final Act - Breakdown always closes her loop back in Stagecraft Form, so It's Been A While!
   // is the Intro she enters with; Knock Knock (the Breakdown-form one) is kept for completeness
   color: "#ecabe3",
-  // resolved when its row is reached: whichever Intro the kit's state calls for there
-  intro: () => stacksOf(BREAKDOWN_FORM) ? EIntro : Intro,
-  // Stagecraft's mid-air attack is its plunge; Breakdown has a mid-air string
-  swapIn: () => (stacksOf(BREAKDOWN_FORM) ? UBA1 : BA1),
-  swapInAir: () => (stacksOf(BREAKDOWN_FORM) ? UMBA1 : MA),
+  actions: [BA1, BA2, BA3, BA4, HA, MA, DC, UBA1, UBA2, UBA3, UBA4, UMBA1, UMBA2, UMBA3, UMBA4, UHA, UMHA, UDC, UMDC, Skill, Beckon, Banish1, Banish2, Lib1, Lib2, Intro, EIntro, Outro],
   maxEnergy: 12500,
   maxForte1: 100,
   maxForte2: 100,

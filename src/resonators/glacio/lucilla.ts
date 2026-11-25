@@ -44,7 +44,7 @@
  * wuwalab imports: Tracing Forms 3 spends 150 Trace and 3 Photos (its forte_2) there; here each Oblivion
  *  Stage 3 queues spends 50 Trace, and Photos have no gauge of their own.
  */
-import { Stat, EnemyStat, Attribute, WeaponType, Type, Subtype, Cast, Node, Scaling, BuffTarget, Position } from "../../engine/stats.js";
+import { Stat, EnemyStat, Attribute, WeaponType, Type, Subtype, Cast, Node, Scaling, BuffTarget, Position, Input } from "../../engine/stats.js";
 import { Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, ResonanceMode, Sequence } from "../../engine/gear.js";
 import {
   typeOverride,
@@ -66,6 +66,13 @@ import {
   revokeCurrent,
   isActive,
   reduceCooldown,
+  holds,
+  lacks,
+  concerto,
+  notAfter,
+  after,
+  midair,
+  grounded,
 } from "../../engine/context.js";
 import { ActionGroup, Action, ActionField, Cooldown, Rotation, START_LAST, SWAP, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
 import { GLACIO_CHAFE, GLACIO_CHAFE_ACTIONS, OWN_CHAFE_RUNGS } from "../status.js";
@@ -102,20 +109,20 @@ const CHAFE_RUNGS: (Action | null)[] = GLACIO_CHAFE_ACTIONS.map((a) => a?.varian
 const REMINISCENCE = new Buff({ name: "Lucilla: Reminiscence" });
 // Reminiscence replaces her Intro, Basic Attack and Dodge Counter (its plunge stands in for its own,
 // see swapInAir) and bars her Resonance Skill and Liberation
-const Intro = lucillaAction("Intro - Clip It", { forbidBuff: REMINISCENCE,
+const Intro = lucillaAction("Intro - Clip It", { input: Input.Intro, valid: () => !isHeld(REMINISCENCE),
   endPosition: Position.Grounded, animFrames: 81, noSwapFrames: 82, animPriority: { 42: 4 }, castPriority: 11, motionStop: [6, 79],
    node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 38, mv: 9742, energy: 1175, concerto: 413, offtune: 5600, forte1: 100, ...CHAFES }], castConcerto: 1000,
   updateBuffs: () => applyCurrent(CHAFE_WINDOW, 1),
 });
 /** Clip It's Reminiscence form: its own hit and Chafe stack, no Trace (only Clip It restores any). */
 const HardCut = lucillaAction("Intro - Clip It: Hard Cut", { endPosition: Position.Grounded, qteFrames: 5,
-  requireBuff: REMINISCENCE, animFrames: 52, noSwapFrames: 52, castPriority: 11, motionStop: [5, 51], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 27, mv: 14941, energy: 1209, concerto: 493, offtune: 6680, ...CHAFES }], castConcerto: 1000,
+  input: Input.Intro, valid: () => isHeld(REMINISCENCE), animFrames: 52, noSwapFrames: 52, castPriority: 11, motionStop: [5, 51], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 27, mv: 14941, energy: 1209, concerto: 493, offtune: 6680, ...CHAFES }], castConcerto: 1000,
   updateBuffs: () => applyCurrent(CHAFE_WINDOW, 1),
 });
 // mutually exclusive: Echo hands off MONTAGE_HANDOFF, Chafe grants MONTAGE_CHAFE team-wide
 const Outro = lucillaAction("Outro - Montage", {
   animFrames: 0,
-  cast: Cast.Outro, minConcerto: 10000, castConcerto: -10000,
+  cast: Cast.Outro, input: Input.Outro, minConcerto: 10000, castConcerto: -10000,
   updateBuffs: () => {
     if (isHeld(MODE_CHAFE)) applyTeam(MONTAGE_CHAFE, 1);
     else queueQTE(MONTAGE_HANDOFF);
@@ -123,15 +130,15 @@ const Outro = lucillaAction("Outro - Montage", {
 });
 
 // normal attacks: Basic 1/2, Basic 3 (Focus Ring, always assumed Perfect/Commendable)
-const BA1 = lucillaAction("Basic - Snapshot 1", { notAfter: () => [BA1, BA2, MA, Compensate, Spotlight, DC], forbidBuff: REMINISCENCE, animFrames: 30, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 14, mv: 5929, energy: 107, concerto: 171, offtune: 3408 }]});
+const BA1 = lucillaAction("Basic - Snapshot 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [BA1, BA2, MA, Compensate, Spotlight, DC], position: Position.Grounded, lacks: REMINISCENCE, valid: () => !isHeld(REMINISCENCE), animFrames: 30, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 14, mv: 5929, energy: 107, concerto: 171, offtune: 3408 }]});
 // the plunge, Compensate and Spotlight each lead into Basic 2; the dodge counter into Basic 3
-const BA2 = lucillaAction("Basic - Snapshot 2", { after: () => [BA1, MA, Compensate, Spotlight], animFrames: 32, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA2 = lucillaAction("Basic - Snapshot 2", { input: Input.Basic, after: () => [BA1, MA, Compensate, Spotlight], animFrames: 32, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 2689, energy: 49, concerto: 78, offtune: 1546 },
     { hitFrame: 24, mv: 4034, energy: 73, concerto: 116, offtune: 2319 },
   ]});
-const BA3 = lucillaAction("Basic - Snapshot 3 - Commendable", { after: () => [BA2, DC], animFrames: 106, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 50, mv: 23527, energy: 423, concerto: 677, offtune: 13524, forte1: 50 }]});
-const MA = lucillaAction("Mid-air - Snapshot Plunge", { castPosition: Position.Midair, endPosition: Position.Grounded, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 8629, energy: 155, concerto: 366, offtune: 4960 }] });
-const DC = lucillaAction("Dodge Counter - Snapshot", { after: [SUCCESSFUL_DODGE], forbidBuff: REMINISCENCE, animFrames: 32, animPriority: { 0: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const BA3 = lucillaAction("Basic - Snapshot 3 - Commendable", { input: Input.Basic, after: () => [BA2, DC], animFrames: 106, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 50, mv: 23527, energy: 423, concerto: 677, offtune: 13524, forte1: 50 }]});
+const MA = lucillaAction("Mid-air - Snapshot Plunge", { input: [Input.Basic, Input.SwapIn], position: Position.Midair, endPosition: Position.Grounded, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 8629, energy: 155, concerto: 366, offtune: 4960 }] });
+const DC = lucillaAction("Dodge Counter - Snapshot", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], lacks: REMINISCENCE, animFrames: 32, animPriority: { 0: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 6783, energy: 122, concerto: 288, offtune: 3899 },
     { hitFrame: 24, mv: 8290, energy: 149, concerto: 352, offtune: 4766 },
   ], castConcerto: 1000 });
@@ -142,7 +149,7 @@ const DC = lucillaAction("Dodge Counter - Snapshot", { after: [SUCCESSFUL_DODGE]
 // an unheld on-field press casts Compensate directly, so both draw on the one 16s cooldown
 const SKILL_CD = new Cooldown({ frames: 60 * 16 });
 // also reduces the Resonance Skill's own cooldown by 8s
-const Compensate = lucillaAction("Skill - Compensate", { forbidBuff: REMINISCENCE,
+const Compensate = lucillaAction("Skill - Compensate", { input: Input.Skill, lacks: REMINISCENCE,
   animFrames: 60, castPriority: 5, cooldown: SKILL_CD,
   node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 16, mv: 1326, energy: 42, concerto: 69, offtune: 1334 },
@@ -153,7 +160,7 @@ const Compensate = lucillaAction("Skill - Compensate", { forbidBuff: REMINISCENC
   updateBuffs: () => reduceCooldown(SKILL_CD, 60 * 8),
 });
 // Spotlight lays a Chafe stack too, but only in Glacio Chafe mode, on the big shot (wuwalab's frame 101)
-const Spotlight = lucillaAction("Skill - Spotlight", { forbidBuff: REMINISCENCE, heldInput: true,
+const Spotlight = lucillaAction("Skill - Spotlight", { input: Input.SkillHold, lacks: REMINISCENCE,
   animFrames: 107, castPriority: 5, noSwapFrames: 101, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 16, mv: 1326, energy: 42, concerto: 69, offtune: 1334 },
     { hitFrame: 22, commitFrame: 16, mv: 1326, energy: 42, concerto: 69, offtune: 1334 },
@@ -170,7 +177,7 @@ const Spotlight = lucillaAction("Skill - Spotlight", { forbidBuff: REMINISCENCE,
 
 // Echo Skill DMG under Echo mode; Chafe mode's own typeOverride makes it Basic Attack DMG instead
 // (see MODE_CHAFE) — one action, not one per mode
-const Liberation = lucillaAction("Liberation - Clear As Day", { minForte1: 150, forbidBuff: REMINISCENCE,
+const Liberation = lucillaAction("Liberation - Clear As Day", { input: Input.Liberation, minForte1: 150, lacks: REMINISCENCE,
   animFrames: 266, castPriority: 10, timestop: [3, 266], motionStop: [3, 266], cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Echo, bullets: [{ hitFrame: 204, mv: 14274, offtune: 38400 }], castConcerto: 2000, castForte1: -150,
   updateDebuffs: () => addGain({ forte1: 150 }),
@@ -183,17 +190,17 @@ const Liberation = lucillaAction("Liberation - Clear As Day", { minForte1: 150, 
 
 // Reminiscence: Basic Attack - Tracing Forms (unconditionally Basic Attack DMG) and Letting It Go
 // (mode-typed). Stage 3 itself triggers Oblivion once per Photo actually banked (forte1, max 3).
-const UBA1 = lucillaAction("Basic - Tracing Forms 1", { notAfter: () => [UBA1, UBA2, UBA3, HardCut], requireBuff: REMINISCENCE, animFrames: 27, castPriority: 2, node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, bullets: [
+const UBA1 = lucillaAction("Basic - Tracing Forms 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [UBA1, UBA2, UBA3, HardCut], position: Position.Grounded, holds: REMINISCENCE, valid: () => isHeld(REMINISCENCE), animFrames: 27, castPriority: 2, node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 8, mv: 3064, energy: 43, concerto: 83, offtune: 1370 },
     { hitFrame: 19, mv: 4595, energy: 65, concerto: 124, offtune: 2055 },
   ]});
-const UBA2 = lucillaAction("Basic - Tracing Forms 2", { after: [UBA1], requireBuff: REMINISCENCE, animFrames: 54, castPriority: 2, node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, bullets: [
+const UBA2 = lucillaAction("Basic - Tracing Forms 2", { input: Input.Basic, after: () => [UBA1], holds: REMINISCENCE, animFrames: 54, castPriority: 2, node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 10, mv: 5977, energy: 84, concerto: 161, offtune: 2672 },
     { hitFrame: 31, mv: 8965, energy: 126, concerto: 241, offtune: 4008 },
   ]});
 // Hard Cut leads into Stage 3 too
 const UBA3 = lucillaAction("Basic - Tracing Forms 3", {
-  after: [UBA2, HardCut], requireBuff: REMINISCENCE, animFrames: 142, castPriority: 2,
+  input: Input.Basic, after: () => [UBA2, HardCut], holds: REMINISCENCE, animFrames: 142, castPriority: 2,
   node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 34, mv: 5212, energy: 73, concerto: 140, offtune: 2330,
       // on Stage 3's hit
@@ -224,7 +231,7 @@ const OblivionChafe = lucillaAction("Forte - Oblivion (Chafe)", { animFrames: 0,
 // Letting It Go "additionally restores" — both folded into the one number below.
 // Echo Skill DMG, retagged Basic Attack DMG by Chafe mode the same way the Liberation is
 // performed out of Tracing Forms Stage 3, released or finished
-const LettingGo = lucillaAction("Basic - Letting It Go", { after: [UBA3], requireBuff: REMINISCENCE, animFrames: 77, animPriority: { 0: 4 }, castPriority: 2, noSwapFrames: 90, node: Node.Liberation, cast: Cast.Basic, type: Type.Echo, bullets: [
+const LettingGo = lucillaAction("Basic - Letting It Go", { input: Input.Basic, after: () => [UBA3], holds: REMINISCENCE, animFrames: 77, animPriority: { 0: 4 }, castPriority: 2, noSwapFrames: 90, node: Node.Liberation, cast: Cast.Basic, type: Type.Echo, bullets: [
     { hitFrame: 0, mv: 8481, energy: 34, concerto: 79, offtune: 3652 },
     { hitFrame: 12, commitFrame: 0, mv: 8481, energy: 34, concerto: 79, offtune: 3652 },
     { hitFrame: 24, commitFrame: 0, mv: 8481, energy: 34, concerto: 79, offtune: 3652 },
@@ -343,10 +350,7 @@ const LUCILLA_RESONATOR = new Resonator({
   element: Attribute.Glacio,
   weapon: WeaponType.Rectifier,
   color: "#4f74c2",
-  intro: () => (isHeld(REMINISCENCE) ? HardCut : Intro),
-  // Reminiscence replaces her Basic Attack; its own plunge has no action, so the plain one
-  swapIn: () => (isHeld(REMINISCENCE) ? UBA1 : BA1),
-  swapInAir: MA,
+  actions: [Intro, HardCut, Outro, BA1, BA2, BA3, MA, DC, Compensate, Spotlight, Liberation, UBA1, UBA2, UBA3, LettingGo],
   maxEnergy: 0,
   maxForte1: 150,
 

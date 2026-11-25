@@ -34,6 +34,7 @@ import {
   scopedKey,
   scopedOpen,
   sequenceLevels,
+  shownExtraLevels,
   shownRanks,
   shownWeapons,
   sigAllowed,
@@ -44,7 +45,7 @@ import {
   teamFromKey,
   weaponBase,
   weaponOptions
-} from "./chunk-QDZSVQYL.js";
+} from "./chunk-JC7DESRL.js";
 export {
   AXES,
   TEAM_COSTS,
@@ -81,6 +82,7 @@ export {
   scopedKey,
   scopedOpen,
   sequenceLevels,
+  shownExtraLevels,
   shownRanks,
   shownWeapons,
   sigAllowed,

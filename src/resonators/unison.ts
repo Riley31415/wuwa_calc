@@ -19,7 +19,7 @@
  * itself from its own combatStart) can gain Unison Boon at all — so a Jinhsi beside Suoming never
  * holds it. Anybody else simply adopts and drops the Intro marker on their Intro row.
  */
-import { Cast, Stat } from "../engine/stats.js";
+import { Cast, Stat, Position } from "../engine/stats.js";
 import { Buff } from "../engine/gear.js";
 import type { Action } from "../engine/rotation.js";
 import {
@@ -36,6 +36,8 @@ import {
   hitting,
   inflicting,
   isHeld,
+  holds,
+  lacks,
   lastHit,
   queueOutro,
   removeStack,
@@ -58,11 +60,11 @@ export const UNISON = new Buff({
 
 /** The Unison form of a kit's Outro: the same cast with no Concerto spend and no full-bar
  *  condition, since Unison pays for the swap in the bar's place — so the bar carries over into the
- *  owner's next visit, and the outro is never short whatever it held. A Unison-capable kit builds one off its plain Outro and
- *  its `outro` fn picks it while Unison is held (`isHeld(UNISON)`), the way an Intro fn picks its
- *  Unison form off `unisonIntro()`. */
+ *  owner's next visit, and the outro is never short whatever it held. A Unison-capable kit builds one
+ *  off its plain Outro and lists both in its actions: this one is valid while Unison is held, and the
+ *  plain one's `valid` says it isn't (`lacks(UNISON)`). */
 export const unisonOutro = (outro: Action): Action => {
-  const out = outro.variant(`${outro.name} (Unison)`, { castConcerto: 0, minConcerto: undefined, requireBuff: UNISON });
+  const out = outro.variant(`${outro.name} (Unison)`, { castConcerto: 0, holds: UNISON});
   out.formOf = outro;
   return out;
 };
