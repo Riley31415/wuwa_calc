@@ -49,13 +49,13 @@ const healAt = (frame: number, also?: () => void): BulletDef =>
   ({ hitFrame: frame, element: null, type: null, subtype: null, updateDebuffs: () => { applyCurrent(HEALS, 1); also?.(); } });
 
 // --- Normal Attack: 4 stages, a Concentration off each press's last hit (wuwalab's forte_1)
-const BA1 = baizhiAction("Basic - Destined Promise 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [BA1, BA2, BA3], position: Position.Grounded, animFrames: 30, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = baizhiAction("Basic - Destined Promise 1", { input: Input.Basic, position: Position.Grounded, animFrames: 30, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 12, mv: 6548, energy: 102, concerto: 385, offtune: 10200, forte1: 1 },
   ]});
-const BA2 = baizhiAction("Basic - Destined Promise 2", { input: Input.Basic, after: () => [BA1], animFrames: 43, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA2 = baizhiAction("Basic - Destined Promise 2", { input: Input.Basic, inputPriority: 1, after: [BA1], animFrames: 43, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 16, mv: 7857, energy: 123, concerto: 463, offtune: 12400, forte1: 1 },
   ]});
-const BA3 = baizhiAction("Basic - Destined Promise 3", { input: Input.Basic, after: () => [BA2], animFrames: 42, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = baizhiAction("Basic - Destined Promise 3", { input: Input.Basic, inputPriority: 1, after: [BA2], animFrames: 42, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 4, mv: 1310, energy: 20, concerto: 77, offtune: 2058 },
     { hitFrame: 6, mv: 1310, energy: 20, concerto: 77, offtune: 2058 },
     { hitFrame: 9, mv: 1310, energy: 20, concerto: 77, offtune: 2058 },
@@ -64,19 +64,19 @@ const BA3 = baizhiAction("Basic - Destined Promise 3", { input: Input.Basic, aft
     { hitFrame: 17, mv: 1310, energy: 20, concerto: 77, offtune: 2058 },
     { hitFrame: 18, mv: 1310, energy: 20, concerto: 77, offtune: 2058, forte1: 1 },
   ]});
-const BA4 = baizhiAction("Basic - Destined Promise 4", { input: Input.Basic, after: () => [BA3], animFrames: 45, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA4 = baizhiAction("Basic - Destined Promise 4", { input: Input.Basic, inputPriority: 1, after: [BA3], animFrames: 45, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 16, mv: 7857, energy: 123, concerto: 463, offtune: 12400, forte1: 1 },
   ]});
 // wuwalab's swap-in Basic Attack (110.32%, encore's own row); never valid, no rotation opens on it
-const SwapInBasic = baizhiAction("Basic - Destined Promise (Swap-In)", { input: Input.Basic, valid: () => false, animFrames: 70, animPriority: { 0: 6, 48: 4 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 10, mv: 11032, energy: 173, concerto: 650, offtune: 17400 },
-  ]});
+// const SwapInBasic = baizhiAction("Basic - Destined Promise (Swap-In)", { input: Input.Basic, valid: () => false, animFrames: 70, animPriority: { 0: 6, 48: 4 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+//     { hitFrame: 10, mv: 11032, energy: 173, concerto: 650, offtune: 17400 },
+//   ]});
 // a Plunging Attack: You'tan comes down, and so does she
-const MA = baizhiAction("Mid-air - Destined Promise", { input: [Input.Basic, Input.SwapIn], position: Position.Midair, endPosition: Position.Grounded, animFrames: 60, animPriority: { 0: 4 }, castPriority: 4, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MA = baizhiAction("Mid-air - Destined Promise", { input: Input.Basic, position: Position.Midair, endPosition: Position.Grounded, animFrames: 60, animPriority: { 0: 4 }, castPriority: 4, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 13, mv: 7889, energy: 41, concerto: 100, offtune: 12400 },
   ]});
 // the hidden +10 Concerto every dodge counter carries
-const DC = baizhiAction("Dodge Counter - Destined Promise", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], animFrames: 55, animPriority: { 0: 8, 46: 4 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const DC = baizhiAction("Dodge Counter - Destined Promise", { input: Input.Basic, after: [SUCCESSFUL_DODGE], animFrames: 55, animPriority: { 0: 8, 46: 4 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 16, mv: 17865, energy: 280, concerto: 603, offtune: 16080 },
   ], castConcerto: 1000});
 
@@ -100,10 +100,10 @@ const HA = baizhiAction("Heavy - Destined Promise", { input: Input.BasicHold, an
   },
 });
 // the hold's Loop and End are its length, not a state: disabled
-const HALoop = baizhiAction("Heavy - Destined Promise (Loop)", { input: Input.BasicHold, valid: () => false, animFrames: 18, animPriority: { 0: 3 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
-    { hitFrame: 18, mv: 4886, energy: 60, concerto: 249, offtune: 5808, updateDebuffs: stimulus },
-  ]});
-const HAEnd = baizhiAction("Heavy - Destined Promise (End)", { input: Input.BasicHold, valid: () => false, animFrames: 50, animPriority: { 0: 3 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy });
+// const HALoop = baizhiAction("Heavy - Destined Promise (Loop)", { input: Input.BasicHold, valid: () => false, animFrames: 18, animPriority: { 0: 3 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+//     { hitFrame: 18, mv: 4886, energy: 60, concerto: 249, offtune: 5808, updateDebuffs: stimulus },
+//   ]});
+// const HAEnd = baizhiAction("Heavy - Destined Promise (End)", { input: Input.BasicHold, valid: () => false, animFrames: 50, animPriority: { 0: 3 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy });
 
 // --- Resonance Skill: heals at 18f, hits at 26f off her Max HP; the hit spends all the
 //     Concentration for 8 Concerto a point (S1: 2.5 Energy a point too)
@@ -239,7 +239,7 @@ export const BAIZHI_RESONATOR = new Resonator({
   element: Attribute.Glacio,
   weapon: WeaponType.Rectifier,
   color: "#9fdcd2",
-  actions: [BA1, BA2, BA3, BA4, SwapInBasic, MA, DC, HA, HALoop, HAEnd, Skill, Liberation, Intro, Outro],
+  actions: [BA1, BA1.swapIn(), BA2, BA3, BA4, MA, MA.swapIn(), DC, HA, Skill, Liberation, Intro, Outro],
   maxEnergy: 17500,
   maxForte1: 4,
   tier: Rarity.FreeS6,
@@ -284,4 +284,4 @@ export const BAIZHI = new Loadout({
 
 // kept for a rotation that reaches them: the swap-in Basic, Basic 4, the Heavy's hold and wind-down,
 // the dodge counter
-void [SwapInBasic, BA4, HALoop, HAEnd, DC];
+void [BA4, DC];

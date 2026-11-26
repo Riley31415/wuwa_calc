@@ -70,35 +70,35 @@ function xlyAction(id: string, def: object): Action {
 
 // --- basics, heavy, mid-air, dodge counter (Probe) — every hit feeds Capacity
 // PLACEHOLDER FRAMES
-const BA1 = xlyAction("Basic - Probe 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [BA1, BA2, BA3, BA4, FSkill], position: Position.Grounded, valid: () => !isHeld(INTUITION), animFrames: 20, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = xlyAction("Basic - Probe 1", { input: Input.Basic, position: Position.Grounded, lacks: INTUITION, animFrames: 20, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 20, mv: 3311, energy: 42, concerto: 84, offtune: 1332 },
     { hitFrame: 20, mv: 3311, energy: 42, concerto: 84, offtune: 1332, forte1: 8 },
   ]});
-const BA2 = xlyAction("Basic - Probe 2", { input: Input.Basic, after: () => [BA1], animFrames: 20, castPriority: 2, bullets: [{ hitFrame: 15, mv: 9961, energy: 126, concerto: 251, offtune: 4008, forte1: 14 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
+const BA2 = xlyAction("Basic - Probe 2", { input: Input.Basic, inputPriority: 1, after: [BA1], animFrames: 20, castPriority: 2, bullets: [{ hitFrame: 15, mv: 9961, energy: 126, concerto: 251, offtune: 4008, forte1: 14 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
 // PLACEHOLDER FRAMES
-const BA3 = xlyAction("Basic - Probe 3", { input: Input.Basic, after: () => [BA2], animFrames: 48, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = xlyAction("Basic - Probe 3", { input: Input.Basic, inputPriority: 1, after: [BA2], animFrames: 48, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 40, mv: 3976, energy: 50, concerto: 100, offtune: 1600 },
     { hitFrame: 40, mv: 3976, energy: 50, concerto: 100, offtune: 1600 },
     { hitFrame: 40, mv: 3976, energy: 50, concerto: 100, offtune: 1600, forte1: 15 },
   ]});
 // PLACEHOLDER FRAMES
-const BA4 = xlyAction("Basic - Probe 4", { input: Input.Basic, after: () => [BA3], animFrames: 48, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA4 = xlyAction("Basic - Probe 4", { input: Input.Basic, inputPriority: 1, after: [BA3], animFrames: 48, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 32, mv: 5305, energy: 67, concerto: 134, offtune: 2135 },
     { hitFrame: 32, mv: 5305, energy: 67, concerto: 134, offtune: 2135 },
     { hitFrame: 32, mv: 2653, energy: 34, concerto: 67, offtune: 1068, forte1: 18 },
   ]});
-const BA5 = xlyAction("Basic - Probe 5", { input: Input.Basic, after: () => [BA4], animFrames: 64, castPriority: 2, bullets: [{ hitFrame: 33, mv: 19881, energy: 250, concerto: 500, offtune: 8000, forte1: 20 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
+const BA5 = xlyAction("Basic - Probe 5", { input: Input.Basic, inputPriority: 1, after: [BA4], animFrames: 64, castPriority: 2, bullets: [{ hitFrame: 33, mv: 19881, energy: 250, concerto: 500, offtune: 8000, forte1: 20 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
 
 // PLACEHOLDER FRAMES
 const HA = xlyAction("Heavy - Probe", { input: Input.BasicHold, animFrames: 58, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 58, mv: 8281, energy: 105, concerto: 209, offtune: 3332 },
     { hitFrame: 58, mv: 8281, energy: 105, concerto: 209, offtune: 3332, forte1: 18 },
   ]});
-const MA = xlyAction("Mid-air - Probe Plunge", { input: [Input.Basic, Input.SwapIn], position: Position.Midair, notAfter: () => [FSkill, USkill], endPosition: Position.Grounded, animFrames: 60, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 60, mv: 12327, energy: 52, concerto: 100, offtune: 4960, forte1: 13 }] });
-const DC = xlyAction("Dodge Counter - Probe", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 23858, energy: 275, concerto: 250, offtune: 4000, forte1: 26 }], castConcerto: 1000 });
+const MA = xlyAction("Mid-air - Probe Plunge", { input: Input.Basic, position: Position.Midair, endPosition: Position.Grounded, animFrames: 60, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 60, mv: 12327, energy: 52, concerto: 100, offtune: 4960, forte1: 13 }] });
+const DC = xlyAction("Dodge Counter - Probe", { input: Input.Basic, after: [SUCCESSFUL_DODGE], castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 23858, energy: 275, concerto: 250, offtune: 4000, forte1: 26 }], castConcerto: 1000 });
 
 // PLACEHOLDER FRAMES
-const Skill = xlyAction("Skill - Deduction", { input: Input.Skill, yieldsTo: () => [UForte], animFrames: 41, castPriority: 4, cooldown: 60 * 5, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+const Skill = xlyAction("Skill - Deduction", { input: Input.Skill, animFrames: 41, castPriority: 4, cooldown: 60 * 5, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 15, mv: 9941, energy: 313, offtune: 2000 },
     { hitFrame: 15, mv: 9940, energy: 312, offtune: 2000, forte1: 40 },
   ], castConcerto: 700});
@@ -112,16 +112,16 @@ const Liberation = xlyAction("Liberation - Cogitation Model", { input: Input.Lib
 
 // Intuition's own moveset — Pivot - Impale basics, Divergence, Unfathomed; Performance Capacity
 // (forte2) deltas are the kit text's own numbers
-const UBA1 = xlyAction("Basic - Pivot: Impale 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [UBA1, UBA2, USkill], position: Position.Grounded, holds: INTUITION, valid: () => isHeld(INTUITION), animFrames: 60, castPriority: 2, node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 60, mv: 11967, energy: 131, concerto: 262, offtune: 4192, forte2: 1 }] });
+const UBA1 = xlyAction("Basic - Pivot: Impale 1", { input: Input.Basic, position: Position.Grounded, holds: INTUITION, animFrames: 60, castPriority: 2, node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 60, mv: 11967, energy: 131, concerto: 262, offtune: 4192, forte2: 1 }] });
 // PLACEHOLDER FRAMES
-const UBA2 = xlyAction("Basic - Pivot: Impale 2", { input: Input.Basic, after: () => [UBA1], holds: INTUITION, animFrames: 60, castPriority: 2, node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, bullets: [
+const UBA2 = xlyAction("Basic - Pivot: Impale 2", { input: Input.Basic, inputPriority: 1, after: [UBA1], holds: INTUITION, animFrames: 60, castPriority: 2, node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 60, mv: 6092, energy: 67, concerto: 134, offtune: 2134 },
     { hitFrame: 60, mv: 6092, energy: 67, concerto: 134, offtune: 2134 },
     { hitFrame: 60, mv: 6092, energy: 67, concerto: 134, offtune: 2134 },
     { hitFrame: 60, mv: 6092, energy: 67, concerto: 134, offtune: 2134, forte2: 2 },
   ]});
 // PLACEHOLDER FRAMES
-const UBA3 = xlyAction("Basic - Pivot: Impale 3", { input: Input.Basic, after: () => [UBA2], holds: INTUITION, animFrames: 60, castPriority: 2, node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, bullets: [
+const UBA3 = xlyAction("Basic - Pivot: Impale 3", { input: Input.Basic, inputPriority: 1, after: [UBA2], holds: INTUITION, animFrames: 60, castPriority: 2, node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 60, mv: 13325, energy: 146, concerto: 292, offtune: 4668 },
     { hitFrame: 60, mv: 13325, energy: 146, concerto: 292, offtune: 4668, forte2: 2 },
   ]});
@@ -135,7 +135,7 @@ const USkill = xlyAction("Skill - Divergence", { endPosition: Position.Midair, i
     { hitFrame: 85, mv: 17355, energy: 347, concerto: 175, offtune: 3260, forte2: 2 },
   ], castConcerto: 1000});
 // PLACEHOLDER FRAMES
-const UDC = xlyAction("Dodge Counter - Unfathomed", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], holds: INTUITION, castPriority: 8, node: Node.Liberation, cast: Cast.DodgeCounter, type: Type.Liberation, bullets: [
+const UDC = xlyAction("Dodge Counter - Unfathomed", { input: Input.Basic, after: [SUCCESSFUL_DODGE], holds: INTUITION, castPriority: 8, node: Node.Liberation, cast: Cast.DodgeCounter, type: Type.Liberation, bullets: [
     { hitFrame: 0, mv: 3883, energy: 40, concerto: 50, offtune: 800 },
     { hitFrame: 0, mv: 3883, energy: 40, concerto: 50, offtune: 800 },
     { hitFrame: 0, mv: 31058, energy: 320, concerto: 400, offtune: 6400, forte2: 2 },
@@ -143,7 +143,7 @@ const UDC = xlyAction("Dodge Counter - Unfathomed", { input: Input.Basic, after:
 
 /** Law of Reigns: 5 Performance Capacity and a Hypercube a cast, considered Liberation DMG. */
 // PLACEHOLDER FRAMES
-const UForte = xlyAction("Forte Skill - Law of Reigns", { input: Input.Skill, minForte2: 5, holds: INTUITION, animFrames: 93, castPriority: 4, node: Node.Forte, cast: Cast.Skill, type: Type.Liberation, bullets: [
+const UForte = xlyAction("Forte Skill - Law of Reigns", { input: Input.Skill, inputPriority: 1, minForte2: 5, holds: INTUITION, animFrames: 93, castPriority: 4, node: Node.Forte, cast: Cast.Skill, type: Type.Liberation, bullets: [
     { hitFrame: 85, mv: 9573, energy: 72, offtune: 6840 },
     { hitFrame: 85, mv: 9573, energy: 72, offtune: 6840 },
     { hitFrame: 85, mv: 9573, energy: 72, offtune: 6840 },
@@ -154,7 +154,7 @@ const UForte = xlyAction("Forte Skill - Law of Reigns", { input: Input.Skill, mi
 });
 /** Revamp, the mid-air follow-up to Decipher/Divergence — considered Liberation DMG. */
 // PLACEHOLDER FRAMES
-const FBA = xlyAction("Mid-air - Revamp", { input: Input.Basic, after: () => [FSkill, USkill], position: Position.Midair, endPosition: Position.Grounded, animFrames: 95, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, bullets: [
+const FBA = xlyAction("Mid-air - Revamp", { input: Input.Basic, inputPriority: 1, after: [FSkill, USkill], position: Position.Midair, endPosition: Position.Grounded, animFrames: 95, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, bullets: [
     { hitFrame: 67, mv: 2187, energy: 28, offtune: 880 },
     { hitFrame: 67, mv: 2187, energy: 28, offtune: 880 },
     { hitFrame: 67, mv: 2187, energy: 28, offtune: 880 },
@@ -227,7 +227,7 @@ const XIANGLI_YAO_RESONATOR = new Resonator({
   element: Attribute.Electro,
   weapon: WeaponType.Gauntlets,
   color: "#6b74e8",
-  actions: [BA1, BA2, BA3, BA4, BA5, HA, MA, DC, Skill, FSkill, Liberation, UBA1, UBA2, UBA3, USkill, UDC, UForte, FBA, Intro, Outro],
+  actions: [BA1, BA1.swapIn(), BA2, BA3, BA4, BA5, HA, MA, MA.swapIn(), DC, Skill, FSkill, Liberation, UBA1, UBA1.swapIn(), UBA2, UBA3, USkill, UDC, UForte, FBA, Intro, Outro],
   maxEnergy: 12500,
   maxForte1: 100,
   maxForte2: 5,

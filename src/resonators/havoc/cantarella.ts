@@ -44,7 +44,7 @@ import {
   forte2,
   grounded,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, ActionField, ActionTag } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, ActionField } from "../../engine/rotation.js";
 import { HEALS } from "../status.js";
 import { HECATE_ACTIONS } from "./phrolova.js";
 import { LETHEAN_ELEGY, RIME_DRAPED_SPROUTS, STRINGMASTER, WHISPERS_OF_SIRENS } from "../../weapons/rectifier.js";
@@ -72,18 +72,14 @@ const MIRAGE: Buff = new Buff({
   afterAction: () => { if (forte1() <= 0) revokeCurrent(MIRAGE); },
 });
 
-const BA1 = cantaAction("Basic - Illusion Collapse 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [BA1, BA2, Intro], lacks: MIRAGE, animFrames: 27, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 14, mv: 7953, energy: 100, concerto: 200, offtune: 3200 }]});
-const BA2 = cantaAction("Basic - Illusion Collapse 2", { input: Input.Basic, after: () => [BA1], lacks: MIRAGE, animFrames: 45, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = cantaAction("Basic - Illusion Collapse 1", { input: Input.Basic, animFrames: 27, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 14, mv: 7953, energy: 100, concerto: 200, offtune: 3200 }]});
+const BA2 = cantaAction("Basic - Illusion Collapse 2", { input: Input.Basic, inputPriority: 1, after: [BA1], animFrames: 45, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 16, mv: 3644, energy: 46, concerto: 92, offtune: 1466 },
     { hitFrame: 23, mv: 3644, energy: 46, concerto: 92, offtune: 1466 },
     { hitFrame: 29, mv: 3644, energy: 46, concerto: 92, offtune: 1466 },
     { hitFrame: 35, mv: 3644, energy: 46, concerto: 92, offtune: 1466 },
-  ]}); // 36.44%x4
-// Ripple: "Press Normal Attack shortly after casting this skill to start the Basic Attack combo from Basic Attack Stage 3"
-const BA3 = cantaAction("Basic - Illusion Collapse 3", { input: Input.Basic, after: () => [BA2, Intro], animFrames: 50, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 4, mv: 7257, energy: 92, concerto: 183, offtune: 2920, forte1: 1 },
-    { hitFrame: 19, mv: 7257, energy: 92, concerto: 183, offtune: 2920 },
-  ]}); // 72.57%x2
+  ]});
+ // 72.57%x2
 
 // "When Cantarella has Trance, Heavy Attack becomes Delusive Dive"
 const EHA = cantaAction("Heavy - Delusive Dive", {
@@ -95,33 +91,37 @@ const EHA = cantaAction("Heavy - Delusive Dive", {
   updateBuffs: () => applyCurrent(MIRAGE, 1),
 });
 
-const FBA1 = cantaAction("Forte Basic - Phantom Sting 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [FBA1, FBA2], minForte1: 1, holds: MIRAGE, animFrames: 47, animPriority: { 0: 5, 34: 4, 37: 2 }, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
+const FBA1 = cantaAction("Forte Basic - Phantom Sting 1", { input: Input.Basic, inputPriority: 2, minForte1: 1, holds: MIRAGE, animFrames: 47, animPriority: { 0: 5, 34: 4, 37: 2 }, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 10, mv: 3533, energy: 45, concerto: 89, offtune: 1422, forte2: 1, updateDebuffs: () => applyCurrent(HEALS, 1), forte1: -1 },
     { hitFrame: 21, mv: 3533, energy: 45, concerto: 89, offtune: 1422 },
     { hitFrame: 28, mv: 3533, energy: 45, concerto: 89, offtune: 1422 },
-  ]}); // 35.33%x3
-const FBA2 = cantaAction("Forte Basic - Phantom Sting 2", { input: Input.Basic, after: () => [FBA1], minForte1: 1, holds: MIRAGE, animFrames: 41, animPriority: { 0: 5, 24: 4, 30: 2 }, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
+  ]});
+ // 35.33%x3
+const FBA2 = cantaAction("Forte Basic - Phantom Sting 2", { input: Input.Basic, inputPriority: 3, after: [FBA1], minForte1: 1, holds: MIRAGE, animFrames: 41, animPriority: { 0: 5, 24: 4, 30: 2 }, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 16, mv: 6293, energy: 80, concerto: 159, offtune: 2532, forte2: 1, updateDebuffs: () => applyCurrent(HEALS, 1), forte1: -1 },
     { hitFrame: 32, mv: 6293, energy: 80, concerto: 159, offtune: 2532 },
-  ]}); // 62.93%x2
-const FBA3 = cantaAction("Forte Basic - Phantom Sting 3", { input: Input.Basic, after: () => [FBA2], minForte1: 1, holds: MIRAGE, animFrames: 82, animPriority: { 0: 5, 48: 2 }, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
+  ]});
+ // 62.93%x2
+const FBA3 = cantaAction("Forte Basic - Phantom Sting 3", { input: Input.Basic, inputPriority: 3, after: [FBA2], minForte1: 1, holds: MIRAGE, animFrames: 82, animPriority: { 0: 5, 48: 2 }, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 19, commitFrame: 0, mv: 6462, energy: 82, concerto: 163, offtune: 2600, forte2: 1, subtype: Subtype.Coordinated, updateDebuffs: () => applyCurrent(HEALS, 1), forte1: -1 },
     { hitFrame: 25, commitFrame: 8, mv: 6462, energy: 82, concerto: 163, offtune: 2600, subtype: Subtype.Coordinated },
     { hitFrame: 27, commitFrame: 15, mv: 6462, energy: 82, concerto: 163, offtune: 2600, subtype: Subtype.Coordinated },
     { hitFrame: 45, mv: 6462, energy: 82, concerto: 163, offtune: 2600, subtype: null },
   ],
   updateBuffs: () => dreamweavers(StingDreamweaver),
-}); // 64.62%x4
+});
+ // 64.62%x4
 
-const Skill = cantaAction("Skill - Graceful Step", { input: Input.Skill, lacks: MIRAGE, animFrames: 38, animPriority: { 37: 1 }, castPriority: 3, cooldown: 60 * 6, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [{ hitFrame: 14, mv: 7360, energy: 78, offtune: 2468 }, { hitFrame: 22, mv: 7360, energy: 78, offtune: 2468 }], castConcerto: 1000, castForte1: 1}); // 73.60%x2
+const Skill = cantaAction("Skill - Graceful Step", { input: Input.Skill, animFrames: 38, animPriority: { 37: 1 }, castPriority: 3, cooldown: 60 * 6, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [{ hitFrame: 14, mv: 7360, energy: 78, offtune: 2468 }, { hitFrame: 22, mv: 7360, energy: 78, offtune: 2468 }], castConcerto: 1000, castForte1: 1});
+ // 73.60%x2
 const ESkill = cantaAction("Skill - Flickering Reverie", {
-  input: Input.Skill, maxForte2: 2, holds: MIRAGE, animFrames: 28, animPriority: { 28: 2 }, castPriority: 4, cooldown: 60 * 12,
+  input: Input.Skill, inputPriority: 1, holds: MIRAGE, animFrames: 28, animPriority: { 28: 2 }, castPriority: 4, cooldown: 60 * 12,
   node: Node.Skill, cast: Cast.Skill, subcast: Cast.Echo, type: Type.Skill, bullets: [{ hitFrame: 12, mv: 19623, energy: 165, offtune: 5264 }], castConcerto: 1000,
   // laid behind its own hit, which Jolts any Hazy Dream already standing
   afterAction: () => applyEnemy(HAZY_DREAM, 1),
 });
 /** At 3 Shiver, spending all of it. */
-const FSkill = cantaAction("Forte Skill - Perception Drain", { input: Input.Skill, minForte2: 3, holds: MIRAGE,
+const FSkill = cantaAction("Forte Skill - Perception Drain", { input: Input.Skill, inputPriority: 2, minForte2: 3, holds: MIRAGE,
   animFrames: 80, animPriority: { 0: 5 }, castPriority: 8, cooldown: 60 * 18,
   node: Node.Forte, cast: Cast.Skill, subcast: Cast.Echo, type: Type.Basic, bullets: [
     { hitFrame: 41, mv: 66799, energy: 1055, offtune: 28932 },
@@ -140,19 +140,20 @@ const Liberation = cantaAction("Liberation - Beneath the Sea", {
 /** One Diffusion tick — a real Coordinated Attack, summoned one per qualifying action by
  *  DIFFUSION_WINDOW below, always on her own slot however far the field has moved on. */
 const DIFFUSION_FIELD = new ActionField("Cantarella: Diffusion");
-const ACTION_DIFFUSION = cantaAction("Liberation - Diffusion", { node: Node.Liberation, type: Type.Basic, subtype: Subtype.Coordinated, bullets: [{ hitFrame: 0, mv: 1454 }], field: DIFFUSION_FIELD }); // no energy/concerto/off-tune of its own
+const ACTION_DIFFUSION = cantaAction("Liberation - Diffusion", { node: Node.Liberation, type: Type.Basic, subtype: Subtype.Coordinated, bullets: [{ hitFrame: 0, mv: 1454 }], field: DIFFUSION_FIELD });
+ // no energy/concerto/off-tune of its own
 
 /** The three Coordinated Attacks Tidal Surge and Phantom Sting Stage 3 each set off on hit — one
  *  Dreamweaver apiece, the same 14.54% the Liberation's own Diffusion summons. They are her own
  *  press's follow-up rather than that window's, so they carry neither its field nor its stacks;
  *  one action per trigger, so the report names each run after the cast it came off. */
-const DREAMWEAVER = { tag: ActionTag.OffField, type: Type.Basic, subtype: Subtype.Coordinated };
+const DREAMWEAVER = { type: Type.Basic, subtype: Subtype.Coordinated };
 const IntroDreamweaver = cantaAction("Intro - Dreamweaver", { animFrames: 5, node: Node.Liberation, ...DREAMWEAVER, bullets: [{ hitFrame: 5, commitFrame: 0, mv: 1454 }] });
 const StingDreamweaver = cantaAction("Basic - Dreamweaver", { animFrames: 5, node: Node.Liberation, ...DREAMWEAVER, bullets: [{ hitFrame: 5, commitFrame: 0, mv: 1454 }] });
 function dreamweavers(tick: Action): void { for (let i = 0; i < 3; i++) queue(tick); }
 
 const Intro = cantaAction("Intro - Ripple", {
-  input: Input.Intro, valid: () => !isHeld(MIRAGE), endPosition: Position.Grounded, qteFrames: 33, animFrames: 76, noSwapFrames: 80, animPriority: { 76: 2 }, castPriority: 11, motionStop: [4, 30],
+  input: Input.Intro, lacks: MIRAGE, endPosition: Position.Grounded, qteFrames: 33, animFrames: 76, noSwapFrames: 80, animPriority: { 76: 2 }, castPriority: 11, motionStop: [4, 30],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 36, mv: 4225, energy: 250, offtune: 2528 },
     { hitFrame: 42, mv: 4225, energy: 250, offtune: 2528 },
@@ -161,11 +162,17 @@ const Intro = cantaAction("Intro - Ripple", {
   ], castConcerto: 1000, castForte1: 1, // 42.25%x4
   updateBuffs: () => applyCurrent(ABYSSAL_REBIRTH, 6),
 });
+ // 36.44%x4
+// Ripple: "Press Normal Attack shortly after casting this skill to start the Basic Attack combo from Basic Attack Stage 3"
+const BA3 = cantaAction("Basic - Illusion Collapse 3", { input: Input.Basic, inputPriority: 1, after: [BA2, Intro], animFrames: 50, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 4, mv: 7257, energy: 92, concerto: 183, offtune: 2920, forte1: 1 },
+    { hitFrame: 19, mv: 7257, energy: 92, concerto: 183, offtune: 2920 },
+  ]});
 /** Tidal Surge: the Intro she casts while Mirage still stands. Same motion value as Ripple, and
  *  three Coordinated Attacks on top. Her Mirage runs 8s and is gone by her own outro, so nothing
  *  in the loop below actually reaches this — it is what a quicker swap back in would cast. */
 const EIntro = cantaAction("Intro - Tidal Surge", { endPosition: Position.Grounded, qteFrames: 36,
-  input: Input.Intro, valid: () => isHeld(MIRAGE), animFrames: 83, noSwapFrames: 80, animPriority: { 83: 2 }, castPriority: 11, motionStop: [4, 49],
+  input: Input.Intro, holds: MIRAGE, animFrames: 83, noSwapFrames: 80, animPriority: { 83: 2 }, castPriority: 11, motionStop: [4, 49],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
     { hitFrame: 26, mv: 1690, energy: 100, offtune: 1064, subtype: Subtype.Coordinated },
     { hitFrame: 32, mv: 1690, energy: 100, offtune: 1064, subtype: Subtype.Coordinated },
@@ -264,7 +271,7 @@ const CANTARELLA_RESONATOR = new Resonator({
   element: Attribute.Havoc,
   weapon: WeaponType.Rectifier,
   color: "#896fd6",
-  actions: [BA1, BA2, BA3, EHA, FBA1, FBA2, FBA3, Skill, ESkill, FSkill, Liberation, Intro, EIntro, Outro],
+  actions: [BA1, BA1.swapIn(), BA2, BA3, EHA, FBA1, FBA1.swapIn(), FBA2, FBA3, Skill, ESkill, FSkill, Liberation, Intro, EIntro, Outro],
   maxEnergy: 12500,
   maxForte1: 5,
   maxForte2: 3,
@@ -334,13 +341,13 @@ const BA123 = new ActionGroup("Basic - Illusion Collapse 123", [BA1, BA2, BA3]);
 // Liberation lays and leaves its own for Phantom Sting, two Jolts a loop
 
 const CA_ROTATION = new Rotation([
-  Intro, BA3.cancel(), Skill.instaCancel(), LORELEI.dodgeCancel(), FALLACY.instaCancel(), HERON.instaDodge(), HECATE.instaCancel(), NM_CROWNLESS.instaDodge(), Liberation, 
+  Intro, BA3.cancel(), Skill.instaCancel(), LORELEI.dashCancel(), FALLACY.instaCancel(), HERON.instaDash(), HECATE.instaCancel(), NM_CROWNLESS.instaDash(), Liberation,
   EHA, FBA1.mashCancel(), ESkill, FBA1, FBA2.mashCancel(), FSkill, FBA1, FBA2.instaSwap(), Outro,
 ]);
 
 const CA_ROTATION_MDPS = new Rotation([
-  Intro, BA3.cancel(), Skill.instaCancel(), LORELEI.dodgeCancel(), FALLACY.instaCancel(), HERON, HECATE.instaCancel(), NM_CROWNLESS, Liberation,
-  EHA, FBA123.cancel(), FSkill, NM_CROWNLESS.instaDodge(), ESkill, // TODO check if fskill cancelled by echo
+  Intro, BA3.cancel(), Skill.instaCancel(), LORELEI.dashCancel(), FALLACY.instaCancel(), HERON, HECATE.instaCancel(), NM_CROWNLESS, Liberation,
+  EHA, FBA123.cancel(), FSkill, NM_CROWNLESS.instaDash(), ESkill, // TODO check if fskill cancelled by echo
   FBA123, Outro,
 ]);
 

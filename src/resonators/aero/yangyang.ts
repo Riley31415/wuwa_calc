@@ -54,14 +54,14 @@ const Outro = yangyangAction("Outro - Whispering Breeze", {
   updateBuffs: () => queueQTE(WHISPERING_BREEZE),
 });
 
-const BA1 = yangyangAction("Basic - Feather as Blade 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [BA1, BA2, BA3, HA, DC], position: Position.Grounded, animFrames: 21, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 10, mv: 4473, energy: 75, concerto: 240, offtune: 2400 }]});
-const BA2 = yangyangAction("Basic - Feather as Blade 2", { input: Input.Basic, after: () => [BA1], animFrames: 27, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 13, mv: 5964, energy: 100, concerto: 320, offtune: 3200 }]});
-const BA3 = yangyangAction("Basic - Feather as Blade 3", { input: Input.Basic, after: () => [BA2], animFrames: 43, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = yangyangAction("Basic - Feather as Blade 1", { input: Input.Basic, position: Position.Grounded, animFrames: 21, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 10, mv: 4473, energy: 75, concerto: 240, offtune: 2400 }]});
+const BA2 = yangyangAction("Basic - Feather as Blade 2", { input: Input.Basic, inputPriority: 1, after: [BA1], animFrames: 27, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 13, mv: 5964, energy: 100, concerto: 320, offtune: 3200 }]});
+const BA3 = yangyangAction("Basic - Feather as Blade 3", { input: Input.Basic, inputPriority: 1, after: [BA2], animFrames: 43, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 13, mv: 4681, energy: 78, concerto: 251, offtune: 2520 },
     { hitFrame: 28, mv: 4681, energy: 78, concerto: 251, offtune: 2520 },
   ]});
 // Stage 4's last hit banks a Melody
-const BA4 = yangyangAction("Basic - Feather as Blade 4", { input: Input.Basic, after: () => [BA3], animFrames: 69, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA4 = yangyangAction("Basic - Feather as Blade 4", { input: Input.Basic, inputPriority: 1, after: [BA3], animFrames: 69, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 5, mv: 5936, energy: 100, concerto: 318, offtune: 3192 },
     { hitFrame: 16, mv: 5936, energy: 100, concerto: 318, offtune: 3192 },
     { hitFrame: 48, mv: 7914, energy: 132, concerto: 424, offtune: 4256, forte1: 1 },
@@ -69,20 +69,20 @@ const BA4 = yangyangAction("Basic - Feather as Blade 4", { input: Input.Basic, a
 
 // at three Melodies the Heavy Attack, Dodge Counter and mid-air Basic are their Stormy Strike /
 // Feather Release forms instead
-const HA = yangyangAction("Heavy - Feather as Blade", { input: Input.BasicHold, maxForte1: 2, animFrames: 34, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+const HA = yangyangAction("Heavy - Feather as Blade", { input: Input.BasicHold, animFrames: 34, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 15, mv: 1988, energy: 33, concerto: 106, offtune: 1067 },
     { hitFrame: 19, commitFrame: 15, mv: 1988, energy: 33, concerto: 106, offtune: 1067 },
     { hitFrame: 23, commitFrame: 15, mv: 1988, energy: 33, concerto: 106, offtune: 1067 },
   ]});
-const DC = yangyangAction("Dodge Counter - Feather as Blade", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], maxForte1: 2, animFrames: 35, animPriority: { 0: 8, 7: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Heavy, bullets: [
+const DC = yangyangAction("Dodge Counter - Feather as Blade", { input: Input.Basic, after: [SUCCESSFUL_DODGE], animFrames: 35, animPriority: { 0: 8, 7: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Heavy, bullets: [
     { hitFrame: 21, mv: 8707, energy: 136, concerto: 198, offtune: 2000 },
     { hitFrame: 27, commitFrame: 21, mv: 8707, energy: 136, concerto: 198, offtune: 2000 },
   ], castConcerto: 1000});
 // "Use Basic Attack after Heavy Attack or Dodge Counter"; deals Heavy Attack DMG and banks a Melody
-const ZephyrSong = yangyangAction("Basic - Zephyr Song", { input: Input.Basic, after: () => [HA, DC], animFrames: 43, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
+const ZephyrSong = yangyangAction("Basic - Zephyr Song", { input: Input.Basic, inputPriority: 1, after: [HA, DC], animFrames: 43, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
     { hitFrame: 11, commitFrame: 2, mv: 10661, energy: 178, concerto: 572, offtune: 5760, forte1: 1 },
   ]});
-const MA = yangyangAction("Mid-air - Feather as Blade Plunge", { input: [Input.Basic, Input.SwapIn], position: Position.Midair, maxForte1: 2, valid: () => forte1() < 3, endPosition: Position.Grounded, animFrames: 57, animPriority: { 0: 6, 45: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MA = yangyangAction("Mid-air - Feather as Blade Plunge", { input: Input.Basic, position: Position.Midair, maxForte1: 2, endPosition: Position.Grounded, animFrames: 57, animPriority: { 0: 6, 45: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 33, mv: 9244, energy: 51, concerto: 100, offtune: 4960 },
   ]});
 
@@ -91,20 +91,20 @@ const STORMY = [
   { hitFrame: 31, mv: 3802, energy: 63, concerto: 204, offtune: 2040 },
   { hitFrame: 39, mv: 3802, energy: 63, concerto: 204, offtune: 2040 },
 ];
-const StormyStrike = yangyangAction("Heavy - Stormy Strike", { endPosition: Position.Midair, input: Input.BasicHold, minForte1: 3, animFrames: 48, animPriority: { 0: 2 }, castPriority: 2, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+const StormyStrike = yangyangAction("Heavy - Stormy Strike", { endPosition: Position.Midair, input: Input.BasicHold, inputPriority: 1, minForte1: 3, animFrames: 48, animPriority: { 0: 2 }, castPriority: 2, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 15, mv: 1988, energy: 33, concerto: 106, offtune: 1067 },
     { hitFrame: 19, commitFrame: 15, mv: 1988, energy: 33, concerto: 106, offtune: 1067 },
     { hitFrame: 23, commitFrame: 15, mv: 1988, energy: 33, concerto: 106, offtune: 1067 },
     ...STORMY,
   ]});
-const StormyDC = yangyangAction("Dodge Counter - Stormy Strike", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], minForte1: 3, endPosition: Position.Midair, animFrames: 64, animPriority: { 0: 8, 7: 2 }, castPriority: 8, node: Node.Forte, cast: Cast.DodgeCounter, type: Type.Heavy, bullets: [
+const StormyDC = yangyangAction("Dodge Counter - Stormy Strike", { input: Input.Basic, inputPriority: 1, after: [SUCCESSFUL_DODGE], minForte1: 3, endPosition: Position.Midair, animFrames: 64, animPriority: { 0: 8, 7: 2 }, castPriority: 8, node: Node.Forte, cast: Cast.DodgeCounter, type: Type.Heavy, bullets: [
     { hitFrame: 21, mv: 8707, energy: 136, concerto: 198, offtune: 2000 },
     { hitFrame: 27, commitFrame: 21, mv: 8707, energy: 136, concerto: 198, offtune: 2000 },
     { hitFrame: 47, mv: 3802, energy: 63, concerto: 204, offtune: 2040 },
     { hitFrame: 54, mv: 3802, energy: 63, concerto: 204, offtune: 2040 },
   ], castConcerto: 1000});
 // "cast Basic Attack in mid-air to consume all Melodies", the last hit the sheathe as she lands
-const FeatherRelease = yangyangAction("Forte Mid-air - Feather Release", { input: [Input.Basic, Input.SwapIn], position: Position.Midair, minForte1: 3, valid: () => forte1() >= 3, endPosition: Position.Grounded, resetForte1: true,
+const FeatherRelease = yangyangAction("Forte Mid-air - Feather Release", { input: Input.Basic, inputPriority: 1, position: Position.Midair, minForte1: 3, endPosition: Position.Grounded, resetForte1: true,
   animFrames: 119, animPriority: { 0: 6, 62: 2 }, castPriority: 6,
   node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 2173, energy: 36, concerto: 100, offtune: 1167 },
@@ -238,7 +238,7 @@ const YANGYANG_RESONATOR = new Resonator({
   element: Attribute.Aero,
   weapon: WeaponType.Sword,
   color: "#4e82d9",
-  actions: [Intro, Outro, BA1, BA2, BA3, BA4, HA, DC, ZephyrSong, MA, StormyStrike, StormyDC, FeatherRelease, Skill, Liberation, tuneBreak(89, 89, [0, 90], [0, 70], SWORD_BREAK)],
+  actions: [Intro, Outro, BA1, BA1.swapIn(), BA2, BA3, BA4, HA, DC, ZephyrSong, MA, MA.swapIn(), StormyStrike, StormyDC, FeatherRelease, FeatherRelease.swapIn(), Skill, Liberation, tuneBreak(89, 89, [0, 90], [0, 70], SWORD_BREAK)],
   maxEnergy: 10000,
   maxForte1: 3,
   tier: Rarity.FreeS6,
@@ -253,7 +253,7 @@ const HA12 = new ActionGroup("Heavy - Feather as Blade + Zephyr Song", [HA, Zeph
 
 const YY_ROTATION = new Rotation([
   SWAPIN,
-  HA12.instaCancel(), 
+  HA12.instaCancel(),
   Liberation,
   HA12.instaCancel(),
   Skill.jumpCancel(), FeatherRelease.cancel(),

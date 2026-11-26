@@ -42,6 +42,8 @@ import {
   queueOutro,
   removeStack,
   revokeCurrent,
+  revokeTeam,
+  applyTeam,
   stacksOfTeam,
 } from "../engine/context.js";
 
@@ -55,16 +57,21 @@ export const UNISON = new Buff({
     if (!casting(Cast.Outro)) return;
     revokeCurrent(UNISON);
     queueOutro(UNISON_INTRO);
+    applyTeam(UNISON_HANDOFF, 1);
   },
 });
+
+/** Hidden marker, team-wide: a Unison Outro was cast and its handoff not yet spent — what a responder's
+ *  Unison Intro holds. Off with UNISON_INTRO once the Intro row pays out. */
+export const UNISON_HANDOFF = new Buff({});
 
 /** The Unison form of a kit's Outro: the same cast with no Concerto spend and no full-bar
  *  condition, since Unison pays for the swap in the bar's place — so the bar carries over into the
  *  owner's next visit, and the outro is never short whatever it held. A Unison-capable kit builds one
- *  off its plain Outro and lists both in its actions: this one is valid while Unison is held, and the
- *  plain one's `valid` says it isn't (`lacks(UNISON)`). */
+ *  off its plain Outro and lists both in its actions: this one is valid while Unison is held, and
+ *  takes the Outro input from the plain one then (`inputPriority` one above it). */
 export const unisonOutro = (outro: Action): Action => {
-  const out = outro.variant(`${outro.name} (Unison)`, { castConcerto: 0, holds: UNISON});
+  const out = outro.variant(`${outro.name} (Unison)`, { castConcerto: 0, holds: UNISON, inputPriority: outro.inputPriority + 1 });
   out.formOf = outro;
   return out;
 };
@@ -76,8 +83,8 @@ export const gainedUnison = inflicting(() => applied(UNISON) > 0);
  *  and gone once the Intro row has paid out — its last hit, whatever cut the press (`introPaid`). */
 export const UNISON_INTRO = new Buff({
   //name: "Unison Intro",
-  afterHit: () => { if (introPaid()) revokeCurrent(UNISON_INTRO); },
-  afterAction: () => { if (introPaid()) revokeCurrent(UNISON_INTRO); },
+  afterHit: () => { if (introPaid()) { revokeCurrent(UNISON_INTRO); revokeTeam(UNISON_HANDOFF); } },
+  afterAction: () => { if (introPaid()) { revokeCurrent(UNISON_INTRO); revokeTeam(UNISON_HANDOFF); } },
 });
 
 /** Is the Intro being resolved or evaluated answering a Unison outro? True from an Intro Resolver —

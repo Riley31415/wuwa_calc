@@ -59,7 +59,7 @@ function cutsInto(prev: Press, next: Press | null, echoAtEnd: boolean): Cut[] {
   if (air) return [Cut.Jump];
   if (next === P.Skill || LIBERATIONS.has(next)) return [Cut.CancelOrNone];
   if (next === P.BA2 || next === P.BA3 || next === P.BA4) return [Cut.None];
-  return [Cut.None, Cut.Dodge];
+  return [Cut.None, Cut.Dash];
 }
 
 interface Node { steps: Step[]; at: number; forte: number; cores: number; skill: boolean; lib: boolean; echo: boolean; conc: number }
@@ -136,7 +136,7 @@ async function search(start: Node, opener: Step[] | null, wantForte: (left: numb
         const spends = SPENDS.has(next);
         const cores = spends ? 0 : Math.min(5, n.cores + (CORES.get(next) ?? 0));
         for (const cut of cutsInto(last, next, false)) {
-          if (next === P.BA1 && cut !== Cut.Dodge && BA1_NOT_AFTER.has(last)) continue;
+          if (next === P.BA1 && cut !== Cut.Dash && BA1_NOT_AFTER.has(last)) continue;
           // played plain, then the probe and the Outro: where it starts, and what the string banks once it lands
           const steps = [...n.steps.slice(0, -1), [last, cut] as const, [next, Cut.None] as const];
           tasks.push(evaluate(job(steps, [[P.Probe, Cut.None], [P.Outro, Cut.None]])).then((r) => {
@@ -169,7 +169,7 @@ async function search(start: Node, opener: Step[] | null, wantForte: (left: numb
 // how a step reads in the output: the press's short name, its cut, the close after the last
 const NAMES = new Map<Press, string>([[P.BA1, "BA1"], [P.BA2, "BA2"], [P.BA3, "BA3"], [P.BA4, "BA4"], [P.MA, "MA"], [P.Skill, "Skill"],
   [P.Illation, "Illation"], [P.Transmutation, "Transmutation"], [P.Liberation, "Liberation"], [P.EchoesLiberation, "echoes → Liberation"], [P.Intro, "Intro"]]);
-const CUT_NAMES: Partial<Record<Cut, string>> = { [Cut.Cancel]: "cancel", [Cut.CancelOrNone]: "cancel", [Cut.Insta]: "insta", [Cut.Dodge]: "dodge", [Cut.Jump]: "jump", [Cut.Hold]: "hold", [Cut.Swap]: "swap", [Cut.InstaJump]: "instajump" };
+const CUT_NAMES: Partial<Record<Cut, string>> = { [Cut.Cancel]: "cancel", [Cut.CancelOrNone]: "cancel", [Cut.Insta]: "insta", [Cut.Dash]: "dodge", [Cut.Jump]: "jump", [Cut.Hold]: "hold", [Cut.Swap]: "swap", [Cut.InstaJump]: "instajump" };
 const label = (f: Found): string => f.steps.map(([p, c], j) => {
   const cut = j === f.steps.length - 1 && f.echoAtEnd ? Cut.Swap : c;
   if (cut === Cut.PlainJump) return `${NAMES.get(p)} → Jump`;

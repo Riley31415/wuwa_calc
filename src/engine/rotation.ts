@@ -38,9 +38,13 @@ import { ctx, resolving } from "./runtime.js";
 import type { GearDef, Mainslot } from "./gear.js";
 import type { State, TeamMember, VisitGate } from "./state.js";
 import type { Result } from "./evaluate.js";
-import { Cast, Input, INPUTS, isHeldInput, ActionTag, INSTA_DELAY, HOLD_MINIMUM, MASH_DELAY, CANCEL_DELAY, DESPAWN_TIME, Position, splitStop, DELAYS, delaysWith, useDelays, atDelays } from "./stats.js";
+import { Cast, Input, INPUTS, isHeldInput, Transition, Timing, KIND_OF, VIA_OF, Via, isSwapTransition, waitsForNext, instaOf, INPUT_PRECISION, MASH_SPEED, HOLD_BUFFER, DESPAWN_TIME, Position, splitStop, DELAYS, delaysWith, useDelays, atDelays } from "./stats.js";
+import { INPUT_NAME } from "./stats.js";
 import type { Delays } from "./stats.js";
 import type { Attribute, Type, Subtype, Node, Scaling } from "./stats.js";
+
+/** Each button's held input (`Action.held()`). */
+const HELD_OF: Partial<Record<Input, Input>> = { [Input.Basic]: Input.BasicHold, [Input.Skill]: Input.SkillHold, [Input.Liberation]: Input.LiberationHold };
 
 /* ------------------------------------------------------------------------------- the action */
 
@@ -49,8 +53,9 @@ export interface ActionDef extends GearDef {
   element?: Attribute | null;
   type?: Type | null;
   subtype?: Subtype | null;
-  cast?: Cast | null;
-  subcast?: Cast | null;
+  /** Unset, `Cast.None`: nobody's cast (a coordinated hit, a queued follow-up, a wait). */
+  cast?: Cast;
+  subcast?: Cast;
   node?: Node | null;
   scaling?: Scaling | null;
   /** What the *cast* banks, the moment it is pressed: a spend (an outro's -100 Concerto, a forte
@@ -83,15 +88,16 @@ export interface ActionDef extends GearDef {
   resetForte3?: boolean;
   resetForte4?: boolean;
   resetForte5?: boolean;
-  /** What leads to it, one input or several (its button, and `Input.SwapIn` for a swap-in opener): what a
-   *  search walks and a marker picks by. Unset, `Input.None` (nobody's press); an echo's press is `Input.Echo`. */
-  input?: Input | readonly Input[];
+  /** What leads to it, one input: what a search walks and a marker picks by. Unset, `Input.None` (nobody's
+   *  press); an echo's press is `Input.Echo`. On a second input it is a copy (`swapIn()`, `held()`, `onInput()`). */
+  input?: Input;
   /** Its conditions, all of which must hold to press it (`Action.validFn` joins them with AND): it follows one
    *  of `after` and none of `notAfter` (`after()`/`notAfter()`), stands at `position`, every one of `holds` and
-   *  none of `lacks` is up (`holds()`/`lacks()`), its bars are inside their `min`/`max` (inclusive), `valid`
-   *  (whatever a field can't say: a sequence, a store's contents) holds, and none of `yieldsTo` is valid with a
-   *  charge ready — the press that takes its button then. Never energy. False reads red and warns, and a hold
-   *  waits for true. A variant setting any of them replaces every one of its base's. */
+   *  none of `lacks` is up (`holds()`/`lacks()`; a sequence or a resonator is held gear too), its bars and the
+   *  target's off-tune are inside their `min`/`max` (inclusive). Never energy, never a function: a state kept in
+   *  bits or a count is a hidden marker buff the kit keeps in sync. False reads red and warns,
+   *  and a hold waits for true. A variant setting any of them replaces every one of its base's. A press another
+   *  replaces on its input ("Resonance Skill is replaced with...") is outranked by `inputPriority`, not negated. */
   after?: ActionList;
   notAfter?: ActionList;
   position?: Position;
@@ -109,8 +115,12 @@ export interface ActionDef extends GearDef {
   maxForte4?: number;
   minForte5?: number;
   maxForte5?: number;
-  valid?: () => boolean;
-  yieldsTo?: ActionList;
+  /** The target's off-tune bar at least this (inclusive): a Tune Break's full bar. */
+  minOfftune?: number;
+  /** Which press its input makes when several are valid: the highest whose conditions hold with a charge
+   *  ready, so a lower one outranked there is invalid. Default 0; the plain dashes, jump, Swap and the
+   *  weapon's Tune Break are -1. Not read where chain, stand or buffs read as met, nor on a swap-in opener. */
+  inputPriority?: number;
   /** It doesn't break its owner's chain: the next press follows the one before it (`chainAs()`) — a summon echo. */
   keepsChain?: boolean;
   /** Cast at the start of the press after it, never cutting the one before (a summon echo): that
@@ -176,15 +186,16 @@ export interface ActionDef extends GearDef {
   /** The length this cast puts a shared `cooldown` on, where the casts sharing it differ (Jinhsi's
    *  Trailing Lights 3s, Crescent Divinity 10s). The Cooldown's own `frames` otherwise. */
   cooldownFrames?: number;
-  /** The one tag this action carries: how it is cut short, or that it plays beside the fight
-   *  (`OffField`). `Default` unless it says otherwise. */
-  tag?: ActionTag;
+  /** How this action hands over to the next (an old written cancel): `Temporary` unless it says otherwise. */
+  transition?: Transition;
+  /** A press with no input that still plays on field: its owner's own animation carrying on (Brant's flips). */
+  onField?: boolean;
   /** A wait on the game timer (`Cooldown.wait()`): `animFrames` are game frames, and it plays
    *  however many real ones that takes, time stop landing inside it included. */
   gameWait?: boolean;
 }
 
-export { ActionTag };
+export { Transition, Timing };
 
 /** One bullet of a press: the frame it hits from the press's start (time stop included), the frame
  *  it commits by (a cut after that can't stop it), what it deals and banks, what it deals as (the
@@ -230,31 +241,27 @@ export interface Bullet extends Readonly<BulletDef> {
   readonly index: number;
 }
 
-/** A press's frames as the clock charges them: the action up to its cut (its whole length when
- *  it runs out; `cutFrame`, or an on-hit cut's first hit), less the world's time stop inside that,
- *  plus the delay its cut runs on past that point — `CANCEL_DELAY` for a plain, dodge, jump, on-hit
- *  or swap cancel, `INSTA_DELAY` for an insta one and an insta swap; a mash swap lets go
- *  `MASH_DELAY` after its no-swap frames, and plays no delay past that. A hold or mash cancel
- *  lets go where the next press can come out (`holdAt()`), here costed at its least. An insta cut
- *  is made on the press and a field press lands beside the fight, so neither plays any of its own. */
-export function cancelCost(a: Action, cut: ActionTag | null): { action: number; timestop: number; global: number; total: number } {
+/** A press's frames as the clock charges them, by its transition: `action` the frames to the frame its
+ *  cut aims at, `global` the input delay after it; the next press starts at their sum. */
+export function cancelCost(a: Action, cut: Transition | null): { action: number; timestop: number; global: number; total: number } {
   const full = a.animFrames;
-  const tag = cut ?? a.tag;
-  const insta = tag === ActionTag.InstaCancel || tag === ActionTag.InstaDodge || tag === ActionTag.InstaJump || tag === ActionTag.InstaSwap;
-  // a cut plays to its cut frame in place of its frames, never past its end — the whole press's,
-  // a part holding none of its bullets
+  const kind = cut ?? a.transition, t = KIND_OF[kind];
+  // the whole press's frames, a cast part holding none of its bullets
   const whole = a.half === "cast" ? a.formOf ?? a : a;
+  let aim: number, delay = 0;
   // an Outro is cast on the way off, and plays its animation behind the incoming Intro
-  const action = tag === ActionTag.OffField || insta || a.cast === Cast.Outro ? 0 : tag === ActionTag.Default ? full
-    : tag === ActionTag.HoldCancel ? Math.min(HOLD_MINIMUM, full)
-    : tag === ActionTag.MashCancel ? Math.min(MASH_DELAY, full)
-    : tag === ActionTag.MashSwap ? Math.min(whole.noSwapFrames + MASH_DELAY, full)
-    : tag === ActionTag.TimedCancel ? Math.min(whole.timedAt ?? a.timedAt ?? full, full)
-    : Math.min(whole.onHitAt ?? whole.cutFrame, full);
-  // a swap's delay runs on past its cut like any other cancel's: a swap cancel's CANCEL_DELAY, an insta one's INSTA_DELAY
-  const global = insta ? INSTA_DELAY
-    : tag === ActionTag.SwapCancel || tag === ActionTag.Cancel || tag === ActionTag.DodgeCancel || tag === ActionTag.JumpCancel
-      || tag === ActionTag.HitCancel || tag === ActionTag.DodgeOnHit || tag === ActionTag.JumpOnHit ? CANCEL_DELAY : 0;
+  if (a.offField || a.cast === Cast.Outro) aim = 0;
+  else if (t === "instant") [aim, delay] = [0, INPUT_PRECISION];
+  else if (t === "lastcommit") [aim, delay] = [whole.cutFrame, INPUT_PRECISION];
+  else if (t === "onhit") [aim, delay] = [whole.onHitAt ?? whole.cutFrame, INPUT_PRECISION];
+  else if (t === "timed") aim = whole.timedAt ?? a.timedAt ?? full;
+  else if (kind === Transition.MashSwap) [aim, delay] = [Math.max(whole.noSwapFrames, INPUT_PRECISION), MASH_SPEED];
+  // a hold or mash lets go where the next press can come out (`holdAt()`), here at its least
+  else if (t === "hold") aim = INPUT_PRECISION + HOLD_BUFFER;
+  else if (t === "mash") [aim, delay] = [INPUT_PRECISION, MASH_SPEED];
+  else aim = full;
+  // never past its end: what the cut runs on past it is delay with nothing playing
+  const action = Math.min(aim, full), global = aim - action + delay;
   const timestop = splitStop(a.timestopFrom, a.timestop, action, action + global).own;
   return { action, timestop, global, total: action - timestop + global };
 }
@@ -309,19 +316,19 @@ export class Cooldown {
 /** What a hold whose next press needs nothing, or has it on the cast, is paid at. */
 const PAID_AT_ONCE: { at: number; ready: boolean } = Object.freeze({ at: 0, ready: true });
 
-/** The condition fields `valid` replaced, refused wherever a def still carries one. */
-const GONE_CONDITIONS = ["requireBuff", "forbidBuff", "castPosition", "heldInput", "minEnergy", "maxEnergy"];
+/** Condition fields that are gone, refused wherever a def still carries one. */
+const GONE_CONDITIONS = ["requireBuff", "forbidBuff", "castPosition", "heldInput", "minEnergy", "maxEnergy", "yieldsTo", "valid"];
 /** Every `ActionDef` key that is a condition: what a variant setting any of them drops from its base. */
 const CONDITIONS = ["after", "notAfter", "position", "holds", "lacks", "minConcerto", "maxConcerto", "minForte1", "maxForte1",
-  "minForte2", "maxForte2", "minForte3", "maxForte3", "minForte4", "maxForte4", "minForte5", "maxForte5", "valid", "yieldsTo"] as const;
-/** Presses a condition names, or a thunk for ones declared below it. */
-export type ActionList = readonly Action[] | (() => readonly Action[]);
-/** Gear a condition names: one, several, or a thunk for ones declared below it. */
-export type GearList = Gear | readonly Gear[] | (() => readonly Gear[]);
-const listOf = <T>(l: T | readonly T[] | (() => readonly T[])): (() => readonly T[]) =>
-  typeof l === "function" ? (l as () => readonly T[]) : Array.isArray(l) ? () => l as readonly T[] : () => [l as T];
+  "minForte2", "maxForte2", "minForte3", "maxForte3", "minForte4", "maxForte4", "minForte5", "maxForte5", "minOfftune"] as const;
+/** Presses a condition names: declared above it, or set late where they loop (`Action.setAfter()`). */
+export type ActionList = readonly Action[];
+/** Gear a condition names: one or several. */
+export type GearList = Gear | readonly Gear[];
+const listOf = <T>(l: T | readonly T[]): (() => readonly T[]) =>
+  Array.isArray(l) ? () => l as readonly T[] : () => [l as T];
 const BARS = [["Concerto", concerto], ["Forte1", forte1], ["Forte2", forte2], ["Forte3", forte3], ["Forte4", forte4], ["Forte5", forte5]] as const;
-/** `def`'s conditions as one handler, null where it has none: chain, stand, buffs, bars, `valid`, `yieldsTo`. */
+/** `def`'s conditions as one handler, null where it has none: chain, stand, buffs, bars, off-tune. */
 function buildValid(def: ActionDef): (() => boolean) | null {
   const terms: (() => boolean)[] = [];
   if (def.after) {
@@ -346,10 +353,9 @@ function buildValid(def: ActionDef): (() => boolean) | null {
     if (lo !== undefined) terms.push(() => read() >= lo);
     if (hi !== undefined) terms.push(() => read() <= hi);
   }
-  if (def.valid) terms.push(def.valid);
-  if (def.yieldsTo) {
-    const l = listOf(def.yieldsTo);
-    terms.push(() => !yieldsNow(l()));
+  if (def.minOfftune !== undefined) {
+    const lo = def.minOfftune;
+    terms.push(() => currentTeam().offtune >= lo);
   }
   if (!terms.length) return null;
   if (terms.length === 1) return terms[0]!;
@@ -357,18 +363,6 @@ function buildValid(def: ActionDef): (() => boolean) | null {
     for (const t of terms) if (!t()) return false;
     return true;
   };
-}
-/** Is one of `others` valid for the acting member now with a charge ready — what a `yieldsTo` gives way to.
- *  Read as no in the engine's lookahead modes, where stand or buffs read as met. */
-function yieldsNow(others: readonly Action[]): boolean {
-  if (ctx.validAnyStand || ctx.validAnyBuff) return false;
-  const slot = ctx.slot!, miss = ctx.validMiss;
-  try {
-    for (const o of others) if ((o.validFn === null || o.validFn()) && o.ready(slot)) return true;
-    return false;
-  } finally {
-    ctx.validMiss = miss;
-  }
 }
 
 /** A cast. Mostly data — element/type/cast tags, its motion value, and the energy/concerto/
@@ -383,8 +377,8 @@ function yieldsNow(others: readonly Action[]): boolean {
  *  beside the markers they belong with. gear.ts refers to it strictly through
  *  `import type`, which is what keeps the two modules from being a load-order cycle. */
 export class Action extends Gear {
-  cast: Cast | null;
-  subcast: Cast | null;
+  cast: Cast;
+  subcast: Cast;
   node: Node | null;
   scaling: Scaling | null;
   mv: number;
@@ -414,11 +408,15 @@ export class Action extends Gear {
   castOfftune: number;
   castForte: readonly number[];
   slot: string | null;
-  /** `ActionDef.input` as a list (`[Input.None]` on a press nobody makes); `input` its button (the first but `SwapIn`). */
-  inputs: readonly Input[];
+  /** `ActionDef.input` (`Input.None` on a press nobody makes). */
   input: Input;
-  /** `ActionDef.valid`, null where it can always be pressed (`isValid()`). */
+  /** Its own condition fields joined, null where it has none; `isValid()` adds
+   *  whether a press above it on its input takes the input (`outranked()`). */
   validFn: (() => boolean) | null;
+  /** `ActionDef.inputPriority`. */
+  inputPriority: number;
+  /** It has a chain or stand condition: outranked by it, a press misses on its chain (`missesOn()`). */
+  chainBound: boolean;
   /** `ActionDef.endPosition`, null where unset, and `keepsChain`. */
   endPosition: Position | null;
   keepsChain: boolean;
@@ -459,7 +457,8 @@ export class Action extends Gear {
   cooldown: Cooldown | null;
   cooldownFrames: number;
   gameWait: boolean;
-  tag: ActionTag;
+  /** How this press hands over to the next (`ActionDef.transition`). */
+  transition: Transition;
   /** What this was built from, kept so `variant()` can rebuild it with a change or two. */
   readonly def: ActionDef;
   /** The cast this is the dash- or jump-cancelled form of; null on every ordinary one. A cancel is
@@ -479,8 +478,8 @@ export class Action extends Gear {
 
   constructor(name: string, def: ActionDef = {}) {
     super({ ...def, name });
-    this.cast = def.cast ?? null;
-    this.subcast = def.subcast ?? null;
+    this.cast = def.cast ?? Cast.None;
+    this.subcast = def.subcast ?? Cast.None;
     this.node = def.node ?? null;
     this.scaling = def.scaling ?? null;
     this.animFrames = def.animFrames ?? 0;
@@ -519,12 +518,14 @@ export class Action extends Gear {
     this.castConcerto = def.castConcerto ?? 0;
     this.castOfftune = def.castOfftune ?? 0;
     this.slot = def.slot ?? null;
-    // the old condition fields are one `valid` handler now; a def typed loosely would drop them unread
-    for (const k of GONE_CONDITIONS) if (k in def) throw new Error(`${name}: \`${k}\` is gone — write it into \`valid\``);
-    const given = def.input ?? (def.mainslot ? Input.Echo : Input.None);
-    this.inputs = typeof given === "number" ? [given] : given;
-    this.input = this.inputs.find((i) => i !== Input.SwapIn) ?? this.inputs[0] ?? Input.None;
+    // a def typed loosely would drop a gone condition field unread
+    for (const k of GONE_CONDITIONS) if (k in def) throw new Error(`${name}: \`${k}\` is gone — ${k === "yieldsTo" ? "give the press that takes the input a higher `inputPriority`" : k === "valid" ? "write it as condition fields, a state kept in a hidden marker buff" : "write it as condition fields"}`);
+    // a def typed loosely may still carry the old list
+    if (Array.isArray(def.input)) throw new Error(`${name}: an action has one input — copy it onto another with .swapIn(), .held() or .onInput()`);
+    this.input = def.input ?? (def.mainslot ? Input.Echo : Input.None);
     this.validFn = buildValid(def);
+    this.inputPriority = def.inputPriority ?? 0;
+    this.chainBound = !!def.after || !!def.notAfter || def.position !== undefined;
     this.endPosition = def.endPosition ?? null;
     this.keepsChain = def.keepsChain ?? false;
     this.castsWithNext = def.castsWithNext ?? false;
@@ -569,7 +570,7 @@ export class Action extends Gear {
     this.timestop = ts1 - ts0;
     this.motionStopFrom = ms0;
     this.motionStop = ms1 - ms0;
-    this.tag = def.tag ?? ActionTag.Default;
+    if ("tag" in def || "cut" in def) throw new Error(`${name}: \`tag\`/\`cut\` are gone — a press with no input plays beside the fight`);    this.transition = def.transition ?? Transition.Temporary;
     // a bare frame count becomes this cast's own Cooldown, written back so every variant and
     // cancelled form of it draws on the same one
     this.cooldown = typeof def.cooldown === "number" ? new Cooldown({ frames: def.cooldown }) : def.cooldown ?? null;
@@ -583,11 +584,58 @@ export class Action extends Gear {
   /** The priority this press cuts in at, null where nothing checks it: an OFF_FIELD hit, an Outro
    *  (the press before it gates it by its no-swap frames), or a press declaring none. */
   get cutIn(): number | null {
-    return this.tag === ActionTag.OffField || this.cast === Cast.Outro ? null : this.castPriority;
+    return this.offField || this.cast === Cast.Outro ? null : this.castPriority;
   }
-  /** Can it be pressed now (`ActionDef.valid`), read through the "current" pointers as they stand? */
+  /** A press beside the fight (a summon, a coordinated hit, the swap itself): no input, but a cast or a bullet —
+   *  a wait has neither — unless it says `onField`. A part of a press (`half`) reads the press it is part of. */
+  get offField(): boolean {
+    const w = this.half !== null ? this.formOf ?? this : this;
+    return (w.input === Input.None && !w.def.onField && (w.cast !== Cast.None || w.bullets.length > 0)) || isSwap(w);
+  }
+  /** Can it be pressed now (its conditions and `inputPriority`), read through the "current" pointers as they stand? */
   isValid(): boolean {
-    return this.validFn === null || resolving(this.validFn);
+    const fn = this.validFn, owner = ctx.slot!;
+    if (fn === null && !this.rivals(owner).length) return true;
+    return resolving(() => (fn === null || fn()) && !this.outranked(owner));
+  }
+  /** Set `after` once every press it names is declared — presses that follow each other in a loop. Call it
+   *  before any form of this press is made (`variant()`, the cuts): each copies the def as it stands. */
+  setAfter(presses: readonly Action[]): void {
+    if (this.def.after) throw new Error(`${this.name}: \`after\` is set already`);
+    (this as { def: ActionDef }).def = { ...this.def, after: presses };
+    this.validFn = buildValid(this.def);
+    this.chainBound = true;
+  }
+  /** The presses above this one on its input in `owner`'s list (`inputActions()`), made once per list. */
+  rivals(owner: TeamMember): readonly Action[] {
+    const list = inputActions(owner, this.input);
+    let out = (this.above ??= new WeakMap()).get(list);
+    if (!out) {
+      let base: Action = this;
+      while (base.cancelOf ?? base.formOf) base = (base.cancelOf ?? base.formOf)!;
+      out = list.filter((r) => r !== base && r.inputPriority > this.inputPriority);
+      this.above.set(list, out);
+    }
+    return out;
+  }
+  private above?: WeakMap<readonly Action[], readonly Action[]>;
+  /** Does a press above this one on its input take the input now: its conditions hold, a charge ready. Read
+   *  as no where chain, stand or buffs read as met and on a swap-in opener (its pick is `swapInPress()`'s). */
+  outranked(owner: TeamMember): boolean {
+    if (ctx.validChainFree || ctx.validAnyStand || ctx.validAnyBuff) return false;
+    const above = this.rivals(owner);
+    if (!above.length) return false;
+    const miss = ctx.validMiss;
+    let by: Action | null = null;
+    for (const r of above) {
+      if ((r.validFn === null || r.validFn()) && r.ready(owner)) {
+        by = r;
+        break;
+      }
+    }
+    // a chain-bound press taking the input is one a break or dash ahead takes away
+    ctx.validMiss = miss || (by?.chainBound ?? false);
+    return by !== null;
   }
   /** Has `owner` a charge of its cooldown now: part of what makes it valid to pick or search (`validFor()`,
    *  `pickInput()`); a written press is waited for instead, its charge spent before `isValid()` reads it. */
@@ -598,7 +646,7 @@ export class Action extends Gear {
    *  their own last press / stand). Everything it moves is put back. */
   validOn(owner: TeamMember, bars: readonly number[] | null, prev?: Action | null, position?: Position | null): boolean {
     const fn = this.validFn;
-    if (fn === null) return true;
+    if (fn === null && !this.rivals(owner).length) return true;
     const slot = ctx.slot, wasPrev = ctx.validPrev, wasPos = ctx.validPosition;
     const energy = owner.energy, concerto = owner.concerto, f = owner.forte;
     const f0 = f[0], f1 = f[1], f2 = f[2], f3 = f[3], f4 = f[4];
@@ -611,7 +659,7 @@ export class Action extends Gear {
       for (let i = 0; i < 5; i++) f[i] = bars[2 + i]!;
     }
     try {
-      return resolving(fn);
+      return resolving(() => (fn === null || fn()) && !this.outranked(owner));
     } finally {
       ctx.slot = slot;
       ctx.validPrev = wasPrev;
@@ -642,7 +690,7 @@ export class Action extends Gear {
   }
   /** What the clock charges this press cut short by `kind` (`cancelCost()`) — a method, so
    *  evaluate.ts reaches it through the type-only import it keeps on this module. */
-  cost(cut: ActionTag | null): ReturnType<typeof cancelCost> {
+  cost(cut: Transition | null): ReturnType<typeof cancelCost> {
     // made at other delays (a rotation of its own's): made again at these
     if (this.costAt !== DELAYS) {
       this.costAt = DELAYS;
@@ -651,7 +699,7 @@ export class Action extends Gear {
     }
     // the two keys nearly every call asks, as fields
     if (cut === null) return (this.costNull ??= cancelCost(this, null));
-    if (cut === ActionTag.Default) return (this.costDefault ??= cancelCost(this, cut));
+    if (cut === Transition.Temporary) return (this.costDefault ??= cancelCost(this, cut));
     let out = this.costs?.get(cut);
     if (!out) (this.costs ??= new Map()).set(cut, (out = cancelCost(this, cut)));
     return out;
@@ -660,11 +708,12 @@ export class Action extends Gear {
   private costNull?: ReturnType<typeof cancelCost>;
   private costDefault?: ReturnType<typeof cancelCost>;
   /** `cost()` by cut, made once: an action's frames never change once built. */
-  private costs?: Map<ActionTag | null, ReturnType<typeof cancelCost>>;
-  /** What the clock charges this press let go at animation frame `frame` by a hold cancel. */
+  private costs?: Map<Transition | null, ReturnType<typeof cancelCost>>;
+  /** What the clock charges this press let go at frame `frame` by a hold or mash: past its end, delay with nothing playing. */
   holdCost(frame: number): ReturnType<typeof cancelCost> {
-    const timestop = splitStop(this.timestopFrom, this.timestop, frame, frame).own;
-    return { action: frame, timestop, global: 0, total: frame - timestop };
+    const action = this.animFrames ? Math.min(frame, this.animFrames) : frame, global = frame - action;
+    const timestop = splitStop(this.timestopFrom, this.timestop, action, frame).own;
+    return { action, timestop, global, total: frame - timestop };
   }
   /** What this cast banks on each bar — energy, concerto, forte 1-5 — its bullets' aside. */
   castBars(): readonly number[] {
@@ -715,7 +764,7 @@ export class Action extends Gear {
   /** Does `validOn()` fail on its chain or stand rather than a buff or bar — what a break or dash ahead of
    *  it changes. Handlers read those first, so a missing buff never hides one. */
   missesOn(owner: TeamMember, prev: Action | null, position?: Position | null): boolean {
-    if (this.validFn === null) return false;
+    if (this.validFn === null && !this.rivals(owner).length) return false;
     const was = ctx.validMiss;
     ctx.validMiss = false;
     try {
@@ -743,33 +792,34 @@ export class Action extends Gear {
     return { at: Math.min(last, this.animFrames), ready: next.standsOn(owner, g) };
   }
   /** The first frame from `from` on where `next` can follow this press: where `next`'s priority beats
-   *  this one's, and — for a `mash` into an Outro, the one cut that waits for them — past its no-swap
-   *  frames. */
-  freeForNext(next: Action | null, from = 0, mash = false): number {
-    const swaps = mash && next?.cast === Cast.Outro;
-    return this.freeFor(next?.cutIn ?? null, Math.max(from, swaps ? this.noSwapFrames : 0, this.transformFor(next)));
+   *  this one's, past its transform window, and into an Outro past its no-swap frames. */
+  freeForNext(next: Action | null, from = 0): number {
+    const swaps = next?.cast === Cast.Outro;
+    const start = Math.max(from, swaps ? this.noSwapFrames : 0, this.transformFor(next));
+    // played out, nothing holds it off
+    return this.animFrames && start >= this.animFrames ? start : this.freeFor(next?.cutIn ?? null, start);
   }
-  /** The frame its transform window holds `next` off to: none for a Dodge-input press, a swap or an Outro. */
+  /** The frame its transform window holds `next` off to: none for a dash or a successful dodge, a swap or an Outro. */
   transformFor(next: Action | null): number {
-    if (!this.transformFrames || !next || next.cutIn === null || next.inputs.includes(Input.Dodge)) return 0;
+    if (!this.transformFrames || !next || next.cutIn === null || next.input === Input.Dash || next.input === Input.SuccessfulDodge) return 0;
     return this.transformFrames;
   }
-  /** Where a hold (or `mash`) cancel paid at `paid` (`holdPays()`) lets go. A hold lets go the frame
-   *  `next` can follow it — the bars paid and its window open (`freeForNext()`) — never inside
-   *  `HOLD_MINIMUM`; a mash, its input landing only on the next tap, `MASH_DELAY` after that frame (a
-   *  mash into an Outro past the no-swap frames too). Its press's end where `next` never can — a cut
-   *  the engine then refuses (`checkHoldCut()`). */
+  /** Where a hold (or `mash`) cancel paid at `paid` (`holdPays()`) lets go: a hold the frame `next` can follow
+   *  it, no sooner than `INPUT_PRECISION + HOLD_BUFFER`; a mash `MASH_SPEED` after it, no sooner than `INPUT_PRECISION`. */
   letGo(paid: number, mash = false, next: Action | null = null): number {
-    if (!mash) return Math.min(this.freeForNext(next, Math.max(HOLD_MINIMUM, paid)), this.animFrames);
-    // a mash lands MASH_DELAY on, and only where the window still stands by then: shut again, it
-    // waits out the next opening and lands MASH_DELAY after that one
-    let at = this.freeForNext(next, paid, true) + MASH_DELAY;
+    if (!mash) return Math.min(this.freeForNext(next, Math.max(INPUT_PRECISION + HOLD_BUFFER, paid)), this.animFrames);
+    // the window shut again by the time the mash lands: it lands MASH_SPEED after the next opening
+    let at = this.freeForNext(next, Math.max(INPUT_PRECISION, paid));
+    if (at === Infinity) return this.animFrames;
+    at += MASH_SPEED;
     while (at < this.animFrames) {
-      const free = this.freeForNext(next, at, true);
+      const free = this.freeForNext(next, at);
       if (free === at) break;
-      at = free + MASH_DELAY;
+      if (free === Infinity) return this.animFrames;
+      at = free + MASH_SPEED;
     }
-    return Math.min(at, this.animFrames);
+    // past its end, the input lands with nothing playing
+    return at;
   }
   /** `letGo()` of `holdPays()`: where a hold (or `mash`) cancel of this press lets go. */
   holdAt(owner: TeamMember, bars: readonly number[], cap: readonly number[], next: Action | null, castGain: readonly number[] | null = null,
@@ -790,22 +840,55 @@ export class Action extends Gear {
     return new Action(name, { ...base, ...overrides } as ActionDef);
   }
 
+  /** This press on `input` as well: a copy pointing back at it (`formOf`), so a chain or `runningAction()`
+   *  reads the two as one. Made once per input — list it in the resonator's `actions` beside this one. */
+  onInput(input: Input): Action {
+    if (input === this.input) throw new Error(`${this.name}: already on ${INPUT_NAME[input]}`);
+    let out = this.inputCopies?.get(input);
+    if (!out) {
+      out = this.variant(this.name, { input });
+      out.formOf = this;
+      (this.inputCopies ??= new Map()).set(input, out);
+    }
+    return out;
+  }
+  private inputCopies?: Map<Input, Action>;
+  /** This press as the one a swap-in opens on (`Input.SwapIn`). */
+  swapIn(): Action { return this.onInput(Input.SwapIn); }
+  /** This press on its button held (Basic -> Basic (Hold), and Skill and Liberation alike). */
+  held(): Action {
+    const to = HELD_OF[this.input];
+    if (to === undefined) throw new Error(`${this.name}: ${INPUT_NAME[this.input]} has no held form`);
+    return this.onInput(to);
+  }
+
+  /** Meant to hand over at exactly `INPUT_PRECISION` — the engine solves the cut (`Timing.Instant`). */
+  instant(): Action { return withTiming(this, { kind: Timing.Instant, frame: 0 }); }
+  /** Meant to hand over at its first bullet's hit + `INPUT_PRECISION` (`Timing.FirstHit`). */
+  firstHit(): Action { return withTiming(this, { kind: Timing.FirstHit, frame: 0 }); }
+  /** Meant to hand over at animation frame `frame` exactly (`Timing.Timed`). */
+  timed(frame: number): Action { return withTiming(this, { kind: Timing.Timed, frame }); }
+
   /** This cast cut at its cancel frame — its hit lands, and the clock charges `cancelCost()`.
    *  The same Action runs, so every `===` a kit makes against it still holds. */
-  cancel(): Action { return new CancelledStep(this, ActionTag.Cancel); }
+  cancel(): Action { return new CancelledStep(this, Transition.Cancel); }
   /** This press every other time its member reaches one, skipped in between (`EveryOther`). */
   everyOther(): Action {
     if (leavesField(this)) throw new Error(`${this.name}: a swap form can't be skipped — the visit would no longer leave on it`);
     return new EveryOther(this);
   }
   /** The same, a press that isn't held mashed in: out the moment it can be cast (`holdAt()`). */
-  mashCancel(): Action { return new CancelledStep(this, ActionTag.MashCancel); }
+  mashCancel(): Action { return new CancelledStep(this, Transition.MashCancel); }
   /** The same, held into the next press, a held one: let go the moment it can be cast (`holdAt()`). */
-  holdCancel(): Action { return new CancelledStep(this, ActionTag.HoldCancel); }
+  holdCancel(): Action { return new CancelledStep(this, Transition.HoldCancel); }
   /** The same, cut by a dash: a group of this press and the dash after it (`dashed()`). */
-  dodgeCancel(): Action { return dashed(this, ActionTag.DodgeCancel); }
+  dashCancel(): Action { return dashed(this, Transition.DashCancel); }
   /** The same, cut by a jump. */
-  jumpCancel(): Action { return dashed(this, ActionTag.JumpCancel); }
+  jumpCancel(): Action { return dashed(this, Transition.JumpCancel); }
+  /** The same, a dash mashed in: out the moment the dash can be cast. */
+  mashDash(): Action { return dashed(this, Transition.MashDash); }
+  /** The same, a jump mashed in. */
+  mashJump(): Action { return dashed(this, Transition.MashJump); }
 
   /** This Intro, cut or not, opening the chain played on the resonator's first arrival instead of
    *  every visit's (`IntroEntry`). */
@@ -821,29 +904,29 @@ export class Action extends Gear {
 
   /** This cast cancelled the moment it is pressed — its own effects (the hooks, the cast tags) with
    *  none of its hit: no motion value, element, types, scaling, or energy/concerto/off-tune/forte. */
-  instaCancel(): Action { return this.instaForm(ActionTag.InstaCancel); }
+  instaCancel(): Action { return this.instaForm(Transition.InstaCancel); }
   /** The same, the press cut by a dash, which follows it (`dashed()`). */
-  instaDodge(): Action { return dashed(this, ActionTag.InstaDodge); }
+  instaDash(): Action { return dashed(this, Transition.InstaDash); }
   /** The same, the press cut by a jump. */
-  instaJump(): Action { return dashed(this, ActionTag.InstaJump); }
+  instaJump(): Action { return dashed(this, Transition.InstaJump); }
 
   /** The insta forms, pointed back at the cast they cancel so `runningAction()` still reads the two
-   *  as one: the cast's own effects and the bullets committed inside `INSTA_DELAY`. */
-  instaForm(kind: ActionTag): Action {
+   *  as one: the cast's own effects and the bullets committed inside `INPUT_PRECISION`. */
+  instaForm(kind: Transition): Action {
     // a marker has no hit of its own to strip yet: the step carries the cut to whatever it resolves to
     if (this.resolveFn) return new CancelledStep(this, kind);
     return this.hitless(kind);
   }
   private hitlessForms?: Map<string, Action>;
-  /** The copy an insta cut plays, one per kind and insta delay. */
-  private hitless(kind: ActionTag): Action {
-    const key = `${kind}|${INSTA_DELAY}`;
+  /** The copy an insta cut plays, one per kind and input precision. */
+  private hitless(kind: Transition): Action {
+    const key = `${kind}|${INPUT_PRECISION}`;
     const seen = this.hitlessForms?.get(key);
     if (seen) return seen;
-    // only the bullets committed inside the insta cut's delay land
-    const kept = this.bullets.filter((h) => h.commitFrame <= INSTA_DELAY);
+    // only the bullets committed by the time the next press comes out land
+    const kept = this.bullets.filter((h) => h.commitFrame <= INPUT_PRECISION);
     // every hit lost, the cast's own banking stands
-    const out = kept.length === this.bullets.length ? this.variant(this.name, { tag: kind }) : this.variant(this.name, { tag: kind, bullets: kept });
+    const out = kept.length === this.bullets.length ? this.variant(this.name, { transition: kind }) : this.variant(this.name, { transition: kind, bullets: kept });
     out.cancelOf = this;
     // an insta cut that lost every hit is its cast alone
     if (!kept.length && this.bullets.length) out.half = "cast";
@@ -853,21 +936,21 @@ export class Action extends Gear {
 
   /** Does this press queue its hits and its end: any press that takes time, and always an Outro's or
    *  an insta swap's (its hits land after the swap). One taking no time plays whole. */
-  splitsHit(cut: ActionTag | null): boolean {
+  splitsHit(cut: Transition | null): boolean {
     if (this.half !== null) return false;
     if (!this.bullets.length) return !this.castsInstantly && this.cost(cut).total > 0;
-    if (this.cast === Cast.Outro || this.tag === ActionTag.InstaSwap || this.bullets.length > 1) return true;
+    if (this.cast === Cast.Outro || this.transition === Transition.InstaSwap || this.bullets.length > 1) return true;
     return this.hitDelay(0) > 0 || (!this.castsInstantly && this.cost(cut).total > 0);
   }
   /** Do the queued hits land with their owner off the field — an Outro's. A swap form's land
    *  wherever the field stands by then (its SWAP may come first), a summon's the same. */
-  hitsAway(_cut: ActionTag | null): boolean {
+  hitsAway(_cut: Transition | null): boolean {
     return this.cast === Cast.Outro;
   }
   /** Does the cast take none of the clock — an Outro, an OFF_FIELD hit (its frames are only the time its
    *  hits take). */
   get castsInstantly(): boolean {
-    return this.cast === Cast.Outro || this.tag === ActionTag.OffField;
+    return this.cast === Cast.Outro || this.offField;
   }
   /** Real frames from the cast to bullet `k`'s hit — its own frame, time stop or not. A committed
    *  bullet lands whatever cuts the animation after the cast. */
@@ -910,8 +993,8 @@ export class Action extends Gear {
         animFrames: 0, animPriority: undefined, noSwapFrames: 0, transformFrames: 0, timestop: undefined, motionStop: undefined, cooldown: undefined,
         castEnergy: 0, castConcerto: 0, castOfftune: 0, castForte1: 0, castForte2: 0, castForte3: 0, castForte4: 0, castForte5: 0,
         resetForte1: false, resetForte2: false, resetForte3: false, resetForte4: false, resetForte5: false,
-        // the swap was the cast's; the hit is no cut of its own
-        tag: this.tag === ActionTag.OffField ? ActionTag.OffField : ActionTag.Default,
+        // the swap was the cast's; the hit is no transition of its own
+        transition: Transition.Temporary,
       });
       copy.formOf = this;
       copy.half = "hit";
@@ -929,7 +1012,7 @@ export class Action extends Gear {
         animFrames: 0, animPriority: undefined, noSwapFrames: 0, transformFrames: 0, timestop: undefined, motionStop: undefined, cooldown: undefined,
         castEnergy: 0, castConcerto: 0, castOfftune: 0, castForte1: 0, castForte2: 0, castForte3: 0, castForte4: 0, castForte5: 0,
         resetForte1: false, resetForte2: false, resetForte3: false, resetForte4: false, resetForte5: false,
-        tag: this.tag === ActionTag.OffField ? ActionTag.OffField : ActionTag.Default,
+        transition: Transition.Temporary,
       });
       this.endCopy.formOf = this;
       this.endCopy.half = "end";
@@ -939,10 +1022,10 @@ export class Action extends Gear {
 
   /** This press as a step's `kind` plays it: an insta cut is its insta form, which carries the
    *  cut itself; any other cut is this press, cut. */
-  cutAs(kind: ActionTag | null): [Action, ActionTag | null] {
-    // an action has one tag: a swap, an outro or a field hit can't be cut as well
-    if (kind && this.tag !== ActionTag.Default) throw new Error(`${this.name}: already ${this.tag}, can't also be ${kind}`);
-    if (kind === ActionTag.InstaCancel || kind === ActionTag.InstaDodge || kind === ActionTag.InstaJump) return [this.hitless(kind), null];
+  cutAs(kind: Transition | null): [Action, Transition | null] {
+    // an action has one cut: a swap, an outro or a field hit can't be cut as well
+    if (kind && this.transition !== Transition.Temporary) throw new Error(`${this.name}: already ${this.transition}, can't also be ${kind}`);
+    if (kind && KIND_OF[kind] === "instant" && kind !== Transition.InstaSwap) return [this.hitless(kind), null];
     return [this, kind];
   }
 
@@ -953,77 +1036,75 @@ export class Action extends Gear {
     return this.variant(this.name, { updateBuffs: undefined });
   }
 
-  /** The press cut `CANCEL_DELAY` after its first bullet hits, the bullets committed by the end of
-   *  that delay landing: CANCEL ON HIT. Only for a press whose bullets hit on more than one frame, like the two below. */
+  /** The press cut `INPUT_PRECISION` after its first bullet hits, the bullets committed by then landing: HIT CANCEL. */
   hitCancel(): Action {
     if (this.resolveFn) return this.swapResolver((a) => a.hitCancel());
-    return this.cutOnHit(ActionTag.HitCancel);
+    return this.cutOnHit(Transition.HitCancel);
   }
   /** The press cut at animation frame `frames` exactly, no delay after it — the bullets committed by
    *  then landing: CANCEL @ Nf. The next press must still out-prioritise it there. */
   cancelAt(frames: number): Action {
     if (this.resolveFn) return this.swapResolver((a) => a.cancelAt(frames));
     if (!Number.isInteger(frames) || frames < 0) throw new Error(`${this.name}: a timed cancel needs a whole frame, not ${frames}`);
-    if (this.animFrames && frames >= this.animFrames) throw new Error(`${this.name}: its timed cancel at frame ${frames} of ${this.animFrames} saves nothing over playing it out`);
     const kept = this.bullets.filter((h) => h.commitFrame <= frames);
-    const out = this.variant(this.name, { tag: ActionTag.TimedCancel, bullets: kept });
+    const out = this.variant(this.name, { transition: Transition.TimedCancel, bullets: kept });
     out.timedAt = frames;
     out.cancelOf = this;
     return out;
   }
-  /** The same cut by a dash after its first hit — DODGE ON HIT — the dash a press of its own. */
-  hitDodge(): Action { return this.dashOnHit(ActionTag.DodgeOnHit); }
-  /** The same by a jump — JUMP ON HIT. */
-  hitJump(): Action { return this.dashOnHit(ActionTag.JumpOnHit); }
-  private dashOnHit(kind: ActionTag): Action {
+  /** The same cut by a dash after its first hit — HIT DASH — the dash a press of its own. */
+  hitDash(): Action { return this.dashOnHit(Transition.HitDash); }
+  /** The same by a jump — HIT JUMP. */
+  hitJump(): Action { return this.dashOnHit(Transition.HitJump); }
+  private dashOnHit(kind: Transition): Action {
     const cut = this.resolveFn ? this.swapResolver((a) => a.cutOnHit(kind)) : this.cutOnHit(kind);
-    return new ActionGroup(this.resolveFn ? "" : this.name, [cut, new DashMarker(kind === ActionTag.JumpOnHit, this, kind)], 1);
+    return new ActionGroup(this.resolveFn ? "" : this.name, [cut, new DashMarker(kind === Transition.HitJump, this, kind)], 1);
   }
-  /** The same cast made on the way out, under its own name and a SWAP CANCEL tag — identical in
-   *  every field: it plays to its last commit (never inside its no-swap frames, which throws), its
-   *  hit landing on field, then `CANCEL_DELAY`, and the SWAP after it (or a 0-MV Outro) takes it off
-   *  the field. */
-  swapCancel(): Action {
-    if (this.resolveFn) return this.swapResolver((a) => a.swapCancel(), ActionTag.SwapCancel);
-    const out = this.variant(this.name, { tag: ActionTag.SwapCancel });
-    out.formOf = this;
-    return out;
-  }
+  /** The same cast swapped out of at its last commit, `INPUT_PRECISION` later: SWAP CANCEL. It plays on
+   *  behind the swap, and the SWAP after it (or a 0-MV Outro) takes it off the field. */
+  swapCancel(): Action { return this.swapForm(Transition.SwapCancel, (a) => a.swapCancel()); }
   /** This press cut on its first bullet's hit: the bullets committed by the time the next press
-   *  truly starts, `CANCEL_DELAY` on, still land. */
-  private cutOnHit(kind: ActionTag): Action {
+   *  comes out, `INPUT_PRECISION` on, still land. */
+  private cutOnHit(kind: Transition): Action {
+    if (!this.bullets.length) throw new Error(`${this.name}: a ${kind} needs a bullet to hit`);
     const first = Math.min(...this.bullets.map((h) => h.hitFrame));
-    if (this.bullets.length < 2 || this.bullets.every((h) => h.hitFrame === first)) throw new Error(`${this.name}: ${kind} needs bullets hitting on more than one frame`);
-    const out = this.variant(this.name, { tag: kind, bullets: this.bullets.filter((h) => h.commitFrame <= first + CANCEL_DELAY) });
+    if (first === 0) throw new Error(`${this.name}: its ${kind} aims at frame 0, its first hit — write ${instaOf(kind)} instead`);
+    const out = this.variant(this.name, { transition: kind, bullets: this.bullets.filter((h) => h.commitFrame <= first + INPUT_PRECISION) });
     out.onHitAt = first;
     out.cancelOf = this;
     return out;
   }
 
-  /** The same cast swapped out of `MASH_DELAY` after its no-swap frames end, the SWAP after it (or a
-   *  0-MV Outro) taking it off the field — a press whose last commit falls inside them. */
-  mashSwap(): Action {
-    if (this.resolveFn) return this.swapResolver((a) => a.mashSwap(), ActionTag.MashSwap);
-    const out = this.variant(this.name, { tag: ActionTag.MashSwap });
-    out.formOf = this;
+  /** The same cast swapped out of `MASH_SPEED` after its no-swap frames end (no sooner than
+   *  `INPUT_PRECISION`): MASH SWAP. */
+  mashSwap(): Action { return this.swapForm(Transition.MashSwap, (a) => a.mashSwap()); }
+  /** The same cast swapped out of `INPUT_PRECISION` after it is pressed: INSTANT SWAP. Its hits still land
+   *  once the press would have reached them (`splitsHit()`). */
+  instaSwap(): Action { return this.swapForm(Transition.InstaSwap, (a) => a.instaSwap()); }
+  /** The same cast swapped out of `INPUT_PRECISION` after its first bullet hits: HIT SWAP. */
+  hitSwap(): Action {
+    const out = this.swapForm(Transition.HitSwap, (a) => a.hitSwap());
+    if (this.resolveFn) return out;
+    if (!this.bullets.length) throw new Error(`${this.name}: a ${Transition.HitSwap} needs a bullet to hit`);
+    const first = Math.min(...this.bullets.map((h) => h.hitFrame));
+    if (first === 0) throw new Error(`${this.name}: its ${Transition.HitSwap} aims at frame 0, its first hit — write .instaSwap() instead`);
+    out.onHitAt = first;
     return out;
   }
-  /** The same cast swapped out of the moment it is pressed — `INSTA_DELAY`, then the SWAP after it
-   *  (or a 0-MV Outro) — its hit still landing once the press would have reached it (`splitsHit()`).
-   *  A press with no-swap frames can't be (it throws). */
-  instaSwap(): Action {
-    if (this.resolveFn) return this.swapResolver((a) => a.instaSwap(), ActionTag.InstaSwap);
-    const out = this.variant(this.name, { tag: ActionTag.InstaSwap });
+  /** A swap form, `kind`, of this press — every field its own, so it plays on behind the swap. */
+  private swapForm(kind: Transition, again: (a: Action) => Action): Action {
+    if (this.resolveFn) return this.swapResolver(again, kind);
+    const out = this.variant(this.name, { transition: kind });
     out.formOf = this;
     return out;
   }
   /** A marker's swap form: a marker resolving to the swap form of whatever it resolves to, each
    *  made once. */
-  private swapResolver(swap: (a: Action) => Action, tag?: ActionTag): Action {
+  private swapResolver(swap: (a: Action) => Action, cut?: Transition): Action {
     const resolve = this.resolveFn!, made = new Map<Action, Action>();
     const marker = new Action(this.name, {
-      // a swap form's tag, so the compiler reads it as leaving the field (`leavesField()`)
-      tag,
+      // a swap form's transition, so the compiler reads it as leaving the field (`leavesField()`)
+      transition: cut,
       mainslot: this.def.mainslot,
       resolve: () => {
         const a = resolve();
@@ -1034,7 +1115,7 @@ export class Action extends Gear {
         return out;
       },
     });
-    if (tag) marker.formOf = this;
+    if (cut) marker.formOf = this;
     return marker;
   }
 }
@@ -1064,16 +1145,22 @@ export class ActionGroup extends Action {
   override cancel(): Action { return this.withLast((a) => a.cancel()); }
   override mashCancel(): Action { return this.withLast((a) => a.mashCancel()); }
   override holdCancel(): Action { return this.withLast((a) => a.holdCancel()); }
-  override dodgeCancel(): Action { return this.dashLast((a) => a.dodgeCancel()); }
+  override dashCancel(): Action { return this.dashLast((a) => a.dashCancel()); }
   override jumpCancel(): Action { return this.dashLast((a) => a.jumpCancel()); }
+  override mashDash(): Action { return this.dashLast((a) => a.mashDash()); }
+  override mashJump(): Action { return this.dashLast((a) => a.mashJump()); }
+  override hitSwap(): Action { return this.withLast((a) => a.hitSwap()); }
+  override instant(): Action { return this.withLast((a) => a.instant()); }
+  override firstHit(): Action { return this.withLast((a) => a.firstHit()); }
+  override timed(frame: number): Action { return this.withLast((a) => a.timed(frame)); }
   override instaCancel(): Action { return this.withLast((a) => a.instaCancel()); }
-  override instaDodge(): Action { return this.dashLast((a) => a.instaDodge()); }
+  override instaDash(): Action { return this.dashLast((a) => a.instaDash()); }
   override instaJump(): Action { return this.dashLast((a) => a.instaJump()); }
   override swapCancel(): Action { return this.withLast((a) => a.swapCancel()); }
   override mashSwap(): Action { return this.withLast((a) => a.mashSwap()); }
   override hitCancel(): Action { return this.withLast((a) => a.hitCancel()); }
   override cancelAt(frames: number): Action { return this.withLast((a) => a.cancelAt(frames)); }
-  override hitDodge(): Action { return this.dashLast((a) => a.hitDodge()); }
+  override hitDash(): Action { return this.dashLast((a) => a.hitDash()); }
   override hitJump(): Action { return this.dashLast((a) => a.hitJump()); }
   override instaSwap(): Action { return this.withLast((a) => a.instaSwap()); }
   // a group is skipped where its first press is, the rest going with it (`run()`)
@@ -1094,67 +1181,67 @@ export class ActionGroup extends Action {
 /** A dash or jump cutting `after` short: the press as cut, then the dash itself as a press of
  *  its own — which dash is the resonator's (`DashMarker`). Folds into one row reading the press;
  *  opened, the dash is the row under it. */
-function dashed(after: Action, kind: ActionTag): ActionGroup {
-  const insta = kind === ActionTag.InstaDodge || kind === ActionTag.InstaJump;
+function dashed(after: Action, kind: Transition): ActionGroup {
+  const insta = KIND_OF[kind] === "instant";
   const cut = insta ? after.instaForm(kind) : new CancelledStep(after, kind);
-  const jump = kind === ActionTag.JumpCancel || kind === ActionTag.InstaJump;
+  const jump = VIA_OF[kind] === Via.Jump;
   // a marker's group is named for what it resolves to, row by row (teamrun.ts's `toLines`)
   return new ActionGroup(after.resolveFn ? "" : after.name, [cut, new DashMarker(jump, after, kind)], 1);
 }
 
 
 /** The plain dash and jump — what a resonator makes on Dodge (or Jump) where none of its own presses there is
- *  valid (`Resonator.defaultActions`). The grounded dash and the mid-air one split by `valid`. */
-export const DEFAULT_DODGE = new Action("Dodge - Grounded", { input: Input.Dodge, animFrames: 20, cast: Cast.Dodge, animPriority: { 0: 9 }, castPriority: 6,
-  endPosition: Position.Grounded, valid: () => grounded(),
+ *  valid (`Resonator.defaultActions`, `inputPriority` -1). The grounded dash and the mid-air one split by `position`. */
+export const DEFAULT_DASH = new Action("Dash - Grounded", { input: Input.Dash, inputPriority: -1, animFrames: 20, cast: Cast.Dash, animPriority: { 0: 9 }, castPriority: 6,
+  endPosition: Position.Grounded, position: Position.Grounded,
 });
 
 /** The plain dash made in mid-air: the grounded one's frames, cast at 7. */
-export const DEFAULT_AIR_DODGE = DEFAULT_DODGE.variant("Dodge - Mid-air", { castPriority: 7,
-  endPosition: Position.Midair, valid: () => midair(),
+export const DEFAULT_AIR_DASH = DEFAULT_DASH.variant("Dash - Mid-air", { castPriority: 7,
+  endPosition: Position.Midair, position: Position.Midair,
 });
 
-/** A dodge that dodged something, the one press every dodge counter follows: a rotation writes it where a
- *  counter comes next. No default — a Dodge press makes the plain dash. Never valid for now. */
+/** A dash that dodged an attack, the one press every dodge counter follows: a rotation writes it where a
+ *  counter comes next, on its own input (`Input.SuccessfulDodge`), always valid — no attack is modelled to read. */
 // TODO possibly has time dilation making it slower?
-export const SUCCESSFUL_DODGE = DEFAULT_DODGE.variant("Dodge - Successful", { castPriority: 8, valid: () => false });
+export const SUCCESSFUL_DODGE = DEFAULT_DASH.variant("Dodge - Successful", { input: Input.SuccessfulDodge, castPriority: 8, position: undefined });
 
 
 // jump from ground, backflip, or glider (need to verify backflip and glider prio)
-export const DEFAULT_JUMP = new Action("Jump", { input: Input.Jump, animFrames: 7, cast: Cast.Jump, animPriority: { 0: 9 }, castPriority: 8,
+export const DEFAULT_JUMP = new Action("Jump", { input: Input.Jump, inputPriority: -1, animFrames: 7, cast: Cast.Jump, animPriority: { 0: 9 }, castPriority: 8,
   endPosition: Position.Midair, });
 
 
 
 /** Is `a` one of the plain dashes or the plain jump? */
 export const isPlainDash = (a: Action): boolean =>
-  a === DEFAULT_DODGE || a === DEFAULT_AIR_DODGE || a === DEFAULT_JUMP;
+  a === DEFAULT_DASH || a === DEFAULT_AIR_DASH || a === DEFAULT_JUMP;
 
-/** The presses `member` can make on `input`: their kit's own, then the fallbacks (`Resonator.defaultActions`:
- *  the plain dashes, jump and Swap; their weapon's Tune Break where they have none); an echo's off the mainslot. */
+/** The presses `member` can make on `input`, highest `inputPriority` first: their kit's own and the defaults
+ *  (`Resonator.inputActions()`); an echo's off the mainslot. */
 export function inputActions(member: TeamMember, input: Input): readonly Action[] {
-  if (input === Input.Echo) return member.mainslot?.actions ?? NO_ACTIONS;
+  if (input === Input.Echo) return member.mainslot ? byPriority(member.mainslot.actions) : NO_ACTIONS;
   return member.resonator?.inputActions(input) ?? NO_ACTIONS;
 }
 const NO_ACTIONS: readonly Action[] = [];
-/** Is `a` a fallback: made only where none of the kit's own presses on its input is valid. */
-const isFallback = (a: Action): boolean => DEFAULT_PRESSES.fallbacks.includes(a);
-/** `member`'s presses on `input` that `ok` passes, a fallback only where no own press does. */
-function tiered(member: TeamMember, input: Input, ok: (a: Action) => boolean): Action[] {
-  const all = inputActions(member, input).filter(ok);
-  return all.some((a) => !isFallback(a)) ? all.filter((a) => !isFallback(a)) : all;
-}
-/** The press `member` makes on `input` following `prev` (undefined: their own last press): the first valid
- *  of their own with a charge ready, else a fallback; else the first valid one waiting on its cooldown
- *  (which the engine waits out) — null where none is valid. */
+const SORTED = new WeakMap<readonly Action[], readonly Action[]>();
+/** `list` highest `inputPriority` first (stable), made once per list. */
+const byPriority = (list: readonly Action[]): readonly Action[] => {
+  let out = SORTED.get(list);
+  if (!out) SORTED.set(list, (out = [...list].sort((a, b) => b.inputPriority - a.inputPriority)));
+  return out;
+};
+/** The press `member` makes on `input` following `prev` (undefined: their own last press): the highest valid
+ *  one with a charge ready, else the first valid one waiting on its cooldown (which the engine waits out) —
+ *  null where none is valid. */
 export function pickInput(member: TeamMember, input: Input, prev?: Action | null): Action | null {
-  const valid = tiered(member, input, (a) => a.validOn(member, null, prev));
+  const valid = inputActions(member, input).filter((a) => a.validOn(member, null, prev));
   return valid.find((a) => a.ready(member)) ?? valid[0] ?? null;
 }
-/** The press `member` opens on arriving with no Intro, standing `at`: their valid `Input.SwapIn` press, its
- *  chain waived — null where none is. */
+/** The press `member` opens on arriving with no Intro, standing `at`: their highest valid `Input.SwapIn`
+ *  press, its chain waived — null where none is. */
 export function swapInPress(member: TeamMember, at: Position): Action | null {
-  return tiered(member, Input.SwapIn, (a) => validFor(member, a, Input.SwapIn, at))[0] ?? null;
+  return inputActions(member, Input.SwapIn).find((a) => validFor(member, a, Input.SwapIn, at)) ?? null;
 }
 /** Is `a` valid for `member` on `input` in full, whatever mode the caller reads in — a `SwapIn` read as an
  *  arrival reads it (chain waived, at `at`). */
@@ -1174,25 +1261,25 @@ function validFor(member: TeamMember, a: Action, input: Input, at?: Position | n
 export function availableActions(member: TeamMember): Action[] {
   const out: Action[] = [];
   for (const input of INPUTS) {
-    for (const a of tiered(member, input, (x) => x.ready(member) && validFor(member, x, input))) if (!out.includes(a)) out.push(a);
+    for (const a of inputActions(member, input)) if (a.ready(member) && validFor(member, a, input) && !out.includes(a)) out.push(a);
   }
   return out;
 }
-/** The inputs on which more than one of `member`'s presses is valid now, cooldowns counted — none, in a kit
- *  whose conditions are written right. Not checked during a run; a rotation search may. */
+/** The inputs on which more than one of `member`'s presses is valid now, cooldowns counted — two at one
+ *  `inputPriority`; none, in a kit whose priorities are written right. Not checked during a run; a search may. */
 export function inputConflicts(member: TeamMember): { input: Input; actions: Action[] }[] {
   const out: { input: Input; actions: Action[] }[] = [];
   for (const input of INPUTS) {
-    const valid = tiered(member, input, (a) => a.ready(member) && validFor(member, a, input));
+    const valid = inputActions(member, input).filter((a) => a.ready(member) && validFor(member, a, input));
     if (valid.length > 1) out.push({ input, actions: valid });
   }
   return out;
 }
 
 const dashFor = (isJump: boolean, after: Action): Action => {
-  const member = currentMember(), input = isJump ? Input.Jump : Input.Dodge;
-  // none valid: the first it has, read red where it is cast
-  return pickInput(member, input, after) ?? inputActions(member, input)[0] ?? (isJump ? DEFAULT_JUMP : DEFAULT_DODGE);
+  const member = currentMember(), input = isJump ? Input.Jump : Input.Dash;
+  // none valid: the first it has — `run()` refuses it where it is really cast, a plan reads it as is
+  return pickInput(member, input, after) ?? inputActions(member, input)[0] ?? (isJump ? DEFAULT_JUMP : DEFAULT_DASH);
 };
 /** What a dash written on its own follows: this member's last press of the visit, cut or not, else
  *  the Intro they arrived on. */
@@ -1204,16 +1291,16 @@ const lastPress = (): Action => {
 };
 /** A dodge or jump written on its own: the member's press on that input valid after the press it follows
  *  (`pickInput()`) — the echo dash after an Echo cast, a kit's own, the plain dash for where they stand. */
-export const DODGE = new Action("Dodge Marker", { resolve: () => dashFor(false, lastPress()) });
+export const DASH = new Action("Dash Marker", { resolve: () => dashFor(false, lastPress()) });
 export const JUMP = new Action("Jump Marker", { resolve: () => dashFor(true, lastPress()) });
 
 /** The dash (or jump) a `dodge()`/`jump()` cut makes after `after`, resolved when reached the way
  *  an Intro entry is: the member's press on that input valid after it (Jingran's Shadow Step, Galbrena's
- *  Hellstride), else the plain one. Cut to an insta cancel by `run()` where the next press's cast priority beats
+ *  Hellstride), else the plain one. Transition to an insta cancel by `run()` where the next press's cast priority beats
  *  the dash's own there. */
 export class DashMarker extends Action {
-  constructor(isJump: boolean, readonly after: Action, readonly kind: ActionTag) {
-    super(isJump ? "Jump Placeholder" : "Dodge Placeholder", {
+  constructor(isJump: boolean, readonly after: Action, readonly kind: Transition) {
+    super(isJump ? "Jump Placeholder" : "Dash Placeholder", {
       resolve: () => {
         // an echo whose mainslot isn't worn is skipped, its dash with it
         if (after.mainslot && after.resolveFn!() === SKIP) return SKIP;
@@ -1230,10 +1317,47 @@ const barGain = (b: Bullet, k: number): number =>
 /** A rotation step that plays `of` itself cut short by `kind` — `run()` unwraps it, so the press
  *  is the very Action the kit declared and only its frames and its row's tag differ. */
 export class CancelledStep extends Action {
-  constructor(readonly of: Action, readonly kind: ActionTag) {
+  constructor(readonly of: Action, readonly kind: Transition) {
     super(of.name);
   }
   override everyOther(): Action { return new CancelledStep(this.of.everyOther(), this.kind); }
+  /** The same step around `of` instead — an Intro entry standing in for the Intro written. */
+  rewrap(of: Action): Action { return new CancelledStep(of, this.kind); }
+}
+
+/** When a step means to hand over to the next press (`Timing`), and at which frame for `Timed`. */
+export interface StepTiming { kind: Timing; frame: number }
+
+/** A rotation step playing `of` with an intended timing (`instant()`, `firstHit()`, `timed()`): the engine solves
+ *  its cut. No old cancel of its own (`Temporary`). */
+export class TimedStep extends CancelledStep {
+  constructor(of: Action, readonly timing: StepTiming) {
+    if (of instanceof CancelledStep) throw new Error(`${of.name}: a timing goes on the press itself, not on a cut of it`);
+    super(of, Transition.Temporary);
+  }
+  override everyOther(): Action { return new TimedStep(this.of.everyOther(), this.timing); }
+  override rewrap(of: Action): Action { return new TimedStep(of, this.timing); }
+}
+
+/** The compile-time rules on `a` meaning to hand over at `t`, null where it may: an instant timing past a last
+ *  commit inside `INPUT_PRECISION`, a first-hit one no later than instant or no sooner than last commit. */
+export function timingProblem(a: Action, t: StepTiming): string | null {
+  const lc = a.cutFrame;
+  if (t.kind === Timing.Instant && lc <= INPUT_PRECISION) return `its last commit is at frame ${lc}, inside INPUT_PRECISION — leave it at last commit`;
+  if (t.kind === Timing.FirstHit) {
+    if (!a.bullets.length) return "it has no bullet to hit";
+    const first = Math.min(...a.bullets.map((h) => h.hitFrame));
+    if (first <= INPUT_PRECISION) return `its first hit is at frame ${first}, inside INPUT_PRECISION — write .instant() instead`;
+    if (first + INPUT_PRECISION >= lc) return `its first hit + INPUT_PRECISION (${first + INPUT_PRECISION}) is no sooner than its last commit (${lc}) — leave it at last commit`;
+  }
+  if (t.kind === Timing.Timed && (!Number.isInteger(t.frame) || t.frame < 0)) return `a timed cut needs a whole frame, not ${t.frame}`;
+  return null;
+}
+/** `a` at timing `t` as a rotation step, refused at compile time where `timingProblem()` says (a marker is read when reached). */
+function withTiming(a: Action, t: StepTiming): Action {
+  const why = a.resolveFn ? null : timingProblem(a, t);
+  if (why) throw new Error(`${a.name}: ${t.kind} timing — ${why}`);
+  return new TimedStep(a, t);
 }
 
 /** What a marker resolves to where its press is skipped (`everyOther()`): `run()` drops it, and the
@@ -1256,14 +1380,20 @@ export class EveryOther extends Action {
   override cancel(): Action { return this.gated.cancel().everyOther(); }
   override mashCancel(): Action { return this.gated.mashCancel().everyOther(); }
   override holdCancel(): Action { return this.gated.holdCancel().everyOther(); }
-  override dodgeCancel(): Action { return this.gated.dodgeCancel().everyOther(); }
+  override dashCancel(): Action { return this.gated.dashCancel().everyOther(); }
   override jumpCancel(): Action { return this.gated.jumpCancel().everyOther(); }
+  override mashDash(): Action { return this.gated.mashDash().everyOther(); }
+  override mashJump(): Action { return this.gated.mashJump().everyOther(); }
+  override hitSwap(): Action { return this.gated.hitSwap().everyOther(); }
+  override instant(): Action { return this.gated.instant().everyOther(); }
+  override firstHit(): Action { return this.gated.firstHit().everyOther(); }
+  override timed(frame: number): Action { return this.gated.timed(frame).everyOther(); }
   override instaCancel(): Action { return this.gated.instaCancel().everyOther(); }
-  override instaDodge(): Action { return this.gated.instaDodge().everyOther(); }
+  override instaDash(): Action { return this.gated.instaDash().everyOther(); }
   override instaJump(): Action { return this.gated.instaJump().everyOther(); }
   override hitCancel(): Action { return this.gated.hitCancel().everyOther(); }
   override cancelAt(frames: number): Action { return this.gated.cancelAt(frames).everyOther(); }
-  override hitDodge(): Action { return this.gated.hitDodge().everyOther(); }
+  override hitDash(): Action { return this.gated.hitDash().everyOther(); }
   override hitJump(): Action { return this.gated.hitJump().everyOther(); }
   override swapCancel(): Action { return this.gated.swapCancel().everyOther(); }
   override mashSwap(): Action { return this.gated.mashSwap().everyOther(); }
@@ -1347,7 +1477,7 @@ const INTRO_HELPER: Record<IntroKind, string> = { main: "", opener: ".firstIntro
 
 /** A chain's opening Intro as a rotation writes it: the kit's own Intros it may open on — one, or
  *  several written back to back (`Intro, EIntro`) — resolved when reached to whichever the
- *  resonator's `intro` picks, which has to be one of them. Cut like any press (`Intro.mashCancel()`,
+ *  resonator's `intro` picks, which has to be one of them. Transition like any press (`Intro.mashCancel()`,
  *  `Intro.cancel(), EIntro.cancel()`). */
 export class IntroEntry extends Action {
   constructor(readonly kind: IntroKind, readonly intros: readonly Action[]) {
@@ -1364,37 +1494,39 @@ export class IntroEntry extends Action {
   }
   // a cut on its first hit is its resolved Intro's own, which no marker can make
   override hitCancel(): Action { throw new Error(`${this.name}: an Intro opening a chain can't be cut on hit`); }
-  override hitDodge(): Action { throw new Error(`${this.name}: an Intro opening a chain can't be cut on hit`); }
+  override hitDash(): Action { throw new Error(`${this.name}: an Intro opening a chain can't be cut on hit`); }
   override hitJump(): Action { throw new Error(`${this.name}: an Intro opening a chain can't be cut on hit`); }
+  override hitSwap(): Action { throw new Error(`${this.name}: an Intro opening a chain can't be cut on hit`); }
 }
 
 /** A written Intro as its parts: the Intros it opens on, the chain it opens, and how it is cut —
  *  `apply` puts that same cut on an entry. Null for anything that isn't an Intro. */
 interface IntroForm { kind: IntroKind; intros: readonly Action[]; cut: string; apply: (entry: Action) => Action }
-const DASH_OF: Partial<Record<ActionTag, (a: Action) => Action>> = {
-  [ActionTag.DodgeCancel]: (a) => a.dodgeCancel(), [ActionTag.JumpCancel]: (a) => a.jumpCancel(),
-  [ActionTag.InstaDodge]: (a) => a.instaDodge(), [ActionTag.InstaJump]: (a) => a.instaJump(),
+const DASH_OF: Partial<Record<Transition, (a: Action) => Action>> = {
+  [Transition.DashCancel]: (a) => a.dashCancel(), [Transition.JumpCancel]: (a) => a.jumpCancel(),
+  [Transition.InstaDash]: (a) => a.instaDash(), [Transition.InstaJump]: (a) => a.instaJump(),
+  [Transition.MashDash]: (a) => a.mashDash(), [Transition.MashJump]: (a) => a.mashJump(),
 };
-const FORM_OF: Partial<Record<ActionTag, (a: Action) => Action>> = {
-  [ActionTag.InstaCancel]: (a) => a.instaCancel(), [ActionTag.SwapCancel]: (a) => a.swapCancel(),
-  [ActionTag.InstaSwap]: (a) => a.instaSwap(), [ActionTag.MashSwap]: (a) => a.mashSwap(),
+const FORM_OF: Partial<Record<Transition, (a: Action) => Action>> = {
+  [Transition.InstaCancel]: (a) => a.instaCancel(), [Transition.SwapCancel]: (a) => a.swapCancel(),
+  [Transition.InstaSwap]: (a) => a.instaSwap(), [Transition.MashSwap]: (a) => a.mashSwap(),
 };
 function introForm(a: Action): IntroForm | null {
   const core = (x: Action | null): { kind: IntroKind; intros: readonly Action[] } | null =>
     !x ? null : x instanceof IntroEntry ? { kind: x.kind, intros: x.intros }
-      : x.cast === Cast.Intro && !x.resolveFn && x.tag === ActionTag.Default ? { kind: "main", intros: [x] } : null;
+      : x.cast === Cast.Intro && !x.resolveFn && x.transition === Transition.Temporary ? { kind: "main", intros: [x] } : null;
   const form = (x: Action | null, cut: string, apply: (e: Action) => Action): IntroForm | null => {
     const c = core(x);
     return c && { ...c, cut, apply };
   };
-  if (a instanceof CancelledStep) return form(a.of, a.kind, (e) => new CancelledStep(e, a.kind));
+  if (a instanceof CancelledStep) return form(a.of, a.kind, (e) => a.rewrap(e));
   if (a instanceof ActionGroup) {
     const dash = a.actions[1];
     if (a.actions.length !== 2 || !(dash instanceof DashMarker) || !DASH_OF[dash.kind]) return null;
     return form(dash.after, dash.kind, DASH_OF[dash.kind]!);
   }
   const base = a.cancelOf ?? a.formOf;
-  if (base && FORM_OF[a.tag]) return form(base, a.tag, FORM_OF[a.tag]!);
+  if (base && FORM_OF[a.transition]) return form(base, a.transition, FORM_OF[a.transition]!);
   return form(a, "", (e) => e);
 }
 /** `.firstIntro()` and the rest: the same Intro, cut as it was, opening `kind`'s chain. */
@@ -1454,8 +1586,8 @@ export function slotPosition(rotations: Rotation[], i: number): number {
 /** The markers `after()`/`notAfter()` read as any press of their cast (`ctx.castMarker`). */
 let CAST_MARKERS: Map<Action, Cast> | null = null;
 const castMarkers = (): Map<Action, Cast> =>
-  (CAST_MARKERS ??= new Map([[DODGE, Cast.Dodge], [JUMP, Cast.Jump]]));
-ctx.castMarker = (a) => castMarkers().get(a) ?? -1;
+  (CAST_MARKERS ??= new Map([[DASH, Cast.Dash], [JUMP, Cast.Jump]]));
+ctx.castMarker = (a) => castMarkers().get(a) ?? Cast.None;
 
 
 /** The double-Intro pre-visit's entry, as the scheduler reads it. Opened by an Intro's
@@ -1484,15 +1616,15 @@ export const SWAPIN_OPENER = new Action("Swap In (Opener)");
 const SWAP_EXIT = new Action("Swap Exit");
 
 /** The swap out, as it plays: named for where the resonator swapped in will stand. */
-const SWAP_GROUNDED = new Action("Swap - Grounded", { tag: ActionTag.OffField });
-const SWAP_MIDAIR = new Action("Swap - Mid-air", { tag: ActionTag.OffField });
+const SWAP_GROUNDED = new Action("Swap - Grounded");
+const SWAP_MIDAIR = new Action("Swap - Mid-air");
 /** The swap out: after a swap form unless an Outro follows (`runRotations()` puts it in), or written
  *  after a press played out. No frames, no delay, no cast — an OFF_FIELD row, dimmed. Its cast and
  *  an Outro's are the only things that take a resonator off the field. It resolves to where the one
  *  swapped in will stand: inside the start sections on the ground, else where the one leaving stands.
  *  On every resonator's Outro input below a full Concerto, picked where none of its own Outros is valid. */
 export const SWAP = new Action("Swap", {
-  tag: ActionTag.OffField, input: Input.Outro, valid: () => concerto() < 10000,
+  input: Input.Outro, inputPriority: -1, maxConcerto: 9999,
   resolve: () => {
     const s = ctx.state!;
     return (!s.inStart || s.toOpener) && currentMember().position === Position.Midair ? SWAP_MIDAIR : SWAP_GROUNDED;
@@ -1500,8 +1632,8 @@ export const SWAP = new Action("Swap", {
 });
 /** The swap out as written or as it plays. */
 export const isSwap = (a: Action): boolean => a === SWAP || a === SWAP_GROUNDED || a === SWAP_MIDAIR;
-// the fallbacks every resonator makes where none of its own presses on that input is valid
-DEFAULT_PRESSES.fallbacks = [DEFAULT_DODGE, DEFAULT_AIR_DODGE, DEFAULT_JUMP, SWAP];
+// the presses every resonator has on these inputs, below its own (`inputPriority` -1)
+DEFAULT_PRESSES.fallbacks = [DEFAULT_DASH, DEFAULT_AIR_DASH, DEFAULT_JUMP, SWAP];
 
 /* ------------------------------------------------------------------------------ the rotation */
 
@@ -1532,7 +1664,7 @@ export interface Chain {
  *  this says, never earlier. */
 export function chainGates(chain: Chain, owner: TeamMember, hasIntro: boolean, resolve: (marker: Action, bars: readonly number[]) => Action | null, bars: readonly number[], cap: readonly number[]): VisitGate[] {
   // every press as it will play: a marker resolved, a hold cancel reading the press after it
-  const presses: { pressed: Action; a: Action; cut: ActionTag | null }[] = [];
+  const presses: { pressed: Action; a: Action; cut: Transition | null }[] = [];
   const { members, lastMarker } = chainMembers(chain);
   // the bars each marker resolves on: every press before it banked whole (Sigrika's Skill reads
   // the Full Stop her Schemata banked)
@@ -1556,15 +1688,15 @@ export function chainGates(chain: Chain, owner: TeamMember, hasIntro: boolean, r
   // the bars run through the visit, each press banking its cast and the bullets it keeps — read
   // only by a hold cancel, so banked up to the last one and no further
   let lastHold = -1;
-  for (let n = 0; n < presses.length; n++) if (presses[n]!.cut === ActionTag.HoldCancel || presses[n]!.cut === ActionTag.MashCancel) lastHold = n;
+  for (let n = 0; n < presses.length; n++) if (presses[n]!.cut && waitsForNext(presses[n]!.cut!)) lastHold = n;
   const out: VisitGate[] = [];
   const g = [...bars];
   let t = 0;
   for (let n = 0; n < presses.length; n++) {
     const { pressed, a, cut } = presses[n]!;
     if (a.cooldown) out.push({ cd: a.cooldown, offset: t, press: pressed.name });
-    const hold = cut === ActionTag.HoldCancel || cut === ActionTag.MashCancel ? a.holdAt(owner, g, cap, presses[n + 1]?.pressed ?? null, null, [], cut === ActionTag.MashCancel) : -1;
-    t += (hold >= 0 ? a.holdCost(hold) : a.cost(cut ?? a.tag)).total;
+    const hold = cut && waitsForNext(cut) ? a.holdAt(owner, g, cap, presses[n + 1]?.pressed ?? null, null, [], KIND_OF[cut] === "mash") : -1;
+    t += (hold >= 0 ? a.holdCost(hold) : a.cost(cut ?? a.transition)).total;
     if (n < lastHold) bankPress(g, a, cap, hold);
   }
   return out;
@@ -1646,7 +1778,7 @@ export class Rotation {
   /** The delays its member's presses play at (`withDelays()`), null for the defaults. */
   delays: Delays | null = null;
 
-  /** A rotation played at delays of its own (`{ cancel: 1, insta: 1 }`): `write` builds its list
+  /** A rotation played at delays of its own (`{ precision: 1 }`): `write` builds its list
    *  under them, so its insta and on-hit cuts keep what they commit by then, and its member's presses play at them. */
   static withDelays(d: Partial<Delays>, write: () => readonly Action[]): Rotation {
     const delays = delaysWith(d);
@@ -1847,7 +1979,7 @@ const unstep = (a: Action): [Action, CancelledStep | null] => (a instanceof Canc
 function leavesField(a: Action): boolean {
   const last = a instanceof ActionGroup ? a.actions[a.actions.length - 1]! : a;
   if (last === SWAP) return true;
-  return (last.tag === ActionTag.SwapCancel || last.tag === ActionTag.InstaSwap || last.tag === ActionTag.MashSwap) && (last.formOf ?? last.cancelOf) !== null;
+  return isSwapTransition(last.transition) && (last.formOf ?? last.cancelOf) !== null;
 }
 /** The mainslot an entry's echo cast plays for, cut or grouped, or null for no echo's. */
 function echoOf(a: Action): Mainslot | null {
@@ -1905,7 +2037,7 @@ function unswap(a: Action): Action {
   if (a instanceof ActionGroup) out = new ActionGroup(a.name, [...a.actions.slice(0, -1), unswap(a.actions[a.actions.length - 1]!)]);
   else {
     const base = (a.formOf ?? a.cancelOf)!;
-    out = a.tag === ActionTag.InstaSwap ? base.instaCancel() : a.tag === ActionTag.MashSwap ? base.mashCancel() : base.cancel();
+    out = a.transition === Transition.InstaSwap ? base.instaCancel() : a.transition === Transition.MashSwap ? base.mashCancel() : a.transition === Transition.HitSwap ? base.hitCancel() : base.cancel();
   }
   UNSWAPPED.set(a, out);
   return out;
@@ -2106,7 +2238,7 @@ function playRotations(state: State, rotations: Rotation[], count: number, limit
     const blind = state.successorMissed;
     state.successor = null;
     state.lastHandoff = null;
-    // Cut at the limit: a section opened at or past it never began, every row cast past it is gone,
+    // Transition at the limit: a section opened at or past it never began, every row cast past it is gone,
     // and a section counts as complete only where its closing handoff came by then
     if (section + (closing ? 1 : 0) < count) {
       const ends = [...starts.slice(1), closing ? opensAt : Infinity];

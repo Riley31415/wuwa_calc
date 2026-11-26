@@ -29,24 +29,34 @@ numbers come from and how to import them — read before adding, changing or re-
   it is cast as. a follow-up nobody presses (a coordinated hit, a queued Oblivion) has none. the
   Resonator lists every pressed action in `actions` (an echo's are its mainslot's)
 - a cast's *condition* is its condition fields, ANDed (`after`, `notAfter`, `position`, `holds`, `lacks`,
-  `minConcerto`/`maxConcerto`, `minForteN`/`maxForteN` inclusive, `valid` for what no field says — a sequence,
-  a store's contents — and `yieldsTo`), never read off what it spends, from text that gates the
+  `minConcerto`/`maxConcerto`, `minForteN`/`maxForteN` inclusive, `minOfftune` (the target's bar: a Tune Break's
+  full one); there is no `valid` function), always plain arrays — declare what they name above, and
+  where presses follow each other in a loop set the later one's `after` once both exist (`X.setAfter([...])`).
+  a state kept in bits or a count is a hidden marker buff kept in sync where the store is written (Buling's
+  pair markers, Cartethyia's shadow count). never read off what it spends, from text that gates the
   cast ("when X is full, Heavy Attack is replaced with...", "requires full Concerto", "with 4 Meta
   Vectors") — "consumes all X" alone is a spend, no condition. Iuno's Absolute Fullness is
   `minConcerto: 10000` and spends none; Hsin's Stilling All Horizons is `maxForte2: 0` with
   `resetForte2: true`; every non-Unison Outro is `minConcerto: 10000`. a state the cast needs (a stance, a
   summon, a "replaces the next Heavy Attack" window) is `holds: X` — held by her, the team or the target as
   the cast finds it. one buff per cast: a state that only stands inside another declares `lostWith` (it
-  ends with it) and the cast requires the inner one; where a form picks which press comes out, the forms
-  read exclusive conditions so only one on an input is valid at a time (a rotation search walks
-  `actions` for the moves open in a state; `inputConflicts()` lists any input with two). a state the cast
-  can't be under (a base form a stance replaces) is `lacks: X`. a press that gives its button to another while
-  that one is valid with a charge ready — "when X is full, Heavy Attack is replaced with Y", Carlotta's
-  Containment Tactics against Imminent Oblivion's cooldown — is `yieldsTo: () => [Y]`, never a negated
-  condition. a field never ORs: a press reached two ways is two presses, one a form of the other (Sigrika's
+  ends with it) and the cast requires the inner one. which press an input makes is `inputPriority` (default
+  0): of the presses on it whose conditions hold with a charge ready, the highest, and any below it is
+  invalid there. a press the text says replaces another ("when X is full, Heavy Attack is replaced with Y",
+  a stage that follows stage n−1, a stance's Basic over the plain one, Carlotta's Imminent Oblivion over
+  Containment Tactics while ready) sits one above it, and the replaced press names none of it: no `notAfter`
+  of its later stages, no `lacks` of the stance, no `maxForteN` under the replacer's `minForteN` — a bar the
+  replacer needs is its `minForteN` at the cast's cost or the cap, and a press that needs an empty bar
+  `maxForteN: 0`. a chain's later stages sit above its first, so stage 1 names none of them; a special
+  follow-up ("Basic Attack after the Liberation casts ...") lists what it follows in `after` and sits well
+  above the plain press there (10). `notAfter`/`lacks`/a max stay only where no press takes the input
+  instead (Lucilla's Skill in Reminiscence). the plain dashes, jump and Swap are -1 on every list, and the weapon's Tune Break
+  is listed only where the kit has no Tune Break of its own; a kit's own dash or break built off one
+  (`DEFAULT_DASH.variant`, `breakWhen()`) is 0. two valid at one
+  priority is a conflict (`inputConflicts()`). a field never ORs: a press reached two ways is two presses, one a form of the other (Sigrika's
   `BA2` and `BA2Start`). a press never reads its own cooldown: a cooldown is part of what makes a press valid to pick or search (`Action.ready()`), and a
   written press waits it out. a press the game can't separate from another by state (the hold's
-  length, a parry, a hit landing) is listed for the user, not guessed — or, told so, `valid: () => false`. energy is never read there. a row cast
+  length, a parry, a hit landing) is listed for the user, not guessed — or, told so, commented out (a press the game does on its own, like a successful dodge, gets an input of its own: `Input.SuccessfulDodge`). energy is never read there. a row cast
   where it is false reads red and warns once per team, and a hold or mash cancel holds until the next
   press is valid
 - an inherent that applies only to specific actions = a buff added and removed on just those actions
@@ -63,7 +73,7 @@ numbers come from and how to import them — read before adding, changing or re-
 
 # naming actions
 - an action with a cast is `<Cast> - <name>`: Basic, Mid-air, Heavy, Skill, Liberation, Intro, Outro, Echo, Dodge Counter, Tune Break, Dodge, Jump
-  (a kit's own dodge or jump press is `cast: Cast.Dodge`/`Cast.Jump`, whatever damage type it deals); the prefix follows `cast`, not `type` (`Dodge Counter - Moonbow` even though it deals Liberation DMG) — except a mid-air press, which reads `Mid-air` though its cast is Basic
+  (a kit's own dodge or jump press is `cast: Cast.Dash`/`Cast.Jump`, whatever damage type it deals); the prefix follows `cast`, not `type` (`Dodge Counter - Moonbow` even though it deals Liberation DMG) — except a mid-air press, which reads `Mid-air` though its cast is Basic
 - `Forte <Cast> - <name>` only when the action sits in `Node.Forte` AND spends something (a negative `castForteN` or bullet `forteN`, or a revoke/removeStack/setForte in its def); a stance's plain presses stay `Basic - Umbra 1`, `Heavy - Incarnation`
 - mid-air presses are Basic Attacks: `cast: Cast.Basic` and `Mid-air - <name>` (no "(Mid-Air)" suffix), so `casting(Cast.Basic)` already covers them; there is no mid-air cast type, so a "mid-air attack" clause names its presses with `runningAction(X)`; mid-air heavies/dodge counters keep their own cast and carry "(Mid-Air)" in the name
 - a plunging attack is a mid-air press too: `Mid-air - <name>` (`Mid-air - Plunging Attack` for a bare one), and a "mid-air attack" clause lists it alongside the aerial chain — unless its cast is not Basic (`Forte Skill - Undying Sunlight: Plunge`), which keeps its own prefix like any other mid-air non-Basic

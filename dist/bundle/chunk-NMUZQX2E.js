@@ -1,7 +1,6 @@
 import {
   ALL_TEAMS,
   AXES,
-  ActionTag,
   BASE_RESISTANCE,
   CAST_NAME,
   CONCERTO_UNIT,
@@ -27,6 +26,7 @@ import {
   TAG_NAME,
   TUNE_BREAK,
   TUNE_BREAK_ENEMY,
+  Transition,
   Weapon,
   axisOpen,
   axisUsed,
@@ -75,7 +75,7 @@ import {
   teamAt,
   teamKey,
   weaponBase
-} from "./chunk-JC7DESRL.js";
+} from "./chunk-UAEIIFKI.js";
 
 // dist/src/page/display.js
 var shown = (s, i) => s.shownAfter?.[i] ?? [s.energy, s.concerto, s.offtune, ...s.forte][i];
@@ -356,8 +356,8 @@ var actionInfo = (snap) => {
       info.push({ label, value });
   };
   push("Node", action.node === null ? null : NODE_NAME[action.node]);
-  push("Cast", action.cast === null ? null : CAST_NAME[action.cast]);
-  push("Subcast", action.subcast === null ? null : CAST_NAME[action.subcast]);
+  push("Cast", action.cast === 11 ? null : CAST_NAME[action.cast]);
+  push("Subcast", action.subcast === 11 ? null : CAST_NAME[action.subcast]);
   const kinds = (of, also = null) => {
     const seen = new Set(action.bullets.map(of).filter((v) => v !== null));
     if (also !== null)
@@ -371,7 +371,7 @@ var actionInfo = (snap) => {
   let press = action;
   while ((press.cancelOf ?? press.formOf) && (press.cancelOf ?? press.formOf) !== TUNE_BREAK)
     press = press.cancelOf ?? press.formOf;
-  push("Input", press.inputs.length ? press.inputs.map((i) => INPUT_NAME[i]).join(", ") : null);
+  push("Input", press.input === 14 ? null : INPUT_NAME[press.input]);
   push("End Position", press.endPosition === null ? null : POSITION_NAME[press.endPosition]);
   push("Animation", `${press.animFrames}f`);
   push("Cast Priority", press.castPriority === null ? null : String(press.castPriority));
@@ -482,7 +482,7 @@ var BETWEEN = "Between Actions";
 var RATE_SECTIONS = /* @__PURE__ */ new Set([OFFTUNE_RATE, OFFTUNE_MULT, HIT_ENERGY_MULT]);
 var ENERGY_REGEN = "Energy Regen";
 var MV_MULTIPLIER = "MV Multiplier";
-var tagOf = (snap) => snap.tag === ActionTag.OffField ? "" : snap.tag === ActionTag.TimedCancel ? `cancel @ ${snap.action.timedAt}f` : snap.tag;
+var tagOf = (snap) => snap.action.offField ? "" : snap.tag === Transition.TimedCancel ? `cancel @ ${snap.action.timedAt}f` : snap.tag;
 function ownShares(snap, cast, hit) {
   if (cast && hit) {
     return [

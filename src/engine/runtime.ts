@@ -3,8 +3,8 @@
  * scratch maps, the dry-run journal and the pending-cast queue. The leaf of the engine: it holds
  * what `context.ts` and `evaluate.ts` both write, and imports nothing from either.
  */
-import { Stat, Attribute, Type, Subtype } from "./stats.js";
-import type { Cast, Position } from "./stats.js";
+import { Stat, Attribute, Type, Subtype, Cast } from "./stats.js";
+import type { Position } from "./stats.js";
 import type { Action, Bullet } from "./rotation.js";
 import type { Gear } from "./gear.js";
 import type { State, TeamMember, HeldBuff } from "./state.js";
@@ -116,7 +116,7 @@ export const ctx: {
   pressStart: number;
   /** The real frames the press being evaluated plays: its animation to its cut, and the cut's delay. */
   actReal: number;
-  /** The tag the press being evaluated was cut short by (`ActionTag`, "" for none, "field" for a
+  /** The tag the press being evaluated was cut short by (`Transition`, "" for none, "field" for a
    *  press beside the fight) — its cast's, and carried to its end (`pressWasCut()`). */
   pressCut: string;
   /** Set by `replaceCut()`: the cut the press is relabelled as, its dodge or swap dropped; "" for none. */
@@ -161,8 +161,8 @@ export const ctx: {
   validAnyStand: boolean;
   /** Set by `Action.paysOn()`: `holds()` and `lacks()` read true, only the bars left to read. */
   validAnyBuff: boolean;
-  /** rotation.ts's markers an `after`/`notAfter` reads as any press of a cast (DODGE, JUMP): that cast, else -1. */
-  castMarker: (a: Action) => number;
+  /** rotation.ts's markers an `after`/`notAfter` reads as any press of a cast (DASH, JUMP): that cast, else `Cast.None`. */
+  castMarker: (a: Action) => Cast;
 } = {
   state: null,
   slot: null,
@@ -224,7 +224,7 @@ export const ctx: {
   validMiss: false,
   validAnyStand: false,
   validAnyBuff: false,
-  castMarker: () => -1,
+  castMarker: () => Cast.None,
 };
 
 export const tagWord = (element: Attribute | null, type: Type | null, subtype: Subtype | null): number =>

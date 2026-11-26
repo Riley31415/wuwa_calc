@@ -35,7 +35,7 @@ import {
   wireDistribution,
   wireSourcePanels,
   zoom
-} from "./chunk-EEQGQ6Y3.js";
+} from "./chunk-OBGCER6G.js";
 import {
   FALLBACK_HUE,
   GROUPED_COLUMNS,
@@ -84,9 +84,8 @@ import {
   tagTeam,
   weaponHue,
   workerPool
-} from "./chunk-OXAR545D.js";
+} from "./chunk-NMUZQX2E.js";
 import {
-  ActionTag,
   CONCERTO_UNIT,
   ENEMY_MAX_OFFTUNE,
   ENERGY_UNIT,
@@ -94,6 +93,7 @@ import {
   RESOURCE_NAME,
   SCALING_NAME,
   TUNE_BREAK_ENEMY,
+  Transition,
   comboOf,
   compares,
   echoPicks,
@@ -108,7 +108,7 @@ import {
   sequenceLevels,
   statLabel,
   weaponBase
-} from "./chunk-JC7DESRL.js";
+} from "./chunk-UAEIIFKI.js";
 
 // dist/src/page/pickmenu.js
 var FIELDS = ["weapon", "echo", "mainstat", "sequence", "refine", "highSubs"];
@@ -402,39 +402,44 @@ function cell(col, { cls = [], html = "", pop = "", style = "", attr = "" } = {}
   return `<span class="${classes}"${style ? ` style="${style}"` : ""}${attr}${pop}>${html}</span>`;
 }
 var TAG_KIND = {
-  [ActionTag.InstaCancel]: "insta",
-  [ActionTag.InstaDodge]: "insta",
-  [ActionTag.InstaJump]: "insta",
-  [ActionTag.InstaSwap]: "insta",
-  [ActionTag.SwapCancel]: "swap",
-  [ActionTag.MashSwap]: "swap",
-  [ActionTag.MashCancel]: "easy",
-  [ActionTag.HoldCancel]: "easy",
-  [ActionTag.OffField]: "field",
-  [ActionTag.DodgeCancel]: "dash",
-  [ActionTag.JumpCancel]: "jump",
-  [ActionTag.Cancel]: "cancel",
-  [ActionTag.HitCancel]: "hit",
-  [ActionTag.DodgeOnHit]: "hit",
-  [ActionTag.JumpOnHit]: "hit",
-  [ActionTag.TimedCancel]: "timed"
+  [Transition.InstaCancel]: "insta",
+  [Transition.InstaDash]: "insta",
+  [Transition.InstaJump]: "insta",
+  [Transition.InstaSwap]: "insta",
+  [Transition.SwapCancel]: "swap",
+  [Transition.MashSwap]: "swap",
+  [Transition.MashCancel]: "easy",
+  [Transition.MashDash]: "easy",
+  [Transition.MashJump]: "easy",
+  [Transition.HoldCancel]: "easy",
+  [Transition.DashCancel]: "dash",
+  [Transition.JumpCancel]: "jump",
+  [Transition.Cancel]: "cancel",
+  [Transition.HitCancel]: "hit",
+  [Transition.HitDash]: "hit",
+  [Transition.HitJump]: "hit",
+  [Transition.HitSwap]: "hit",
+  [Transition.TimedCancel]: "timed"
 };
 var TAG_NOTE = {
-  [ActionTag.InstaCancel]: "After casting, input the next action instantly",
-  [ActionTag.InstaDodge]: "After casting, dodge instantly",
-  [ActionTag.InstaJump]: "After casting, jump instantly",
-  [ActionTag.InstaSwap]: "After casting, swap instantly",
-  [ActionTag.Cancel]: "After the final hit, input the next action to cancel endlag",
-  [ActionTag.DodgeCancel]: "After the final hit, dodge to cancel endlag",
-  [ActionTag.JumpCancel]: "After the final hit, jump to cancel endlag",
-  [ActionTag.SwapCancel]: "After the final hit, swap to cancel endlag",
-  [ActionTag.MashSwap]: "After casting, mash swap to swap out the moment it allows",
-  [ActionTag.MashCancel]: "After casting, mash the next input to cancel when available",
-  [ActionTag.HoldCancel]: "After casting, hold the next input to cancel when available",
-  [ActionTag.HitCancel]: "After the first hit, input the next action",
-  [ActionTag.DodgeOnHit]: "After the first hit, dodge",
-  [ActionTag.JumpOnHit]: "After the first hit, jump",
-  [ActionTag.TimedCancel]: "Input the next action on the frame shown"
+  [Transition.InstaCancel]: "After casting, input the next action instantly",
+  [Transition.InstaDash]: "After casting, dash instantly",
+  [Transition.InstaJump]: "After casting, jump instantly",
+  [Transition.InstaSwap]: "After casting, swap instantly",
+  [Transition.Cancel]: "After the final hit, input the next action to cancel endlag",
+  [Transition.DashCancel]: "After the final hit, dash to cancel endlag",
+  [Transition.JumpCancel]: "After the final hit, jump to cancel endlag",
+  [Transition.SwapCancel]: "After the final hit, swap to cancel endlag",
+  [Transition.MashSwap]: "After casting, mash swap to swap out the moment it allows",
+  [Transition.MashCancel]: "After casting, mash the next input to cancel when available",
+  [Transition.MashDash]: "After casting, mash dash to dash the moment it allows",
+  [Transition.MashJump]: "After casting, mash jump to jump the moment it allows",
+  [Transition.HoldCancel]: "After casting, hold the next input to cancel when available",
+  [Transition.HitCancel]: "After the first hit, input the next action",
+  [Transition.HitDash]: "After the first hit, dash",
+  [Transition.HitJump]: "After the first hit, jump",
+  [Transition.HitSwap]: "After the first hit, swap",
+  [Transition.TimedCancel]: "Input the next action on the frame shown"
 };
 function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = true, bars = null } = {}) {
   const snap = "line" in row ? row.line.snap : row.snap;
@@ -500,7 +505,7 @@ function cellParts(col, row, slotHue, gearByMember, part, caret) {
     }
     const tag = col.key === "action" ? String(row.raw["tag:action"] ?? "") : "";
     if (tag) {
-      const own = tag.startsWith("cancel @ ") ? ActionTag.TimedCancel : tag;
+      const own = tag.startsWith("cancel @ ") ? Transition.TimedCancel : tag;
       const kind = TAG_KIND[own] ?? "cancel", note = TAG_NOTE[own];
       const tagPop = note ? lazyPop(`<span class="pop note">${esc(note)}</span>`) : "";
       html = `<span class="ctag ctag-${kind}"${tagPop}>${esc(tag.toUpperCase())}</span>${html}`;

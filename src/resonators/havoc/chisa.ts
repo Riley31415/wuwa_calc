@@ -89,7 +89,7 @@ import {
   forte1,
   lacks,
 } from "../../engine/context.js";
-import { Action, ActionGroup, Rotation, SWAPIN, ActionTag, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { Action, ActionGroup, Rotation, SWAPIN, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
 import {
   HEALS, HAVOC_BANE, GLACIO_CHAFE, ELECTRO_FLARE, FUSION_BURST, AERO_EROSION, SPECTRO_FRAZZLE, ELECTRO_RAGE,
   inflictedNegativeStatusBy, gainShield,
@@ -143,80 +143,37 @@ const SNIP_HEAL = { updateDebuffs: () => applyCurrent(HEALS, 1) };
 // --- Reign of Silence: the ground basic chain. Stage 1 -> Stage 2 -> Rending Lunge -> Death Snip
 //     -> Thread Withdrawn is the full string; Hanging Finality and the mid-air/Heavy pieces below
 //     are reached from other points in it (Heavy Attack, mid-air) rather than this ground line.
-const BA1 = chisaAction("Basic - Reign of Silence 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [BA1, BA2, RendingLunge, DeathSnip, Spread, ReignOfSilenceMidAir, Liberation, Intro, DodgeCounterBA2, Skill, HangingFinality, HA, SeveredFacet], position: Position.Grounded, valid: () => !isHeld(CHAINSAW_MODE), animFrames: 23, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = chisaAction("Basic - Reign of Silence 1", { input: Input.Basic, position: Position.Grounded, lacks: CHAINSAW_MODE, animFrames: 23, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 8, mv: 1671, energy: 35, concerto: 70, offtune: 1120, forte1: 2 },
     { hitFrame: 17, mv: 1671, energy: 35, concerto: 70, offtune: 1120, forte1: 2 },
   ]});
-// Normal Attack shortly after the Plunging Attack, the Liberation or the Intro also casts Stage 2
-const BA2 = chisaAction("Basic - Reign of Silence 2", { input: Input.Basic, after: () => [BA1, ReignOfSilenceMidAir, Liberation, Intro], animFrames: 55, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 11, mv: 955, energy: 20, concerto: 40, offtune: 640, forte1: 2 },
-    { hitFrame: 21, mv: 1909, energy: 40, concerto: 80, offtune: 1280, forte1: 3 },
-    { hitFrame: 38, mv: 6681, energy: 140, concerto: 280, offtune: 4480, forte1: 9 },
-  ], ...READY_LUNGE });
 /** Dodge Counter's own Reign of Silence 2 — a bigger single burst than the plain combo stage,
  *  triggered off a successful Dodge rather than chained from Stage 1. Not in the rotation (nothing
  *  here models incoming attacks to dodge), defined for completeness. */
-const DodgeCounterBA2 = chisaAction("Dodge Counter - Reign of Silence 2", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], animFrames: 57, animPriority: { 0: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const DodgeCounterBA2 = chisaAction("Dodge Counter - Reign of Silence 2", { input: Input.Basic, after: [SUCCESSFUL_DODGE], animFrames: 57, animPriority: { 0: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 11, mv: 2386, energy: 50, concerto: 100, offtune: 1120, forte1: 3 },
     { hitFrame: 22, mv: 4772, energy: 100, concerto: 200, offtune: 2240, forte1: 5 },
     { hitFrame: 40, mv: 16701, energy: 350, concerto: 700, offtune: 7840, forte1: 15 },
   ], castConcerto: 1000, ...READY_LUNGE });
-const RendingLunge = chisaAction("Basic - Rending Lunge", { input: Input.Basic, after: () => [BA2, DodgeCounterBA2, Skill], holds: RENDING_LUNGE_READY, animFrames: 80, animPriority: { 0: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 18, mv: 1511, energy: 32, concerto: 64, offtune: 1014, forte1: 2 },
-    { hitFrame: 24, mv: 1511, energy: 32, concerto: 64, offtune: 1014, forte1: 2 },
-    { hitFrame: 27, mv: 1511, energy: 32, concerto: 64, offtune: 1014, forte1: 2 },
-    { hitFrame: 32, mv: 1511, energy: 32, concerto: 64, offtune: 1014, forte1: 2 },
-    { hitFrame: 58, mv: 9066, energy: 191, concerto: 381, offtune: 6081, forte1: 12 },
-  ],
-  updateBuffs: () => revokeCurrent(RENDING_LUNGE_READY),
-});
-/** "The skill DMG is considered Resonance Liberation DMG" per the kit page — matches wuwalab's own
- *  damage_type for both hits. */
-// "Press Normal Attack shortly after casting this skill on the ground to cast Death Snip" (Lunge, Hanging Finality)
-const DeathSnip = chisaAction("Basic - Death Snip", { input: Input.Basic, after: () => [RendingLunge, HangingFinality], position: Position.Grounded, animFrames: 73, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Liberation, bullets: [
-    { hitFrame: 14, mv: 2981, energy: 42, concerto: 84, offtune: 1333, forte1: 4 },
-    { hitFrame: 54, mv: 1491, energy: 21, concerto: 42, offtune: 667, forte1: 2 },
-    { hitFrame: 65, mv: 10434, energy: 146, concerto: 292, offtune: 4665, forte1: 12 },
-    { hitFrame: 67, element: null, type: null, subtype: null, ...SNIP_HEAL },
-  ]});
-/** Spread, pressed out of Death Snip: the extra hit wuwalab's "Death Snip + Spread" row inserts, as its own
- *  press after the snip — the row's 3 more frames, so the hit lands after the snip rather than mid-way. */
-const Spread = chisaAction("Basic - Death Snip: Spread", { input: Input.Basic, after: () => [DeathSnip], animFrames: 3, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Liberation, bullets: [
-    { hitFrame: 0, mv: 4778, energy: 67, concerto: 134, offtune: 2136, forte1: 9 },
-  ]});
-const ThreadWithdrawn = chisaAction("Basic - Thread Withdrawn", { input: Input.Basic, after: () => [Spread], animFrames: 56, animPriority: { 0: 4, 34: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 6, mv: 1015, energy: 22, concerto: 43, offtune: 681, forte1: 3 },
-    { hitFrame: 15, commitFrame: 6, mv: 1015, energy: 22, concerto: 43, offtune: 681, forte1: 3 },
-    { hitFrame: 48, commitFrame: 6, mv: 4735, energy: 100, concerto: 199, offtune: 3176, forte1: 10 },
-  ]});
 /** The airborne normal attack — not part of the ground string, chains into Reign of Silence 2 in
  *  mid-air instead. Not in the rotation (nothing here models being airborne), defined for completeness. */
-const ReignOfSilenceMidAir = chisaAction("Mid-air - Reign of Silence Plunge", { input: [Input.Basic, Input.SwapIn], position: Position.Midair, endPosition: Position.Grounded, animFrames: 47, animPriority: { 0: 5, 31: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 33, mv: 7396, energy: 155, concerto: 310, offtune: 4960, forte1: 9 }]});
+const ReignOfSilenceMidAir = chisaAction("Mid-air - Reign of Silence Plunge", { input: Input.Basic, position: Position.Midair, endPosition: Position.Grounded, animFrames: 47, animPriority: { 0: 5, 31: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 33, mv: 7396, energy: 155, concerto: 310, offtune: 4960, forte1: 9 }]});
 
 // "Leap into the air and consume STA to attack the target"
-const HA = chisaAction("Heavy - Reign of Silence", { input: Input.BasicHold, lacks: CHAINSAW_MODE, endPosition: Position.Midair, animFrames: 44, animPriority: { 44: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+const HA = chisaAction("Heavy - Reign of Silence", { input: Input.BasicHold, endPosition: Position.Midair, animFrames: 44, animPriority: { 44: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 12, mv: 3579, energy: 75, concerto: 150, offtune: 2400, forte1: 5 },
     { hitFrame: 31, mv: 3579, energy: 75, concerto: 150, offtune: 2400, forte1: 5 },
   ]});
 /** Heavy Attack's own mid-air follow-up, chaining into Hanging Finality. Not in the rotation. */
 // "Hold Normal Attack before landing after casting Heavy Attack"
-const SeveredFacet = chisaAction("Heavy - Severed Facet (Mid-Air)", { input: Input.BasicHold, after: () => [HA], position: Position.Midair, animFrames: 53, animPriority: { 53: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+const SeveredFacet = chisaAction("Heavy - Severed Facet (Mid-Air)", { input: Input.BasicHold, after: [HA], position: Position.Midair, animFrames: 53, animPriority: { 53: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 29, mv: 4474, energy: 94, concerto: 188, offtune: 3000, forte1: 6 },
     { hitFrame: 36, mv: 4474, energy: 94, concerto: 188, offtune: 3000, forte1: 6 },
-  ]});
-/** Reached off Heavy Attack, Severed Facet, or Rending Lunge in mid-air; can chain into Death Snip.
- *  Not in the rotation (the ground string reaches Death Snip via Rending Lunge instead). */
-// a Plunging Attack, off Normal Attack after the Heavy, Severed Facet or a mid-air Rending Lunge
-const HangingFinality = chisaAction("Basic - Hanging Finality", { input: Input.Basic, after: () => [HA, SeveredFacet, RendingLunge], position: Position.Midair, endPosition: Position.Grounded, animFrames: 77, animPriority: { 63: 3, 77: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 6, mv: 1193, energy: 25, concerto: 50, offtune: 800, forte1: 2 },
-    { hitFrame: 21, mv: 2386, energy: 50, concerto: 100, offtune: 1600, forte1: 3 },
-    { hitFrame: 64, mv: 2386, energy: 50, concerto: 100, offtune: 1600, forte1: 3 },
-    { hitFrame: 70, mv: 5965, energy: 125, concerto: 250, offtune: 4000, forte1: 8 },
   ]});
 
 // --- Resolution: Eye of Unraveling is her baseline Skill; Serrated Loop replaces it once the Ring
 //     of Chainsaw is full and is what sends her into Chainsaw Mode. All three mark Unseen Snare.
-const Skill = chisaAction("Skill - Eye of Unraveling", { input: Input.Skill, yieldsTo: () => [SerratedLoop], animFrames: 20, animPriority: { 21: 3 }, castPriority: 4, cooldown: 60 * 12, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [{ hitFrame: 8, mv: 3579, energy: 75, concerto: 150, offtune: 2400, forte1: 5 }], ...MARK_SNARE,
+const Skill = chisaAction("Skill - Eye of Unraveling", { input: Input.Skill, animFrames: 20, animPriority: { 21: 3 }, castPriority: 4, cooldown: 60 * 12, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [{ hitFrame: 8, mv: 3579, energy: 75, concerto: 150, offtune: 2400, forte1: 5 }], ...MARK_SNARE,
   updateBuffs: () => { if (!isHeld(CHAINSAW_MODE)) applyCurrent(RENDING_LUNGE_READY, 1); },
 });
 /** The plain tap — released immediately. Not in the rotation; the Hold below reaches Chainsaw Mode
@@ -230,7 +187,7 @@ const ENTER_CHAINSAW = {
   },
 };
 // "While on the ground and Ring of Chainsaw is full, Resonance Skill is replaced with Serrated Loop"
-const SerratedLoop = chisaAction("Forte Skill - Serrated Loop", { input: Input.Skill, position: Position.Grounded, minForte1: 100, animFrames: 83, animPriority: { 0: 4, 78: 2 }, castPriority: 4, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+const SerratedLoop = chisaAction("Forte Skill - Serrated Loop", { input: Input.Skill, inputPriority: 1, position: Position.Grounded, minForte1: 100, animFrames: 83, animPriority: { 0: 4, 78: 2 }, castPriority: 4, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 27, mv: 1745, energy: 37, concerto: 74, offtune: 1170 },
     { hitFrame: 32, mv: 1745, energy: 37, concerto: 74, offtune: 1170 },
     { hitFrame: 39, mv: 1745, energy: 37, concerto: 74, offtune: 1170 },
@@ -279,11 +236,54 @@ const Liberation = chisaAction("Liberation - Moment of Nihility", {
   ], castConcerto: 2000, castForte1: 40,
   updateBuffs: () => applyCurrent(WOVEN_MYRIAD_CONVERGENCE, 1),
 });
+// Normal Attack shortly after the Plunging Attack, the Liberation or the Intro also casts Stage 2
+const BA2 = chisaAction("Basic - Reign of Silence 2", { input: Input.Basic, inputPriority: 1, after: [BA1, ReignOfSilenceMidAir, Liberation, Intro], animFrames: 55, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 11, mv: 955, energy: 20, concerto: 40, offtune: 640, forte1: 2 },
+    { hitFrame: 21, mv: 1909, energy: 40, concerto: 80, offtune: 1280, forte1: 3 },
+    { hitFrame: 38, mv: 6681, energy: 140, concerto: 280, offtune: 4480, forte1: 9 },
+  ], ...READY_LUNGE });
+const RendingLunge = chisaAction("Basic - Rending Lunge", { input: Input.Basic, inputPriority: 1, after: [BA2, DodgeCounterBA2, Skill], holds: RENDING_LUNGE_READY, animFrames: 80, animPriority: { 0: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 18, mv: 1511, energy: 32, concerto: 64, offtune: 1014, forte1: 2 },
+    { hitFrame: 24, mv: 1511, energy: 32, concerto: 64, offtune: 1014, forte1: 2 },
+    { hitFrame: 27, mv: 1511, energy: 32, concerto: 64, offtune: 1014, forte1: 2 },
+    { hitFrame: 32, mv: 1511, energy: 32, concerto: 64, offtune: 1014, forte1: 2 },
+    { hitFrame: 58, mv: 9066, energy: 191, concerto: 381, offtune: 6081, forte1: 12 },
+  ],
+  updateBuffs: () => revokeCurrent(RENDING_LUNGE_READY),
+});
+/** Reached off Heavy Attack, Severed Facet, or Rending Lunge in mid-air; can chain into Death Snip.
+ *  Not in the rotation (the ground string reaches Death Snip via Rending Lunge instead). */
+// a Plunging Attack, off Normal Attack after the Heavy, Severed Facet or a mid-air Rending Lunge
+const HangingFinality = chisaAction("Basic - Hanging Finality", { input: Input.Basic, inputPriority: 1, after: [HA, SeveredFacet, RendingLunge], position: Position.Midair, endPosition: Position.Grounded, animFrames: 77, animPriority: { 63: 3, 77: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 6, mv: 1193, energy: 25, concerto: 50, offtune: 800, forte1: 2 },
+    { hitFrame: 21, mv: 2386, energy: 50, concerto: 100, offtune: 1600, forte1: 3 },
+    { hitFrame: 64, mv: 2386, energy: 50, concerto: 100, offtune: 1600, forte1: 3 },
+    { hitFrame: 70, mv: 5965, energy: 125, concerto: 250, offtune: 4000, forte1: 8 },
+  ]});
+/** "The skill DMG is considered Resonance Liberation DMG" per the kit page — matches wuwalab's own
+ *  damage_type for both hits. */
+// "Press Normal Attack shortly after casting this skill on the ground to cast Death Snip" (Lunge, Hanging Finality)
+const DeathSnip = chisaAction("Basic - Death Snip", { input: Input.Basic, inputPriority: 1, after: [RendingLunge, HangingFinality], position: Position.Grounded, animFrames: 73, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Liberation, bullets: [
+    { hitFrame: 14, mv: 2981, energy: 42, concerto: 84, offtune: 1333, forte1: 4 },
+    { hitFrame: 54, mv: 1491, energy: 21, concerto: 42, offtune: 667, forte1: 2 },
+    { hitFrame: 65, mv: 10434, energy: 146, concerto: 292, offtune: 4665, forte1: 12 },
+    { hitFrame: 67, element: null, type: null, subtype: null, ...SNIP_HEAL },
+  ]});
+/** Spread, pressed out of Death Snip: the extra hit wuwalab's "Death Snip + Spread" row inserts, as its own
+ *  press after the snip — the row's 3 more frames, so the hit lands after the snip rather than mid-way. */
+const Spread = chisaAction("Basic - Death Snip: Spread", { input: Input.Basic, inputPriority: 1, after: [DeathSnip], animFrames: 3, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Liberation, bullets: [
+    { hitFrame: 0, mv: 4778, energy: 67, concerto: 134, offtune: 2136, forte1: 9 },
+  ]});
+const ThreadWithdrawn = chisaAction("Basic - Thread Withdrawn", { input: Input.Basic, inputPriority: 1, after: [Spread], animFrames: 56, animPriority: { 0: 4, 34: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 6, mv: 1015, energy: 22, concerto: 43, offtune: 681, forte1: 3 },
+    { hitFrame: 15, commitFrame: 6, mv: 1015, energy: 22, concerto: 43, offtune: 681, forte1: 3 },
+    { hitFrame: 48, commitFrame: 6, mv: 4735, energy: 100, concerto: 199, offtune: 3176, forte1: 10 },
+  ]});
 
 // --- Chainsaw Mode's own Sawring Blitz chain, all typed Resonance Liberation DMG per the kit page.
 //     Each stage both spends the Ring of Chainsaw gauge (forte1) and banks the same
 //     amount onto RING_CONSUMED (spendRing above), which only Eradication ever reads.
-const Blitz1 = chisaAction("Forte Basic - Sawring Blitz 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [Blitz1, Blitz2, Blitz2Hold, Blitz2AfterPlunge, Blitz2HoldAfterPlunge, Blitz2DodgeCounter, Blitz2HoldDodgeCounter, Blitz3, Blitz3Hold], position: Position.Grounded, holds: CHAINSAW_MODE, animFrames: 31, animPriority: { 36: 2 }, castPriority: 3, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, bullets: [
+const Blitz1 = chisaAction("Forte Basic - Sawring Blitz 1", { input: Input.Basic, position: Position.Grounded, holds: CHAINSAW_MODE, animFrames: 31, animPriority: { 36: 2 }, castPriority: 3, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, bullets: [
     { hitFrame: 10, mv: 1149, energy: 17, concerto: 33, offtune: 514, forte1: -3 },
     { hitFrame: 13, mv: 1149, energy: 17, concerto: 33, offtune: 514, forte1: -3 },
     { hitFrame: 19, mv: 1149, energy: 17, concerto: 33, offtune: 514, forte1: -3 },
@@ -298,7 +298,7 @@ const Blitz1 = chisaAction("Forte Basic - Sawring Blitz 1", { input: [Input.Basi
  *  ("Chainsaw Mode - Dodge Counter DMG", 10.64%*8) at exactly the tap's numbers. They are separate
  *  presses all the same, so each gets its own row rather than being folded into the tap.
  *  Every one of them is a *release*, so any of them can follow up with Discordance. */
-const Blitz2 = chisaAction("Forte Basic - Sawring Blitz 2", { input: Input.Basic, after: () => [Blitz1], minForte1: 1, holds: CHAINSAW_MODE, animFrames: 52, animPriority: { 48: 2 }, castPriority: 3, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, bullets: [
+const Blitz2 = chisaAction("Forte Basic - Sawring Blitz 2", { input: Input.Basic, inputPriority: 1, after: [Blitz1], minForte1: 1, holds: CHAINSAW_MODE, animFrames: 52, animPriority: { 48: 2 }, castPriority: 3, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, bullets: [
     { hitFrame: 19, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte1: -2 },
     { hitFrame: 21, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte1: -3 },
     { hitFrame: 23, commitFrame: 21, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte1: -2 },
@@ -308,7 +308,7 @@ const Blitz2 = chisaAction("Forte Basic - Sawring Blitz 2", { input: Input.Basic
     { hitFrame: 39, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte1: -3 },
     { hitFrame: 43, commitFrame: 39, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte1: -3 },
   ], ...blitz() });
-const Blitz2DodgeCounter = chisaAction("Forte Dodge Counter - Sawring Blitz 2", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], holds: CHAINSAW_MODE, animFrames: 52, animPriority: { 0: 8, 5: 3, 55: 2 }, castPriority: 8, node: Node.Forte, cast: Cast.DodgeCounter, type: Type.Liberation, bullets: [
+const Blitz2DodgeCounter = chisaAction("Forte Dodge Counter - Sawring Blitz 2", { input: Input.Basic, after: [SUCCESSFUL_DODGE], holds: CHAINSAW_MODE, animFrames: 52, animPriority: { 0: 8, 5: 3, 55: 2 }, castPriority: 8, node: Node.Forte, cast: Cast.DodgeCounter, type: Type.Liberation, bullets: [
     { hitFrame: 19, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte1: -2 },
     { hitFrame: 21, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte1: -3 },
     { hitFrame: 23, commitFrame: 21, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte1: -2 },
@@ -318,7 +318,7 @@ const Blitz2DodgeCounter = chisaAction("Forte Dodge Counter - Sawring Blitz 2", 
     { hitFrame: 39, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte1: -3 },
     { hitFrame: 43, commitFrame: 39, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte1: -3 },
   ], ...blitz(), castConcerto: 1000 });
-const Blitz2AfterPlunge = chisaAction("Forte Basic - Sawring Blitz 2 (After Plunge)", { input: Input.Basic, after: () => [ReignOfSilenceMidAir, HangingFinality], holds: CHAINSAW_MODE, animFrames: 43, animPriority: { 38: 2 }, castPriority: 3, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, bullets: [
+const Blitz2AfterPlunge = chisaAction("Forte Basic - Sawring Blitz 2 (After Plunge)", { input: Input.Basic, inputPriority: 1, after: [ReignOfSilenceMidAir, HangingFinality], holds: CHAINSAW_MODE, animFrames: 43, animPriority: { 38: 2 }, castPriority: 3, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, bullets: [
     { hitFrame: 11, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte1: -2 },
     { hitFrame: 14, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte1: -3 },
     { hitFrame: 14, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte1: -2 },
@@ -329,7 +329,7 @@ const Blitz2AfterPlunge = chisaAction("Forte Basic - Sawring Blitz 2 (After Plun
     { hitFrame: 35, commitFrame: 29, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte1: -3 },
   ], ...blitz() });
 /** What a released Stage 2 can throw out on the way — only where the rotation writes it (`Blitz2D`). */
-const Blitz2Discordance = chisaAction("Forte Basic - Sawring Blitz 2: Discordance", { holds: CHAINSAW_MODE, tag: ActionTag.OffField, animFrames: 160, animPriority: { 0: 0 }, castPriority: 3, node: Node.Forte, type: Type.Liberation, bullets: [
+const Blitz2Discordance = chisaAction("Forte Basic - Sawring Blitz 2: Discordance", { holds: CHAINSAW_MODE, animFrames: 160, animPriority: { 0: 0 }, castPriority: 3, node: Node.Forte, type: Type.Liberation, bullets: [
     { hitFrame: 4, mv: 358, energy: 5, concerto: 10, offtune: 160, forte1: -1 },
     { hitFrame: 8, mv: 358, energy: 5, concerto: 10, offtune: 160, forte1: -1 },
     { hitFrame: 17, mv: 358, energy: 5, concerto: 10, offtune: 160, forte1: -1 },
@@ -337,7 +337,7 @@ const Blitz2Discordance = chisaAction("Forte Basic - Sawring Blitz 2: Discordanc
 
 /** Stage 2 held, its own three inputs: 18 hits rather than 8 for the same press, and it chains
  *  into Stage 3 instead of releasing, so none of them throws a Discordance. */
-const Blitz2Hold = chisaAction("Forte Basic - Sawring Blitz 2 (Hold)", { input: Input.BasicHold, notAfter: () => [...STAGE_2, ReignOfSilenceMidAir, HangingFinality, SUCCESSFUL_DODGE], holds: CHAINSAW_MODE, animFrames: 84, animPriority: { 49: 2 }, castPriority: 3, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, bullets: [
+const Blitz2Hold = chisaAction("Forte Basic - Sawring Blitz 2 (Hold)", { input: Input.BasicHold, inputPriority: 1, holds: CHAINSAW_MODE, animFrames: 84, animPriority: { 49: 2 }, castPriority: 3, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, bullets: [
     { hitFrame: 19, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte1: -2 },
     { hitFrame: 21, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte1: -3 },
     { hitFrame: 23, commitFrame: 21, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte1: -2 },
@@ -357,7 +357,7 @@ const Blitz2Hold = chisaAction("Forte Basic - Sawring Blitz 2 (Hold)", { input: 
     { hitFrame: 73, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte1: -3 },
     { hitFrame: 78, commitFrame: 73, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte1: -3 },
   ], ...blitz() });
-const Blitz2HoldDodgeCounter = chisaAction("Forte Dodge Counter - Sawring Blitz 2 (Hold)", { input: Input.BasicHold, after: () => [SUCCESSFUL_DODGE], holds: CHAINSAW_MODE, animFrames: 84, animPriority: { 49: 2 }, castPriority: 3, node: Node.Forte, cast: Cast.DodgeCounter, type: Type.Liberation, bullets: [
+const Blitz2HoldDodgeCounter = chisaAction("Forte Dodge Counter - Sawring Blitz 2 (Hold)", { input: Input.BasicHold, inputPriority: 2, after: [SUCCESSFUL_DODGE], holds: CHAINSAW_MODE, animFrames: 84, animPriority: { 49: 2 }, castPriority: 3, node: Node.Forte, cast: Cast.DodgeCounter, type: Type.Liberation, bullets: [
     { hitFrame: 19, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte1: -2 },
     { hitFrame: 21, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte1: -3 },
     { hitFrame: 23, commitFrame: 21, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte1: -2 },
@@ -377,7 +377,7 @@ const Blitz2HoldDodgeCounter = chisaAction("Forte Dodge Counter - Sawring Blitz 
     { hitFrame: 73, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte1: -3 },
     { hitFrame: 78, commitFrame: 73, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte1: -3 },
   ], ...blitz(), castConcerto: 1000 });
-const Blitz2HoldAfterPlunge = chisaAction("Forte Basic - Sawring Blitz 2 (Hold After Plunge)", { input: Input.BasicHold, after: () => [ReignOfSilenceMidAir, HangingFinality], holds: CHAINSAW_MODE, animFrames: 65, animPriority: { 40: 2 }, castPriority: 3, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, bullets: [
+const Blitz2HoldAfterPlunge = chisaAction("Forte Basic - Sawring Blitz 2 (Hold After Plunge)", { input: Input.BasicHold, inputPriority: 2, after: [ReignOfSilenceMidAir, HangingFinality], holds: CHAINSAW_MODE, animFrames: 65, animPriority: { 40: 2 }, castPriority: 3, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, bullets: [
     { hitFrame: 11, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte1: -2 },
     { hitFrame: 14, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte1: -3 },
     { hitFrame: 14, mv: 1064, energy: 15, concerto: 30, offtune: 476, forte1: -2 },
@@ -402,7 +402,7 @@ const Blitz2HoldAfterPlunge = chisaAction("Forte Basic - Sawring Blitz 2 (Hold A
 const STAGE_2 = [Blitz2, Blitz2Hold, Blitz2AfterPlunge, Blitz2HoldAfterPlunge, Blitz2DodgeCounter, Blitz2HoldDodgeCounter];
 // any Stage 2 (Discordance, off field, between) or the Chainsaw Mode Dodge Counter; holding Normal
 // Attack starts the combo at Stage 2, so Stage 2 itself follows anything
-const Blitz3 = chisaAction("Forte Basic - Sawring Blitz 3", { input: Input.Basic, after: () => [...STAGE_2], minForte1: 1, holds: CHAINSAW_MODE, animFrames: 67, castPriority: 3, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, bullets: [
+const Blitz3 = chisaAction("Forte Basic - Sawring Blitz 3", { input: Input.Basic, inputPriority: 1, after: [...STAGE_2], minForte1: 1, holds: CHAINSAW_MODE, animFrames: 67, castPriority: 3, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, bullets: [
     { hitFrame: 32, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte1: -3 },
     { hitFrame: 38, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte1: -3 },
     { hitFrame: 41, commitFrame: 32, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte1: -3 },
@@ -413,13 +413,13 @@ const Blitz3 = chisaAction("Forte Basic - Sawring Blitz 3", { input: Input.Basic
     { hitFrame: 66, commitFrame: 56, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte1: -4 },
   ], ...blitz() });
 /** What a released Stage 3 can throw out, the same shape as Discordance above (`Blitz3F`). */
-const Blitz3Falltone = chisaAction("Forte Basic - Sawring Blitz 3: Falltone", { holds: CHAINSAW_MODE, tag: ActionTag.OffField, animFrames: 45, animPriority: { 0: 5, 29: 3 }, castPriority: 3, node: Node.Forte, type: Type.Liberation, bullets: [
+const Blitz3Falltone = chisaAction("Forte Basic - Sawring Blitz 3: Falltone", { holds: CHAINSAW_MODE, animFrames: 45, animPriority: { 0: 5, 29: 3 }, castPriority: 3, node: Node.Forte, type: Type.Liberation, bullets: [
     { hitFrame: 2, mv: 358, energy: 5, concerto: 10, offtune: 160, forte1: -1 },
     { hitFrame: 6, mv: 358, energy: 5, concerto: 10, offtune: 160, forte1: -1 },
     { hitFrame: 9, mv: 358, energy: 5, concerto: 10, offtune: 160, forte1: -1 },
   ], ...blitz() });
 /** Held Stage 3 chains into Eradication, so it throws no Falltone. */
-const Blitz3Hold = chisaAction("Forte Basic - Sawring Blitz 3 (Hold)", { input: Input.BasicHold, after: () => [...STAGE_2], holds: CHAINSAW_MODE, animFrames: 99, castPriority: 3, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, bullets: [
+const Blitz3Hold = chisaAction("Forte Basic - Sawring Blitz 3 (Hold)", { input: Input.BasicHold, inputPriority: 2, after: [...STAGE_2], holds: CHAINSAW_MODE, animFrames: 99, castPriority: 3, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, bullets: [
     { hitFrame: 32, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte1: -3 },
     { hitFrame: 38, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte1: -3 },
     { hitFrame: 41, commitFrame: 32, mv: 1598, energy: 23, concerto: 45, offtune: 715, forte1: -3 },
@@ -442,12 +442,12 @@ const Blitz3F = new ActionGroup("Forte Basic - Sawring Blitz 3 (Falltone)", [Bli
 /** Consumes whatever Ring of Chainsaw remains and ends Chainsaw Mode; shields the team. Follows Stage
  *  3 (its Falltone), or any Blitz or its Dodge Counter that has emptied the Ring of Chainsaw. */
 const Eradication = chisaAction("Forte Basic - Sawring Eradication", {
-  input: Input.Basic, after: () => [Blitz3, Blitz3Hold], holds: CHAINSAW_MODE, animFrames: 156, animPriority: { 156: 1 }, castPriority: 5,
+  input: Input.Basic, inputPriority: 1, after: [Blitz3, Blitz3Hold], holds: CHAINSAW_MODE, animFrames: 156, animPriority: { 156: 1 }, castPriority: 5,
   node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, bullets: [
     { hitFrame: 53, mv: 5154, energy: 448, concerto: 96, offtune: 1536,
       updateDebuffs: () => gainShield() },
     { hitFrame: 68, commitFrame: 65, mv: 20613, energy: 1792, concerto: 384, offtune: 6144 },
-  ], castConcerto: 4500, 
+  ], castConcerto: 4500,
   resetForte1: true,
   // casting it ends Chainsaw Mode
   updateBuffs: () => revokeCurrent(CHAINSAW_MODE),
@@ -656,7 +656,7 @@ const CHISA_RESONATOR = new Resonator({
   element: Attribute.Havoc,
   weapon: WeaponType.Broadblade,
   color: "#8a3b47",
-  actions: [Intro, Outro, BA1, BA2, DodgeCounterBA2, RendingLunge, DeathSnip, Spread, ThreadWithdrawn, ReignOfSilenceMidAir, HA, SeveredFacet, HangingFinality, Skill, SerratedLoop, SerratedLoopHold, Liberation, Blitz1, Blitz2, Blitz2DodgeCounter, Blitz2AfterPlunge, Blitz2Hold, Blitz2HoldDodgeCounter, Blitz2HoldAfterPlunge, Blitz3, Blitz3Hold, Eradication],
+  actions: [Intro, Outro, BA1, BA1.swapIn(), BA2, DodgeCounterBA2, RendingLunge, DeathSnip, Spread, ThreadWithdrawn, ReignOfSilenceMidAir, ReignOfSilenceMidAir.swapIn(), HA, SeveredFacet, HangingFinality, Skill, SerratedLoop, SerratedLoopHold, Liberation, Blitz1, Blitz1.swapIn(), Blitz2, Blitz2DodgeCounter, Blitz2AfterPlunge, Blitz2Hold, Blitz2HoldDodgeCounter, Blitz2HoldAfterPlunge, Blitz3, Blitz3Hold, Eradication],
   maxEnergy: 12500,
   maxForte1: 100,
 
@@ -674,13 +674,13 @@ const CHISA_RESONATOR = new Resonator({
  *  here models the timing that earns them, so the chain reads as the plain taps it is. */
 
 const CS_ROTATION = new Rotation([
-  SWAPIN, BA1, BA2.cancel(), Skill, RendingLunge, DeathSnip, Spread, ThreadWithdrawn.instaCancel(), 
-  THRENODIAN_LEVIATHAN.instaCancel(), FALLACY.instaCancel(), HERON.instaDodge(), BELL_BORNE_GEOCHELONE.instaCancel(), Liberation,
+  SWAPIN, BA1, BA2.cancel(), Skill, RendingLunge, DeathSnip, Spread, ThreadWithdrawn.instaCancel(),
+  THRENODIAN_LEVIATHAN.instaCancel(), FALLACY.instaCancel(), HERON.instaDash(), BELL_BORNE_GEOCHELONE.instaCancel(), Liberation,
   SerratedLoop, Blitz2Hold, Blitz3Hold, Eradication.instaSwap(),
   Outro,
 
-  Intro, Skill, RendingLunge, DeathSnip, Spread, 
-  THRENODIAN_LEVIATHAN.instaCancel(), FALLACY.instaCancel(), HERON.instaDodge(), BELL_BORNE_GEOCHELONE.instaCancel(), Liberation,
+  Intro, Skill, RendingLunge, DeathSnip, Spread,
+  THRENODIAN_LEVIATHAN.instaCancel(), FALLACY.instaCancel(), HERON.instaDash(), BELL_BORNE_GEOCHELONE.instaCancel(), Liberation,
   SerratedLoop, Blitz2Hold, Blitz3Hold, Eradication.instaSwap(),
   Outro,
 ]);

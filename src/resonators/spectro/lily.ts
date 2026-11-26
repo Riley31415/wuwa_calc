@@ -90,24 +90,16 @@ function lilyAction(id: string, def: object): Action {
 
 // --- Mend and Cleanse. Frames, priorities, per-hit gains and events off wuwalab (2026-11-20, the release
 //     kit); the MVs agree with encore's level-10 rows hit for hit
-const BA1 = lilyAction("Basic - Mend and Cleanse 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [BA1, BA2, BA3, IntroBase, IntroEternalPhantasm, IntroEternalFairytale, DC], position: Position.Grounded, animFrames: 24, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = lilyAction("Basic - Mend and Cleanse 1", { input: Input.Basic, position: Position.Grounded, animFrames: 24, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 16, mv: 6362, energy: 100, concerto: 260, offtune: 3200, forte1: 49 },
   ]});
-const BA2 = lilyAction("Basic - Mend and Cleanse 2", { input: Input.Basic, after: () => [BA1], animFrames: 44, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets:
+const BA2 = lilyAction("Basic - Mend and Cleanse 2", { input: Input.Basic, inputPriority: 1, after: [BA1], animFrames: 44, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets:
     [6, 16, 22, 28].map((hitFrame) => ({ hitFrame, mv: 2915, energy: 46, concerto: 120, offtune: 1466, forte1: 22 })),
   });
-// both Intros "Press Normal Attack shortly after casting this skill to cast Basic Attack Stage 3"
-const BA3 = lilyAction("Basic - Mend and Cleanse 3", { input: Input.Basic, after: () => [BA2, IntroBase, IntroEternalPhantasm, IntroEternalFairytale], animFrames: 36, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 29, commitFrame: 14, mv: 9543, energy: 150, concerto: 390, offtune: 4800, forte1: 72 },
-  ]});
-// the dodge counter leads into Stage 4 too
-const BA4 = lilyAction("Basic - Mend and Cleanse 4", { input: Input.Basic, after: () => [BA3, DC], animFrames: 72, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets:
-    [26, 39, 48, 57].map((hitFrame) => ({ hitFrame, commitFrame: 26, mv: 3845, energy: 61, concerto: 158, offtune: 1934, forte1: 28 })),
-  });
-const MA = lilyAction("Mid-air - Plunging Attack", { input: [Input.Basic, Input.SwapIn], position: Position.Midair, endPosition: Position.Grounded, animFrames: 56, animPriority: { 0: 6, 36: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MA = lilyAction("Mid-air - Plunging Attack", { input: Input.Basic, position: Position.Midair, endPosition: Position.Grounded, animFrames: 56, animPriority: { 0: 6, 36: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 43, commitFrame: 37, mv: 11452, energy: 180, concerto: 468, offtune: 5760, forte1: 81 },
   ]});
-const DC = lilyAction("Dodge Counter - Mend and Cleanse", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], animFrames: 60, animPriority: { 0: 7, 60: 2 }, castPriority: 7, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const DC = lilyAction("Dodge Counter - Mend and Cleanse", { input: Input.Basic, after: [SUCCESSFUL_DODGE], animFrames: 60, animPriority: { 0: 7, 60: 2 }, castPriority: 7, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 29, commitFrame: 14, mv: 23858, energy: 300, concerto: 780, offtune: 9600, forte1: 133 },
   ], castConcerto: 1000});
 
@@ -117,10 +109,10 @@ const BLEND_CD = new Cooldown({ frames: 60 * 13 });
 const BLEND = { animFrames: 40, animPriority: { 0: 5, 32: 2 }, castPriority: 5, cooldown: BLEND_CD,
   node: Node.Skill, cast: Cast.Skill, type: Type.Skill, castEnergy: 250, castConcerto: 800 };
 const BLEND_HIT = { hitFrame: 30, mv: 15905, offtune: 7736, forte1: 130 };
-const SkillPhantasm = lilyAction("Skill - Nightmare Blend", { ...BLEND, input: Input.Skill, lacks: PHANTASM_MODE,
+const SkillPhantasm = lilyAction("Skill - Nightmare Blend", { ...BLEND, input: Input.Skill,
   bullets: [{ ...BLEND_HIT, updateDebuffs: () => applyCurrent(PHANTASM_MODE, 1) }],
 });
-const SkillFairytale = lilyAction("Skill - Reverie Blend", { ...BLEND, input: Input.Skill, holds: PHANTASM_MODE,
+const SkillFairytale = lilyAction("Skill - Reverie Blend", { ...BLEND, input: Input.Skill, inputPriority: 1, holds: PHANTASM_MODE,
   bullets: [{ ...BLEND_HIT, updateDebuffs: () => revokeCurrent(PHANTASM_MODE) }],
 });
 
@@ -152,7 +144,7 @@ const WOVEN = { resetForte1: true, castPriority: 2, animPriority: { 0: 3 }, node
   },
 };
 /** Woven Fairytale, its Chime and Concerto steps the base ones or (`s3`) S3's faster ones. */
-const wovenFairytale = (s3: boolean): Action => lilyAction("Forte Heavy - Woven Fairytale", { ...WOVEN, input: Input.BasicHold, minForte1: 300, lacks: PHANTASM_MODE, valid: () => isHeld(SL_S3) === s3, animFrames: 312,
+const wovenFairytale = (s3: boolean): Action => lilyAction("Forte Heavy - Woven Fairytale", { ...WOVEN, input: Input.BasicHold, minForte1: 300, ...(s3 ? { holds: SL_S3 } : { lacks: SL_S3 }), animFrames: 312,
   timestop: [1, 57], motionStop: [1, 57],
   bullets: [
     { hitFrame: 70, mv: 2486, energy: 45, offtune: 1000 },
@@ -166,16 +158,13 @@ const wovenFairytale = (s3: boolean): Action => lilyAction("Forte Heavy - Woven 
         ...[110, 128, 146, 165, 182, 200, 218, 236, 254, 273, 290, 306].map((f) => event(f, { forte2: 38 }))]),
   ] });
 /** Woven Phantasm, the same way. */
-const wovenPhantasm = (s3: boolean): Action => lilyAction("Forte Heavy - Woven Phantasm", { ...WOVEN, input: Input.BasicHold, minForte1: 300, holds: PHANTASM_MODE, valid: () => isHeld(SL_S3) === s3, animFrames: 264,
+const wovenPhantasm = (s3: boolean): Action => lilyAction("Forte Heavy - Woven Phantasm", { ...WOVEN, input: Input.BasicHold, inputPriority: 1, minForte1: 300, ...(s3 ? { holds: [PHANTASM_MODE, SL_S3] } : { holds: PHANTASM_MODE, lacks: SL_S3 }), animFrames: 264,
   bullets: [
     ...Array.from({ length: 23 }, (_, k) => ({ hitFrame: 30 + 10 * k, mv: 2161, energy: 60, offtune: 1333 })),
     wovenHeal(2), wovenHeal(62),
     ...(s3 ? [1, 61].map((f) => event(f, { concerto: 1500 })) : [1, 61, 121].map((f) => event(f, { concerto: 1000 }))),
     ...Array.from({ length: 15 }, (_, k) => event(45 + 15 * k, { forte2: s3 ? 50 : 24 })),
   ] });
-const WovenFairytaleBase = wovenFairytale(false), WovenFairytaleS3 = wovenFairytale(true);
-const WovenPhantasmBase = wovenPhantasm(false), WovenPhantasmS3 = wovenPhantasm(true);
-const PHANTASMS = new Set<Action>([WovenPhantasmBase, WovenPhantasmS3]);
 // the press a rotation writes: S3's faster form where she holds it
 const WovenFairytale = new Action("Woven Fairytale Resolver", { cast: Cast.Heavy, resolve: () => (isHeld(SL_S3) ? WovenFairytaleS3 : WovenFairytaleBase) });
 const WovenPhantasm = new Action("Woven Phantasm Resolver", { cast: Cast.Heavy, resolve: () => (isHeld(SL_S3) ? WovenPhantasmS3 : WovenPhantasmBase) });
@@ -187,17 +176,6 @@ const WovenPhantasm = new Action("Woven Phantasm Resolver", { cast: Cast.Heavy, 
 const SILVERED_CD = new Cooldown({ frames: 60 * 20 });
 const FINALE = { resetForte2: true, cooldown: SILVERED_CD, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, scaling: Scaling.Hp };
 const FINALE_HIT = { mv: 3579, energy: 2000, concerto: 1000, offtune: 4000, updateDebuffs: () => applyCurrent(SILLAGE, 1) };
-const FairytalesFinale = lilyAction("Heavy - Fairytale's Finale", { ...FINALE, input: Input.BasicHold, after: () => [WovenFairytaleBase, WovenFairytaleS3], minForte2: 300, lacks: PHANTASM_MODE,
-  animFrames: 98, noSwapFrames: 46, animPriority: { 0: 6, 37: 5, 97: 2 }, castPriority: 6,
-  bullets: [{ hitFrame: 46, ...FINALE_HIT }] });
-const PhantasmsEnd = lilyAction("Heavy - Phantasm's End", { ...FINALE, input: Input.BasicHold, after: () => [...PHANTASMS], minForte2: 300, holds: PHANTASM_MODE,
-  animFrames: 43, noSwapFrames: 16, animPriority: { 0: 3 }, castPriority: 4,
-  bullets: [{ hitFrame: 16, ...FINALE_HIT }] });
-
-/** Both Finales and Eternal Bloom: what her ER pays crit on. */
-const ER_CRIT_HITS = new Set<Action>([FairytalesFinale, PhantasmsEnd]);
-/** The two Finales: what S3's Energy and S6's +100% read. */
-const FINALES = new Set<Action>([FairytalesFinale, PhantasmsEnd]);
 
 // --- Into the Dream Cradle: Slumberland, Cradle Lullaby and Eternal Bloom. Slumberland's heals are its own
 //     events, as wuwalab has them: the first at 290, sixteen more 3s apart. Its 3302 frames are Slumberland,
@@ -217,10 +195,10 @@ const SLUMBERLAND = new Set<Action>([Liberation]);
 // --- Blooming Dream: First Bloom, or Eternal Bloom on the first Intro after a Liberation, each
 //     with the Intro's flat Concerto Regen 10
 const INTRO = { endPosition: Position.Grounded, castPriority: 11, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, castConcerto: 1000 };
-const IntroBase = lilyAction("Intro - First Bloom", { input: Input.Intro, valid: () => !isHeld(ETERNAL_READY), ...INTRO, animFrames: 44, noSwapFrames: 44, motionStop: [3, 44], animPriority: { 0: 11, 44: 2 },
+const IntroBase = lilyAction("Intro - First Bloom", { input: Input.Intro, lacks: ETERNAL_READY, ...INTRO, animFrames: 44, noSwapFrames: 44, motionStop: [3, 44], animPriority: { 0: 11, 44: 2 },
   bullets: [6, 16, 22, 28].map((hitFrame) => ({ hitFrame, mv: 5436, energy: 86, offtune: 2734 })) });
 // its 130 Dream Perfume a step of its own at 80, ahead of the hit; Deep Dream Fragrance on cast
-const ETERNAL = { ...INTRO, scaling: Scaling.Hp, 
+const ETERNAL = { ...INTRO, scaling: Scaling.Hp,
   animFrames: 82, noSwapFrames: 81, qteFrames: 76, motionStop: [4, 82], animPriority: { 0: 11, 81: 2 },
   bullets: [event(80, { forte1: 130 }), { hitFrame: 87, commitFrame: 80, mv: 3610, energy: 342, offtune: 82936 }],
   updateBuffs: () => {
@@ -231,10 +209,16 @@ const ETERNAL = { ...INTRO, scaling: Scaling.Hp,
   },
 };
 // one press, written twice so `intro` can pick the chain off the form she arrives in
-const IntroEternalPhantasm = lilyAction("Intro - Eternal Bloom", { ...ETERNAL, input: Input.Intro, valid: () => isHeld(ETERNAL_READY) && isHeld(PHANTASM_MODE) });
-const IntroEternalFairytale = lilyAction("Intro - Eternal Bloom", { ...ETERNAL, input: Input.Intro, valid: () => isHeld(ETERNAL_READY) && !isHeld(PHANTASM_MODE) });
-ER_CRIT_HITS.add(IntroEternalPhantasm);
-ER_CRIT_HITS.add(IntroEternalFairytale);
+const IntroEternalPhantasm = lilyAction("Intro - Eternal Bloom", { ...ETERNAL, input: Input.Intro, holds: [ETERNAL_READY, PHANTASM_MODE]});
+const IntroEternalFairytale = lilyAction("Intro - Eternal Bloom", { ...ETERNAL, input: Input.Intro, holds: ETERNAL_READY, lacks: PHANTASM_MODE});
+// both Intros "Press Normal Attack shortly after casting this skill to cast Basic Attack Stage 3"
+const BA3 = lilyAction("Basic - Mend and Cleanse 3", { input: Input.Basic, inputPriority: 1, after: [BA2, IntroBase, IntroEternalPhantasm, IntroEternalFairytale], animFrames: 36, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 29, commitFrame: 14, mv: 9543, energy: 150, concerto: 390, offtune: 4800, forte1: 72 },
+  ]});
+// the dodge counter leads into Stage 4 too
+const BA4 = lilyAction("Basic - Mend and Cleanse 4", { input: Input.Basic, inputPriority: 1, after: [BA3, DC], animFrames: 72, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets:
+    [26, 39, 48, 57].map((hitFrame) => ({ hitFrame, commitFrame: 26, mv: 3845, energy: 61, concerto: 158, offtune: 1934, forte1: 28 })),
+  });
 /** Eternal Bloom, either form: what S6's +700% reads. */
 const ETERNALS = new Set<Action>([IntroEternalPhantasm, IntroEternalFairytale]);
 
@@ -345,6 +329,22 @@ const SL_S3: Sequence = new Sequence({
     if (runningAnyOf(FINALES)) addGain({ energy: 1000 });
   },
 });
+const WovenFairytaleBase = wovenFairytale(false), WovenFairytaleS3 = wovenFairytale(true);
+const WovenPhantasmBase = wovenPhantasm(false), WovenPhantasmS3 = wovenPhantasm(true);
+const PHANTASMS = new Set<Action>([WovenPhantasmBase, WovenPhantasmS3]);
+const FairytalesFinale = lilyAction("Heavy - Fairytale's Finale", { ...FINALE, input: Input.BasicHold, after: [WovenFairytaleBase, WovenFairytaleS3], minForte2: 300,
+  animFrames: 98, noSwapFrames: 46, animPriority: { 0: 6, 37: 5, 97: 2 }, castPriority: 6,
+  bullets: [{ hitFrame: 46, ...FINALE_HIT }] });
+const PhantasmsEnd = lilyAction("Heavy - Phantasm's End", { ...FINALE, input: Input.BasicHold, inputPriority: 1, after: [...PHANTASMS], minForte2: 300, holds: PHANTASM_MODE,
+  animFrames: 43, noSwapFrames: 16, animPriority: { 0: 3 }, castPriority: 4,
+  bullets: [{ hitFrame: 16, ...FINALE_HIT }] });
+
+/** Both Finales and Eternal Bloom: what her ER pays crit on. */
+const ER_CRIT_HITS = new Set<Action>([FairytalesFinale, PhantasmsEnd]);
+/** The two Finales: what S3's Energy and S6's +100% read. */
+const FINALES = new Set<Action>([FairytalesFinale, PhantasmsEnd]);
+ER_CRIT_HITS.add(IntroEternalPhantasm);
+ER_CRIT_HITS.add(IntroEternalFairytale);
 
 /** S4: Slumberland's +30% healing reaches no formula. */
 const SL_S4 = new Sequence({ name: "Lily S4: May Your Past Sink into Silence" });
@@ -402,7 +402,7 @@ export const LILY_RESONATOR = new Resonator({
   element: Attribute.Spectro,
   weapon: WeaponType.Pistols,
   color: "#d9b8e8",
-  actions: [BA1, BA2, BA3, BA4, MA, DC, SkillPhantasm, SkillFairytale, WovenFairytaleBase, WovenFairytaleS3, WovenPhantasmBase, WovenPhantasmS3, FairytalesFinale, PhantasmsEnd, Liberation, IntroBase, Outro, IntroEternalPhantasm, IntroEternalFairytale],
+  actions: [BA1, BA1.swapIn(), BA2, BA3, BA4, MA, MA.swapIn(), DC, SkillPhantasm, SkillFairytale, WovenFairytaleBase, WovenFairytaleS3, WovenPhantasmBase, WovenPhantasmS3, FairytalesFinale, PhantasmsEnd, Liberation, IntroBase, Outro, IntroEternalPhantasm, IntroEternalFairytale],
   maxEnergy: 17500,
   maxForte1: 300,
   // Dreambell Chime, built by the Woven channel and spent whole by its Finale

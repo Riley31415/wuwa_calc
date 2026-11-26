@@ -120,9 +120,9 @@ export const HAVOC_BANE = new Debuff({
  *  max-stack rung instead, which is also what Hiyuki's Glacio Bite does with the same ladder: her
  *  own file converts the stacks and fires these rungs itself, and nothing here needs to know. */
 export const GLACIO_CHAFE_ACTIONS = negativeStatusActions("Glacio Chafe", Attribute.Glacio, Subtype.GlacioChafe, [
-  2450, 4442, 6434, 8426, 10417, 
+  2450, 4442, 6434, 8426, 10417,
   12409, 14401, 16393, 18385, 20377,
-  27169, 33961, 40753, 
+  27169, 33961, 40753,
   47546, 54338, 61130,
 ]);
 
@@ -149,9 +149,9 @@ export const GLACIO_CHAFE = new Debuff({
 /** Implosion: 15s a stack, refreshed on gain, cap 10; reaching the cap calculates in a 3m radius,
  *  0.2s cooldown. */
 export const FUSION_BURST_ACTIONS = negativeStatusActions("Fusion Burst", Attribute.Fusion, Subtype.FusionBurst, [
-  8400, 15229, 22058, 28888, 35717, 
+  8400, 15229, 22058, 28888, 35717,
   42546, 49375, 56204, 63034, 69863,
-  93150, 116438, 139726, 
+  93150, 116438, 139726,
   163013, 186301, 209588,
 ]);
 export const FUSION_BURST = new Debuff({
@@ -192,10 +192,10 @@ export const FUSION_BURST = new Debuff({
  *  This is the one Negative Status whose duration is kept: unlike Electro Flare or Spectro
  *  Frazzle, a rotation can easily leave 15s between applications. */
 export const AERO_EROSION_ACTIONS = negativeStatusActions("Aero Erosion", Attribute.Aero, Subtype.AeroErosion, [
-  4500, 11250, 22500, 
-  33750, 45000, 56250, 
-  67500, 78750, 90000, 
-  101250, 112500, 123750, 
+  4500, 11250, 22500,
+  33750, 45000, 56250,
+  67500, 78750, 90000,
+  101250, 112500, 123750,
   135000, 146250, 157500,
 ]);
 export const AERO_EROSION: Debuff = new Debuff({
@@ -222,9 +222,9 @@ export const EROSION_HASTE = new Debuff({});
  *  kept, the same way Electro Flare's isn't — every rotation re-inflicts well inside it. The
  *  stack a tick costs is Shimmer's to stop (SHIMMER below). */
 const SPECTRO_FRAZZLE_MVS = [
-  3000, 5439, 7878, 10317, 12756, 
+  3000, 5439, 7878, 10317, 12756,
   15195, 17634, 20073, 22512, 24951,
-  33268, 41585, 49902, 
+  33268, 41585, 49902,
   58219, 66536, 74853,
 ];
 export const SPECTRO_FRAZZLE_ACTIONS = negativeStatusActions("Spectro Frazzle", Attribute.Spectro, Subtype.SpectroFrazzle, SPECTRO_FRAZZLE_MVS);
@@ -300,13 +300,13 @@ export const HELIACAL_EMBER_ACTIONS: (Action | null)[] = [null, ...SPECTRO_FRAZZ
 /** Electromagnetic's two ladders: the tick at its own count, and Electro Rage's extra multiplier
  *  on top of it (the same table). Both fired by ELECTRO_FLARE's own clock below. */
 export const ELECTRO_FLARE_DMG = negativeStatusActions("Electro Flare", Attribute.Electro, Subtype.ElectroFlare, [
-  5000, 9065, 13130, 17195, 21260, 
+  5000, 9065, 13130, 17195, 21260,
   25325, 29390, 33455, 37520, 41585,
   55447, 69308, 83170, 97032, 110893, 124755,
 ]);
 
 export const ELECTRO_RAGE_ACTIONS = negativeStatusActions("Electro Rage", Attribute.Electro, Subtype.ElectroFlare, [
-  5000, 9065, 13130, 17195, 21260, 
+  5000, 9065, 13130, 17195, 21260,
   25325, 29390, 33455, 37520, 41585,
   55447, 69308, 83170, 97032, 110893, 124755,
 ]);

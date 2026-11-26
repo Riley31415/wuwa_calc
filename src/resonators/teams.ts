@@ -26,7 +26,6 @@ import { SUOMING, SUOMING_MDPS, SUOMING_MDPS_DOUBLE, SUOMING_MDPS_SIMPLE } from 
 import { XIANGLI_YAO } from "./electro/xiangli_yao.js";
 import { YINLIN } from "./electro/yinlin.js";
 import { AEMEATH_BURST, AEMEATH_RUPTURE } from "./fusion/aemeath.js";
-import { ANNA } from "./fusion/anna.js";
 import { BRANT, BRANT_MDPS } from "./fusion/brant.js";
 import { CHANGLI } from "./fusion/changli.js";
 import { DENIA_BURST, DENIA_STRAIN } from "./fusion/denia.js";
@@ -76,11 +75,6 @@ export const INTERCHANGEABLE = new Set<Loadout>([SHOREKEEPER, MORNYE, SUISUI, BU
 
 
 const TEAMS: Slot[][] = [
-
-  // anna: fusion basic, tune rupture
-  //[[MORNYE, SHOREKEEPER, DENIA_BURST], [SANHUA, LUPA, LYNAE_RUPTURE], ANNA],
-  //[[LUPA], ANNA, BRANT],
-  //[PHRO_9s,[MORNYE], ANNA ],
 
   // suoming mdps, electro basic unison
   [[SHOREKEEPER], [JINHSI_SUPPORT], SUOMING_MDPS],
@@ -169,16 +163,16 @@ const TEAMS: Slot[][] = [
   [[MORNYE, SHOREKEEPER, VERINA], [LYNAE_STRAIN], LUUK],
 
   // aemeath: fusion liberation on tune rupture — Mornye and Lynae answer the break beside her
-  [[MORNYE, SHOREKEEPER, LILY, VERINA, BAIZHI], [LYNAE_RUPTURE, //CHANGLI, 
+  [[MORNYE, SHOREKEEPER, LILY, VERINA, BAIZHI], [LYNAE_RUPTURE, //CHANGLI,
     LUPA], AEMEATH_RUPTURE],
   [[MORNYE], [JIANXIN, DENIA_BURST], AEMEATH_RUPTURE],
-  [[LUPA], [LYNAE_RUPTURE,//CHANGLI, 
+  [[LUPA], [LYNAE_RUPTURE,//CHANGLI,
     JIANXIN, BRANT], AEMEATH_RUPTURE],
   [[DENIA_BURST], [LYNAE_RUPTURE], AEMEATH_RUPTURE],
 
   // aemeath: fusion liberation on fusion burst — Denia's Burst mode feeds the stacks and amplifies
   [[SUISUI, CHISA], [DENIA_BURST], AEMEATH_BURST],
-  [[DENIA_BURST], [LYNAE_RUPTURE, //CHANGLI, 
+  [[DENIA_BURST], [LYNAE_RUPTURE, //CHANGLI,
     LUPA], AEMEATH_BURST],
   [[LUPA], [//CHANGLI,
      BRANT], AEMEATH_BURST],

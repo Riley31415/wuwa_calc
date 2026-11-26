@@ -8,7 +8,7 @@ const load = (f) => import(new URL(f, dist).href);
 globalThis.self = globalThis;
 const { setDelays } = await load("engine/stats.js");
 const num = (k) => (process.env[k] === undefined ? undefined : +process.env[k]);
-setDelays({ cancel: num("CANCEL"), insta: num("INSTA"), mash: num("MASH") });
+setDelays({ precision: num("PRECISION"), mash: num("MASH") });
 const solver = await load("solve/solver.js");
 const teamrun = await load("solve/teamrun.js");
 const display = await load("page/display.js");
@@ -43,7 +43,7 @@ const KIT = {
 // each press's Dream Perfume (her release kit's), for where a string reaches 300
 const FORTE = { BA1: 49, BA2: 88, BA3: 72, BA4: 112, MA: 81, SK: 130 };
 const ACT = { BA1: A.BA1, BA2: A.BA2, BA3: A.BA3, BA4: A.BA4, MA: A.MA, SK: A.NightmareBlend };
-const CUT = { none: (a) => a, cancel: (a) => a.cancel(), dodge: (a) => a.dodgeCancel(), jump: (a) => a.jumpCancel(), hold: (a) => a.holdCancel() };
+const CUT = { none: (a) => a, cancel: (a) => a.cancel(), dodge: (a) => a.dashCancel(), jump: (a) => a.jumpCancel(), hold: (a) => a.holdCancel() };
 // a plunge only after a jump, a jump only into one, a dash breaks a Basic string, a plain cancel only into the
 // Skill; the kit's own after/notAfter decide the rest (IE: the Intro)
 function follows(X, P, c) {

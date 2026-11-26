@@ -44,17 +44,18 @@ import {
   weaponHue,
   weaponIconByName,
   weaponPart
-} from "./chunk-OXAR545D.js";
+} from "./chunk-NMUZQX2E.js";
 import {
   AXES,
-  ActionTag,
   Echo,
   Gear,
+  KIND_OF,
   NODE_NAME,
   Sonata,
   Substat,
   TAG_NAME,
   TUNE_BREAK_ENEMY,
+  Transition,
   Weapon,
   addStat,
   atDelays,
@@ -69,6 +70,7 @@ import {
   erRollsFor,
   hitsOf,
   isPercent,
+  isSwapTransition,
   litStats,
   loadoutName,
   mainstatSlotBuffs,
@@ -89,7 +91,7 @@ import {
   substatRollBuffs,
   tierRoll,
   weaponBase
-} from "./chunk-JC7DESRL.js";
+} from "./chunk-UAEIIFKI.js";
 
 // dist/src/page/substatvalue.js
 var SUBSTAT_LABEL = {
@@ -243,19 +245,20 @@ function framesPopover(snaps) {
     if (!s.active)
       continue;
     const press = s.hitAt !== void 0 ? s.action.castPart() : s.action;
-    const fast = s.tag === ActionTag.MashCancel;
-    const hold = (s.tag === ActionTag.HoldCancel || fast) && s.holdPaid >= 0;
+    const t = KIND_OF[s.tag];
+    const fast = t === "mash" && s.tag !== Transition.MashSwap;
+    const hold = (t === "hold" || fast) && s.holdPaid >= 0;
     const cost = atDelays(s.delays, () => hold ? press.holdCost(s.holdCut) : press.cost(s.tag));
     total += cost.total - s.timestopBanked;
-    const insta = s.tag === ActionTag.InstaCancel || s.tag === ActionTag.InstaDodge || s.tag === ActionTag.InstaJump || s.tag === ActionTag.InstaSwap;
-    const cut = s.tag === ActionTag.Cancel || s.tag === ActionTag.MashCancel || s.tag === ActionTag.HoldCancel || s.tag === ActionTag.DodgeCancel || s.tag === ActionTag.JumpCancel || s.tag === ActionTag.SwapCancel || s.tag === ActionTag.MashSwap || s.tag === ActionTag.HitCancel || s.tag === ActionTag.DodgeOnHit || s.tag === ActionTag.JumpOnHit || s.tag === ActionTag.TimedCancel;
+    const insta = t === "instant";
+    const cut = t !== "temporary" && t !== "chain" && !insta;
     if (hold) {
       const own = Math.min(s.holdPaid, cost.action);
       if (own)
         rows.push(line(`${s.action.name} (c)`, own));
       if (cost.action > own)
         rows.push(line(fast ? "Mash Input" : "Hold Input", cost.action - own));
-    } else if (s.tag === ActionTag.MashSwap) {
+    } else if (s.tag === Transition.MashSwap) {
       const own = Math.min(s.action.noSwapFrames, cost.action);
       rows.push(line(`${s.action.name} (c)`, own));
       if (cost.action > own)
@@ -264,9 +267,9 @@ function framesPopover(snaps) {
       rows.push(line(`${s.action.name}${cut ? " (c)" : ""}`, cost.action));
     if (cost.timestop)
       rows.push(line("Timestop", -cost.timestop));
-    const swaps = s.tag === ActionTag.InstaSwap || s.tag === ActionTag.SwapCancel || s.tag === ActionTag.MashSwap;
+    const swaps = isSwapTransition(s.tag);
     if (cost.global)
-      rows.push(line(swaps ? "Swap Delay" : insta ? "Input Delay" : "Cancel Timing", cost.global));
+      rows.push(line(swaps ? "Swap Delay" : insta ? "Input Delay" : fast ? "Mash Input" : "Cancel Timing", cost.global));
     if (s.timestopBanked)
       rows.push(line("Banked Timestop", -s.timestopBanked));
     if (s.swapFrames)
@@ -903,7 +906,7 @@ function teamCell(sections, slotHue) {
     const field = /* @__PURE__ */ new Map();
     eachHit(lines, null, (snap, avg) => {
       own += avg;
-      if (snap.action.tag !== ActionTag.OffField && snap.action.cast !== 6)
+      if (!snap.action.offField && snap.action.cast !== 6)
         return;
       const key = `${snap.slot} ${snap.action.name}`;
       field.set(key, (field.get(key) ?? 0) + avg);
@@ -939,7 +942,7 @@ function teamCell(sections, slotHue) {
         if ((field.get(`${snap.slot} ${snap.action.name}`) ?? Infinity) < own * 0.02)
           return;
         const at = actOf(snap, avg);
-        const off = !snap.active || snap.tag === ActionTag.OffField;
+        const off = !snap.active || snap.action.offField;
         const cost = atDelays(snap.delays, () => snap.action.cost(snap.tag));
         let root = snap.action;
         while (root.cancelOf ?? root.formOf)

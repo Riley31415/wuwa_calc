@@ -99,24 +99,22 @@ const THUNDER = { updateDebuffs: () => gainTrigram(2) };
 
 // --- basics, mid-air, dodge counter (Hexagram Calls, Lightning Falls) — Stage 2 banks Trigram:
 //     Mountain, Stage 4 and Mid-air bank Trigram: Thunder
-const BA1 = bulingAction("Basic - Hexagram Calls, Lightning Falls 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [BA1, BA2, BA3, Skill, DC], position: Position.Grounded, animFrames: 28, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = bulingAction("Basic - Hexagram Calls, Lightning Falls 1", { input: Input.Basic, position: Position.Grounded, animFrames: 28, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 14, commitFrame: 8, mv: 2073, energy: 53, concerto: 167, offtune: 1668 },
     { hitFrame: 20, commitFrame: 8, mv: 2073, energy: 53, concerto: 167, offtune: 1668 },
   ]});
-const BA2 = bulingAction("Basic - Hexagram Calls, Lightning Falls 2", { input: Input.Basic, after: () => [BA1], animFrames: 45, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA2 = bulingAction("Basic - Hexagram Calls, Lightning Falls 2", { input: Input.Basic, inputPriority: 1, after: [BA1], animFrames: 45, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 8, commitFrame: 2, mv: 3345, energy: 85, concerto: 270, offtune: 2692,
       ...MOUNTAIN },
     { hitFrame: 15, commitFrame: 2, mv: 3345, energy: 85, concerto: 270, offtune: 2692 },
   ]});
-const BA3 = bulingAction("Basic - Hexagram Calls, Lightning Falls 3", { input: Input.Basic, after: () => [BA2], animFrames: 31, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = bulingAction("Basic - Hexagram Calls, Lightning Falls 3", { input: Input.Basic, inputPriority: 1, after: [BA2], animFrames: 31, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 1, mv: 2351, energy: 60, concerto: 190, offtune: 1892 },
     { hitFrame: 10, commitFrame: 1, mv: 2351, energy: 60, concerto: 190, offtune: 1892 },
   ]});
-// "Right after casting Resonance Skill, press Normal Attack to perform Basic Attack Stage 4", and the same after Dodge Counter
-const BA4 = bulingAction("Basic - Hexagram Calls, Lightning Falls 4", { input: Input.Basic, after: () => [BA3, Skill, DC], animFrames: 60, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 23, mv: 9364, energy: 236, concerto: 754, offtune: 7536 }], ...THUNDER });
 // the kit text calls it a plain "Mid-air Attack", no Plunging Attack, so it lands her nowhere
-const MA = bulingAction("Mid-air - Hexagram Calls, Lightning Falls Plunge", { input: [Input.Basic, Input.SwapIn], position: Position.Midair, endPosition: Position.Grounded, animFrames: 46, animPriority: { 41: 3 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 39, mv: 7396, energy: 124, concerto: 496, offtune: 4960 }], ...THUNDER });
-const DC = bulingAction("Dodge Counter - Hexagram Calls, Lightning Falls 3", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], animFrames: 31, castPriority: 2, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const MA = bulingAction("Mid-air - Hexagram Calls, Lightning Falls Plunge", { input: Input.Basic, position: Position.Midair, endPosition: Position.Grounded, animFrames: 46, animPriority: { 41: 3 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 39, mv: 7396, energy: 124, concerto: 496, offtune: 4960 }], ...THUNDER });
+const DC = bulingAction("Dodge Counter - Hexagram Calls, Lightning Falls 3", { input: Input.Basic, after: [SUCCESSFUL_DODGE], animFrames: 31, castPriority: 2, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 1, mv: 2351, energy: 60, concerto: 190, offtune: 1892 },
     { hitFrame: 10, commitFrame: 1, mv: 2351, energy: 60, concerto: 190, offtune: 1892 },
   ], castConcerto: 1000});
@@ -139,19 +137,25 @@ const banksMinor = (minor: Buff, other: Buff): void => {
 // all of it, the 15 Concerto and the 2-Trigram spend land on wuwalab's frame-40 consume, not the cast
 const consume = (effect: () => void) => ({ hitFrame: 40, concerto: 1500, forte1: -2, element: null, type: null, subtype: null, updateDebuffs: effect });
 const YANG = consume(() => banksMinor(MINOR_YANG, MINOR_YIN));
-/** Are the store's two leftmost Trigrams `a` then `b` (1 Mountain, 2 Thunder): which form the held Heavy is. */
-const leftmost = (a: number, b: number): boolean => (stacksOf(TRIGRAMS) & 15) === (a | (b << 2));
-const HA_MOUNTAIN_OVER_THUNDER = bulingAction("Heavy - Mountain Over Thunder", { input: Input.BasicHold, minForte1: 2, valid: () => leftmost(1, 2), animFrames: 70, animPriority: { 70: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [YANG, { hitFrame: 46, commitFrame: 40, mv: 17893, energy: 300, offtune: 8000 }] });
-const HA_THUNDER_OVER_MOUNTAIN = bulingAction("Heavy - Thunder Over Mountain", { input: Input.BasicHold, minForte1: 2, valid: () => leftmost(2, 1), animFrames: 70, animPriority: { 70: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [YANG, { hitFrame: 46, commitFrame: 40, mv: 8947, energy: 300, offtune: 8000 }] });
+/** Hidden markers: the store's two leftmost Trigrams (1 Mountain, 2 Thunder), which held Heavy form is valid. */
+const MOUNTAIN_OVER_THUNDER_READY = new Buff({ /* name: "Buling: Mountain Over Thunder Ready" */ });
+const THUNDER_OVER_MOUNTAIN_READY = new Buff({ /* name: "Buling: Thunder Over Mountain Ready" */ });
+const TWIN_MOUNTAINS_READY = new Buff({ /* name: "Buling: Twin Mountains Ready" */ });
+const TWIN_THUNDERS_READY = new Buff({ /* name: "Buling: Twin Thunders Ready" */ });
+// by the pair's 4 bits (first | second << 2)
+const PAIR_READY = new Map<number, Buff>([[1 | (2 << 2), MOUNTAIN_OVER_THUNDER_READY], [2 | (1 << 2), THUNDER_OVER_MOUNTAIN_READY],
+  [1 | (1 << 2), TWIN_MOUNTAINS_READY], [2 | (2 << 2), TWIN_THUNDERS_READY]]);
+const HA_MOUNTAIN_OVER_THUNDER = bulingAction("Heavy - Mountain Over Thunder", { input: Input.BasicHold, inputPriority: 1, minForte1: 2, holds: MOUNTAIN_OVER_THUNDER_READY, animFrames: 70, animPriority: { 70: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [YANG, { hitFrame: 46, commitFrame: 40, mv: 17893, energy: 300, offtune: 8000 }] });
+const HA_THUNDER_OVER_MOUNTAIN = bulingAction("Heavy - Thunder Over Mountain", { input: Input.BasicHold, inputPriority: 1, minForte1: 2, holds: THUNDER_OVER_MOUNTAIN_READY, animFrames: 70, animPriority: { 70: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [YANG, { hitFrame: 46, commitFrame: 40, mv: 8947, energy: 300, offtune: 8000 }] });
 // the heal lands with the consume (wuwalab's heals[0] at 40)
-const HA_TWIN_MOUNTAINS = bulingAction("Heavy - Twin Mountains", { input: Input.BasicHold, minForte1: 2, valid: () => leftmost(1, 1), animFrames: 60, animPriority: { 60: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, bullets: [
+const HA_TWIN_MOUNTAINS = bulingAction("Heavy - Twin Mountains", { input: Input.BasicHold, inputPriority: 1, minForte1: 2, holds: TWIN_MOUNTAINS_READY, animFrames: 60, animPriority: { 60: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, bullets: [
     consume(() => {
       banksMinor(MINOR_YIN, MINOR_YANG);
       applyCurrent(HEALS, 1);
     }),
   ]});
 // its first heal on the consume, then 7 more a second apart (wuwalab: 40 to 460, eight in all)
-const HA_TWIN_THUNDERS = bulingAction("Heavy - Twin Thunders", { input: Input.BasicHold, minForte1: 2, valid: () => leftmost(2, 2), animFrames: 60, animPriority: { 60: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, bullets: [
+const HA_TWIN_THUNDERS = bulingAction("Heavy - Twin Thunders", { input: Input.BasicHold, inputPriority: 1, minForte1: 2, holds: TWIN_THUNDERS_READY, animFrames: 60, animPriority: { 60: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, bullets: [
     consume(() => {
       banksMinor(MINOR_YIN, MINOR_YANG);
       applyCurrent(HEALS, 1);
@@ -163,8 +167,8 @@ const TWIN_THUNDERS_HEALS = coordinatedBuff("Buling: Twin Thunders (heals)", 7, 
 /** The failed divination — held with fewer than two Trigrams: no hit, and every Trigram lost
  *  (the 20% HP it costs is out of scope). */
 const GhostGateOmen = bulingAction("Heavy - Ghost Gate Omen", { castPriority: 2,
-  input: Input.BasicHold, maxForte1: 1, node: Node.Normal, cast: Cast.Heavy, resetForte1: true,
-  updateBuffs: () => setStacksSelf(TRIGRAMS, 1 << 8),
+  input: Input.BasicHold, node: Node.Normal, cast: Cast.Heavy, resetForte1: true,
+  updateBuffs: () => setTrigrams(1 << 8),
 });
 /** The one Heavy a rotation writes: resolved off the store's two leftmost Trigrams when the row
  *  is reached, the way an Intro is. */
@@ -192,6 +196,8 @@ const Skill = bulingAction("Skill - In Shadow Thunder Stirs", { input: Input.Ski
     { hitFrame: 252, commitFrame: 0, mv: 584, energy: 75, offtune: 392 },
     { hitFrame: 276, commitFrame: 0, mv: 584, energy: 75, offtune: 392 },
   ], castConcerto: 2300, updateBuffs: () => gainTrigram(2) });
+// "Right after casting Resonance Skill, press Normal Attack to perform Basic Attack Stage 4", and the same after Dodge Counter
+const BA4 = bulingAction("Basic - Hexagram Calls, Lightning Falls 4", { input: Input.Basic, inputPriority: 1, after: [BA3, Skill, DC], animFrames: 60, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 23, mv: 9364, energy: 236, concerto: 754, offtune: 7536 }], ...THUNDER });
 
 // The Liberation is Harmony under Yin-Yang Balance — generating the Array, opening/refreshing
 // Thunder Spell at Primordial Qi — and the plain Flashing Thunder Spell otherwise, which does
@@ -199,7 +205,7 @@ const Skill = bulingAction("Skill - In Shadow Thunder Stirs", { input: Input.Ski
 /** Both Liberation forms draw on the one 24s cooldown. */
 const LIB_CD = new Cooldown({ frames: 60 * 24 });
 const Harmony = bulingAction("Liberation - Flashing Thunder Spell - Harmony", {
-  input: Input.Liberation, holds: YIN_YANG_BALANCE, animFrames: 244, animPriority: { 238: 2 }, castPriority: 10, timestop: [0, 231], motionStop: [0, 187],
+  input: Input.Liberation, inputPriority: 1, holds: YIN_YANG_BALANCE, animFrames: 244, animPriority: { 238: 2 }, castPriority: 10, timestop: [0, 231], motionStop: [0, 187],
   cooldown: LIB_CD,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [
     // S5: the Array's 6 more Electro Flare the moment it is generated, at frame 0
@@ -217,7 +223,7 @@ const Harmony = bulingAction("Liberation - Flashing Thunder Spell - Harmony", {
   },
 });
 const FlashingThunderSpell = bulingAction("Liberation - Flashing Thunder Spell", {
-  input: Input.Liberation, lacks: YIN_YANG_BALANCE, animFrames: 244, animPriority: { 238: 2 }, castPriority: 10, timestop: [0, 231], motionStop: [0, 187],
+  input: Input.Liberation, animFrames: 244, animPriority: { 238: 2 }, castPriority: 10, timestop: [0, 231], motionStop: [0, 187],
   cooldown: LIB_CD,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 187, mv: 35786, offtune: 36000 }], castConcerto: 2000, castEnergy: -15000,
 });
@@ -325,13 +331,21 @@ function gainTrigram(kind: number): void {
   let trigrams = word & 0xff, n = 0;
   while (n < 4 && (trigrams >> (2 * n)) & 3) n++;
   if (n === 4) { trigrams >>= 2; n = 3; } else addGain({ forte1: 1 });
-  setStacksSelf(TRIGRAMS, (word & ~0xff) | trigrams | (kind << (2 * n)));
+  setTrigrams((word & ~0xff) | trigrams | (kind << (2 * n)));
 }
 
 /** A Heavy form spends the store's two leftmost Trigrams — the pair HA resolved it from. */
 function spendTrigrams(): void {
   const word = stacksOf(TRIGRAMS);
-  setStacksSelf(TRIGRAMS, (word & ~0xff) | ((word & 0xff) >> 4));
+  setTrigrams((word & ~0xff) | ((word & 0xff) >> 4));
+}
+
+/** Write the store, and hold the one pair marker its two leftmost Trigrams make (none under two). */
+function setTrigrams(word: number): void {
+  setStacksSelf(TRIGRAMS, word);
+  const ready = PAIR_READY.get(word & 15);
+  for (const marker of PAIR_READY.values()) if (marker !== ready && isHeld(marker)) revokeCurrent(marker);
+  if (ready && !isHeld(ready)) applyCurrent(ready, 1);
 }
 
 /** +15% (unscoped) DMG Amplification, 30s — permanent uptime once granted. */
@@ -394,7 +408,7 @@ const BULING_RESONATOR = new Resonator({
   element: Attribute.Electro,
   weapon: WeaponType.Rectifier,
   color: "#7a6ff0",
-  actions: [BA1, BA2, BA3, BA4, MA, DC, HA_MOUNTAIN_OVER_THUNDER, HA_THUNDER_OVER_MOUNTAIN, HA_TWIN_MOUNTAINS, HA_TWIN_THUNDERS, GhostGateOmen, Skill, Harmony, FlashingThunderSpell, Intro, Outro],
+  actions: [BA1, BA1.swapIn(), BA2, BA3, BA4, MA, MA.swapIn(), DC, HA_MOUNTAIN_OVER_THUNDER, HA_THUNDER_OVER_MOUNTAIN, HA_TWIN_MOUNTAINS, HA_TWIN_THUNDERS, GhostGateOmen, Skill, Harmony, FlashingThunderSpell, Intro, Outro],
   maxEnergy: 15000,
   maxForte1: 4,
 

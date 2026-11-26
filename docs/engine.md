@@ -15,40 +15,49 @@ where the press runs out. a bullet's `commitFrame` (default `hitFrame`) is where
 after it can't stop it. the action itself has no element/type/subtype: a def's own are only what its
 bullets share. no `bullets` = a cast alone that deals as nothing. an action has no `mv` of its own:
 every motion value is a bullet's
-- cuts: `cancel`/`dodgeCancel`/`jump`/`swapCancel` cut at `cutFrame` — the last bullet's
-  commit — then the animation runs on past the cut: `CANCEL_DELAY` (9), a swap cancel's too; an
-  insta cut or insta swap `INSTA_DELAY` (6). the swap forms are `swapCancel` (SWAP CANCEL), `instaSwap` (INSTA SWAP, swapping
-  the moment it is pressed) and `mashSwap` (MASH SWAP, `MASH_DELAY` (3) after its `noSwapFrames` end, throwing where that is
-  its animation's end or later); a swap cancel or insta swap inside `noSwapFrames` throws (write
+- transitions: every press hands over to the next by a `Transition` (`.cancel()`, `.mashSwap()`, ...): a
+  timing (`TIMING_OF`) through the next press itself or a dash, jump or swap the transition puts in
+  (`VIA_OF`, which must be valid there or it throws). the next press starts at the frame the cut aims at plus
+  its delay; past the animation's end that delay plays with nothing animating. `INPUT_PRECISION` (10),
+  `MASH_SPEED` (5), `HOLD_BUFFER` (17):
+  - lastcommit (`cancel`, `dashCancel`, `jumpCancel`, `swapCancel`): aims at `cutFrame` (the last commit), + precision
+  - instant (`instaCancel`/`instaDash`/`instaJump`/`instaSwap`): aims at 0, + precision, keeping the bullets committed by then
+  - onhit (`hitCancel`/`hitDash`/`hitJump`/`hitSwap`): aims at the first hit, + precision, keeping what commits by then
+  - mash (`mashCancel`/`mashDash`/`mashJump`/`mashSwap`): the first frame the next press can come out, no
+    sooner than precision, + `MASH_SPEED`; a mash swap's is past its `noSwapFrames`
+  - hold (`holdCancel`): the first frame the next press can come out, no sooner than precision + `HOLD_BUFFER`, no delay
+  - timed (`cancelAt(n)`): frame n exactly, no delay. `OffField`: beside the fight. `Chain`: not detected yet
+  - `Temporary` (nothing written): the next press starts as this one ends, no delay
+- what a transition throws: a lastcommit, onhit or mash transition aiming at frame 0 (write the instant one); a plain
+  or instant cut into a held input (write a hold cancel), a hold into one that isn't, a mash into one that is;
+  a mash whose next press can't come out before the animation ends, a hold letting go at its end or later.
+  the swap forms are `swapCancel`, `instaSwap`, `mashSwap` and `hitSwap`; one swapping inside `noSwapFrames` throws (write
   the mash swap). a swap form goes last in its chain or section, or right before an Outro with no
   animation frames — before one with any it throws: write the plain cut (`.cancel()`, which keeps
   every hit an insta swap did); a plain cut into an Outro with none throws: write a swap form. where no Outro follows, the scheduler plays `SWAP` after it — no frames, no
   cast, a dimmed row, read as `Swap - Grounded` / `Swap - Mid-air` for where the one swapped in will stand; the swap form's own delay is the handoff; an Outro
   otherwise hands over with no delay at all (a test overrides any delay with `setDelays()` before the kits load). a rotation may write `SWAP` itself after a press it plays out
-  (`MA4, SWAP`): it waits out `CANCEL_DELAY` on a `Wait … for Swap` row first, and closes its chain or section like a swap form; never right
+  (`MA4, SWAP`): it waits out `INPUT_PRECISION` on a `Wait … for Swap` row first, and closes its chain or section like a swap form; never right
   before an Outro. the cast of a `SWAP` or of an Outro is the only thing that takes
   a resonator off the field (lost on swap, the field handed on); the swap form itself never does, and
   plays on behind the swap to its own end — until its owner presses again, which ends it there (its
   hits a hold kept past their own frame landing first). any cut into an Outro inside `noSwapFrames`
-  or under its priority throws, a mash cancel aside, which waits out both. a `holdCancel` / `mashCancel` instead lets go the moment the next press can come out —
-  it valid (its `valid` read on the bars its cast and bullets bank, an earlier press's still-landing ones included,
-  else as the fight plays — a buff landing) and the window below open — at its last bullet if it never is; the next press
-  starts right there: bullets not committed by then are lost. a hold goes only into a held input (`Input.BasicHold`,
-  `SkillHold`, `LiberationHold`), a mash only into a press that isn't; a hold lets
-  go no earlier than `HOLD_MINIMUM` (6), a mash `MASH_DELAY` (6) after the moment it could, its input landing on the
-  next tap; either throws where it lets go at the press's end. `HOLD_BUFFER` (16) is unused for now. a cut that runs longer than the whole press, or cuts inside `INSTA_DELAY` (6), throws.
+  or under its priority throws, a hold or mash aside, which waits out both. a hold or mash lets go once the next press can come out —
+  it valid (its conditions read on the bars its cast and bullets bank, an earlier press's still-landing ones included,
+  else as the fight plays — a buff landing) and the window below open; bullets not committed by then are lost.
 - a transform echo casts and holds at 5 (wuwalab's `skill_priority`) with `transformFrames` over its whole animation: inside them only a Dodge-input press cuts it — a mash or hold cancel into anything else waits them out, a plain cut throws — while a swap or an Outro is free. it holds its owner through them: a swap-in or Intro into them before then throws (`Slot.arrive`); their own next press ends it
 - swap cooldown: leaving the field (a swap or an Outro) starts 60 real frames (they run through time stop) before a swap may bring that member back, else it throws (`TeamMember.swappedInto`); an Intro into them bypasses and clears it, and leaving during their own Intro starts none. An exit resolver that plays a plain `SWAP` hands over as a swap form: the next member opens on their SWAPIN chain
 - priority: a press's `animPriority` (`{ 0: 5, 10: 2 }`, frame -> tier) is what it holds while it
   plays, its `castPriority` what it cuts in at; one press cuts another only with a `castPriority`
   above the other's `animPriority` at the frame it starts on (the cut and its delay played), and every
   press beats the floor of 0, so a press cast at 0 (or declaring none) throws — a cast-less one with
-  hits included; what the engine queues aside, and a wait, never does. a plain, on-hit or insta cut that fails it throws — a dodge or jump cut
+  hits included; what the engine queues aside, and a wait, never does. a plain, on-hit, instant or timed cut that fails it throws
+  (nothing holds past the animation's end) — a dodge or jump cut
   weighs the dash (the plain dodge casts at 6, the jump at 8, both holding 9, the jump 6 frames long; after any `cast:
   Cast.Echo` press, never a subcast, the dodge is `Dodge - Out of echo`, casting at 14), the rest the
   next press. a hold or mash waits for it
-  instead — a mash into an Outro for the press's `noSwapFrames` too — a hold letting go the frame the
-  window opens, a mash `MASH_DELAY` after it, and throws where it lets go no earlier than the press would end. an OFF_FIELD hit and an Outro with no animation carry no priority; an Outro with
+  instead — into an Outro for the press's `noSwapFrames` too — a hold letting go the frame the
+  window opens, a mash `MASH_SPEED` after it (see transitions). an OFF_FIELD hit and an Outro with no animation carry no priority; an Outro with
   animation frames is cut into like any press
 - echo casts: a summon casts at 10 as the next press starts and never cuts the press before it (`castsWithNext`: that press's cut, hold or mash is made by, and weighed against, the press past the summon), holding 8 (a Liberation cuts it); a transform ("Transform into ...") at 5, holding 13; a
   pseudo-transform (wuwalab's `semi_transform`: Bell-Borne Geochelone, Mech Abomination, Chisa's
@@ -64,11 +73,8 @@ every motion value is a bullet's
   wuwalab's `airCastable: false` = `position: Position.Grounded`. a multi-stage echo (wuwalab's
   "X 1", "X 2", ...) is an action a stage, all on one mainslot, each chaining off the last (`after(X_1.press)`),
   the cooldown on the first; a rotation writes as many stages as it presses.
-  an insta cut keeps the bullets committed by `INSTA_DELAY`; `.cancelOnHit()` (CANCEL ON HIT),
-  `.dodgeOnHit()` and `.jumpOnHit()` cut `CANCEL_DELAY` after the first bullet hits, keeping the
-  bullets committed by the end of that delay — bullets keep firing until the next press truly starts; each throws on a press whose bullets hit on one frame.
-  `.timedCancel(n)` (CANCEL @ Nf) cuts at animation frame n exactly, no `CANCEL_DELAY`, keeping the bullets
-  committed by n; the next press still has to out-prioritise it there, and n at or past `animFrames` throws
+  a timed cut (CANCEL @ Nf) keeps the bullets committed by n; the next press still has to out-prioritise it there.
+  a dash a cut puts in that the next press out-prioritises is itself cut instant
 - an Intro's `qteFrames` (default 0, Intros only, wuwalab's `qte_tag_frame`) is where the Outro's own
   buffs land (`queueQTE`), their durations starting there. every other handoff — a sonata's, an echo's,
   a sequence's or inherent's riding the outro, a marker — is `queueOutro`, landing as the Intro is cast

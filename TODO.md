@@ -1,40 +1,7 @@
-
-make Cast.None the default for things like coords or actions that are not cast
-
-yields to should be a [] not () -> []. no condition should be a function.
-
-You added Cast.None to stats.ts at 17:18 (not me), and CAST_NAME doesn't have an entry for it yet. I've left that file alone. tsc still emits, and the full run completes.
-
-All done: every valid is now AND-joined fields plus yieldsTo. Versus the run just before the codemod, all 1,814 runs match except 5 that the Tune Break change moved (that removes the Lingyang +4%; the rest are small Tune Break shifts). There are no new errors, and one conflict is left.
-
-The fields. A press's conditions are now:
-
-after, notAfter, position, holds, lacks
-minConcerto and minForte1–5, with matching max fields; both ends inclusive
-valid, for what no field can say (a sequence, Buling's Trigram store, a wearer)
-yieldsTo
-The engine ANDs them, reading the chain and stand first. The codemod converted 1,022 conditions in 62 files.
-
-yieldsTo: () => [X] means "not while X is valid with a cooldown charge ready". It replaced every !(A && B) give-way and every onCooldown(X), so the onCooldown/offCooldown reads and the duetReady()/multiReady() helpers are gone.
-A variant that sets any condition field replaces all of its base's conditions.
-About 150 presses keep a valid for things fields can't express. None of them mixes condition types with OR any more. One OR is left but it's within buffs only: Phrolova's Curtain Call needs Maestro or Curtain Call Ready.
-yieldsTo is ignored only in the engine's lookahead read modes (the same places lacks() already reads as met).
-My codemod garbled 8 conditions, and I had no backup of the files, so I repaired those 8 by hand. They were all OR cases being rewritten anyway.
-The real ORs:
-
-Sigrika: two Stage 2 presses. The chained one follows Stage 1, the Heavy, plunge, mid-air dodge counter or Intro. BA2Start is the fresh start at 50 Full Stop and also her swap-in opener there. Stage 3 follows either, and there's an "untested" comment. Her rotations played Stages 2–4 right after the Liberation, which is the fresh start, so I pointed those two places at a new BA234_START group (37 warnings otherwise).
-Chisa: Eradication follows Stage 3 only. The ring-empty condition is dropped, including on Stages 2 and 3.
-Jingran: Scorching Yang and Encroaching Yin are grounded with no Cleanse window up, as you said. His rotation casts them right after Soul Raid and Stardome Meander, where that doesn't hold, so 58 runs now warn.
-Qiuyuan: the Skill condition was !isHeld(QY_S3) || concerto() < 10000 || holds(INKSPLASH), which means "not while S3's Straw Cape is valid". Straw Cape takes the Skill at full Concerto outside Inksplash of Mind. So it was a give-way, now yieldsTo: [StrawCape]. Mornye's Skill was the same kind (it gives way to Distributed Array).
-Your other two:
-
-No Tune Break during a transform's window. The one spot it could land (taking a cut press's place) now checks the window.
-Chisa's Serrated Loop half hold is deleted. The full hold was already on the Skill hold input.
-Still left:
-
-Lynae's Palettes vs Additive Color on the Skill input, waiting on her S6 rotation.
-Rotations that now warn: Lynae S6 Spark Collision (120 runs), Aemeath Charged II (37), Cantarella Flickering Reverie (31), Jingran (58), Roccia S6 Fail (19).
-The docs are updated for the fields and yieldsTo. Nothing is staged or committed.
+# TODO
+better chain save system
+better system to detect dimmed/offfield actions than just input.none - remove onField? field that was added
+ and optionally may insert the currently valid dash or tunebreak after if it would reach the next action faster, and the next action would still be valid after the dash.
 
 # action interface 
 enforce start of fight no swapin
@@ -56,6 +23,7 @@ remove "DPR comparisons do not account for rotation time!"
 optimizer must decide between DPS or DPR based loadout choices
 
 # clean up matrix value and tier list
+back button use the <  not <-
 nav bar
 clean up alignment of README
 remove changing gear within loadout view
@@ -64,34 +32,68 @@ much better ui
 add best weapons as a list
 add best sequences as a list
 
-# rework the ActionTag system into "Transition" system
-we will rename the current cancel/tag system to a transition system
-transitions tell us the delay between the current action and the next, and validate input delay/buffer
-all actions must have a transition
+# automation of transitions
+transitions will now be fully automated, and computed by the engine at runtime according to our intended timing:
+until we fully verify the system, keep the old cancel tags to check that our new system finds them all
 
-this will also validate the type of input used to make the next action.
-set INPUT_PRECISION = 12f, this is the average delay a user has when aiming for a precise cancel
-set INPUT_SPEED = 9f, we will assume the user can click any input ~7 times per second
-we already have HOLD_BUFFER = 17f, this means you must press (creating an input), then hold for 17f to create continuous hold inputs after
-ideally, you want to begin this hold input during another action with higher priority, so that once the priority lowers, a hold input instantly begins the held input action
-otherwise, we would press, wait 17f, then the hold goes off, cancelling the previous 17f action
+no more off field tag, the action log should instead check for actions with input.none or input.outro or whatever to dim them
 
-remove all old cancel related errors, we will redefine them under the new transition system:
+we can no longer write out .whateverCancel(), instead we write our intended timings, the engine solves for the transition
+we must also write out manual DASH/JUMP/SWAP where needed rather than it being part of a timing or cancel
 
-new list of transitions:
+Timing enum: (also .instant(), .firstHit(), .timed(frame))
+lastcommit (default) - cut at last commit or later
+instant - cut at exactly INPUT_PRECISION, error at rotation compile time if last commit <= INPUT_PRECISION
+firsthit - cut at exactly on the first bullet + INPUT_PRECISION error at rotation compile time if first bullet is on or before INPUT_PRECISION, use instant instead, error if first bullet + INPUT_PRECISION >= last commit, use lastcommit instead
+timed - cut at a specific frame
 
-off field (same as the previous action tag)
+next, while running a rotation and knowing the intended timing for an action + the next action,
+the engine must solve for the cut frame,
 
+2 paths, for non-hold input:
+for instant,firsthit,or timed, check if the action input is valid at the intended frame, if its not throw an error otherwise thats the cut
 
+for lastcommit: 
+starting at lastcommit - INPUT_PRECISION, find the first place where the input is valid. (do not check frames <0 aka before the cast, firstvalidframe is at most equal to the total animation length)
+let num_invalid_frames = firstvalidframe - Max(0, lastcommit - INPUT_PRECISION)
+if num_invalid_frames < INPUT_PRECISION:
+cut at lastcommit+INPUT_PRECISION, throw an error if it is not valid at that exact frame saying "cancel automation failed"
+else:
+cut at firstvalidframe + MASH_SPEED, throw an error if it is not valid at that exact frame saying "cancel automation failed"
 
-# cancel automation
-enforce hold duration
-throw an error on transforms that do not dodge cancel
-may need midway positioning for echoes that fly up and down
-throw warnings on actions that could be cancelled without timeloss/position loss (positional state known at compile time, )
+however if the result of the above cuts > animation length AND the action chains into the next, set the cut to the animation length
 
-create an available list of transitions to use after the next action is chosen
+for hold input:
+if timing is instant, throw an error saying hold cancel cannot achieve the timing
 
+for timed, first check that at intended_time - HOLD_BUFFER, the corresponding non-held input would be invalid
+ (if that would be a frame <0, throw an error that we cannot achieve this timing with a hold input)
+then check that at the intended_time, this intended action is valid. if both succeed, we cut at that time.
+
+for first hit, first check that at intended_time - HOLD_BUFFER - INPUT_PRECISION, the corresponding non-held input would be invalid
+ (if that would be a frame <0, throw an error that we cannot achieve this timing with a hold input)
+then check that at the intended_time, this intended action is valid. if both succeed, we cut at that time.
+
+for lastcommit into hold:
+starting at lastcommit - INPUT_PRECISION - HOLD_BUFFER, find the first place where the non-hold input action is valid. (do not check frames <0 aka before the cast, firstvalidframe is at most equal to the total animation length)
+let num_invalid_frames = firstvalidframe - Max(0, lastcommit - INPUT_PRECISION - HOLD_BUFFER)
+if num_invalid_frames < INPUT_PRECISION + HOLD_BUFFER:
+throw an error saying not enough room to buffer hold
+else:
+starting at lastcommit, find the first place where the held input becomes valid (call it firstholdvalid)
+if firstholdvalid > firstvalidframe, throw an error saying valid hold is too late
+otherwise the cut frame will be firstholdvalid
+
+no more enum for cancel types, we will display cancel tags in the log as follows, depending only on the cut frame and next input:
+(no tag if cut >= animation time)
+color = red if cut <= INPUT_PRECISION
+yellow if cut > INPUT_PRECISION and < last commit
+blue if cut > INPUT_PRECISION and >= last commit
+display DASH/JUMP/SWAP in the name if the next action is an input of one of those 3 types, otherwise just cancel
+no more insta/mash/onhit naming
+just display "@ [n]f" at the end of the cancel tag, where n is the cut
+
+once we verify the system, we will remove all the old manual cancel assignment and errors.
 
 
 # tb stuff
@@ -104,9 +106,15 @@ do a large scale cleanup of helper methods and things in the engine
 reorganize the file structure to reduce the number of circular import workarounds
 move helpers to be in seperate files from the actual engine
 move src/tuning and explorer to a tools/ in the main project directory
+set a maximum line length of 120 characters for code files (.ts)
+max file length: 1000 lines
+remove all of the huge comments at the top of resonator files. only add the explanatory comments above the relevant buffs or actions
+try to clean up extraneous or oneoff/workaround fields added to various classes/interfaces
 
 # to get from wuwalab
 all swap ins
+new frames
+hitlag
 transform echo noinput duration
 lingyang cancels research
 

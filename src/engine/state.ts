@@ -918,7 +918,7 @@ export class TeamMember {
  *  known — teamrun.ts drops it once binned. */
 export interface HitRecord { at: number; slot: string; member: string; avg: number; variantAvg: number[] | null; res: Result | null }
 
-/** `cut`: on a press's end, the tag it was cut short by (`ActionTag`, "" for none) — what `pressWasCut()` reads there. */
+/** `cut`: on a press's end, the tag it was cut short by (`Transition`, "" for none) — what `pressWasCut()` reads there. */
 export interface Timed { due: number; action: Action | null; slot: number; into: Result | null; by: HeldBuff | null; away?: boolean; apply?: () => void; frames?: number; closes?: boolean; triggered?: boolean; cut?: string; check?: () => void; behind?: boolean; at?: number }
 
 /** A clock entry with every field set, in one order — the queue's readers then see one shape. */

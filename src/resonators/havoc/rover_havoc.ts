@@ -56,32 +56,32 @@ const DARK_SURGE = new Buff({
 // --- basics, mid-air, dodge counter (Tuneslayer), outside Dark Surge. forte1 (Umbra) gains are
 //     nanoka's own per-action list, resolved to a per-stage delta by differencing against shorter
 //     combos sharing a prefix (cross-checked two ways, all consistent).
-const BA1 = roverAction("Basic - Tuneslayer 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [BA1, BA2, BA3, BA4, HA], position: Position.Grounded, valid: () => !isHeld(DARK_SURGE), animFrames: 18, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 18, mv: 5667, energy: 60, concerto: 74, offtune: 2400, forte1: 3 }] });
+const BA1 = roverAction("Basic - Tuneslayer 1", { input: Input.Basic, position: Position.Grounded, lacks: DARK_SURGE, animFrames: 18, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 18, mv: 5667, energy: 60, concerto: 74, offtune: 2400, forte1: 3 }] });
 // PLACEHOLDER FRAMES
-const BA2 = roverAction("Basic - Tuneslayer 2", { input: Input.Basic, after: () => [BA1], animFrames: 33, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA2 = roverAction("Basic - Tuneslayer 2", { input: Input.Basic, inputPriority: 1, after: [BA1], animFrames: 33, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 33, mv: 5667, energy: 60, concerto: 74, offtune: 2400 },
     { hitFrame: 33, mv: 5667, energy: 60, concerto: 74, offtune: 2400, forte1: 6 },
   ]});
-const BA3 = roverAction("Basic - Tuneslayer 3", { input: Input.Basic, after: () => [BA2], animFrames: 33, castPriority: 2, bullets: [{ hitFrame: 27, mv: 8500, energy: 90, concerto: 111, offtune: 2800, forte1: 4 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
+const BA3 = roverAction("Basic - Tuneslayer 3", { input: Input.Basic, inputPriority: 1, after: [BA2], animFrames: 33, castPriority: 2, bullets: [{ hitFrame: 27, mv: 8500, energy: 90, concerto: 111, offtune: 2800, forte1: 4 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
+
+const MA = roverAction("Mid-air - Plunging Attack", { input: Input.Basic, position: Position.Midair, lacks: DARK_SURGE, endPosition: Position.Grounded, animFrames: 37, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 37, mv: 11710, energy: 41, concerto: 100, offtune: 9600, forte1: 9 }] });
+const DC = roverAction("Dodge Counter - Tuneslayer", { input: Input.Basic, after: [SUCCESSFUL_DODGE], castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 17943, energy: 190, concerto: 86, offtune: 4640 }], castConcerto: 1000 });
+const HA = roverAction("Heavy - Attack", { input: Input.BasicHold, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 9543, energy: 96, concerto: 119, offtune: 5360 }] });
 // PLACEHOLDER FRAMES. "Use Basic Attack after casting Heavy Attack to cast Basic Attack 4"
-const BA4 = roverAction("Basic - Tuneslayer 4", { input: Input.Basic, after: () => [BA3, HA], castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA4 = roverAction("Basic - Tuneslayer 4", { input: Input.Basic, inputPriority: 1, after: [BA3, HA], castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 0, mv: 4030, energy: 42, concerto: 52, offtune: 1707 },
     { hitFrame: 0, mv: 4030, energy: 42, concerto: 52, offtune: 1707 },
     { hitFrame: 0, mv: 4030, energy: 42, concerto: 52, offtune: 1707, forte1: 9 },
   ]});
 // PLACEHOLDER FRAMES
-const BA5 = roverAction("Basic - Tuneslayer 5", { input: Input.Basic, after: () => [BA4], castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA5 = roverAction("Basic - Tuneslayer 5", { input: Input.Basic, inputPriority: 1, after: [BA4], castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 0, mv: 9444, energy: 100, concerto: 124, offtune: 4000 },
     { hitFrame: 0, mv: 9444, energy: 100, concerto: 124, offtune: 4000, forte1: 10 },
   ]});
 
-const MA = roverAction("Mid-air - Plunging Attack", { input: [Input.Basic, Input.SwapIn], position: Position.Midair, valid: () => !isHeld(DARK_SURGE), endPosition: Position.Grounded, animFrames: 37, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 37, mv: 11710, energy: 41, concerto: 100, offtune: 9600, forte1: 9 }] });
-const DC = roverAction("Dodge Counter - Tuneslayer", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 17943, energy: 190, concerto: 86, offtune: 4640 }], castConcerto: 1000 });
-const HA = roverAction("Heavy - Attack", { input: Input.BasicHold, maxForte1: 99, lacks: DARK_SURGE, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 9543, energy: 96, concerto: 119, offtune: 5360 }] });
-
 // --- forte circuit: Devastation, at full Umbra — enters Dark Surge, considered Heavy Attack DMG,
 //     and (S4) shreds the target's own Havoc RES
-const FHA = roverAction("Forte Heavy - Devastation", { input: Input.BasicHold, minForte1: 100, lacks: DARK_SURGE,
+const FHA = roverAction("Forte Heavy - Devastation", { input: Input.BasicHold, inputPriority: 1, minForte1: 100,
   animFrames: 62, castPriority: 6, bullets: [{ hitFrame: 15, mv: 22814, energy: 170, offtune: 56320 }],
   node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, castForte1: -100,
   updateBuffs: () => {
@@ -91,15 +91,28 @@ const FHA = roverAction("Forte Heavy - Devastation", { input: Input.BasicHold, m
   },
 });
 
+const EMA = roverAction("Mid-air - Umbra Plunge", { input: Input.Basic, position: Position.Midair, holds: DARK_SURGE, endPosition: Position.Grounded, castPriority: 6, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 12327, energy: 41, concerto: 100, offtune: 9600 }] });
+const EDC = roverAction("Dodge Counter - Umbra", { input: Input.Basic, after: [SUCCESSFUL_DODGE], holds: DARK_SURGE, castPriority: 8, node: Node.Forte, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 31671, energy: 236, concerto: 198, offtune: 4640 }], castConcerto: 1000 });
+
+const EHA = roverAction("Heavy - Umbra", { input: Input.BasicHold, inputPriority: 2, holds: DARK_SURGE, animFrames: 43, castPriority: 6, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 43, mv: 12883, energy: 96, concerto: 164, offtune: 6400 }] });
+
 // --- Dark Surge: Enhanced Basic 1-5, Enhanced Heavy -> Thwackblade -> re-entry into Enhanced
 //     Basic 3, Enhanced Mid-air/Dodge Counter — all their own base damage types (only the
 //     Heavy/Thwackblade pair counts as Heavy Attack DMG; basics stay Basic Attack DMG).
-const EBA1 = roverAction("Basic - Umbra 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [EBA1, EBA2, EBA3, EBA4, EHA2, EHA], position: Position.Grounded, holds: DARK_SURGE, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 5637, energy: 42, concerto: 72, offtune: 1440 }] });
-const EBA2 = roverAction("Basic - Umbra 2", { input: Input.Basic, after: () => [EBA1], holds: DARK_SURGE, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 9394, energy: 70, concerto: 120, offtune: 2560 }] });
-// "Use Basic Attack after casting Heavy Attack Thwackblade to cast Enhanced Basic Attack 3"
-const EBA3 = roverAction("Basic - Umbra 3", { input: Input.Basic, after: () => [EBA2, EHA2], holds: DARK_SURGE, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 15567, energy: 116, concerto: 198, offtune: 4480 }] });
+const EBA1 = roverAction("Basic - Umbra 1", { input: Input.Basic, position: Position.Grounded, holds: DARK_SURGE, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 5637, energy: 42, concerto: 72, offtune: 1440 }] });
+const EBA2 = roverAction("Basic - Umbra 2", { input: Input.Basic, inputPriority: 1, after: [EBA1], holds: DARK_SURGE, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 9394, energy: 70, concerto: 120, offtune: 2560 }] });
 // PLACEHOLDER FRAMES
-const EBA4 = roverAction("Basic - Umbra 4", { input: Input.Basic, after: () => [EBA3], holds: DARK_SURGE, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
+const EHA2 = roverAction("Heavy - Umbra: Thwackblade", { input: Input.BasicHold, inputPriority: 10, after: [EHA], holds: DARK_SURGE, animFrames: 42, castPriority: 6, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+    { hitFrame: 42, mv: 12665, energy: 94.35, concerto: 161.31, offtune: 6622.7792 },
+    { hitFrame: 42, mv: 995, energy: 7.41, concerto: 12.67, offtune: 520.3052 },
+    { hitFrame: 42, mv: 995, energy: 7.41, concerto: 12.67, offtune: 520.3052 },
+    { hitFrame: 42, mv: 995, energy: 7.41, concerto: 12.67, offtune: 520.3052 },
+    { hitFrame: 42, mv: 995, energy: 7.42, concerto: 12.68, offtune: 520.3052 },
+  ]});
+// "Use Basic Attack after casting Heavy Attack Thwackblade to cast Enhanced Basic Attack 3"
+const EBA3 = roverAction("Basic - Umbra 3", { input: Input.Basic, inputPriority: 1, after: [EBA2, EHA2], holds: DARK_SURGE, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 15567, energy: 116, concerto: 198, offtune: 4480 }] });
+// PLACEHOLDER FRAMES
+const EBA4 = roverAction("Basic - Umbra 4", { input: Input.Basic, inputPriority: 1, after: [EBA3], holds: DARK_SURGE, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 0, mv: 3713, energy: 27.33, concerto: 47.17, offtune: 2213.3333 },
     { hitFrame: 0, mv: 3713, energy: 27.33, concerto: 47.17, offtune: 2213.3333 },
     { hitFrame: 0, mv: 3713, energy: 27.33, concerto: 47.17, offtune: 2213.3333 },
@@ -108,7 +121,7 @@ const EBA4 = roverAction("Basic - Umbra 4", { input: Input.Basic, after: () => [
 // updateDebuffs is her own healing marker, read by every healing sonata and weapon (statuses.ts)
 // — applied to the healer alone, never the team
 // PLACEHOLDER FRAMES
-const EBA5 = roverAction("Basic - Umbra 5", { input: Input.Basic, after: () => [EBA4], holds: DARK_SURGE,
+const EBA5 = roverAction("Basic - Umbra 5", { input: Input.Basic, inputPriority: 1, after: [EBA4], holds: DARK_SURGE,
   animFrames: 63, castPriority: 2,
   node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 24, mv: 2852, energy: 21.25, concerto: 22.63, offtune: 7040.3086,
@@ -120,30 +133,17 @@ const EBA5 = roverAction("Basic - Umbra 5", { input: Input.Basic, after: () => [
   ],
 });
 
-const EMA = roverAction("Mid-air - Umbra Plunge", { input: [Input.Basic, Input.SwapIn], position: Position.Midair, holds: DARK_SURGE, endPosition: Position.Grounded, castPriority: 6, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 12327, energy: 41, concerto: 100, offtune: 9600 }] });
-const EDC = roverAction("Dodge Counter - Umbra", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], holds: DARK_SURGE, castPriority: 8, node: Node.Forte, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 31671, energy: 236, concerto: 198, offtune: 4640 }], castConcerto: 1000 });
-
-const EHA = roverAction("Heavy - Umbra", { input: Input.BasicHold, holds: DARK_SURGE, animFrames: 43, castPriority: 6, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 43, mv: 12883, energy: 96, concerto: 164, offtune: 6400 }] });
-// PLACEHOLDER FRAMES
-const EHA2 = roverAction("Heavy - Umbra: Thwackblade", { input: Input.BasicHold, after: () => [EHA], holds: DARK_SURGE, animFrames: 42, castPriority: 6, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
-    { hitFrame: 42, mv: 12665, energy: 94.35, concerto: 161.31, offtune: 6622.7792 },
-    { hitFrame: 42, mv: 995, energy: 7.41, concerto: 12.67, offtune: 520.3052 },
-    { hitFrame: 42, mv: 995, energy: 7.41, concerto: 12.67, offtune: 520.3052 },
-    { hitFrame: 42, mv: 995, energy: 7.41, concerto: 12.67, offtune: 520.3052 },
-    { hitFrame: 42, mv: 995, energy: 7.42, concerto: 12.68, offtune: 520.3052 },
-  ]});
-
 // --- resonance skill: Wingblade outside Dark Surge, Lifetaker inside it — both share
 //     cast: Cast.Skill (S1's own "Resonance Skill DMG" wording covers either).
 /** Wingblade and Umbra: Lifetaker share one 12s cooldown. */
 const SKILL_CD = new Cooldown({ frames: 60 * 12 });
 // PLACEHOLDER FRAMES
-const Skill = roverAction("Skill - Wingblade", { input: Input.Skill, lacks: DARK_SURGE, animFrames: 66, castPriority: 4, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+const Skill = roverAction("Skill - Wingblade", { input: Input.Skill, animFrames: 66, castPriority: 4, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 66, mv: 28629, energy: 600, offtune: 4320 },
     { hitFrame: 66, mv: 28629, energy: 600, offtune: 4320, forte1: 39 },
   ], castConcerto: 1500});
 // PLACEHOLDER FRAMES
-const ESkill = roverAction("Skill - Umbra: Lifetaker", { input: Input.Skill, holds: DARK_SURGE, animFrames: 66, castPriority: 4, cooldown: SKILL_CD, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, bullets: [
+const ESkill = roverAction("Skill - Umbra: Lifetaker", { input: Input.Skill, inputPriority: 1, holds: DARK_SURGE, animFrames: 66, castPriority: 4, cooldown: SKILL_CD, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 66, mv: 27635, energy: 373.13, offtune: 5440.2471 },
     { hitFrame: 66, mv: 27635, energy: 373.13, offtune: 5440.2471 },
     { hitFrame: 66, mv: 995, energy: 13.43, offtune: 195.8765 },
@@ -202,7 +202,7 @@ const ROVER_HAVOC_RESONATOR = new Resonator({
   element: Attribute.Havoc,
   weapon: WeaponType.Sword,
   color: "#c63a9c",
-  actions: [BA1, BA2, BA3, BA4, BA5, MA, DC, HA, FHA, EBA1, EBA2, EBA3, EBA4, EBA5, EMA, EDC, EHA, EHA2, Skill, ESkill, Liberation, Intro, Outro],
+  actions: [BA1, BA1.swapIn(), BA2, BA3, BA4, BA5, MA, MA.swapIn(), DC, HA, FHA, EBA1, EBA1.swapIn(), EBA2, EBA3, EBA4, EBA5, EMA, EMA.swapIn(), EDC, EHA, EHA2, EHA2.onInput(Input.Basic), Skill, ESkill, Liberation, Intro, Outro],
   maxEnergy: 12500,
   maxForte1: 100,
   tier: Rarity.FreeS6,
@@ -254,8 +254,8 @@ const OutroOrSwap = new Action("Outro Or Swap Resolver", { cast: Cast.Outro, res
 const RH_ROTATION = new Rotation([
   START, BA1.instaCancel(), Liberation, Skill.instaSwap(),
 
-  Intro, MA, Skill, NM_CROWNLESS.instaDodge(),
-  BA123, FHA, NM_CROWNLESS.instaDodge(),
+  Intro, MA, Skill, NM_CROWNLESS.instaDash(),
+  BA123, FHA, NM_CROWNLESS.instaDash(),
   EBA12345.cancel(), ESkill, Liberation,
   EBA12345.swapCancel(), OutroOrSwap,
 ]);

@@ -4,7 +4,7 @@
  * `Weapon`/`Resonator`), plus `EchoLoadout` and `Loadout`. Definitions only — what a piece
  * *does* is the hooks it declares, which `evaluate.ts` runs.
  */
-import { Stat, EnemyStat, Attribute, WeaponType, Rarity, Cast, BuffTarget, ActionTag, FULL_CONCERTO, Input } from "./stats.js";
+import { Stat, EnemyStat, Attribute, WeaponType, Rarity, Cast, BuffTarget, Transition, FULL_CONCERTO, Input } from "./stats.js";
 import type { Tag } from "./stats.js";
 import type { Rotation, Action, ActionField } from "./rotation.js";
 import { ctx } from "./runtime.js";
@@ -797,11 +797,11 @@ export interface ResonatorDef extends GearDef {
   /** The enemy's own, on the frame `behind` is cut by `cut` (a dodge, swap, plain, on-hit or insta
    *  cancel), ahead of its bullets still to land: what is ready there for `takesCut` to act on, the
    *  cut's delay after it being only the input. */
-  atCut?: (behind: Action, cut: ActionTag) => void;
+  atCut?: (behind: Action, cut: Transition) => void;
   /** The enemy's own: read on the frame a plain dodge would be cast, or the rotation's next step
    *  after a swap form or a plain, on-hit or insta cancel, `behind` the press its `cut` cut short
    *  — it may `replaceCut()` and queue what plays there (tunebreak.ts's ready break). */
-  takesCut?: (behind: Action, cut: ActionTag) => void;
+  takesCut?: (behind: Action, cut: Transition) => void;
   /** How hard this resonator is to own, which is what sets the resonance-chain level their build
    *  is costed at — see stats.ts's own `Tier` and `baseSequence()`. Unset means `Tier.Limited`. */
   tier?: Rarity;
@@ -814,9 +814,9 @@ export interface ResonatorDef extends GearDef {
 }
 
 /** The presses every resonator makes without listing them, filled in where they are made (gear.ts can
- *  import neither): the fallbacks — the plain dashes, jump and the Swap (rotation.ts), made where none of a
- *  kit's own on their input is valid — and each weapon class's Tune Break (tunebreak.ts), which a kit's own
- *  Tune Break replaces outright (its own say when no break comes, Phrolova's in Maestro). */
+ *  import neither): the plain dashes, jump and the Swap (rotation.ts), at `inputPriority` -1 so any of a
+ *  kit's own valid on their input takes it, and each weapon class's Tune Break (tunebreak.ts), listed only
+ *  where a kit has no Tune Break of its own. */
 export const DEFAULT_PRESSES: { fallbacks: readonly Action[]; tuneBreak: ((weapon: WeaponType) => Action) | null } = { fallbacks: [], tuneBreak: null };
 
 /** No gauge capped: energy, concerto, forte 1-5, as `Resonator.caps` reads. */
@@ -852,8 +852,8 @@ export class Resonator extends Gear {
   actions: readonly Action[];
   holdFn?: (next: Action) => Action | null;
   sentOff?: () => void;
-  atCut?: (behind: Action, cut: ActionTag) => void;
-  takesCut?: (behind: Action, cut: ActionTag) => void;
+  atCut?: (behind: Action, cut: Transition) => void;
+  takesCut?: (behind: Action, cut: Transition) => void;
   tier: Rarity;
   constructor(def: ResonatorDef) {
     super({
@@ -907,7 +907,7 @@ export class Resonator extends Gear {
     if (!def.enemy && !def.actions?.length) throw new Error(`${def.name}: a resonator lists its presses in \`actions\``);
     this.actions = def.actions ?? [];
     for (const a of this.actions) {
-      if (a.inputs.includes(Input.None)) throw new Error(`${def.name}: ${a.name} is listed in actions but declares no input`);
+      if (a.input === Input.None) throw new Error(`${def.name}: ${a.name} is listed in actions but declares no input`);
     }
     this.holdFn = def.holdBefore;
     this.sentOff = def.sentOff;
@@ -915,20 +915,21 @@ export class Resonator extends Gear {
     this.takesCut = def.takesCut;
     this.tier = def.tier ?? Rarity.Limited;
   }
-  /** The presses every resonator makes without listing them: their weapon class's Tune Break (where the kit
-   *  has none), and the fallbacks — the plain dashes (grounded, mid-air, out of an echo), jump and Swap. */
+  /** The presses every resonator makes without listing them: their weapon class's Tune Break, the plain
+   *  dashes (grounded, mid-air), jump and Swap. */
   get defaultActions(): readonly Action[] {
     return (this.defaults ??= [...(DEFAULT_PRESSES.tuneBreak ? [DEFAULT_PRESSES.tuneBreak(this.weapon)] : []), ...DEFAULT_PRESSES.fallbacks]);
   }
   private defaults?: readonly Action[];
-  /** Their presses on `input`: the kit's own, then the fallbacks on it (picked only where none of the kit's
-   *  own is valid); the weapon's Tune Break only where the kit lists none. */
+  /** Their presses on `input`, the kit's own and the defaults in one list, highest `inputPriority` first (stable);
+   *  the weapon's Tune Break only where the kit lists none of its own. */
   inputActions(input: Input): readonly Action[] {
     let out = this.byInput.get(input);
     if (!out) {
-      const own = this.actions.filter((a) => a.inputs.includes(input));
-      const defaults = this.defaultActions.filter((a) => a.inputs.includes(input) && (DEFAULT_PRESSES.fallbacks.includes(a) || !own.length));
-      this.byInput.set(input, (out = [...own, ...defaults]));
+      const own = this.actions.filter((a) => a.input === input);
+      const ownBreak = input === Input.TuneBreak && own.length > 0;
+      const all = [...own, ...this.defaultActions.filter((a) => a.input === input && !(ownBreak && !DEFAULT_PRESSES.fallbacks.includes(a)))];
+      this.byInput.set(input, (out = all.sort((a, b) => b.inputPriority - a.inputPriority)));
     }
     return out;
   }

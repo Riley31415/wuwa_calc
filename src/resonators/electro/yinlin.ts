@@ -70,14 +70,14 @@ function yinlinAction(id: string, def: object): Action {
 }
 
 // --- basics, mid-air, dodge counter, heavy (Zapstring's Dance)
-const BA1 = yinlinAction("Basic - Zapstring's Dance 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [BA1, BA2, BA3], position: Position.Grounded, animFrames: 16, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 16, mv: 2881, energy: 60, concerto: 200, offtune: 3144, forte1: 250 }] });
+const BA1 = yinlinAction("Basic - Zapstring's Dance 1", { input: Input.Basic, position: Position.Grounded, animFrames: 16, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 16, mv: 2881, energy: 60, concerto: 200, offtune: 3144, forte1: 250 }] });
 // PLACEHOLDER FRAMES
-const BA2 = yinlinAction("Basic - Zapstring's Dance 2", { input: Input.Basic, after: () => [BA1], animFrames: 45, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA2 = yinlinAction("Basic - Zapstring's Dance 2", { input: Input.Basic, inputPriority: 1, after: [BA1], animFrames: 45, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 45, mv: 3382, energy: 75, concerto: 250, offtune: 3076 },
     { hitFrame: 45, mv: 3382, energy: 75, concerto: 250, offtune: 3076, forte1: 250 },
   ]});
 // PLACEHOLDER FRAMES
-const BA3 = yinlinAction("Basic - Zapstring's Dance 3", { input: Input.Basic, after: () => [BA2], animFrames: 63, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = yinlinAction("Basic - Zapstring's Dance 3", { input: Input.Basic, inputPriority: 1, after: [BA2], animFrames: 63, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 63, mv: 1399, energy: 35, concerto: 100, offtune: 1021 },
     { hitFrame: 63, mv: 1399, energy: 35, concerto: 100, offtune: 1021 },
     { hitFrame: 63, mv: 1399, energy: 35, concerto: 100, offtune: 1021 },
@@ -86,16 +86,16 @@ const BA3 = yinlinAction("Basic - Zapstring's Dance 3", { input: Input.Basic, af
     { hitFrame: 63, mv: 1399, energy: 35, concerto: 100, offtune: 1021 },
     { hitFrame: 63, mv: 1399, energy: 35, concerto: 100, offtune: 1021, forte1: 750 },
   ]});
-const BA4 = yinlinAction("Basic - Zapstring's Dance 4", { input: Input.Basic, after: () => [BA3], animFrames: 58, castPriority: 2, bullets: [{ hitFrame: 24, mv: 7516, energy: 150, concerto: 600, offtune: 4976, forte1: 1000 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
+const BA4 = yinlinAction("Basic - Zapstring's Dance 4", { input: Input.Basic, inputPriority: 1, after: [BA3], animFrames: 58, castPriority: 2, bullets: [{ hitFrame: 24, mv: 7516, energy: 150, concerto: 600, offtune: 4976, forte1: 1000 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
 
 // PLACEHOLDER FRAMES
-const HA = yinlinAction("Heavy - Zapstring's Dance", { input: Input.BasicHold, maxForte1: 9999, animFrames: 64, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+const HA = yinlinAction("Heavy - Zapstring's Dance", { input: Input.BasicHold, animFrames: 64, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 40, mv: 2983, energy: 90, concerto: 225, offtune: 4696 },
     { hitFrame: 40, mv: 2983, energy: 90, concerto: 225, offtune: 4696, forte1: 2000 },
   ]});
-const MA = yinlinAction("Mid-air - Zapstring's Dance Plunge", { input: [Input.Basic, Input.SwapIn], position: Position.Midair, endPosition: Position.Grounded, animFrames: 30, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 30, mv: 12327, energy: 51, concerto: 500, offtune: 4960, forte1: 500 }] });
+const MA = yinlinAction("Mid-air - Zapstring's Dance Plunge", { input: Input.Basic, position: Position.Midair, endPosition: Position.Grounded, animFrames: 30, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 30, mv: 12327, energy: 51, concerto: 500, offtune: 4960, forte1: 500 }] });
 // PLACEHOLDER FRAMES
-const DC = yinlinAction("Dodge Counter - Zapstring's Dance", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const DC = yinlinAction("Dodge Counter - Zapstring's Dance", { input: Input.Basic, after: [SUCCESSFUL_DODGE], castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 0, mv: 2422, energy: 57, concerto: 100, offtune: 1678 },
     { hitFrame: 0, mv: 2422, energy: 57, concerto: 100, offtune: 1678 },
     { hitFrame: 0, mv: 2422, energy: 57, concerto: 100, offtune: 1678 },
@@ -112,7 +112,7 @@ const LIGHTNING_EXECUTION_READY = new Buff({ name: "Yinlin: Lightning Execution 
 // Magnetic Roar opens Execution Mode; Lightning Execution is the follow-up Skill press
 // PLACEHOLDER FRAMES
 const Skill1 = yinlinAction("Skill - Magnetic Roar", {
-  input: Input.Skill, notAfter: () => [Skill1], lacks: LIGHTNING_EXECUTION_READY, animFrames: 29, castPriority: 4, cooldown: 60 * 12,
+  input: Input.Skill, animFrames: 29, castPriority: 4, cooldown: 60 * 12,
   node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 29, mv: 5965, energy: 500, offtune: 2222 },
     { hitFrame: 29, mv: 5965, energy: 500, offtune: 2222 },
@@ -124,7 +124,7 @@ const Skill1 = yinlinAction("Skill - Magnetic Roar", {
   },
 });
 // PLACEHOLDER FRAMES
-const Skill2 = yinlinAction("Skill - Lightning Execution", { input: Input.Skill, holds: LIGHTNING_EXECUTION_READY, animFrames: 77, castPriority: 4, node: Node.Skill, cast: Cast.Skill, type: Type.Skill,
+const Skill2 = yinlinAction("Skill - Lightning Execution", { input: Input.Skill, inputPriority: 1, holds: LIGHTNING_EXECUTION_READY, animFrames: 77, castPriority: 4, node: Node.Skill, cast: Cast.Skill, type: Type.Skill,
   updateBuffs: () => revokeCurrent(LIGHTNING_EXECUTION_READY), bullets: [
     { hitFrame: 38, mv: 8947, energy: 375, offtune: 1332 },
     { hitFrame: 38, mv: 8947, energy: 375, offtune: 1332 },
@@ -148,7 +148,7 @@ const Liberation = yinlinAction("Liberation - Thundering Wrath", { input: Input.
 
 /** Chameleon Cipher: spends every Judgement Point, upgrades Sinner's Mark to Punishment Mark. */
 // PLACEHOLDER FRAMES
-const FHA = yinlinAction("Forte Heavy - Chameleon Cipher", { input: Input.BasicHold, minForte1: 10000,
+const FHA = yinlinAction("Forte Heavy - Chameleon Cipher", { input: Input.BasicHold, inputPriority: 1, minForte1: 10000,
   animFrames: 103, castPriority: 6,
   node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 45, mv: 17893, energy: 500, concerto: 1000, offtune: 26000,
@@ -272,7 +272,7 @@ const YINLIN_RESONATOR = new Resonator({
   element: Attribute.Electro,
   weapon: WeaponType.Rectifier,
   color: "#a45ee8",
-  actions: [BA1, BA2, BA3, BA4, HA, MA, DC, Skill1, Skill2, Liberation, FHA, Intro, Outro],
+  actions: [BA1, BA1.swapIn(), BA2, BA3, BA4, HA, MA, MA.swapIn(), DC, Skill1, Skill2, Liberation, FHA, Intro, Outro],
   maxEnergy: 12500,
   forteScale: [0.01, 1, 1, 1, 1],
   maxForte1: 10000,

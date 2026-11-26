@@ -66,7 +66,7 @@ export const midActionGroup = (): boolean => ctx.insideGroup;
  *  or event, a summon echo's own hit, or an outro handoff. The same answer the snapshot reports
  *  (`ResolvedSnapshot.triggered`), readable mid-action by gear that must not fire off one. */
 export const triggeredAction = (): boolean => ctx.triggered;
-/** The tag the press being evaluated was cut short by (`ActionTag`), "" where it played out. */
+/** The tag the press being evaluated was cut short by (`Transition`), "" where it played out. */
 export const pressCut = (): string => ctx.pressCut;
 /** From `ResonatorDef.takesCut`: drop the plain dodge or the swap being reached, and relabel the
  *  press it cut as `cut` instead — what takes its place (an auto Tune Break) is queued by the caller. */
@@ -169,12 +169,12 @@ export const previousPress = (): Action | null => ctx.slot!.lastPress;
 
 /* The reads a `valid` handler is written from (`ActionDef.valid`), beside the bars and buff counts. */
 
-/** Is `prev`, any form of it, one of `presses` — a DODGE/JUMP marker standing for any press of its cast? */
+/** Is `prev`, any form of it, one of `presses` — a DASH/JUMP marker standing for any press of its cast? */
 function formOfAny(prev: Action | null, presses: readonly Action[]): boolean {
   if (!prev) return false;
   for (const entry of presses) {
     const cast = ctx.castMarker(entry);
-    for (let a: Action | null = prev; a; a = a.cancelOf ?? a.formOf) if (cast >= 0 ? a.cast === cast : a === entry) return true;
+    for (let a: Action | null = prev; a; a = a.cancelOf ?? a.formOf) if (cast !== Cast.None ? a.cast === cast : a === entry) return true;
   }
   return false;
 }

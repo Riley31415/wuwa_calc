@@ -28,17 +28,17 @@ console.warn = (): void => {};
 
 // a test's own delays, in frames, off the environment; the engine's defaults otherwise
 const env = (k: string): number | undefined => (process.env[k] === undefined ? undefined : Number(process.env[k]));
-setDelays({ cancel: env("CANCEL"), insta: env("INSTA"), mash: env("MASH"), hold: env("HOLD") });
+setDelays({ precision: env("PRECISION"), mash: env("MASH"), holdBuffer: env("HOLD_BUFFER") });
 
 /** How a press is cut into what follows it. `CancelOrNone` is a cancel where the engine takes it, and
  *  played out where it refuses one (into the Skill or the Liberation). */
-export const enum Cut { None, Cancel, CancelOrNone, Insta, Dodge, Jump, Hold, Swap, InstaJump, PlainJump }
+export const enum Cut { None, Cancel, CancelOrNone, Insta, Dash, Jump, Hold, Swap, InstaJump, PlainJump }
 const CUT: Record<Cut, (a: Action) => Action> = {
   [Cut.None]: (a) => a,
   [Cut.Cancel]: (a) => a.cancel(),
   [Cut.CancelOrNone]: (a) => a.cancel(),
   [Cut.Insta]: (a) => a.instaCancel(),
-  [Cut.Dodge]: (a) => a.dodgeCancel(),
+  [Cut.Dash]: (a) => a.dashCancel(),
   [Cut.Jump]: (a) => a.jumpCancel(),
   [Cut.Hold]: (a) => a.holdCancel(),
   [Cut.Swap]: (a) => a.instaSwap(),
@@ -101,7 +101,7 @@ let outroConcerto = Infinity, unmetCast: string | null = null, introConcerto = N
 const WATCH = new Buff({ name: "Explorer: Outro Concerto", updateBuffs: () => {
   const m = currentMember();
   if (casting(Cast.Intro) && Number.isNaN(introConcerto)) introConcerto = m.concerto / 100;
-  if (currentCast().cast !== null && Number.isNaN(probed)) castConcerto = m.concerto / 100;
+  if (currentCast().cast !== Cast.None && Number.isNaN(probed)) castConcerto = m.concerto / 100;
   if (casting(Cast.Outro)) {
     outroConcerto = Math.min(outroConcerto, m.concerto);
     return;
@@ -220,7 +220,7 @@ function read({ state, rows }: { state: State; rows: Result[] }, visitNo: number
   };
   // her last press: not a wait, an echo or the probe
   let last = upTo - 1;
-  while (last > 0 && (visit[last]!.action.cast === null || visit[last]!.action.cast === Cast.Echo)) last--;
+  while (last > 0 && (visit[last]!.action.cast === Cast.None || visit[last]!.action.cast === Cast.Echo)) last--;
   return {
     steps,
     lastStart: game(visit[last]!) - zero - benchWait(last),

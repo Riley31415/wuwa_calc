@@ -45,7 +45,7 @@ import {
   concerto,
   grounded,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, ActionField, SWAPIN, DODGE, JUMP, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, ActionField, SWAPIN, DASH, JUMP, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
 import { RIME_DRAPED_SPROUTS, STRINGMASTER, LETHEAN_ELEGY, WHISPERS_OF_SIRENS } from "../../weapons/rectifier.js";
 import { VARIATION, NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { AUGMENT, RADIANT_DAWN } from "../../weapons/battlepass.js";
@@ -68,21 +68,21 @@ function zhezhiAction(id: string, def: object): Action {
 }
 
 // --- basics, mid-air, dodge counter (Dimming Brush)
-const BA1 = zhezhiAction("Basic - Dimming Brush 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [BA1, BA2], position: Position.Grounded, animFrames: 36, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = zhezhiAction("Basic - Dimming Brush 1", { input: Input.Basic, position: Position.Grounded, animFrames: 36, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 18, commitFrame: 12, mv: 4176, energy: 75, concerto: 240, offtune: 2400, forte1: 500 },
     { hitFrame: 34, commitFrame: 28, mv: 4176, energy: 75, concerto: 240, offtune: 2400, forte1: 500 },
   ]});
-const BA2 = zhezhiAction("Basic - Dimming Brush 2", { input: Input.Basic, after: () => [BA1], animFrames: 44, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA2 = zhezhiAction("Basic - Dimming Brush 2", { input: Input.Basic, inputPriority: 1, after: [BA1], animFrames: 44, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 30, commitFrame: 24, mv: 2055, energy: 37, concerto: 119, offtune: 1181, forte1: 300 },
     { hitFrame: 34, commitFrame: 24, mv: 2055, energy: 37, concerto: 119, offtune: 1181, forte1: 300 },
     { hitFrame: 38, commitFrame: 24, mv: 2055, energy: 37, concerto: 119, offtune: 1181, forte1: 300 },
     { hitFrame: 42, commitFrame: 24, mv: 2055, energy: 37, concerto: 119, offtune: 1181, forte1: 300 },
     { hitFrame: 46, commitFrame: 24, mv: 2055, energy: 37, concerto: 119, offtune: 1181, forte1: 300 },
   ]});
-const BA3 = zhezhiAction("Basic - Dimming Brush 3", { input: Input.Basic, after: () => [BA2], animFrames: 60, animPriority: { 1: 3 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 44, commitFrame: 40, mv: 13361, energy: 240, concerto: 768, offtune: 7680, forte1: 2500 }]});
+const BA3 = zhezhiAction("Basic - Dimming Brush 3", { input: Input.Basic, inputPriority: 1, after: [BA2], animFrames: 60, animPriority: { 1: 3 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 44, commitFrame: 40, mv: 13361, energy: 240, concerto: 768, offtune: 7680, forte1: 2500 }]});
 
-const MA = zhezhiAction("Mid-air - Dimming Brush 12", { input: [Input.Basic, Input.SwapIn], position: Position.Midair, animFrames: 66, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 39, commitFrame: 36, mv: 22953, energy: 340, concerto: 1091, offtune: 10865, forte1: 2500 }]});
-const DC = zhezhiAction("Dodge Counter - Dimming Brush", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], animFrames: 34, animPriority: { 32: 2 }, castPriority: 5, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const MA = zhezhiAction("Mid-air - Dimming Brush 12", { input: Input.Basic, position: Position.Midair, animFrames: 66, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 39, commitFrame: 36, mv: 22953, energy: 340, concerto: 1091, offtune: 10865, forte1: 2500 }]});
+const DC = zhezhiAction("Dodge Counter - Dimming Brush", { input: Input.Basic, after: [SUCCESSFUL_DODGE], animFrames: 34, animPriority: { 32: 2 }, castPriority: 5, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 18, commitFrame: 13, mv: 2907, energy: 43, offtune: 1376, forte1: 300 },
     { hitFrame: 23, commitFrame: 13, mv: 2907, energy: 43, offtune: 1376, forte1: 300 },
     { hitFrame: 26, commitFrame: 13, mv: 2907, energy: 43, offtune: 1376, forte1: 300 },
@@ -90,7 +90,7 @@ const DC = zhezhiAction("Dodge Counter - Dimming Brush", { input: Input.Basic, a
     { hitFrame: 35, commitFrame: 13, mv: 2907, energy: 43, offtune: 1376, forte1: 300 },
   ], castConcerto: 2000});
 // "Heavy Attack does not reset the Basic Attack cycle": the stage before it stays next
-const HA = zhezhiAction("Heavy - Dimming Brush", { input: Input.BasicHold, notAfter: () => [BA3, Skill, FSkill, FSkill3, DODGE, JUMP, MA], animFrames: 40, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 34, commitFrame: 32, mv: 11272, energy: 167, concerto: 534, offtune: 5336, forte1: 1500 }],
+const HA = zhezhiAction("Heavy - Dimming Brush", { input: Input.BasicHold, animFrames: 40, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 34, commitFrame: 32, mv: 11272, energy: 167, concerto: 534, offtune: 5336, forte1: 1500 }],
   updateBuffs: () => chainAs(previousPress()),
 });
 
@@ -106,29 +106,12 @@ const Skill = zhezhiAction("Skill - Manifestation", {
     if (forte1() >= 6000) applyCurrent(PHANTASMIC_IMPRINT, 2);
   },
 });
-
-// spends the remaining 30 Afflatus for a third Imprint, then Stroke of Genius x2, then
-// Creation's Zenith (spends both Painter's Delight frozenStacks, never tracked directly)
-// held shortly after Basic 3, Manifestation, either forte Skill or a successful Dodge, or in mid-air
-// (after a jump or a Mid-air Attack)
-const FHA = zhezhiAction("Forte Heavy - Conjuration", {
-  input: Input.BasicHold, after: () => [BA3, Skill, FSkill, FSkill3, DODGE, JUMP, MA],
-  animFrames: 75, animPriority: { 2: 6, 36: 2 }, castPriority: 3,
-  node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
-    { hitFrame: 28, mv: 8301, energy: 70, concerto: 223, offtune: 2227 },
-    { hitFrame: 34, commitFrame: 28, mv: 8301, energy: 70, concerto: 223, offtune: 2227 },
-    { hitFrame: 40, commitFrame: 28, mv: 8301, energy: 70, concerto: 223, offtune: 2227 },
-  ], castForte1: -3000,
-  updateBuffs: () => {
-    if (forte1() >= 3000) applyCurrent(PHANTASMIC_IMPRINT, 1);
-  },
-});
-const FSkill = zhezhiAction("Skill - Stroke of Genius", { input: Input.Skill, maxForte2: 1, holds: PHANTASMIC_IMPRINT,
+const FSkill = zhezhiAction("Skill - Stroke of Genius", { input: Input.Skill, holds: PHANTASMIC_IMPRINT,
   animFrames: 52, animPriority: { 0: 10, 20: 5, 50: 2 }, castPriority: 5, motionStop: [0, 12],
   node: Node.Forte, cast: Cast.Skill, type: Type.Basic, bullets: [{ hitFrame: 46, commitFrame: 18, mv: 29822, energy: 700, offtune: 7464, updateDebuffs: () => { if (isHeld(ZZ_S6)) queue(ACTION_HERALD_S6); } }], castConcerto: 1300, castForte2: 1,
   updateBuffs: () => removeStack(PHANTASMIC_IMPRINT, 1),
 });
-const FSkill3 = zhezhiAction("Forte Skill - Creation's Zenith", { input: Input.Skill, minForte2: 2, holds: PHANTASMIC_IMPRINT,
+const FSkill3 = zhezhiAction("Forte Skill - Creation's Zenith", { input: Input.Skill, inputPriority: 1, minForte2: 2, holds: PHANTASMIC_IMPRINT,
   animFrames: 72, animPriority: { 0: 10, 32: 5, 70: 2 }, castPriority: 5, motionStop: [0, 52],
   node: Node.Forte, cast: Cast.Skill, type: Type.Basic, bullets: [
     { hitFrame: 56, commitFrame: 28, mv: 11929, energy: 234, offtune: 3467, updateDebuffs: () => { if (isHeld(ZZ_S6)) queue(ACTION_HERALD_S6); } },
@@ -138,6 +121,23 @@ const FSkill3 = zhezhiAction("Forte Skill - Creation's Zenith", { input: Input.S
   updateBuffs: () => {
     removeStack(PHANTASMIC_IMPRINT, 1);
     applyCurrent(IVORY_HERALD, 1);
+  },
+});
+
+// spends the remaining 30 Afflatus for a third Imprint, then Stroke of Genius x2, then
+// Creation's Zenith (spends both Painter's Delight frozenStacks, never tracked directly)
+// held shortly after Basic 3, Manifestation, either forte Skill or a successful Dodge, or in mid-air
+// (after a jump or a Mid-air Attack)
+const FHA = zhezhiAction("Forte Heavy - Conjuration", {
+  input: Input.BasicHold, inputPriority: 1, after: [BA3, Skill, FSkill, FSkill3, DASH, JUMP, MA],
+  animFrames: 75, animPriority: { 2: 6, 36: 2 }, castPriority: 3,
+  node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+    { hitFrame: 28, mv: 8301, energy: 70, concerto: 223, offtune: 2227 },
+    { hitFrame: 34, commitFrame: 28, mv: 8301, energy: 70, concerto: 223, offtune: 2227 },
+    { hitFrame: 40, commitFrame: 28, mv: 8301, energy: 70, concerto: 223, offtune: 2227 },
+  ], castForte1: -3000,
+  updateBuffs: () => {
+    if (forte1() >= 3000) applyCurrent(PHANTASMIC_IMPRINT, 1);
   },
 });
 
@@ -258,7 +258,7 @@ const ZHEZHI_RESONATOR = new Resonator({
   element: Attribute.Glacio,
   weapon: WeaponType.Rectifier,
   color: "#8fd3e8",
-  actions: [BA1, BA2, BA3, MA, DC, HA, Skill, FHA, FSkill, FSkill3, Liberation, Intro, Outro],
+  actions: [BA1, BA1.swapIn(), BA2, BA3, MA, MA.swapIn(), DC, HA, Skill, FHA, FSkill, FSkill3, Liberation, Intro, Outro],
   maxEnergy: 12500,
   forteScale: [0.01, 1, 1, 1, 1],
   maxForte1: 9000,
@@ -278,7 +278,7 @@ const ZZ_ROTATION = new Rotation([
   SWAPIN, BA123,
 
   Intro,
-  BA123.cancel(), NM_LAMPY.instaCancel(), HERON.instaDodge(), Liberation,
+  BA123.cancel(), NM_LAMPY.instaCancel(), HERON.instaDash(), Liberation,
   Skill, FHA.mashCancel(), FSkill.jumpCancel(), FSkill.jumpCancel(), FSkill3.instaSwap(),
   Outro,
 ]);

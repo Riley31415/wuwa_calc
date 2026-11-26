@@ -2,7 +2,7 @@
  * Hover panels: the markup every popover is built from (stat traces, action info, held buffs,
  * damage breakdowns, loadouts, the DPR table) and `wireSourcePanels`, which opens them.
  */
-import { Stat, Attribute, Type, Subtype, Cast, scopedStat, splitStat, isPercent, statLabel, TAG_NAME, NODE_NAME, statDisplayScale, splitStop, atDelays } from "../engine/stats.js";
+import { Stat, Attribute, Type, Subtype, Cast, scopedStat, splitStat, isPercent, statLabel, TAG_NAME, NODE_NAME, statDisplayScale, splitStop, atDelays, KIND_OF, isSwapTransition } from "../engine/stats.js";
 import type { StatKey, Tag } from "../engine/stats.js";
 import { iconOf, iconNamed } from "./icons.js";
 import type { StatEntry } from "../engine/state.js";
@@ -25,7 +25,7 @@ import type { TeamRun } from "../solve/teamrun.js";
 import { results, FALLBACK_HUE, weaponHue } from "./model.js";
 import { SUBSTAT_LABEL } from "./substatvalue.js";
 import type { SubstatGain } from "./substatvalue.js";
-import { ActionTag } from "../engine/rotation.js";
+import { Transition } from "../engine/rotation.js";
 import type { Action } from "../engine/rotation.js";
 
 export const esc = (s: unknown): string => String(s)
@@ -200,32 +200,23 @@ export function framesPopover(snaps: ResolvedSnapshot[]): string {
     // a split press's row shows its cast, which played none of the hit's frames; a hold cancel's
     // frames are where it let go
     const press = s.hitAt !== undefined ? s.action.castPart() : s.action;
-    const fast = s.tag === ActionTag.MashCancel;
-    const hold = (s.tag === ActionTag.HoldCancel || fast) && s.holdPaid >= 0;
+    const t = KIND_OF[s.tag];
+    const fast = t === "mash" && s.tag !== Transition.MashSwap;
+    const hold = (t === "hold" || fast) && s.holdPaid >= 0;
     // at the delays it played at: its own rotation's, not the defaults standing now
     const cost = atDelays(s.delays, () => (hold ? press.holdCost(s.holdCut) : press.cost(s.tag)));
     total += cost.total - s.timestopBanked;
-    const insta = s.tag === ActionTag.InstaCancel || s.tag === ActionTag.InstaDodge || s.tag === ActionTag.InstaJump || s.tag === ActionTag.InstaSwap;
+    const insta = t === "instant";
     // every press is listed at the frames it played but an insta cut, which lists only what it cost;
     // "(c)" where it played to its cancel frame rather than its whole length
-    const cut = s.tag === ActionTag.Cancel
-    || s.tag === ActionTag.MashCancel
-    || s.tag === ActionTag.HoldCancel
-    || s.tag === ActionTag.DodgeCancel
-    || s.tag === ActionTag.JumpCancel
-    || s.tag === ActionTag.SwapCancel
-    || s.tag === ActionTag.MashSwap
-    || s.tag === ActionTag.HitCancel
-    || s.tag === ActionTag.DodgeOnHit
-    || s.tag === ActionTag.JumpOnHit
-    || s.tag === ActionTag.TimedCancel
+    const cut = t !== "temporary" && t !== "chain" && !insta;
     // a hold cancel plays to the hit that paid for the next press, or until its priority gave way to
     // that press if later (`holdPaid` reads both), then holds out what is left of its minimum
     if (hold) {
       const own = Math.min(s.holdPaid, cost.action);
       if (own) rows.push(line(`${s.action.name} (c)`, own));
       if (cost.action > own) rows.push(line(fast ? "Mash Input" : "Hold Input", cost.action - own));
-    } else if (s.tag === ActionTag.MashSwap) {
+    } else if (s.tag === Transition.MashSwap) {
       // a mash swap is charged as one stretch: its no-swap frames played, then the swap's own delay
       const own = Math.min(s.action.noSwapFrames, cost.action);
       rows.push(line(`${s.action.name} (c)`, own));
@@ -234,8 +225,8 @@ export function framesPopover(snaps: ResolvedSnapshot[]): string {
     // the world stood still for part of it: the clock takes it back off
     if (cost.timestop) rows.push(line("Timestop", -cost.timestop));
     // the cut it paid, right under it
-    const swaps = s.tag === ActionTag.InstaSwap || s.tag === ActionTag.SwapCancel || s.tag === ActionTag.MashSwap;
-    if (cost.global) rows.push(line(swaps ? "Swap Delay" : insta ? "Input Delay" : "Cancel Timing", cost.global));
+    const swaps = isSwapTransition(s.tag);
+    if (cost.global) rows.push(line(swaps ? "Swap Delay" : insta ? "Input Delay" : fast ? "Mash Input" : "Cancel Timing", cost.global));
     // ...all of it played inside an earlier press's time stop, as far as that still stood
     if (s.timestopBanked) rows.push(line("Banked Timestop", -s.timestopBanked));
     // the next resonator coming in, charged to the row that handed the field over
@@ -948,7 +939,7 @@ function pieSvg(slices: Slice[], total: number): string {
   const rail = Math.ceil(Math.max(11 * glyph, 8 * mono));
   const r = 120, lead = 28, lh = Math.round(font * 1.06), pitch = lh + 4;
   const width = 2 * (rail + r + lead + 19);
-  // Cut to the shape of the half-row it is drawn into (about 8:5), not to the tallest label stack
+  // Transition to the shape of the half-row it is drawn into (about 8:5), not to the tallest label stack
   // that could ever turn up: sized off the stack the frame came out twice as deep as the pane and
   // the row grew to hold the empty part. At this depth a column still takes seven labels, where the
   // most any figure has actually shown is four.
@@ -1083,7 +1074,7 @@ function teamCell(sections: ChainGroup[][], slotHue: Map<string, string>): TeamC
     const field = new Map<string, number>();
     eachHit(lines, null, (snap, avg) => {
       own += avg;
-      if (snap.action.tag !== ActionTag.OffField && snap.action.cast !== Cast.Outro) return;
+      if (!snap.action.offField && snap.action.cast !== Cast.Outro) return;
       const key = `${snap.slot} ${snap.action.name}`;
       field.set(key, (field.get(key) ?? 0) + avg);
     });
@@ -1122,7 +1113,7 @@ function teamCell(sections: ChainGroup[][], slotHue: Map<string, string>): TeamC
         const at = actOf(snap, avg);
         // real frames, time stop and all: a press played off field (an Outro, a summon) runs its whole
         // animation, the rest their time on field — a swap form to its swap, a hold or mash where it let go
-        const off = !snap.active || snap.tag === ActionTag.OffField;
+        const off = !snap.active || snap.action.offField;
         const cost = atDelays(snap.delays, () => snap.action.cost(snap.tag));
         let root = snap.action;
         while (root.cancelOf ?? root.formOf) root = root.cancelOf ?? root.formOf!;

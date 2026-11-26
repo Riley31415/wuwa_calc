@@ -34,25 +34,25 @@ function taoqiAction(id: string, def: object): Action {
 }
 
 // --- Normal Attack: 4 stages; Basic 4's hit turns every Rocksteady Shield into Resolving Caliber
-const BA1 = taoqiAction("Basic - Concealed Edge 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [BA1, BA2, BA3], position: Position.Grounded, yieldsTo: () => [TC1, TC2, TC3], animFrames: 29, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = taoqiAction("Basic - Concealed Edge 1", { input: Input.Basic, position: Position.Grounded, animFrames: 29, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 12, mv: 9013, energy: 116, concerto: 350, offtune: 4534 },
   ]});
-const BA2 = taoqiAction("Basic - Concealed Edge 2", { input: Input.Basic, after: () => [BA1], animFrames: 35, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA2 = taoqiAction("Basic - Concealed Edge 2", { input: Input.Basic, inputPriority: 1, after: [BA1], animFrames: 35, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 18, mv: 8484, energy: 108, concerto: 390, offtune: 4267 },
   ]});
-const BA3 = taoqiAction("Basic - Concealed Edge 3", { input: Input.Basic, after: () => [BA2], animFrames: 74, animPriority: { 0: 2, 1: 3, 11: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = taoqiAction("Basic - Concealed Edge 3", { input: Input.Basic, inputPriority: 1, after: [BA2], animFrames: 74, animPriority: { 0: 2, 1: 3, 11: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 36, mv: 5567, energy: 280, concerto: 650, offtune: 2800 },
     { hitFrame: 62, mv: 5567, energy: 280, concerto: 650, offtune: 2800 },
   ]});
-const BA4 = taoqiAction("Basic - Concealed Edge 4", { input: Input.Basic, after: () => [BA3], animFrames: 72, animPriority: { 0: 2, 21: 4, 39: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA4 = taoqiAction("Basic - Concealed Edge 4", { input: Input.Basic, inputPriority: 1, after: [BA3], animFrames: 72, animPriority: { 0: 2, 21: 4, 39: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 36, mv: 27039, energy: 296, concerto: 810, offtune: 13600, updateDebuffs: () => convertShields() },
   ]});
 // a Plunging Attack
-const MA = taoqiAction("Mid-air - Concealed Edge", { input: [Input.Basic, Input.SwapIn], position: Position.Midair, endPosition: Position.Grounded, animFrames: 72, animPriority: { 0: 6, 63: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MA = taoqiAction("Mid-air - Concealed Edge", { input: Input.Basic, position: Position.Midair, endPosition: Position.Grounded, animFrames: 72, animPriority: { 0: 6, 63: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 42, mv: 12327, energy: 51, concerto: 100, offtune: 4960 },
   ]});
 // the hidden +10 Concerto every dodge counter carries
-const DC = taoqiAction("Dodge Counter - Concealed Edge", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], animFrames: 48, animPriority: { 0: 5, 40: 2 }, castPriority: 5, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const DC = taoqiAction("Dodge Counter - Concealed Edge", { input: Input.Basic, after: [SUCCESSFUL_DODGE], animFrames: 48, animPriority: { 0: 5, 40: 2 }, castPriority: 5, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 16, mv: 24852, energy: 497, concerto: 693, offtune: 6934 },
   ], castConcerto: 1000});
 
@@ -62,9 +62,9 @@ const HA = taoqiAction("Heavy - Concealed Edge", { input: Input.BasicHold, animF
     { hitFrame: 30, mv: 22035, energy: 466, concerto: 346, offtune: 9334 },
   ]});
 // never valid: it answers an enemy attack, and none is modelled
-const Parry = taoqiAction("Heavy - Strategic Parry", { input: Input.BasicHold, valid: () => false, animFrames: 61, animPriority: { 0: 5, 30: 2 }, castPriority: 5, node: Node.Normal, cast: Cast.Heavy, type: Type.Basic, bullets: [
-    { hitFrame: 4, mv: 7870, energy: 346, concerto: 500, updateDebuffs: () => heavylifting() },
-  ]});
+// const Parry = taoqiAction("Heavy - Strategic Parry", { input: Input.BasicHold, valid: () => false, animFrames: 61, animPriority: { 0: 5, 30: 2 }, castPriority: 5, node: Node.Normal, cast: Cast.Heavy, type: Type.Basic, bullets: [
+//     { hitFrame: 4, mv: 7870, energy: 346, concerto: 500, updateDebuffs: () => heavylifting() },
+//   ]});
 
 // --- Forte Circuit: Timed Counters, after the Intro or a Strategic Parry while carrying Resolving
 //     Caliber; each hit spends one for a shield (S5: +20 Energy a hit)
@@ -72,16 +72,6 @@ const counterHit = (): void => {
   gainShield();
   if (isHeld(TQ_S5)) addGain({ energy: 2000 });
 };
-const TC1 = taoqiAction("Forte Basic - Timed Counters 1", { input: Input.Basic, after: () => [Intro, Parry], minForte1: 1, animFrames: 27, animPriority: { 0: 5 }, castPriority: 5, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 16, mv: 8620, energy: 346, concerto: 500, offtune: 3440, forte1: -1, updateDebuffs: counterHit },
-  ]});
-const TC2 = taoqiAction("Forte Basic - Timed Counters 2", { input: Input.Basic, after: () => [TC1], minForte1: 1, animFrames: 33, animPriority: { 0: 5 }, castPriority: 5, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 22, mv: 11093, energy: 346, concerto: 500, offtune: 4240, forte1: -1, updateDebuffs: counterHit },
-  ]});
-const TC3 = taoqiAction("Forte Basic - Timed Counters 3", { input: Input.Basic, after: () => [TC2], minForte1: 1, animFrames: 79, animPriority: { 0: 5 }, castPriority: 5, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 56, mv: 14541, energy: 346, concerto: 500, offtune: 9360, forte1: -1, updateDebuffs: counterHit },
-  ]});
-const COUNTERS = new Set<Action>([TC1, TC2, TC3]);
 
 // --- Resonance Skill: heals her and grants 3 Rocksteady Shield
 const Skill = taoqiAction("Skill - Fortified Defense", { input: Input.Skill, animFrames: 55, animPriority: { 0: 4 }, castPriority: 4, cooldown: 60 * 15, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
@@ -170,6 +160,16 @@ const TQ_S5 = new Sequence({
   name: "Taoqi S5: Benevolent Guardian",
   applyStats: () => { if (runningAnyOf(COUNTERS)) addStat(Stat.DmgBonus, 50); },
 });
+const TC1 = taoqiAction("Forte Basic - Timed Counters 1", { input: Input.Basic, inputPriority: 1, after: [Intro], minForte1: 1, animFrames: 27, animPriority: { 0: 5 }, castPriority: 5, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 16, mv: 8620, energy: 346, concerto: 500, offtune: 3440, forte1: -1, updateDebuffs: counterHit },
+  ]});
+const TC2 = taoqiAction("Forte Basic - Timed Counters 2", { input: Input.Basic, inputPriority: 1, after: [TC1], minForte1: 1, animFrames: 33, animPriority: { 0: 5 }, castPriority: 5, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 22, mv: 11093, energy: 346, concerto: 500, offtune: 4240, forte1: -1, updateDebuffs: counterHit },
+  ]});
+const TC3 = taoqiAction("Forte Basic - Timed Counters 3", { input: Input.Basic, inputPriority: 1, after: [TC2], minForte1: 1, animFrames: 79, animPriority: { 0: 5 }, castPriority: 5, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 56, mv: 14541, energy: 346, concerto: 500, offtune: 9360, forte1: -1, updateDebuffs: counterHit },
+  ]});
+const COUNTERS = new Set<Action>([TC1, TC2, TC3]);
 /** S6 Defender of Peace: Basic and Heavy Attack DMG +40% while Rocksteady Shield holds. */
 const TQ_S6 = new Sequence({
   name: "Taoqi S6: Defender of Peace",
@@ -195,7 +195,7 @@ export const TAOQI_RESONATOR = new Resonator({
   element: Attribute.Havoc,
   weapon: WeaponType.Broadblade,
   color: "#c97d90",
-  actions: [BA1, BA2, BA3, BA4, MA, DC, HA, Parry, TC1, TC2, TC3, Skill, Liberation, Intro, Outro],
+  actions: [BA1, BA1.swapIn(), BA2, BA3, BA4, MA, MA.swapIn(), DC, HA, TC1, TC2, TC3, Skill, Liberation, Intro, Outro],
   maxEnergy: 12500,
   maxForte1: 3,
   tier: Rarity.FreeS6,
@@ -235,4 +235,4 @@ export const TAOQI = new Loadout({
 });
 
 // kept for a rotation that reaches them: the Heavy, Strategic Parry, the dodge counter
-void [HA, Parry, DC];
+void [HA, DC];

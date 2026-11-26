@@ -179,7 +179,8 @@ export const litStats = (maxEnergy: number): StatKey[] => (maxEnergy ? [Stat.ER]
  *
  *  Never a `Stat.Er`: the kits that read Energy Regen back as damage (Sigrika, Brant, Mornye) would
  *  be paid for slack the build does not actually carry. */
-export const ER_TOLERANCE = 0.0; // tolerance removed for now.
+export const ER_TOLERANCE = 0.0;
+ // tolerance removed for now.
 
 /** The percentile every high-investment line rolls at: the highest at which an ER roll still lands
  *  on 10%, the weight of every ER value up to 10 over the whole. */

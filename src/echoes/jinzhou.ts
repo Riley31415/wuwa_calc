@@ -83,7 +83,7 @@ export const STONEWALL_BRACER_1 = new TransformEcho("Echo - Stonewall Bracer 1",
   element: Attribute.Physical, scaling: Scaling.Atk, type: Type.Echo,
 });
 export const STONEWALL_BRACER_2 = new TransformEcho("Echo - Stonewall Bracer 2", {
-  mainslot: STONEWALL_BRACER_MAINSLOT, after: () => [STONEWALL_BRACER_1.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 0,
+  mainslot: STONEWALL_BRACER_MAINSLOT, after: [STONEWALL_BRACER_1.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 0,
   // the charge and the shield: wuwalab gives it no frames of its own
   bullets: [{ hitFrame: 0, mv: 11264, energy: 176, updateDebuffs: () => gainShield() }],
   element: Attribute.Physical, scaling: Scaling.Atk, type: Type.Echo,
@@ -161,12 +161,12 @@ export const INFERNO_RIDER_1 = new TransformEcho("Echo - Inferno Rider 1", {
   element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo,
 });
 export const INFERNO_RIDER_2 = new TransformEcho("Echo - Inferno Rider 2", {
-  mainslot: INFERNO_RIDER_MAINSLOT, after: () => [INFERNO_RIDER_1.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 39,
+  mainslot: INFERNO_RIDER_MAINSLOT, after: [INFERNO_RIDER_1.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 39,
   bullets: [{ hitFrame: 24, commitFrame: 5, mv: 28280, energy: 441 }],
   element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo,
 });
 export const INFERNO_RIDER_3 = new TransformEcho("Echo - Inferno Rider 3", {
-  mainslot: INFERNO_RIDER_MAINSLOT, after: () => [INFERNO_RIDER_2.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 116,
+  mainslot: INFERNO_RIDER_MAINSLOT, after: [INFERNO_RIDER_2.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 116,
   bullets: [{ hitFrame: 59, commitFrame: 40, mv: 28280, energy: 441 }],
   element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo,
   afterAction: () => applyCurrent(INFERNO_RIDER_WINDOW, 1),
@@ -229,17 +229,17 @@ export const CROWNLESS_1 = new TransformEcho("Echo - Crownless 1", {
   updateBuffs: () => applyCurrent(CROWNLESS_WINDOW, 1),
 });
 export const CROWNLESS_2 = new TransformEcho("Echo - Crownless 2", {
-  mainslot: CROWNLESS_MAINSLOT, after: () => [CROWNLESS_1.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 37,
+  mainslot: CROWNLESS_MAINSLOT, after: [CROWNLESS_1.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 37,
   bullets: [{ hitFrame: 21, commitFrame: 2, mv: 13408, energy: 209 }],
   element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo,
 });
 export const CROWNLESS_3 = new TransformEcho("Echo - Crownless 3", {
-  mainslot: CROWNLESS_MAINSLOT, after: () => [CROWNLESS_2.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 30,
+  mainslot: CROWNLESS_MAINSLOT, after: [CROWNLESS_2.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 30,
   bullets: [{ hitFrame: 8, commitFrame: 0, mv: 10056, energy: 157 }, { hitFrame: 20, commitFrame: 1, mv: 10056, energy: 157 }],
   element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo,
 });
 export const CROWNLESS_4 = new TransformEcho("Echo - Crownless 4", {
-  mainslot: CROWNLESS_MAINSLOT, after: () => [CROWNLESS_3.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 112,
+  mainslot: CROWNLESS_MAINSLOT, after: [CROWNLESS_3.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 112,
   // wuwalab commits each hit 19 frames ahead of it
   bullets: [42, 49, 73].map((f) => ({ hitFrame: f, commitFrame: f - 19, mv: 6704, energy: 104 })),
   element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo,
@@ -283,14 +283,14 @@ export const LAMPYLUMEN_MYRIAD_1 = new TransformEcho("Echo - Lampylumen Myriad 1
   updateDebuffs: () => applyCurrent(LAMPYLUMEN_MYRIAD_STACKS, 1),
 });
 export const LAMPYLUMEN_MYRIAD_2 = new TransformEcho("Echo - Lampylumen Myriad 2", {
-  mainslot: LAMPYLUMEN_MYRIAD_MAINSLOT, after: () => [LAMPYLUMEN_MYRIAD_1.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 54,
+  mainslot: LAMPYLUMEN_MYRIAD_MAINSLOT, after: [LAMPYLUMEN_MYRIAD_1.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 54,
   bullets: [{ hitFrame: 46, commitFrame: 27, mv: 20016, energy: 312 }],
   element: Attribute.Glacio, scaling: Scaling.Atk, type: Type.Echo,
   // a stack a shock
   updateDebuffs: () => applyCurrent(LAMPYLUMEN_MYRIAD_STACKS, 1),
 });
 export const LAMPYLUMEN_MYRIAD_3 = new TransformEcho("Echo - Lampylumen Myriad 3", {
-  mainslot: LAMPYLUMEN_MYRIAD_MAINSLOT, after: () => [LAMPYLUMEN_MYRIAD_2.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 92,
+  mainslot: LAMPYLUMEN_MYRIAD_MAINSLOT, after: [LAMPYLUMEN_MYRIAD_2.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 92,
   bullets: [{ hitFrame: 48, commitFrame: 29, mv: 26688, energy: 417 }],
   element: Attribute.Glacio, scaling: Scaling.Atk, type: Type.Echo,
   // a stack a shock
@@ -343,7 +343,7 @@ export const FEILIAN_BERINGAL_1 = new TransformEcho("Echo - Feilian Beringal 1",
   element: Attribute.Aero, scaling: Scaling.Atk, type: Type.Echo,
 });
 export const FEILIAN_BERINGAL_2 = new TransformEcho("Echo - Feilian Beringal 2", {
-  mainslot: FEILIAN_BERINGAL_MAINSLOT, after: () => [FEILIAN_BERINGAL_1.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 144,
+  mainslot: FEILIAN_BERINGAL_MAINSLOT, after: [FEILIAN_BERINGAL_1.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 144,
   bullets: [{ hitFrame: 84, commitFrame: 65, mv: 28336, energy: 442 }],
   element: Attribute.Aero, scaling: Scaling.Atk, type: Type.Echo,
   afterHit: () => applyCurrent(FEILIAN_BERINGAL_WINDOW, 1),
@@ -506,27 +506,27 @@ export const THUNDERING_MEPHIS_1 = new TransformEcho("Echo - Thundering Mephis 1
   element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
 });
 export const THUNDERING_MEPHIS_2 = new TransformEcho("Echo - Thundering Mephis 2", {
-  mainslot: THUNDERING_MEPHIS_MAINSLOT, after: () => [THUNDERING_MEPHIS_1.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 29,
+  mainslot: THUNDERING_MEPHIS_MAINSLOT, after: [THUNDERING_MEPHIS_1.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 29,
   bullets: [{ hitFrame: 11, commitFrame: 0, mv: 13261, energy: 207 }],
   element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
 });
 export const THUNDERING_MEPHIS_3 = new TransformEcho("Echo - Thundering Mephis 3", {
-  mainslot: THUNDERING_MEPHIS_MAINSLOT, after: () => [THUNDERING_MEPHIS_2.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 29,
+  mainslot: THUNDERING_MEPHIS_MAINSLOT, after: [THUNDERING_MEPHIS_2.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 29,
   bullets: [{ hitFrame: 8, commitFrame: 0, mv: 13261, energy: 207 }],
   element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
 });
 export const THUNDERING_MEPHIS_4 = new TransformEcho("Echo - Thundering Mephis 4", {
-  mainslot: THUNDERING_MEPHIS_MAINSLOT, after: () => [THUNDERING_MEPHIS_3.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 38,
+  mainslot: THUNDERING_MEPHIS_MAINSLOT, after: [THUNDERING_MEPHIS_3.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 38,
   bullets: [{ hitFrame: 16, commitFrame: 0, mv: 13261, energy: 207 }],
   element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
 });
 export const THUNDERING_MEPHIS_5 = new TransformEcho("Echo - Thundering Mephis 5", {
-  mainslot: THUNDERING_MEPHIS_MAINSLOT, after: () => [THUNDERING_MEPHIS_4.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 29,
+  mainslot: THUNDERING_MEPHIS_MAINSLOT, after: [THUNDERING_MEPHIS_4.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 29,
   bullets: [{ hitFrame: 11, commitFrame: 0, mv: 13261, energy: 207 }],
   element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
 });
 export const THUNDERING_MEPHIS_6 = new TransformEcho("Echo - Thundering Mephis 6", {
-  mainslot: THUNDERING_MEPHIS_MAINSLOT, after: () => [THUNDERING_MEPHIS_5.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 114,
+  mainslot: THUNDERING_MEPHIS_MAINSLOT, after: [THUNDERING_MEPHIS_5.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 114,
   // the final strike, then wuwalab's three thunders
   // wuwalab commits each hit 19 frames ahead of it
   bullets: [{ hitFrame: 42, commitFrame: 23, mv: 18944, energy: 296 }, ...[55, 59, 65].map((f) => ({ hitFrame: f, commitFrame: f - 19, mv: 3156, energy: 49 }))],
@@ -554,7 +554,7 @@ export const TEMPEST_MEPHIS_1 = new TransformEcho("Echo - Tempest Mephis 1", {
   element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
 });
 export const TEMPEST_MEPHIS_2 = new TransformEcho("Echo - Tempest Mephis 2", {
-  mainslot: TEMPEST_MEPHIS_MAINSLOT, after: () => [TEMPEST_MEPHIS_1.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 72,
+  mainslot: TEMPEST_MEPHIS_MAINSLOT, after: [TEMPEST_MEPHIS_1.press], position: Position.Grounded, endPosition: Position.Grounded, animFrames: 72,
   bullets: [{ hitFrame: 28, commitFrame: 9, mv: 17568, energy: 274 }],
   element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
   afterHit: () => applyCurrent(TEMPEST_MEPHIS_WINDOW, 1),

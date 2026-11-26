@@ -2,7 +2,7 @@
  * The detail page: the DPR and energy tables, the action log grid, and the log's draggable
  * column order (kept in localStorage) with its pointer handlers.
  */
-import { Stat, Cast, SCALING_NAME, ActionTag, statLabel, ENERGY_UNIT, CONCERTO_UNIT, Resource, RESOURCE_NAME } from "../engine/stats.js";
+import { Stat, Cast, SCALING_NAME, Transition, statLabel, ENERGY_UNIT, CONCERTO_UNIT, Resource, RESOURCE_NAME } from "../engine/stats.js";
 import type { Gear } from "../engine/gear.js";
 import { menuStats } from "../engine/context.js";
 import { TUNE_BREAK_ENEMY, ENEMY_MAX_OFFTUNE } from "../resonators/tunebreak.js";
@@ -42,30 +42,33 @@ function cell(col: Column, { cls = [], html = "", pop = "", style = "", attr = "
 }
 
 /** Which colour a cut's tag box wears (index.css `.ctag-*`). */
-const TAG_KIND: Partial<Record<ActionTag, string>> = {
-  [ActionTag.InstaCancel]: "insta", [ActionTag.InstaDodge]: "insta", [ActionTag.InstaJump]: "insta", [ActionTag.InstaSwap]: "insta",
-  [ActionTag.SwapCancel]: "swap", [ActionTag.MashSwap]: "swap", [ActionTag.MashCancel]: "easy", [ActionTag.HoldCancel]: "easy", [ActionTag.OffField]: "field",
-  [ActionTag.DodgeCancel]: "dash", [ActionTag.JumpCancel]: "jump", [ActionTag.Cancel]: "cancel", [ActionTag.HitCancel]: "hit", [ActionTag.DodgeOnHit]: "hit", [ActionTag.JumpOnHit]: "hit",
-  [ActionTag.TimedCancel]: "timed",
+const TAG_KIND: Partial<Record<Transition, string>> = {
+  [Transition.InstaCancel]: "insta", [Transition.InstaDash]: "insta", [Transition.InstaJump]: "insta", [Transition.InstaSwap]: "insta",
+  [Transition.SwapCancel]: "swap", [Transition.MashSwap]: "swap", [Transition.MashCancel]: "easy", [Transition.MashDash]: "easy", [Transition.MashJump]: "easy", [Transition.HoldCancel]: "easy",
+  [Transition.DashCancel]: "dash", [Transition.JumpCancel]: "jump", [Transition.Cancel]: "cancel", [Transition.HitCancel]: "hit", [Transition.HitDash]: "hit", [Transition.HitJump]: "hit", [Transition.HitSwap]: "hit",
+  [Transition.TimedCancel]: "timed",
 };
 
 /** How each cut is played, for its tag box's panel. */
-const TAG_NOTE: Partial<Record<ActionTag, string>> = {
-  [ActionTag.InstaCancel]: "After casting, input the next action instantly",
-  [ActionTag.InstaDodge]: "After casting, dodge instantly",
-  [ActionTag.InstaJump]: "After casting, jump instantly",
-  [ActionTag.InstaSwap]: "After casting, swap instantly",
-  [ActionTag.Cancel]: "After the final hit, input the next action to cancel endlag",
-  [ActionTag.DodgeCancel]: "After the final hit, dodge to cancel endlag",
-  [ActionTag.JumpCancel]: "After the final hit, jump to cancel endlag",
-  [ActionTag.SwapCancel]: "After the final hit, swap to cancel endlag",
-  [ActionTag.MashSwap]: "After casting, mash swap to swap out the moment it allows",
-  [ActionTag.MashCancel]: "After casting, mash the next input to cancel when available",
-  [ActionTag.HoldCancel]: "After casting, hold the next input to cancel when available",
-  [ActionTag.HitCancel]: "After the first hit, input the next action",
-  [ActionTag.DodgeOnHit]: "After the first hit, dodge",
-  [ActionTag.JumpOnHit]: "After the first hit, jump",
-  [ActionTag.TimedCancel]: "Input the next action on the frame shown",
+const TAG_NOTE: Partial<Record<Transition, string>> = {
+  [Transition.InstaCancel]: "After casting, input the next action instantly",
+  [Transition.InstaDash]: "After casting, dash instantly",
+  [Transition.InstaJump]: "After casting, jump instantly",
+  [Transition.InstaSwap]: "After casting, swap instantly",
+  [Transition.Cancel]: "After the final hit, input the next action to cancel endlag",
+  [Transition.DashCancel]: "After the final hit, dash to cancel endlag",
+  [Transition.JumpCancel]: "After the final hit, jump to cancel endlag",
+  [Transition.SwapCancel]: "After the final hit, swap to cancel endlag",
+  [Transition.MashSwap]: "After casting, mash swap to swap out the moment it allows",
+  [Transition.MashCancel]: "After casting, mash the next input to cancel when available",
+  [Transition.MashDash]: "After casting, mash dash to dash the moment it allows",
+  [Transition.MashJump]: "After casting, mash jump to jump the moment it allows",
+  [Transition.HoldCancel]: "After casting, hold the next input to cancel when available",
+  [Transition.HitCancel]: "After the first hit, input the next action",
+  [Transition.HitDash]: "After the first hit, dash",
+  [Transition.HitJump]: "After the first hit, jump",
+  [Transition.HitSwap]: "After the first hit, swap",
+  [Transition.TimedCancel]: "Input the next action on the frame shown",
 };
 
 /** One row of the log. A running column is blank where the row left it exactly as it came in
@@ -155,7 +158,7 @@ function cellParts(
     // swap form yellow, a mash or hold cancel green, then a dash, a jump, and a plain cancel — or gray
     // for a press beside the fight
     if (tag) {
-      const own = tag.startsWith("cancel @ ") ? ActionTag.TimedCancel : tag as ActionTag;
+      const own = tag.startsWith("cancel @ ") ? Transition.TimedCancel : tag as Transition;
       const kind = TAG_KIND[own] ?? "cancel", note = TAG_NOTE[own];
       const tagPop = note ? lazyPop(`<span class="pop note">${esc(note)}</span>`) : "";
       html = `<span class="ctag ctag-${kind}"${tagPop}>${esc(tag.toUpperCase())}</span>${html}`;

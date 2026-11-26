@@ -23,7 +23,7 @@ the site.
         npx tsc && node dist/src/explorer/skcheck.js
 
 Both use the bench's duo: Lily stands in for the rest of the team (her First Bloom, 19s, her Outro).
-`CANCEL`, `INSTA`, `MASH` and `SWAP` (frames) override the engine's delays for a test. Results also land in
+`PRECISION`, `MASH` and `HOLD_BUFFER` (frames) override the engine's delays for a test. Results also land in
 `dist/src/explorer/out/`.
 
 ## Lily (older .mjs, run against a patched copy of dist/)

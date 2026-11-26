@@ -407,18 +407,9 @@ export const ADAM_SMASHER_MAINSLOT = new Mainslot({
   cost: 4,
   constantStats: () => { if (wears("Lucy") || wears("Rebecca")) addStat(Stat.CritRate, 15); },
 });
-export const ADAM_SMASHER_LUCY = new SummonEcho("Echo - Adam Smasher", {
-  mainslot: ADAM_SMASHER_MAINSLOT, cooldown: 60 * 20, valid: () => wears("Lucy"),
-  element: Attribute.Spectro, scaling: Scaling.Atk, type: Type.Echo, bullets: [{ hitFrame: 0, mv: 27360, energy: 380 }],
-});
-
-export const ADAM_SMASHER_REBECCA = new SummonEcho("Echo - Adam Smasher", {
-  mainslot: ADAM_SMASHER_MAINSLOT, cooldown: 60 * 20, valid: () => wears("Rebecca"),
-  element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
-  bullets: [32, 42, 48, 53, 56, 64, 70, 81, 84, 87, 95, 102, 106, 118, 123, 130].map((f) => ({ hitFrame: f, commitFrame: 0, mv: 1710, energy: 23 })),
-});
+// Lucy's and Rebecca's own forms live in their kits (`holds` their Resonator, one inputPriority above this)
 export const ADAM_SMASHER = new SummonEcho("Echo - Adam Smasher", {
-  mainslot: ADAM_SMASHER_MAINSLOT, cooldown: 60 * 20, valid: () => !wears("Lucy") && !wears("Rebecca"),
+  mainslot: ADAM_SMASHER_MAINSLOT, cooldown: 60 * 20,
   element: Attribute.Physical, scaling: Scaling.Atk, type: Type.Echo,
   bullets: [85, 92, 97, 104, 110, 116, 122, 128].flatMap((f) => [0, 1].map(() => ({ hitFrame: f, commitFrame: 0, mv: 1026, energy: 14 }))),
 });

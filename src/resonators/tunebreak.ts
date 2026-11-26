@@ -3,7 +3,7 @@
  * enemy states around it. The engine owns nothing but the off-tune bar as a counter — the rest is
  * here, equipped onto `State.enemy` the way a member's own kit is equipped onto them.
  */
-import { ActionTag, Attribute, Cast, EnemyStat, Input, Position, Scaling, Stat, Type, WeaponType } from "../engine/stats.js";
+import { Transition, Attribute, Cast, EnemyStat, Input, Position, Scaling, Stat, Type, WeaponType } from "../engine/stats.js";
 import { Buff, BuffDef, Debuff, Gear, Resonator, DEFAULT_PRESSES } from "../engine/gear.js";
 import {
   addEnemyStat,
@@ -31,6 +31,7 @@ import {
   nextPresses,
 } from "../engine/context.js";
 import { Action, pickInput } from "../engine/rotation.js";
+import type { ActionDef } from "../engine/rotation.js";
 import { currentMember } from "../engine/context.js";
 
 /* ---------------------------------------------------------------------------- the enemy */
@@ -62,15 +63,15 @@ export const TUNE_BREAK_COOLDOWN: Debuff = new Debuff({
 /** The cuts a break may come out behind at the press's end: none at all, or a press beside the
  *  fight. A plain, on-hit or insta cancel is read on its cut frame instead (`atCut`), where the break
  *  has to be castable; a hold or mash cancel gives it no opening at all. */
-const BREAK_AFTER = new Set<string>([ActionTag.Default, ActionTag.OffField]);
+const BREAK_AFTER = new Set<string>([Transition.Temporary]);
 
 /** The cuts a break may go in behind on the frame what follows would start — taking a plain dodge's
  *  or a swap form's swap's place, or ahead of the next press after a plain one — and the cut each
  *  becomes. */
 const BREAK_CUTS = new Map<string, string>([
-  [ActionTag.DodgeCancel, ActionTag.Cancel], [ActionTag.InstaDodge, ActionTag.InstaCancel], [ActionTag.DodgeOnHit, ActionTag.HitCancel],
-  [ActionTag.SwapCancel, ActionTag.Cancel],
-  [ActionTag.Cancel, ActionTag.Cancel], [ActionTag.HitCancel, ActionTag.HitCancel], [ActionTag.InstaCancel, ActionTag.InstaCancel],
+  [Transition.DashCancel, Transition.Cancel], [Transition.InstaDash, Transition.InstaCancel], [Transition.HitDash, Transition.HitCancel],
+  [Transition.SwapCancel, Transition.Cancel], [Transition.HitSwap, Transition.HitCancel],
+  [Transition.Cancel, Transition.Cancel], [Transition.HitCancel, Transition.HitCancel], [Transition.InstaCancel, Transition.InstaCancel],
 ]);
 
 /** A break queued and waiting for the press playing to run out (`queueEvent()`): the bar
@@ -111,7 +112,7 @@ function breakReady(behind: Readonly<Action>, dodged = false): boolean {
   // ...nor behind a wait (`waitFor()`'s rows, every one named "Wait ..."): it is no press at all
   if (behind.name.startsWith("Wait ")) return false;
   // ...nor behind a dodge or a jump, played out or not: the bar waits for the press after it
-  if (isCast(behind, Cast.Dodge) || isCast(behind, Cast.Jump)) return false;
+  if (isCast(behind, Cast.Dash) || isCast(behind, Cast.Jump)) return false;
   // ...nor inside a time stop, standing or still to come: the first press ending past it fires it
   if (currentTeam().frozenAhead() !== 0) return false;
   // ...nor while the on-field resonator's own break is barred (none of theirs valid)
@@ -122,7 +123,7 @@ function breakReady(behind: Readonly<Action>, dodged = false): boolean {
   const member = currentMember(), at = tb.endPosition ?? member.position;
   let skipped = false;
   for (const next of nextPresses()) {
-    if (dodged && !skipped && isCast(next, Cast.Dodge)) {
+    if (dodged && !skipped && isCast(next, Cast.Dash)) {
       skipped = true;
       continue;
     }
@@ -161,7 +162,7 @@ export const TUNE_BREAK_ENEMY = new Resonator({
   afterHit: () => {
     if (!stacksOfEnemy(BREAK_HELD) || !isActive() || currentHit().mv <= 0) return;
     const press = currentCast();
-    if (press.tag === ActionTag.OffField || isCast(press, Cast.Intro) || isCast(press, Cast.Liberation)) return;
+    if (press.offField || isCast(press, Cast.Intro) || isCast(press, Cast.Liberation)) return;
     revokeEnemy(BREAK_HELD);
   },
   afterAction: () => {
@@ -178,7 +179,7 @@ export const TUNE_BREAK_ENEMY = new Resonator({
   // whether a break is castable on the frame a press is cut, ahead of its bullets still to land
   atCut: (behind, cut) => {
     revokeEnemy(READY_AT_CUT);
-    const dodged = cut === ActionTag.DodgeCancel || cut === ActionTag.InstaDodge || cut === ActionTag.DodgeOnHit;
+    const dodged = cut === Transition.DashCancel || cut === Transition.InstaDash || cut === Transition.HitDash;
     if (BREAK_CUTS.has(cut) && breakReady(behind, dodged)) applyEnemy(READY_AT_CUT, 1);
   },
   // A break castable on that cut frame plays once the cut's delay is out — in a plain dodge's place,
@@ -189,7 +190,7 @@ export const TUNE_BREAK_ENEMY = new Resonator({
     revokeEnemy(READY_AT_CUT);
     if (!plain || !ready || stacksOfEnemy(TUNE_BREAK_QUEUED) || currentTeam().offtune < ENEMY_MAX_OFFTUNE) return;
     // ...where it cuts in over what the press still holds on that frame
-    const c = behind.cost(cut as ActionTag), tb = breakPress();
+    const c = behind.cost(cut as Transition), tb = breakPress();
     if (!tb || (tb.castPriority ?? 0) <= behind.priorityAt(c.action + c.global)) return;
     // never inside a transform's window, which only a dodge cuts
     if (c.action + c.global < behind.transformFor(tb)) return;
@@ -205,7 +206,7 @@ export const TUNE_BREAK_ENEMY = new Resonator({
 export const TUNE_BREAK = new Action("Tune Break (Auto Generated)", {
   element: Attribute.Physical, scaling: Scaling.Tune, cast: Cast.TuneBreak, type: Type.Break,
   // every break, a kit's own too: only on a full bar
-  input: Input.TuneBreak, valid: () => offtuneFull(),
+  input: Input.TuneBreak, minOfftune: ENEMY_MAX_OFFTUNE,
   bullets: [{ hitFrame: 90, mv: 160000 }], slot: TUNE_BREAK_ENEMY.name,
   // the world stands still for all of it, so the game timer charges none
   animFrames: 90, castPriority: 11, timestop: [0, 90], motionStop: [0, 70],
@@ -221,13 +222,11 @@ export const TUNE_BREAK = new Action("Tune Break (Auto Generated)", {
   updateBuffs: () => chainAs(currentCast() as Action),
 });
 
-/** Is the target's off-tune bar full — what every Tune Break needs to be cast. */
-export const offtuneFull = (): boolean => currentTeam().offtune >= ENEMY_MAX_OFFTUNE;
 
-/** A kit's break `tb`, castable only while `when` holds as well as on a full bar — still a form of
- *  `TUNE_BREAK` (a kit with two forms lists one for each). */
-export function breakWhen(tb: Action, when: () => boolean): Action {
-  const out = tb.variant(tb.name, { valid: () => when() && offtuneFull() });
+/** A kit's break `tb`, castable only under `conditions` as well as on a full bar — still a form of
+ *  `TUNE_BREAK` (a kit with two forms lists one for each), above the class's own. */
+export function breakWhen(tb: Action, conditions: ActionDef): Action {
+  const out = tb.variant(tb.name, { inputPriority: 0, minOfftune: ENEMY_MAX_OFFTUNE, ...conditions });
   out.formOf = TUNE_BREAK;
   return out;
 }
@@ -253,13 +252,20 @@ export function midairBreak(tb: Action): Action {
   return out;
 }
 
+/** A class's break, below any of a kit's own on the input (`inputPriority` -1). */
+function classBreak(tb: Action): Action {
+  const out = tb.variant(tb.name, { inputPriority: -1 });
+  out.formOf = TUNE_BREAK;
+  return out;
+}
+
 /** Each weapon class's own Tune Break (wuwalab's "Tune Break Skill", the class's usual one). */
 export const CLASS_TUNE_BREAK: Record<WeaponType, Action> = {
-  [WeaponType.Sword]: tuneBreak(90, 90, [0, 90], [0, 70], SWORD_BREAK),
-  [WeaponType.Broadblade]: tuneBreak(94, 94, [0, 94], [0, 64], BROADBLADE_BREAK),
-  [WeaponType.Rectifier]: tuneBreak(90, 90, [0, 90], [0, 54], [[56, 160000]]),
-  [WeaponType.Pistols]: tuneBreak(96, 96, [0, 96], [0, 70], [[72, 160000]]),
-  [WeaponType.Gauntlets]: tuneBreak(92, 92, [0, 92], [0, 70], [[72, 160000]]),
+  [WeaponType.Sword]: classBreak(tuneBreak(90, 90, [0, 90], [0, 70], SWORD_BREAK)),
+  [WeaponType.Broadblade]: classBreak(tuneBreak(94, 94, [0, 94], [0, 64], BROADBLADE_BREAK)),
+  [WeaponType.Rectifier]: classBreak(tuneBreak(90, 90, [0, 90], [0, 54], [[56, 160000]])),
+  [WeaponType.Pistols]: classBreak(tuneBreak(96, 96, [0, 96], [0, 70], [[72, 160000]])),
+  [WeaponType.Gauntlets]: classBreak(tuneBreak(92, 92, [0, 92], [0, 70], [[72, 160000]])),
 };
 
 DEFAULT_PRESSES.tuneBreak = (weapon) => CLASS_TUNE_BREAK[weapon];

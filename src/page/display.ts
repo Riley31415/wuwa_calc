@@ -6,7 +6,7 @@ import {
   Stat, EnemyStat, Resource, Scaling,
   scopedStat, splitStat, statLabel, tagKind,
   TAG_NAME, CAST_NAME, NODE_NAME, SCALING_NAME, RESOURCE_NAME,
-  ActionTag, Cast, POSITION_NAME, INPUT_NAME,
+  Transition, Cast, Input, POSITION_NAME, INPUT_NAME,
   statDisplayScale, ENERGY_UNIT, CONCERTO_UNIT, MV_UNIT,
 } from "../engine/stats.js";
 import type { Type, Subtype, StatKey, Tag } from "../engine/stats.js";
@@ -210,8 +210,8 @@ const actionInfo = (snap: ResolvedSnapshot): InfoEntry[] => {
   const info: InfoEntry[] = [];
   const push = (label: string, value: string | null) => { if (value) info.push({ label, value }); };
   push("Node", action.node === null ? null : NODE_NAME[action.node]);
-  push("Cast", action.cast === null ? null : CAST_NAME[action.cast]);
-  push("Subcast", action.subcast === null ? null : CAST_NAME[action.subcast]);
+  push("Cast", action.cast === Cast.None ? null : CAST_NAME[action.cast]);
+  push("Subcast", action.subcast === Cast.None ? null : CAST_NAME[action.subcast]);
   // every attribute/type/subtype its hits dealt as, and the type its last hit was assigned
   const kinds = (of: (h: Bullet) => Tag | null, also: Tag | null = null): string | null => {
     const seen = new Set<Tag>(action.bullets.map(of).filter((v): v is Tag => v !== null));
@@ -226,7 +226,7 @@ const actionInfo = (snap: ResolvedSnapshot): InfoEntry[] => {
   let press = action;
   // a kit's own Tune Break is a form of the placeholder one: stop on the kit's
   while ((press.cancelOf ?? press.formOf) && (press.cancelOf ?? press.formOf) !== TUNE_BREAK) press = (press.cancelOf ?? press.formOf)!;
-  push("Input", press.inputs.length ? press.inputs.map((i) => INPUT_NAME[i]).join(", ") : null);
+  push("Input", press.input === Input.None ? null : INPUT_NAME[press.input]);
   push("End Position", press.endPosition === null ? null : POSITION_NAME[press.endPosition]);
   push("Animation", `${press.animFrames}f`);
   push("Cast Priority", press.castPriority === null ? null : String(press.castPriority));
@@ -376,7 +376,7 @@ export const MV_MULTIPLIER = "MV Multiplier";
 /** The tag box a row wears — none for OFF_FIELD, which the row's dimming already says. */
 // a timed cut reads its frame: CANCEL @ 23f
 const tagOf = (snap: ResolvedSnapshot): string =>
-  (snap.tag === ActionTag.OffField ? "" : snap.tag === ActionTag.TimedCancel ? `cancel @ ${snap.action.timedAt}f` : snap.tag);
+  (snap.action.offField ? "" : snap.tag === Transition.TimedCancel ? `cancel @ ${snap.action.timedAt}f` : snap.tag);
 
 /** The action's own gain as panel rows: one where it all comes from the cast or all from the hit,
  *  and the same action twice — its cast's share, then its hit's — where it has both. */

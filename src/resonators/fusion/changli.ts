@@ -53,36 +53,22 @@ const TRUE_SIGHT = new Buff({
 });
 
 // --- basics, dodge counter, heavy (Blazing Enlightenment). Stage 4 opens True Sight.
-const BA1 = changliAction("Basic - Blazing Enlightenment 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [BA1, BA2, BA3, MHA], position: Position.Grounded, lacks: TRUE_SIGHT, valid: () => !isHeld(TRUE_SIGHT), animFrames: 27, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = changliAction("Basic - Blazing Enlightenment 1", { input: Input.Basic, position: Position.Grounded, lacks: TRUE_SIGHT, animFrames: 27, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 12, mv: 2949, energy: 44, concerto: 88, offtune: 1396 },
     { hitFrame: 21, mv: 2949, energy: 44, concerto: 88, offtune: 1396 },
   ]});
-const BA2 = changliAction("Basic - Blazing Enlightenment 2", { input: Input.Basic, after: () => [BA1], lacks: TRUE_SIGHT, animFrames: 32, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA2 = changliAction("Basic - Blazing Enlightenment 2", { input: Input.Basic, inputPriority: 1, after: [BA1], animFrames: 32, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 3549, energy: 53, concerto: 105, offtune: 1680 },
     { hitFrame: 21, mv: 3549, energy: 53, concerto: 105, offtune: 1680 },
   ]});
-// Mid-air Heavy: "Use Basic Attack within a certain time to release Basic Attack 3"
-const BA3 = changliAction("Basic - Blazing Enlightenment 3", { input: Input.Basic, after: () => [BA2, MHA], lacks: TRUE_SIGHT, animFrames: 39, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 11, mv: 3645, energy: 54, concerto: 108, offtune: 1726 },
-    { hitFrame: 21, mv: 3645, energy: 54, concerto: 108, offtune: 1726 },
-    { hitFrame: 29, mv: 3645, energy: 54, concerto: 108, offtune: 1726 },
-  ]});
-const BA4 = changliAction("Basic - Blazing Enlightenment 4", { input: Input.Basic, after: () => [BA3], lacks: TRUE_SIGHT, animFrames: 68, animPriority: { 68: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 14, mv: 5070, energy: 75, concerto: 150, offtune: 2400 },
-    { hitFrame: 23, element: null, type: null, subtype: null, updateDebuffs: () => applyCurrent(TRUE_SIGHT, 1) },
-    { hitFrame: 32, commitFrame: 14, mv: 2958, energy: 44, concerto: 88, offtune: 1400 },
-    { hitFrame: 36, commitFrame: 14, mv: 2958, energy: 44, concerto: 88, offtune: 1400 },
-    { hitFrame: 40, commitFrame: 14, mv: 2958, energy: 44, concerto: 88, offtune: 1400 },
-    { hitFrame: 44, commitFrame: 14, mv: 2958, energy: 44, concerto: 88, offtune: 1400 },
-  ]});
-const DC = changliAction("Dodge Counter - Blazing Enlightenment 3", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], animFrames: 39, animPriority: { 39: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const DC = changliAction("Dodge Counter - Blazing Enlightenment 3", { input: Input.Basic, after: [SUCCESSFUL_DODGE], animFrames: 39, animPriority: { 39: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 11, mv: 8264, energy: 104, concerto: 208, offtune: 3326 },
     { hitFrame: 21, mv: 8264, energy: 104, concerto: 208, offtune: 3326 },
     { hitFrame: 29, mv: 8264, energy: 104, concerto: 208, offtune: 3326 },
   ], castConcerto: 1000});
 // "Hold Basic Attack on the ground to perform an upward strike ... Use Basic Attack within a certain
 // time to release Mid-Air Attack 3": it leaves her airborne
-const HA = changliAction("Heavy - Blazing Enlightenment", { input: Input.BasicHold, position: Position.Grounded, maxForte1: 3, endPosition: Position.Midair, animFrames: 47, animPriority: { 47: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+const HA = changliAction("Heavy - Blazing Enlightenment", { input: Input.BasicHold, position: Position.Grounded, endPosition: Position.Midair, animFrames: 47, animPriority: { 47: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 14, mv: 2899, energy: 43, concerto: 86, offtune: 1372 },
     { hitFrame: 20, commitFrame: 14, mv: 2899, energy: 43, concerto: 86, offtune: 1372 },
     { hitFrame: 26, commitFrame: 14, mv: 2899, energy: 43, concerto: 86, offtune: 1372 },
@@ -90,17 +76,17 @@ const HA = changliAction("Heavy - Blazing Enlightenment", { input: Input.BasicHo
   ]});
 
 // --- mid-air basics, mid-air heavy — the same combo, airborne. Stage 4 also opens True Sight.
-const MA1 = changliAction("Mid-air - Blazing Enlightenment 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [MA1, MA2, MA3, HA], position: Position.Midair, lacks: TRUE_SIGHT, valid: () => !isHeld(TRUE_SIGHT), animFrames: 24, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 13, mv: 6135, energy: 91, concerto: 182, offtune: 2904 }]});
-const MA2 = changliAction("Mid-air - Blazing Enlightenment 2", { input: Input.Basic, after: () => [MA1], position: Position.Midair, lacks: TRUE_SIGHT, animFrames: 39, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MA1 = changliAction("Mid-air - Blazing Enlightenment 1", { input: Input.Basic, position: Position.Midair, lacks: TRUE_SIGHT, animFrames: 24, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 13, mv: 6135, energy: 91, concerto: 182, offtune: 2904 }]});
+const MA2 = changliAction("Mid-air - Blazing Enlightenment 2", { input: Input.Basic, inputPriority: 1, after: [MA1], position: Position.Midair, animFrames: 39, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 17, mv: 5087, energy: 76, concerto: 151, offtune: 2408 },
     { hitFrame: 27, mv: 5087, energy: 76, concerto: 151, offtune: 2408 },
   ]});
-const MA3 = changliAction("Mid-air - Blazing Enlightenment 3", { input: Input.Basic, after: () => [MA2, HA], position: Position.Midair, lacks: TRUE_SIGHT, animFrames: 47, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MA3 = changliAction("Mid-air - Blazing Enlightenment 3", { input: Input.Basic, inputPriority: 1, after: [MA2, HA], position: Position.Midair, animFrames: 47, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 16, mv: 4400, energy: 66, concerto: 131, offtune: 2083 },
     { hitFrame: 25, mv: 4400, energy: 66, concerto: 131, offtune: 2083 },
     { hitFrame: 35, mv: 4400, energy: 66, concerto: 131, offtune: 2083 },
   ]});
-const MA4 = changliAction("Mid-air - Blazing Enlightenment 4", { input: Input.Basic, after: () => [MA3], position: Position.Midair, lacks: TRUE_SIGHT, animFrames: 53, animPriority: { 53: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MA4 = changliAction("Mid-air - Blazing Enlightenment 4", { input: Input.Basic, inputPriority: 1, after: [MA3], position: Position.Midair, animFrames: 53, animPriority: { 53: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 6, mv: 3803, energy: 57, concerto: 113, offtune: 1800, updateDebuffs: () => applyCurrent(TRUE_SIGHT, 1) },
     { hitFrame: 18, commitFrame: 6, mv: 2218, energy: 33, concerto: 66, offtune: 1050 },
     { hitFrame: 24, commitFrame: 6, mv: 2218, energy: 33, concerto: 66, offtune: 1050 },
@@ -109,17 +95,31 @@ const MA4 = changliAction("Mid-air - Blazing Enlightenment 4", { input: Input.Ba
   ]});
 // a plunging attack: it lands
 const MHA = changliAction("Heavy - Blazing Enlightenment (Mid-Air)", { input: Input.BasicHold, position: Position.Midair, endPosition: Position.Grounded, animFrames: 54, animPriority: { 49: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 42, mv: 12327, energy: 155, concerto: 100, offtune: 4960 }]});
+// Mid-air Heavy: "Use Basic Attack within a certain time to release Basic Attack 3"
+const BA3 = changliAction("Basic - Blazing Enlightenment 3", { input: Input.Basic, inputPriority: 1, after: [BA2, MHA], animFrames: 39, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 11, mv: 3645, energy: 54, concerto: 108, offtune: 1726 },
+    { hitFrame: 21, mv: 3645, energy: 54, concerto: 108, offtune: 1726 },
+    { hitFrame: 29, mv: 3645, energy: 54, concerto: 108, offtune: 1726 },
+  ]});
+const BA4 = changliAction("Basic - Blazing Enlightenment 4", { input: Input.Basic, inputPriority: 1, after: [BA3], animFrames: 68, animPriority: { 68: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 14, mv: 5070, energy: 75, concerto: 150, offtune: 2400 },
+    { hitFrame: 23, element: null, type: null, subtype: null, updateDebuffs: () => applyCurrent(TRUE_SIGHT, 1) },
+    { hitFrame: 32, commitFrame: 14, mv: 2958, energy: 44, concerto: 88, offtune: 1400 },
+    { hitFrame: 36, commitFrame: 14, mv: 2958, energy: 44, concerto: 88, offtune: 1400 },
+    { hitFrame: 40, commitFrame: 14, mv: 2958, energy: 44, concerto: 88, offtune: 1400 },
+    { hitFrame: 44, commitFrame: 14, mv: 2958, energy: 44, concerto: 88, offtune: 1400 },
+  ]});
 
 // --- True Sight's own finishers: Conquest (ground Basic), Charge (jump/mid-air Basic) — both
 //     Resonance Skill DMG, both bank a stack of Enflamement and end True Sight
 // Conquest is "Ground Basic Attack", Charge is "after using Jump or while in mid-air"
-const SBA = changliAction("Basic - True Sight: Conquest", { input: [Input.Basic, Input.SwapIn], position: Position.Grounded, holds: TRUE_SIGHT, valid: () => isHeld(TRUE_SIGHT), animFrames: 73, animPriority: { 78: 2 }, castPriority: 3, node: Node.Skill, cast: Cast.Basic, type: Type.Skill, bullets: [
+const SBA = changliAction("Basic - True Sight: Conquest", { input: Input.Basic, inputPriority: 2, position: Position.Grounded, holds: TRUE_SIGHT, animFrames: 73, animPriority: { 78: 2 }, castPriority: 3, node: Node.Skill, cast: Cast.Basic, type: Type.Skill, bullets: [
     { hitFrame: 26, mv: 5895, energy: 81, offtune: 1797, forte1: 1 },
     { hitFrame: 51, mv: 5895, energy: 81, offtune: 1797 },
     { hitFrame: 60, mv: 8252, energy: 113, offtune: 2516 },
     { hitFrame: 68, mv: 9431, energy: 129, offtune: 2875 },
   ], castConcerto: 700});
-const SMA = changliAction("Basic - True Sight: Charge", { input: [Input.Basic, Input.SwapIn], position: Position.Midair, holds: TRUE_SIGHT, valid: () => isHeld(TRUE_SIGHT), animFrames: 40, animPriority: { 40: 2 }, castPriority: 2, node: Node.Skill, cast: Cast.Basic, type: Type.Skill, bullets: [
+const SMA = changliAction("Basic - True Sight: Charge", { input: Input.Basic, inputPriority: 2, position: Position.Midair, holds: TRUE_SIGHT, animFrames: 40, animPriority: { 40: 2 }, castPriority: 2, node: Node.Skill, cast: Cast.Basic, type: Type.Skill, bullets: [
     { hitFrame: 13, mv: 7268, energy: 103, offtune: 1741, forte1: 1 },
     { hitFrame: 26, mv: 10902, energy: 154, offtune: 2612 },
   ], castConcerto: 600});
@@ -138,7 +138,7 @@ const Skill = changliAction("Skill - Tripartite Flames", { input: Input.Skill, a
 /** At 4 Enflamement — Sweeping Force's own +20% Fusion DMG Bonus/15% DEF ignore pays on this
  *  same hit (intrinsic to the cast, no separate lingering buff). */
 // "Hold [LeftMouseButton] while on the ground"
-const FlamingSacrifice = changliAction("Forte Heavy - Flaming Sacrifice", { input: Input.BasicHold, position: Position.Grounded, minForte1: 4, animFrames: 76, castPriority: 5, node: Node.Forte, cast: Cast.Heavy, type: Type.Skill, bullets: [
+const FlamingSacrifice = changliAction("Forte Heavy - Flaming Sacrifice", { input: Input.BasicHold, inputPriority: 1, position: Position.Grounded, minForte1: 4, animFrames: 76, castPriority: 5, node: Node.Forte, cast: Cast.Heavy, type: Type.Skill, bullets: [
     { hitFrame: 9, mv: 3925, energy: 40, offtune: 1869 },
     { hitFrame: 15, mv: 3925, energy: 40, offtune: 1869 },
     { hitFrame: 21, mv: 3925, energy: 40, offtune: 1869 },
@@ -282,7 +282,7 @@ const CHANGLI_RESONATOR = new Resonator({
   element: Attribute.Fusion,
   weapon: WeaponType.Sword,
   color: "#f38b68",
-  actions: [BA1, BA2, BA3, BA4, DC, HA, MA1, MA2, MA3, MA4, MHA, SBA, SMA, Skill, FlamingSacrifice, Liberation, Intro, Outro],
+  actions: [BA1, BA1.swapIn(), BA2, BA3, BA4, DC, HA, MA1, MA1.swapIn(), MA2, MA3, MA4, MHA, SBA, SBA.swapIn(), SMA, SMA.swapIn(), Skill, FlamingSacrifice, Liberation, Intro, Outro],
   maxEnergy: 12500,
   maxForte1: 4,
 
@@ -300,8 +300,8 @@ const BA34 = new ActionGroup("Basic - Blazing Enlightenment 34", [BA3, BA4]);
 const CH_ROTATION = new Rotation([
   START_LAST, BA1.instaCancel(), Skill.hitCancel(), Liberation, FlamingSacrifice.instaSwap(),
 
-  Intro, SMA, 
-  MHA, BA34.dodgeCancel(), SBA,
+  Intro, SMA,
+  MHA, BA34.dashCancel(), SBA,
   Skill, SBA,
   Skill, SBA, // cance?
   FlamingSacrifice.cancel(),

@@ -47,7 +47,8 @@ import {
   concerto,
   lacks,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, ActionTag, START_LAST, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, START_LAST, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import type { ActionDef } from "../../engine/rotation.js";
 import { SOLSWORN_CIPHERS } from "../../weapons/gauntlet.js";
 import { NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
 import { STONARD, AETHER_STRIKE } from "../../weapons/battlepass.js";
@@ -78,47 +79,17 @@ const RUNE_ANSWER = { forte1: 1, updateDebuffs: () => gainRune(2, null) };
 
 // --- basics, mid-air, dodge counter (One, Two, Three) — Stage 4 opens Decipher
 // "with at least 50 points of Full Stop, her Basic Attack cycle starts from Stage 2"
-const BA1 = sigrikaAction("Basic - One, Two, Three 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [BA1, BA2, BA3, HA, MA, MDC, Intro, Skill, DC], position: Position.Grounded, maxForte2: 49, lacks: DECIPHER, animFrames: 22, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 14, mv: 5297, energy: 84, concerto: 167, offtune: 2664 }]});
-// "Press Normal Attack shortly after casting" the Heavy, the Plunging Attack, the Mid-air Dodge Counter
-// or the Intro "to cast Basic Attack Stage 2" (at 50 Full Stop the cycle starts here: SIGRIKA_RESONATOR)
-const BA2 = sigrikaAction("Basic - One, Two, Three 2", { input: Input.Basic,
-  position: Position.Grounded, after: () => [BA1, HA, MA, MDC, Intro], lacks: DECIPHER, animFrames: 41, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 18, mv: 5034, energy: 80, concerto: 159, offtune: 2532 },
-    { hitFrame: 30, mv: 5034, energy: 80, concerto: 159, offtune: 2532 },
-  ]});
-// "with at least 50 points of Full Stop, her Basic Attack cycle starts from Stage 2": a fresh press, and the
-// swap-in opener there (below 50 Basic 1 opens) — untested
-const BA2Start = BA2.variant(BA2.name, { input: [Input.Basic, Input.SwapIn], position: Position.Grounded, lacks: DECIPHER, minForte2: 50,
-  notAfter: () => [BA1, BA2, BA3, HA, MA, MDC, Intro, Skill, DC] });
-BA2Start.formOf = BA2;
-// BOOMY BOOM!: "Press Normal Attack shortly after casting BOOMY BOOM! to cast Basic Attack Stage 3"
-const BA3 = sigrikaAction("Basic - One, Two, Three 3", { input: Input.Basic, after: () => [BA2, Skill], animFrames: 44, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 8, mv: 3341, energy: 53, concerto: 105, offtune: 1680 },
-    { hitFrame: 16, mv: 3341, energy: 53, concerto: 105, offtune: 1680 },
-    { hitFrame: 34, mv: 4454, energy: 70, concerto: 140, offtune: 2240 },
-  ]});
-// the Dodge Counter: "Press Normal Attack shortly after casting Dodge Counter to cast Basic Attack Stage 4"
-const BA4 = sigrikaAction("Basic - One, Two, Three 4", {
-  input: Input.Basic, after: () => [BA3, DC], animFrames: 78, animPriority: { 72: 1 }, castPriority: 2,
-  node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 22, mv: 4136, energy: 65, concerto: 130, offtune: 2080 },
-    { hitFrame: 28, mv: 5170, energy: 82, concerto: 163, offtune: 2600 },
-    { hitFrame: 46, mv: 5170, energy: 82, concerto: 163, offtune: 2600 },
-    // Decipher (Elucidated's window) opens on frame 60, not on the cast
-    { hitFrame: 60, element: null, type: null, subtype: null, updateDebuffs: () => applyCurrent(DECIPHER, 1) },
-    { hitFrame: 72, commitFrame: 60, mv: 6203, energy: 98, concerto: 195, offtune: 3120 },
-  ],
-});
-const MA = sigrikaAction("Mid-air - One, Two, Three Plunge", { input: [Input.Basic, Input.SwapIn], position: Position.Midair, endPosition: Position.Grounded, animFrames: 44, animPriority: { 36: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 38, mv: 10478, energy: 155, concerto: 310, offtune: 4960 }]});
+const BA1 = sigrikaAction("Basic - One, Two, Three 1", { input: Input.Basic, position: Position.Grounded, lacks: DECIPHER, animFrames: 22, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 14, mv: 5297, energy: 84, concerto: 167, offtune: 2664 }]});
+const MA = sigrikaAction("Mid-air - One, Two, Three Plunge", { input: Input.Basic, position: Position.Midair, endPosition: Position.Grounded, animFrames: 44, animPriority: { 36: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 38, mv: 10478, energy: 155, concerto: 310, offtune: 4960 }]});
 // "after a successful Dodge in mid-air"; Basic Attack Stage 2 follows it, so it lands
-const MDC = sigrikaAction("Dodge Counter - One, Two, Three (Mid-Air)", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], position: Position.Midair, endPosition: Position.Grounded, animFrames: 44, animPriority: { 0: 6, 36: 2 }, castPriority: 8, bullets: [{ hitFrame: 38, mv: 20617, energy: 305, concerto: 610, offtune: 9920 }], node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, castConcerto: 1000});
+const MDC = sigrikaAction("Dodge Counter - One, Two, Three (Mid-Air)", { input: Input.Basic, after: [SUCCESSFUL_DODGE], position: Position.Midair, endPosition: Position.Grounded, animFrames: 44, animPriority: { 0: 6, 36: 2 }, castPriority: 8, bullets: [{ hitFrame: 38, mv: 20617, energy: 305, concerto: 610, offtune: 9920 }], node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, castConcerto: 1000});
 // "after a successful Dodge on the ground"
-const DC = sigrikaAction("Dodge Counter - One, Two, Three", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], position: Position.Grounded, animFrames: 42, animPriority: { 0: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const DC = sigrikaAction("Dodge Counter - One, Two, Three", { input: Input.Basic, after: [SUCCESSFUL_DODGE], position: Position.Grounded, animFrames: 42, animPriority: { 0: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 8, mv: 6591, energy: 98, concerto: 195, offtune: 3008 },
     { hitFrame: 16, mv: 6591, energy: 98, concerto: 195, offtune: 3008 },
     { hitFrame: 34, mv: 8788, energy: 130, concerto: 260, offtune: 4010 },
   ], castConcerto: 1000});
-const HA = sigrikaAction("Heavy - One, Two, Three", { input: Input.BasicHold, maxForte1: 1, animFrames: 42, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+const HA = sigrikaAction("Heavy - One, Two, Three", { input: Input.BasicHold, animFrames: 42, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 32, mv: 5814, energy: 92, concerto: 183, offtune: 2924 },
     { hitFrame: 32, mv: 5814, energy: 92, concerto: 183, offtune: 2924 },
   ]});
@@ -126,14 +97,14 @@ const HA = sigrikaAction("Heavy - One, Two, Three", { input: Input.BasicHold, ma
 // --- Decipher-gated finishers: both grant a Rune: Trust and exit Decipher, both Echo Skill DMG
 //     (the migrated sheet only carries one row for the pair — same numbers used for both here)
 // the Decipher presses are all cast "on the ground"
-const EBA = sigrikaAction("Basic - Elucidated", { input: Input.Basic, position: Position.Grounded, holds: DECIPHER, animFrames: 66, animPriority: { 66: 2 }, castPriority: 1, node: Node.Normal, cast: Cast.Basic, type: Type.Echo, bullets: [
+const EBA = sigrikaAction("Basic - Elucidated", { input: Input.Basic, inputPriority: 3, position: Position.Grounded, holds: DECIPHER, animFrames: 66, animPriority: { 66: 2 }, castPriority: 1, node: Node.Normal, cast: Cast.Basic, type: Type.Echo, bullets: [
     { hitFrame: 8, mv: 6156, energy: 52, concerto: 104, offtune: 1652, ...RUNE_TRUST ,
        },
     { hitFrame: 16, mv: 6156, energy: 52, concerto: 104, offtune: 1652 },
     { hitFrame: 24, mv: 6156, energy: 52, concerto: 104, offtune: 1652 },
     { hitFrame: 66, commitFrame: 26, mv: 12311, energy: 104, concerto: 207, offtune: 3303 },
   ]});
-const EDC = sigrikaAction("Dodge Counter - Decipher", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], position: Position.Grounded, holds: DECIPHER, animFrames: 66, animPriority: { 66: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Echo, bullets: [
+const EDC = sigrikaAction("Dodge Counter - Decipher", { input: Input.Basic, after: [SUCCESSFUL_DODGE], position: Position.Grounded, holds: DECIPHER, animFrames: 66, animPriority: { 66: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Echo, bullets: [
     { hitFrame: 8, mv: 6156, energy: 52, concerto: 104, offtune: 1652, ...RUNE_TRUST ,
        },
     { hitFrame: 16, mv: 6156, energy: 52, concerto: 104, offtune: 1652 },
@@ -143,51 +114,47 @@ const EDC = sigrikaAction("Dodge Counter - Decipher", { input: Input.Basic, afte
 
 // --- resonance skill: BOOMY BOOM! (base), or — while in Decipher — BIG BOOMY BOOM! / Soliskin to
 //     the Aid (the latter needs 50 Full Stop held, spends none), both banking a Rune: Answer
-const Skill = sigrikaAction("Skill - BOOMY BOOM!", { input: Input.Skill, yieldsTo: () => [ESkill, ESkill50, ESkill_C, ESkill_D, ESkill50_C, ESkill50_D], animFrames: 56, animPriority: { 56: 2 }, castPriority: 3, cooldown: 60 * 10, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+const Skill = sigrikaAction("Skill - BOOMY BOOM!", { input: Input.Skill, animFrames: 56, animPriority: { 56: 2 }, castPriority: 3, cooldown: 60 * 10, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 10, mv: 2863, energy: 45, concerto: 90, offtune: 1440 },
     { hitFrame: 16, mv: 2863, energy: 45, concerto: 90, offtune: 1440 },
     { hitFrame: 36, mv: 2863, energy: 45, concerto: 90, offtune: 1440 },
     { hitFrame: 48, mv: 5726, energy: 90, concerto: 180, offtune: 2880 },
   ]});
-const ESkill = sigrikaAction("Skill - BIG BOOMY BOOM!", { input: Input.Skill, position: Position.Grounded, maxForte2: 49, holds: DECIPHER, animFrames: 56, animPriority: { 56: 2 }, castPriority: 2, node: Node.Skill, cast: Cast.Skill, type: Type.Echo, bullets: [
+const ESkill = sigrikaAction("Skill - BIG BOOMY BOOM!", { input: Input.Skill, inputPriority: 1, position: Position.Grounded, holds: DECIPHER, animFrames: 56, animPriority: { 56: 2 }, castPriority: 2, node: Node.Skill, cast: Cast.Skill, type: Type.Echo, bullets: [
     { hitFrame: 6, mv: 2881, energy: 25, concerto: 49, offtune: 773, ...RUNE_ANSWER,},
     { hitFrame: 18, mv: 2881, energy: 25, concerto: 49, offtune: 773 },
     { hitFrame: 30, mv: 2881, energy: 25, concerto: 49, offtune: 773 },
     { hitFrame: 42, mv: 2881, energy: 25, concerto: 49, offtune: 773 },
     { hitFrame: 54, mv: 17285, energy: 145, concerto: 290, offtune: 4637, ...RUNE_ANSWER }, // TODO unknown if this late
   ]});
-const ESkill50 = sigrikaAction("Skill - Soliskin to the Aid", { input: Input.Skill, position: Position.Grounded, minForte2: 50, holds: DECIPHER, animFrames: 54, animPriority: { 54: 2 }, castPriority: 2, node: Node.Skill, cast: Cast.Skill, type: Type.Echo, bullets: [
+const ESkill50 = sigrikaAction("Skill - Soliskin to the Aid", { input: Input.Skill, inputPriority: 2, position: Position.Grounded, minForte2: 50, holds: DECIPHER, animFrames: 54, animPriority: { 54: 2 }, castPriority: 2, node: Node.Skill, cast: Cast.Skill, type: Type.Echo, bullets: [
     { hitFrame: 6, mv: 2783, energy: 24, concerto: 47, offtune: 747, ...RUNE_ANSWER,},
     { hitFrame: 16, mv: 2783, energy: 24, concerto: 47, offtune: 747 },
     { hitFrame: 24, mv: 2783, energy: 24, concerto: 47, offtune: 747 },
     { hitFrame: 50, mv: 19477, energy: 164, concerto: 327, offtune: 5225 },
   ]});
 
+/** `press`'s own conditions, `extra` added: a form that comes out of the same press only in some state. */
+function narrowed(press: Action, extra: ActionDef): ActionDef {
+  const d = press.def, own = Object.fromEntries(Object.entries(d).filter(([k]) => /^(after|notAfter|position|lacks|m(in|ax)(Concerto|Forte\d)|minOfftune)$/.test(k)));
+  const holds = (g: ActionDef["holds"]) => (g === undefined ? [] : Array.isArray(g) ? g : [g]);
+  return { ...own, ...extra, holds: [...holds(d.holds), ...holds(extra.holds)] };
+}
+
 /** `press` with its first Rune hit (of `kind`) banking `by`'s extra Rune too — Convergent's the same
- *  kind, Divergent's the opposite — at two forte1, so a hold into Schemata of Runes sees both. */
+ *  kind, Divergent's the opposite — at two forte1, so a hold into Schemata of Runes sees both. Pressed
+ *  while `by` stands short of 100 Full Stop, Convergent above Divergent above the plain press. */
 function doubled(press: Action, kind: number, by: "Convergent" | "Divergent"): Action {
   const k = press.bullets.findIndex((b) => b.forte1);
   const rune = { forte1: 2, updateDebuffs: () => gainRune(kind, by) };
-  return press.variant(`${press.name} (${by})`, { bullets: press.bullets.map((b, i) => (i === k ? { ...b, ...rune } : b)) });
+  return press.variant(`${press.name} (${by})`, {
+    ...narrowed(press, { holds: by === "Convergent" ? CONVERGENT : DIVERGENT, maxForte2: Math.min(press.def.maxForte2 ?? 99, 99) }),
+    inputPriority: press.inputPriority + (by === "Convergent" ? 0.2 : 0.1),
+    bullets: press.bullets.map((b, i) => (i === k ? { ...b, ...rune } : b)),
+  });
 }
-const EBA_C = doubled(EBA, 1, "Convergent"), EBA_D = doubled(EBA, 1, "Divergent");
-const EDC_C = doubled(EDC, 1, "Convergent"), EDC_D = doubled(EDC, 1, "Divergent");
-const ESkill_C = doubled(ESkill, 2, "Convergent"), ESkill_D = doubled(ESkill, 2, "Divergent");
-const ESkill50_C = doubled(ESkill50, 2, "Convergent"), ESkill50_D = doubled(ESkill50, 2, "Divergent");
 /** Which Rune form a press comes out as (`runeForm()`): 0 plain, 1 Convergent, 2 Divergent. */
 const rune = (): number => (forte2() >= 100 ? 0 : isHeld(CONVERGENT) ? 1 : isHeld(DIVERGENT) ? 2 : 0);
-/** Narrow `a`'s own valid by `when` — each form valid only where its resolver would pick it. */
-const pin = (a: Action, when: () => boolean): void => {
-  const own = a.validFn;
-  a.validFn = () => (!own || own()) && when();
-};
-for (const [plain, c, d] of [[EBA, EBA_C, EBA_D], [EDC, EDC_C, EDC_D], [ESkill, ESkill_C, ESkill_D], [ESkill50, ESkill50_C, ESkill50_D]] as const) {
-  pin(plain, () => rune() === 0);
-  pin(c, () => rune() === 1);
-  pin(d, () => rune() === 2);
-}
-/** Every Rune-banking press: what Decipher ends on, and what S1 multiplies. */
-const RUNE_PRESSES = [EBA, EDC, ESkill, ESkill50, EBA_C, EDC_C, ESkill_C, ESkill50_C, EBA_D, EDC_D, ESkill_D, ESkill50_D];
 
 /** Which form of a Rune press comes out: Convergent's while it stands, else Divergent's, short of
  *  100 Full Stop (where neither doubles), else the plain one. */
@@ -206,13 +173,13 @@ const ESKILL = new Action("Decipher Skill Resolver", { cast: Cast.Skill,
 //     leftmost Runes, and its follow-up is whichever pair they were (spendRunes() below)
 // ...each a FIELD follow-up of its own commit on Schemata (25/31/35): its frames are
 // only the time until its own hit, none of the fight's
-const RunicOutburst = sigrikaAction("Forte - Runic Outburst", { tag: ActionTag.OffField, animFrames: 68,
+const RunicOutburst = sigrikaAction("Forte - Runic Outburst", { animFrames: 68,
    node: Node.Forte, type: Type.Echo, bullets: [
      { hitFrame: 20, commitFrame: 0, mv: 11767, energy: 200, concerto: 140, offtune: 4960 },
      { hitFrame: 36, commitFrame: 0, mv: 20592, energy: 350, concerto: 245, offtune: 8680 },
      { hitFrame: 68, commitFrame: 0, mv: 26475, energy: 450, concerto: 315, offtune: 11160 },
    ]});
-const RunicChainWhip = sigrikaAction("Forte - Runic Chain Whip", { tag: ActionTag.OffField, animFrames: 66,
+const RunicChainWhip = sigrikaAction("Forte - Runic Chain Whip", { animFrames: 66,
   node: Node.Forte, type: Type.Echo, bullets: [
     { hitFrame: 6, commitFrame: 0, mv: 4970, energy: 125, concerto: 88, offtune: 3100 },
     { hitFrame: 12, commitFrame: 0, mv: 4970, energy: 125, concerto: 88, offtune: 3100 },
@@ -222,7 +189,7 @@ const RunicChainWhip = sigrikaAction("Forte - Runic Chain Whip", { tag: ActionTa
     { hitFrame: 60, commitFrame: 0, mv: 6626, energy: 167, concerto: 117, offtune: 4134 },
     { hitFrame: 66, commitFrame: 0, mv: 6626, energy: 167, concerto: 117, offtune: 4134 },
   ]});
-const RunicSoliskin = sigrikaAction("Forte - Runic Soliskin", { tag: ActionTag.OffField, animFrames: 78,
+const RunicSoliskin = sigrikaAction("Forte - Runic Soliskin", { animFrames: 78,
    node: Node.Forte, type: Type.Echo, bullets: [
      { hitFrame: 18, commitFrame: 0, mv: 3976, energy: 100, concerto: 70, offtune: 2480 },
      { hitFrame: 36, commitFrame: 0, mv: 5963, energy: 150, concerto: 105, offtune: 3720 },
@@ -233,7 +200,7 @@ const RunicSoliskin = sigrikaAction("Forte - Runic Soliskin", { tag: ActionTag.O
    ]});
 
 /** Schemata of Runes with no pair to spend: its own hit alone, no follow-up. */
-const FHA_BARE = sigrikaAction("Forte Heavy - Schemata of Runes", { input: Input.BasicHold, minForte1: 2,
+const FHA_BARE = sigrikaAction("Forte Heavy - Schemata of Runes", { input: Input.BasicHold, inputPriority: 1, minForte1: 2,
   animFrames: 76, animPriority: { 0: 5, 40: 4, 58: 2 }, castPriority: 9,
   node: Node.Forte, cast: Cast.Heavy, type: Type.Echo, bullets: [
     { hitFrame: 12, mv: 13251, energy: 334, concerto: 50, offtune: 2664, forte2: 50 },
@@ -241,18 +208,19 @@ const FHA_BARE = sigrikaAction("Forte Heavy - Schemata of Runes", { input: Input
 });
 /** Each form commits its own follow-up at wuwalab's event frame (commit_outburst 25,
  *  commit_soliskin 31, commit_chain_whip 35), which is where a cancel can cut it. */
-const schemata = (label: string, frame: number, follow: () => Action): Action =>
-  FHA_BARE.variant(`Forte Heavy - Schemata of Runes (${label})`, { bullets: [
+/** Hidden markers: the follow-up the two leftmost Runes make (`setRunes()`), which Schemata form is pressed. */
+const OUTBURST_READY = new Buff({ /* name: "Sigrika: Runic Outburst Ready" */ });
+const SOLISKIN_READY = new Buff({ /* name: "Sigrika: Runic Soliskin Ready" */ });
+const CHAIN_WHIP_READY = new Buff({ /* name: "Sigrika: Runic Chain Whip Ready" */ });
+// each form above the bare one, under its own marker
+const schemata = (label: string, frame: number, follow: () => Action, ready: Buff): Action =>
+  FHA_BARE.variant(`Forte Heavy - Schemata of Runes (${label})`, { ...narrowed(FHA_BARE, { holds: ready }), inputPriority: FHA_BARE.inputPriority + 0.1, bullets: [
     ...FHA_BARE.bullets,
     { hitFrame: frame, element: null, type: null, subtype: null, updateDebuffs: () => spendRunes(follow()) },
   ]});
-const FHA_OUTBURST = schemata("Outburst", 25, () => RunicOutburst);
-const FHA_SOLISKIN = schemata("Soliskin", 31, () => RunicSoliskin);
-const FHA_CHAIN_WHIP = schemata("Chain Whip", 35, () => RunicChainWhip);
-pin(FHA_BARE, () => followUp() === null);
-pin(FHA_OUTBURST, () => followUp() === RunicOutburst);
-pin(FHA_SOLISKIN, () => followUp() === RunicSoliskin);
-pin(FHA_CHAIN_WHIP, () => followUp() === RunicChainWhip);
+const FHA_OUTBURST = schemata("Outburst", 25, () => RunicOutburst, OUTBURST_READY);
+const FHA_SOLISKIN = schemata("Soliskin", 31, () => RunicSoliskin, SOLISKIN_READY);
+const FHA_CHAIN_WHIP = schemata("Chain Whip", 35, () => RunicChainWhip, CHAIN_WHIP_READY);
 /** The Schemata a rotation writes: the form the two leftmost Runes make as it is cast. */
 const FHA = new Action("Schemata of Runes Resolver", { cast: Cast.Heavy, resolve: () => {
   const follow = followUp();
@@ -262,16 +230,29 @@ const FHA = new Action("Schemata of Runes Resolver", { cast: Cast.Heavy, resolve
 /** The follow-up the two leftmost Runes make — Trust and Answer for Runic Outburst, two Trusts
  *  for Chain Whip, two Answers for Soliskin — or null without a pair. */
 function followUp(): Action | null {
-  const word = stacksOf(RUNES), at = 2 * fullStops(word), a = (word >> at) & 3, b = (word >> (at + 2)) & 3;
+  return followOf(stacksOf(RUNES));
+}
+/** `followUp()` of store word `word`. */
+function followOf(word: number): Action | null {
+  const at = 2 * fullStops(word), a = (word >> at) & 3, b = (word >> (at + 2)) & 3;
   if (at >= 8 || !a || !b) return null;
   return a !== b ? RunicOutburst : a === 1 ? RunicChainWhip : RunicSoliskin;
+}
+/** Write the store, and hold the one follow-up marker its leftmost pair makes (none without a pair). */
+function setRunes(word: number): void {
+  setStacksSelf(RUNES, word);
+  const follow = followOf(word);
+  for (const [f, marker] of [[RunicOutburst, OUTBURST_READY], [RunicSoliskin, SOLISKIN_READY], [RunicChainWhip, CHAIN_WHIP_READY]] as const) {
+    if (f === follow && !isHeld(marker)) applyCurrent(marker, 1);
+    if (f !== follow && isHeld(marker)) revokeCurrent(marker);
+  }
 }
 /** Schemata's commit for `follow`: where the pair still makes it, spends it (two forte1) and plays it. */
 function spendRunes(follow: Action): void {
   if (followUp() !== follow) return;
   // the pair's two slots become the Full Stop it banked
   const word = stacksOf(RUNES), at = 2 * fullStops(word);
-  setStacksSelf(RUNES, (word & ~(0xf << at)) | (0xf << at));
+  setRunes((word & ~(0xf << at)) | (0xf << at));
   addGain({ forte1: -2 });
   queue(follow);
 }
@@ -280,7 +261,7 @@ function spendRunes(follow: Action): void {
 
 // NOTE: manaully set to 140/146 frames because last hit is after animation ends, dont want to cancel it early.
 const FSkill = sigrikaAction("Forte Skill - Learn My True Name", { input: Input.SkillHold, minForte2: 100,
-   animFrames: 140, noSwapFrames: 140, 
+   animFrames: 140, noSwapFrames: 140,
    animPriority: { 0: 10, 132: 9, 138: 2 }, castPriority: 5, cooldown: 60 * 25,
    node: Node.Forte, cast: Cast.Skill, type: Type.Echo, bullets: [
      { hitFrame: 86, mv: 30287, energy: 136, concerto: 500, offtune: 25334 },
@@ -289,7 +270,7 @@ const FSkill = sigrikaAction("Forte Skill - Learn My True Name", { input: Input.
   // the Full Stop it spends leaves the store, the Runes after it moving up
   updateBuffs: () => {
     const word = stacksOf(RUNES);
-    setStacksSelf(RUNES, (word & ~0xff) | ((word & 0xff) >> (2 * fullStops(word))));
+    setRunes((word & ~0xff) | ((word & 0xff) >> (2 * fullStops(word))));
   },
 });
 
@@ -300,6 +281,36 @@ const Liberation = sigrikaAction("Liberation - Where Trust Leads Me!", {
 });
 
 const Intro = sigrikaAction("Intro - Solsworn Etymology", { input: Input.Intro, endPosition: Position.Grounded, qteFrames: 42, animFrames: 58, noSwapFrames: 48, animPriority: { 58: 2 }, castPriority: 11, motionStop: [5, 42], node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 46, mv: 16342, energy: 1000, offtune: 7736 }], castConcerto: 1000});
+// "Press Normal Attack shortly after casting" the Heavy, the Plunging Attack, the Mid-air Dodge Counter
+// or the Intro "to cast Basic Attack Stage 2" (at 50 Full Stop the cycle starts here: SIGRIKA_RESONATOR)
+const BA2 = sigrikaAction("Basic - One, Two, Three 2", { input: Input.Basic, inputPriority: 2,
+  position: Position.Grounded, after: [BA1, HA, MA, MDC, Intro], animFrames: 41, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 18, mv: 5034, energy: 80, concerto: 159, offtune: 2532 },
+    { hitFrame: 30, mv: 5034, energy: 80, concerto: 159, offtune: 2532 },
+  ]});
+// "with at least 50 points of Full Stop, her Basic Attack cycle starts from Stage 2": a fresh press, and the
+// swap-in opener there (below 50 Basic 1 opens) — untested
+const BA2Start = BA2.variant(BA2.name, { input: Input.Basic, inputPriority: 1, position: Position.Grounded, lacks: DECIPHER, minForte2: 50 });
+BA2Start.formOf = BA2;
+// BOOMY BOOM!: "Press Normal Attack shortly after casting BOOMY BOOM! to cast Basic Attack Stage 3"
+const BA3 = sigrikaAction("Basic - One, Two, Three 3", { input: Input.Basic, inputPriority: 2, after: [BA2, Skill], animFrames: 44, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 8, mv: 3341, energy: 53, concerto: 105, offtune: 1680 },
+    { hitFrame: 16, mv: 3341, energy: 53, concerto: 105, offtune: 1680 },
+    { hitFrame: 34, mv: 4454, energy: 70, concerto: 140, offtune: 2240 },
+  ]});
+// the Dodge Counter: "Press Normal Attack shortly after casting Dodge Counter to cast Basic Attack Stage 4"
+const BA4 = sigrikaAction("Basic - One, Two, Three 4", {
+  input: Input.Basic, inputPriority: 2, after: [BA3, DC], animFrames: 78, animPriority: { 72: 1 }, castPriority: 2,
+  node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 22, mv: 4136, energy: 65, concerto: 130, offtune: 2080 },
+    { hitFrame: 28, mv: 5170, energy: 82, concerto: 163, offtune: 2600 },
+    { hitFrame: 46, mv: 5170, energy: 82, concerto: 163, offtune: 2600 },
+    // Decipher (Elucidated's window) opens on frame 60, not on the cast
+    { hitFrame: 60, element: null, type: null, subtype: null, updateDebuffs: () => applyCurrent(DECIPHER, 1) },
+    { hitFrame: 72, commitFrame: 60, mv: 6203, energy: 98, concerto: 195, offtune: 3120 },
+  ],
+});
+
 /** In This Very Moment carries no team buff on her own page (unlike most other kits' outros). */
 // wuwalab's priority is all 0 (missing): an Outro's usual 10, held its whole length
 const Outro = sigrikaAction("Outro - In This Very Moment", { animFrames: 48, castPriority: 10, cast: Cast.Outro, type: Type.Outro, bullets: [{ hitFrame: 18, mv: 79500 }], input: Input.Outro, minConcerto: 10000, castConcerto: -10000});
@@ -347,6 +358,12 @@ function gainsRune(): boolean {
  *  Full Stop. Both are read and spent by gainRune() below. */
 const CONVERGENT = new Buff({ name: "Sigrika: Convergent", duration: 60 * 20 });
 const DIVERGENT = new Buff({ name: "Sigrika: Divergent", duration: 60 * 20 });
+const EBA_C = doubled(EBA, 1, "Convergent"), EBA_D = doubled(EBA, 1, "Divergent");
+const EDC_C = doubled(EDC, 1, "Convergent"), EDC_D = doubled(EDC, 1, "Divergent");
+const ESkill_C = doubled(ESkill, 2, "Convergent"), ESkill_D = doubled(ESkill, 2, "Divergent");
+const ESkill50_C = doubled(ESkill50, 2, "Convergent"), ESkill50_D = doubled(ESkill50, 2, "Divergent");
+/** Every Rune-banking press: what Decipher ends on, and what S1 multiplies. */
+const RUNE_PRESSES = [EBA, EDC, ESkill, ESkill50, EBA_C, EDC_C, ESkill_C, ESkill50_C, EBA_D, EDC_D, ESkill_D, ESkill50_D];
 
 /** The Rune store, one packed word: bits 0-7 are four two-bit slots left to right (1 Trust,
  *  2 Answer, 3 Full Stop), bit 8 always set so an empty store is still a held buff. Hers from
@@ -390,7 +407,7 @@ function pushRune(kind: number): boolean {
   if (at >= 8) return false;
   const a = (word >> at) & 3, b = (word >> (at + 2)) & 3;
   const pair = !a ? kind : !b ? a | (kind << 2) : b | (kind << 2);
-  setStacksSelf(RUNES, (word & ~(0xf << at)) | (pair << at));
+  setRunes((word & ~(0xf << at)) | (pair << at));
   return !a || !b;
 }
 
@@ -459,7 +476,7 @@ const SIGRIKA_RESONATOR = new Resonator({
   element: Attribute.Aero,
   weapon: WeaponType.Gauntlets,
   color: "#e0aa7e",
-  actions: [BA1, BA2, BA2Start, BA3, BA4, MA, MDC, DC, HA, EBA, EDC, EBA_C, EBA_D, EDC_C, EDC_D, Skill, ESkill, ESkill50, ESkill_C, ESkill_D, ESkill50_C, ESkill50_D, FHA_BARE, FHA_OUTBURST, FHA_SOLISKIN, FHA_CHAIN_WHIP, FSkill, Liberation, Intro, Outro],
+  actions: [BA1, BA1.swapIn(), BA2, BA2Start, BA2Start.swapIn(), BA3, BA4, MA, MA.swapIn(), MDC, DC, HA, EBA, EDC, EBA_C, EBA_D, EDC_C, EDC_D, Skill, ESkill, ESkill50, ESkill_C, ESkill_D, ESkill50_C, ESkill50_D, FHA_BARE, FHA_OUTBURST, FHA_SOLISKIN, FHA_CHAIN_WHIP, FSkill, Liberation, Intro, Outro],
   maxEnergy: 12500,
   maxForte1: 2,
   maxForte2: 100,
@@ -529,7 +546,7 @@ const BA234_START = new ActionGroup("Basic - One, Two, Three 234", [BA2Start, BA
 const BA34 = new ActionGroup("Basic - One, Two, Three 34", [BA3, BA4]);
 
 const SR_ROTATION = new Rotation([
-  Intro, NAMELESS_EXPLORER, 
+  Intro, NAMELESS_EXPLORER,
   BA234, EBASIC.cancel(), FHA.cancel(), Liberation,
   BA234_START, EBASIC.cancel(), FHA.holdCancel(), FSkill,
   Skill, BA34, EBASIC.cancel(),
@@ -537,12 +554,12 @@ const SR_ROTATION = new Rotation([
 ]);
 
 const SR_ROTATION_DOUBLE = new Rotation([
-  START_LAST, BA1.instaCancel(), Liberation, 
+  START_LAST, BA1.instaCancel(), Liberation,
   Skill, BA34, EBASIC.instaSwap(),
 
-  Intro.inLastSlot(), NAMELESS_EXPLORER, FHA.dodgeCancel(),
+  Intro.inLastSlot(), NAMELESS_EXPLORER, FHA.dashCancel(),
   BA234, ESKILL, BA234, EBASIC.cancel(),
-  FHA.holdCancel(), FSkill, Liberation, 
+  FHA.holdCancel(), FSkill, Liberation,
   Skill, BA34, EBASIC.cancel(),
   Outro,
 ]);
@@ -550,7 +567,7 @@ const SR_ROTATION_DOUBLE = new Rotation([
 // TODO s2+ rotation
 
 const SR_ROTATION_FAST = new Rotation([
-  Intro, NAMELESS_EXPLORER, 
+  Intro, NAMELESS_EXPLORER,
   BA234, EBASIC.cancel(), FHA.cancel(), Liberation,
   BA234_START, EBASIC.cancel(), FHA.holdCancel(), FSkill,
   Outro,

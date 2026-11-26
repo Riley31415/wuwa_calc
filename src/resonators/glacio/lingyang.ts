@@ -112,17 +112,17 @@ const Outro = lingyangAction("Outro - Frosty Marks", {
   bullets: [{ hitFrame: 0, mv: 58794 }],
 });
 
-const BA1 = lingyangAction("Basic - Majestic Fists 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [BA1, BA2, BA3, BA4], position: Position.Grounded, yieldsTo: () => [StridingLionEntry], animFrames: 18, animPriority: { 0: 2, 6: 3, 18: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = lingyangAction("Basic - Majestic Fists 1", { input: Input.Basic, position: Position.Grounded, animFrames: 18, animPriority: { 0: 2, 6: 3, 18: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 11, mv: 5965, energy: 75, concerto: 150, offtune: 2400 },
   ]});
-const BA2 = lingyangAction("Basic - Majestic Fists 2", { input: Input.Basic, after: () => [BA1], animFrames: 24, animPriority: { 0: 2, 8: 3, 24: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA2 = lingyangAction("Basic - Majestic Fists 2", { input: Input.Basic, inputPriority: 1, after: [BA1], animFrames: 24, animPriority: { 0: 2, 8: 3, 24: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 12, mv: 7953, energy: 100, concerto: 200, offtune: 3200 },
   ]});
-const BA3 = lingyangAction("Basic - Majestic Fists 3", { input: Input.Basic, after: () => [BA2], animFrames: 48, animPriority: { 0: 2, 6: 3, 38: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = lingyangAction("Basic - Majestic Fists 3", { input: Input.Basic, inputPriority: 1, after: [BA2], animFrames: 48, animPriority: { 0: 2, 6: 3, 38: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 12, mv: 7287, energy: 91, concerto: 183, offtune: 2920 },
     { hitFrame: 29, mv: 7287, energy: 91, concerto: 183, offtune: 2920, updateDebuffs: furiousReady },
   ]});
-const BA4 = lingyangAction("Basic - Majestic Fists 4", { input: Input.Basic, after: () => [BA3], animFrames: 58, animPriority: { 0: 2, 2: 3, 54: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA4 = lingyangAction("Basic - Majestic Fists 4", { input: Input.Basic, inputPriority: 1, after: [BA3], animFrames: 58, animPriority: { 0: 2, 2: 3, 54: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 10, mv: 2041, energy: 25, concerto: 51, offtune: 818 },
     { hitFrame: 16, mv: 2041, energy: 25, concerto: 51, offtune: 818 },
     { hitFrame: 22, mv: 2041, energy: 25, concerto: 51, offtune: 818 },
@@ -131,35 +131,35 @@ const BA4 = lingyangAction("Basic - Majestic Fists 4", { input: Input.Basic, aft
     { hitFrame: 42, mv: 4372, energy: 54, concerto: 109, offtune: 1752, updateDebuffs: furiousReady },
   ]});
 // after Furious Punches, Basic Attack 5 is Feral Roars instead
-const BA5 = lingyangAction("Basic - Majestic Fists 5", { input: Input.Basic, after: () => [BA4], lacks: ROARS_READY, animFrames: 48, animPriority: { 0: 2, 10: 3, 48: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA5 = lingyangAction("Basic - Majestic Fists 5", { input: Input.Basic, inputPriority: 1, after: [BA4], animFrames: 48, animPriority: { 0: 2, 10: 3, 48: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 24, mv: 15249, energy: 191, concerto: 383, offtune: 6160, updateDebuffs: furiousReady },
   ]});
-const FeralRoars = lingyangAction("Basic - Feral Roars", { input: Input.Basic, after: () => [BA4], holds: ROARS_READY, animFrames: 56, animPriority: { 0: 2, 10: 3, 48: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const FeralRoars = lingyangAction("Basic - Feral Roars", { input: Input.Basic, inputPriority: 2, after: [BA4], holds: ROARS_READY, animFrames: 56, animPriority: { 0: 2, 10: 3, 48: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 7953, energy: 100, concerto: 200, offtune: 3200 },
     { hitFrame: 31, mv: 7953, energy: 100, concerto: 200, offtune: 3200, updateDebuffs: furiousReady },
   ],
   updateBuffs: () => revokeCurrent(ROARS_READY),
 });
 
-const HA = lingyangAction("Heavy - Majestic Fists", { input: Input.BasicHold, maxForte1: 99, animFrames: 51, animPriority: { 0: 3 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+const HA = lingyangAction("Heavy - Majestic Fists", { input: Input.BasicHold, animFrames: 51, animPriority: { 0: 3 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 22, mv: 14573, energy: 183, concerto: 366, offtune: 5840 },
   ]});
-const MA = lingyangAction("Mid-air - Majestic Fists Plunge", { input: [Input.Basic, Input.SwapIn], position: Position.Midair, lacks: STRIDING_LION, yieldsTo: () => [TailStrike], endPosition: Position.Grounded, animFrames: 38, animPriority: { 0: 3, 2: 9, 36: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MA = lingyangAction("Mid-air - Majestic Fists Plunge", { input: Input.Basic, position: Position.Midair, endPosition: Position.Grounded, animFrames: 38, animPriority: { 0: 3, 2: 9, 36: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 28, mv: 12327, energy: 51, concerto: 100, offtune: 4960 },
   ]});
-const DC = lingyangAction("Dodge Counter - Majestic Fists", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], animFrames: 49, animPriority: { 0: 8, 45: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const DC = lingyangAction("Dodge Counter - Majestic Fists", { input: Input.Basic, after: [SUCCESSFUL_DODGE], animFrames: 49, animPriority: { 0: 8, 45: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 8, mv: 12605, energy: 158, concerto: 167, offtune: 2672 },
     { hitFrame: 28, mv: 12605, energy: 158, concerto: 167, offtune: 2672 },
   ], castConcerto: 1000});
 
 // the Resonance Skill never resets the Basic Attack cycle: the next Basic follows the one before it
-const AncientArts = lingyangAction("Skill - Ancient Arts", { input: Input.Skill, lacks: FURIOUS_READY, yieldsTo: () => [Roamer, RoamerDiligent], animFrames: 43, animPriority: { 0: 2, 33: 2 }, castPriority: 2, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+const AncientArts = lingyangAction("Skill - Ancient Arts", { input: Input.Skill, animFrames: 43, animPriority: { 0: 2, 33: 2 }, castPriority: 2, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 20, mv: 13261, energy: 166, concerto: 333, offtune: 5360 },
   ],
   updateBuffs: () => chainAs(previousPress()),
 });
 // after Feral Roars, the cycle starts again from Basic Attack 3
-const FuriousPunches = lingyangAction("Skill - Furious Punches", { input: Input.Skill, holds: FURIOUS_READY, animFrames: 52, animPriority: { 0: 5, 42: 2 }, castPriority: 5, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+const FuriousPunches = lingyangAction("Skill - Furious Punches", { input: Input.Skill, inputPriority: 1, holds: FURIOUS_READY, animFrames: 52, animPriority: { 0: 5, 42: 2 }, castPriority: 5, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 18, mv: 7625, energy: 95, concerto: 191, offtune: 3080, updateDebuffs: () => { if (!isHeld(LIONS_SPIRIT_DRAIN)) addGain({ forte1: 20 }); } },
     { hitFrame: 24, commitFrame: 18, mv: 7625, energy: 95, concerto: 191, offtune: 3080 },
   ],
@@ -189,28 +189,28 @@ const LiberationS5 = lingyangAction("Liberation - Strive: Lion's Vigor (S5)", { 
 
 const ENTRY_HIT = { hitFrame: 24, mv: 17237, energy: 260, concerto: 260, offtune: 6960, updateDebuffs: startDrain };
 // wuwalab opens Diligent Practice's window on Glorious Plunge as on the Basic entry
-const GloriousPlunge = lingyangAction("Heavy - Glorious Plunge", { input: Input.BasicHold, minForte1: 100, endPosition: Position.Midair, animFrames: 54, animPriority: { 0: 3, 36: 3 }, castPriority: 3, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [ENTRY_HIT],
+const GloriousPlunge = lingyangAction("Heavy - Glorious Plunge", { input: Input.BasicHold, inputPriority: 1, minForte1: 100, endPosition: Position.Midair, animFrames: 54, animPriority: { 0: 3, 36: 3 }, castPriority: 3, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [ENTRY_HIT],
   updateBuffs: () => {
     applyCurrent(STRIDING_LION, 1);
     // if (isHeld(LY_INHERENT_2)) applyCurrent(DILIGENT_WINDOW, 1); // wuwalab is wrong, it shouldnt open the window
   },
 });
 // "After casting Lion Awakens or Strive: Lion's Vigor, if Lion's Spirit is full, use Basic Attack"
-const StridingLionEntry = lingyangAction("Basic - Striding Lion", { input: Input.Basic, after: () => [Intro, Liberation], minForte1: 100, endPosition: Position.Midair, animFrames: 54, animPriority: { 0: 4, 36: 3 }, castPriority: 4, node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, bullets: [ENTRY_HIT],
+const StridingLionEntry = lingyangAction("Basic - Striding Lion", { input: Input.Basic, inputPriority: 2, after: [Intro, Liberation], minForte1: 100, endPosition: Position.Midair, animFrames: 54, animPriority: { 0: 4, 36: 3 }, castPriority: 4, node: Node.Forte, cast: Cast.Basic, type: Type.Heavy, bullets: [ENTRY_HIT],
   updateBuffs: () => {
     applyCurrent(STRIDING_LION, 1);
     if (isHeld(LY_INHERENT_2)) applyCurrent(DILIGENT_WINDOW, 1);
   },
 });
 
-const FMA1 = lingyangAction("Mid-air - Feral Gyrate 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [FMA1], position: Position.Midair, minForte1: 10, holds: STRIDING_LION, valid: () => isHeld(STRIDING_LION) && forte1() >= 10, animFrames: 73, animPriority: { 0: 3, 61: 3 }, castPriority: 3, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
+const FMA1 = lingyangAction("Mid-air - Feral Gyrate 1", { input: Input.Basic, inputPriority: 2, position: Position.Midair, minForte1: 10, holds: STRIDING_LION, animFrames: 73, animPriority: { 0: 3, 61: 3 }, castPriority: 3, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 20, mv: 8708, energy: 175, concerto: 175, offtune: 2808 },
     { hitFrame: 32, mv: 8708, energy: 175, concerto: 175, offtune: 2808 },
     { hitFrame: 56, mv: 11611, energy: 233, concerto: 233, offtune: 3744 },
   ],
   updateBuffs: () => { if (isHeld(LY_INHERENT_2)) applyCurrent(DILIGENT_WINDOW, 1); },
 });
-const FMA2 = lingyangAction("Mid-air - Feral Gyrate 2", { input: Input.Basic, after: () => [FMA1], position: Position.Midair, minForte1: 10, holds: STRIDING_LION, animFrames: 72, animPriority: { 0: 3, 62: 3 }, castPriority: 3, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
+const FMA2 = lingyangAction("Mid-air - Feral Gyrate 2", { input: Input.Basic, inputPriority: 3, after: [FMA1], position: Position.Midair, minForte1: 10, holds: STRIDING_LION, animFrames: 72, animPriority: { 0: 3, 62: 3 }, castPriority: 3, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 12, mv: 3177, energy: 63, concerto: 63, offtune: 1027 },
     { hitFrame: 22, mv: 3177, energy: 63, concerto: 63, offtune: 1027 },
     { hitFrame: 30, mv: 3177, energy: 63, concerto: 63, offtune: 1027 },
@@ -221,7 +221,7 @@ const FMA2 = lingyangAction("Mid-air - Feral Gyrate 2", { input: Input.Basic, af
   updateBuffs: () => { if (isHeld(LY_INHERENT_2)) applyCurrent(DILIGENT_WINDOW, 1); },
 });
 // below 10 Lion's Spirit the Basic is Stormy Kicks, which ends the stance (the drain runs on)
-const StormyKicks = lingyangAction("Mid-air - Stormy Kicks", { input: [Input.Basic, Input.SwapIn], position: Position.Midair, maxForte1: 9, holds: STRIDING_LION, valid: () => isHeld(STRIDING_LION) && forte1() < 10, animFrames: 128, animPriority: { 0: 6, 126: 0 }, castPriority: 6, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
+const StormyKicks = lingyangAction("Mid-air - Stormy Kicks", { input: Input.Basic, inputPriority: 1, position: Position.Midair, holds: STRIDING_LION, maxForte1: 9, animFrames: 128, animPriority: { 0: 6, 126: 0 }, castPriority: 6, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 36, mv: 3603, energy: 72, concerto: 72, offtune: 1158 },
     { hitFrame: 44, mv: 3603, energy: 72, concerto: 72, offtune: 1158 },
     { hitFrame: 48, mv: 3603, energy: 72, concerto: 72, offtune: 1158 },
@@ -239,7 +239,7 @@ const Dismount = lingyangAction("Jump - Dismount", { input: Input.Jump, holds: S
   updateBuffs: () => revokeCurrent(STRIDING_LION),
 });
 // "use Basic Attack after Heavy Attack" (Lion's Spirit not full), or after Stormy Kicks
-const TailStrike = lingyangAction("Mid-air - Tail Strike", { input: Input.Basic, after: () => [HA, StormyKicks], maxForte1: 99, endPosition: Position.Grounded, animFrames: 94, animPriority: { 0: 3, 2: 9, 37: 2 }, castPriority: 3, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
+const TailStrike = lingyangAction("Mid-air - Tail Strike", { input: Input.Basic, inputPriority: 1, after: [HA, StormyKicks], endPosition: Position.Grounded, animFrames: 94, animPriority: { 0: 3, 2: 9, 37: 2 }, castPriority: 3, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 24, mv: 17496, energy: 73, concerto: 146, offtune: 7040 },
     { hitFrame: 57, mv: 17496, energy: 73, concerto: 146, offtune: 7040 },
   ],
@@ -261,19 +261,6 @@ const roamerCast = (): void => {
 };
 // S6's bonus lands with Mountain Roamer's first hit (wuwalab grant_s6_basic_bonus, frame 18)
 const s6Grant = (): void => { if (isHeld(LY_S6)) applyCurrent(DEMONS_TREMBLE, 1); };
-const Roamer = lingyangAction("Skill - Mountain Roamer", { input: Input.Skill, position: Position.Midair, holds: STRIDING_LION, lacks: DILIGENT_WINDOW, animFrames: 46, animPriority: { 0: 4, 33: 3 }, castPriority: 4, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, bullets: [
-    { hitFrame: 18, ...ROAMER_HIT, updateDebuffs: s6Grant },
-    { hitFrame: 30, commitFrame: 18, ...ROAMER_HIT },
-  ],
-  updateBuffs: roamerCast,
-});
-const RoamerDiligent = lingyangAction("Skill - Mountain Roamer (Diligent Practice)", { input: Input.Skill, position: Position.Midair, holds: DILIGENT_WINDOW, animFrames: 46, animPriority: { 0: 4, 33: 3 }, castPriority: 4, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, bullets: [
-    { hitFrame: 18, ...ROAMER_HIT, updateDebuffs: s6Grant },
-    { hitFrame: 25, mv: 24864, energy: 100, concerto: 100 },
-    { hitFrame: 30, commitFrame: 18, ...ROAMER_HIT },
-  ],
-  updateBuffs: roamerCast,
-});
 const MountainRoamer = new Action("Mountain Roamer Resolver", { cast: Cast.Skill, resolve: () => (isHeld(DILIGENT_WINDOW) ? RoamerDiligent : Roamer) });
 
 /* ------------------------------------------------------------------------------------ gear */
@@ -329,6 +316,19 @@ const DEMONS_TREMBLE: Buff = new Buff({
   afterAction: () => { if (casting(Cast.Basic)) revokeCurrent(DEMONS_TREMBLE); },
 });
 const LY_S6 = new Sequence({ name: "Lingyang S6: Demons Tremble, Divine Power Nigh" });
+const Roamer = lingyangAction("Skill - Mountain Roamer", { input: Input.Skill, inputPriority: 1, position: Position.Midair, holds: STRIDING_LION, animFrames: 46, animPriority: { 0: 4, 33: 3 }, castPriority: 4, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, bullets: [
+    { hitFrame: 18, ...ROAMER_HIT, updateDebuffs: s6Grant },
+    { hitFrame: 30, commitFrame: 18, ...ROAMER_HIT },
+  ],
+  updateBuffs: roamerCast,
+});
+const RoamerDiligent = lingyangAction("Skill - Mountain Roamer (Diligent Practice)", { input: Input.Skill, inputPriority: 2, position: Position.Midair, holds: DILIGENT_WINDOW, animFrames: 46, animPriority: { 0: 4, 33: 3 }, castPriority: 4, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, bullets: [
+    { hitFrame: 18, ...ROAMER_HIT, updateDebuffs: s6Grant },
+    { hitFrame: 25, mv: 24864, energy: 100, concerto: 100 },
+    { hitFrame: 30, commitFrame: 18, ...ROAMER_HIT },
+  ],
+  updateBuffs: roamerCast,
+});
 
 // wuwalab: the Tune Break leaves Striding Lion (leave_striding_lion), the drain running on
 const LY_TB_BASE = tuneBreak(94, 94, [0, 94], [0, 70], [[72, 160000]]);
@@ -350,7 +350,7 @@ const LINGYANG_RESONATOR = new Resonator({
   element: Attribute.Glacio,
   weapon: WeaponType.Gauntlets,
   color: "#a89a8e",
-  actions: [Intro, Outro, BA1, BA2, BA3, BA4, BA5, FeralRoars, HA, MA, DC, AncientArts, FuriousPunches, Liberation, GloriousPlunge, StridingLionEntry, FMA1, FMA2, StormyKicks, Dismount, TailStrike, Roamer, RoamerDiligent, LY_TUNE_BREAK],
+  actions: [Intro, Outro, BA1, BA1.swapIn(), BA2, BA3, BA4, BA5, FeralRoars, HA, MA, MA.swapIn(), DC, AncientArts, FuriousPunches, Liberation, GloriousPlunge, StridingLionEntry, FMA1, FMA1.swapIn(), FMA2, StormyKicks, StormyKicks.swapIn(), Dismount, TailStrike, Roamer, RoamerDiligent, LY_TUNE_BREAK],
   maxEnergy: 12500,
   maxForte1: 100,
   tier: Rarity.FreeS0,
@@ -363,8 +363,8 @@ const LINGYANG_RESONATOR = new Resonator({
 const FMA12 = new ActionGroup("Mid-air - Feral Gyrate 12", [FMA1, FMA2]);
 
 const LY_ROTATION_BASIC = new Rotation([
-  Intro, MECH_ABOMINATION, SENTRY_CONSTRUCT, LAMPYLUMEN_MYRIAD_1, LAMPYLUMEN_MYRIAD_2, LAMPYLUMEN_MYRIAD_3.dodgeCancel(), 
-  Liberation, StridingLionEntry, 
+  Intro, MECH_ABOMINATION, SENTRY_CONSTRUCT, LAMPYLUMEN_MYRIAD_1, LAMPYLUMEN_MYRIAD_2, LAMPYLUMEN_MYRIAD_3.dashCancel(),
+  Liberation, StridingLionEntry,
   // best Striding Lion fill for Sanhua + Shorekeeper (window search, 31068 team DPS)
   FMA1.hitCancel(), MountainRoamer, FMA2.instaCancel(), MountainRoamer,
   FMA1.hitCancel(), MountainRoamer, FMA2.instaCancel(), MountainRoamer,

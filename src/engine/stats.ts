@@ -211,20 +211,14 @@ export const enum Rarity {
  *  whoever intros next (an outro handoff, `queueOutro`). */
 export const enum BuffTarget { Self, Team, Enemy, Next }
 
-/** Input timings, in frames. A cut press runs on past its cut: a plain (dodge, jump, on-hit) cancel for
- *  `cancel`, an insta cut or insta swap for `insta`, a swap cancel for `swap` — and a plain SWAP written after a
- *  press played out hands over `swap` later too. A hold cancel lets go the moment the next press can come out,
- *  never inside its `hold` minimum; a mash cancel's input lands `mash` after that moment, and a mash swap swaps
- *  out `mash` after its no-swap frames end. */
-export interface Delays { cancel: number; insta: number; hold: number; mash: number }
-let BASE_DELAYS: Delays = { cancel: 10, insta: 6, mash: 6, hold: 0 };
+/** Input timings, in frames: how late a precise input lands past its aim, how long a mashed one takes once
+ *  the next press can come out, and how long a press is held before it becomes a held input. */
+export interface Delays { precision: number; mash: number; holdBuffer: number }
+let BASE_DELAYS: Delays = { precision: 10, mash: 5, holdBuffer: 17 };
 /** The set in effect — the defaults, or a rotation's own while its member presses (`useDelays()`) — one
  *  object per set, so a cache made under one can tell it no longer stands; and each of it by name. */
 export let DELAYS: Delays = BASE_DELAYS;
-export let CANCEL_DELAY = BASE_DELAYS.cancel, INSTA_DELAY = BASE_DELAYS.insta;
-export let HOLD_MINIMUM = BASE_DELAYS.hold, MASH_DELAY = BASE_DELAYS.mash;
-/** How long ahead a held input may be pressed and still come out: unused for now. */
-export const HOLD_BUFFER = 17;
+export let INPUT_PRECISION = BASE_DELAYS.precision, MASH_SPEED = BASE_DELAYS.mash, HOLD_BUFFER = BASE_DELAYS.holdBuffer;
 
 /** The defaults with `d` laid over them, a key left undefined keeping its default: a rotation's own set
  *  (`Rotation.withDelays()`). */
@@ -232,8 +226,8 @@ export const delaysWith = (d: Partial<Delays>): Delays =>
   ({ ...BASE_DELAYS, ...Object.fromEntries(Object.entries(d).filter(([, v]) => v !== undefined)) });
 /** A member's delays: their rotation's own, else the defaults. */
 export const delaysOf = (d: Delays | null): Delays => d ?? BASE_DELAYS;
-/** Replace the defaults for a test run (`setDelays({ cancel: 1, insta: 1 })`). Call it before the kits load:
- *  an insta or on-hit cut keeps the bullets committed by its delay when its rotation is built. */
+/** Replace the defaults for a test run (`setDelays({ precision: 1 })`). Call it before the kits load:
+ *  an instant or on-hit cut keeps the bullets committed by its delay when its rotation is built. */
 export function setDelays(d: Partial<Delays>): void {
   BASE_DELAYS = delaysWith(d);
   useDelays(null);
@@ -243,7 +237,7 @@ export function useDelays(d: Delays | null): void {
   const at = delaysOf(d);
   if (at === DELAYS) return;
   DELAYS = at;
-  ({ cancel: CANCEL_DELAY, insta: INSTA_DELAY, hold: HOLD_MINIMUM, mash: MASH_DELAY } = at);
+  ({ precision: INPUT_PRECISION, mash: MASH_SPEED, holdBuffer: HOLD_BUFFER } = at);
 }
 /** `f` with `d` in effect, the set before it put back after: what reads a press's cut after its run (the
  *  page's frames) or ahead of it (a visit planned at a handoff). */
@@ -276,34 +270,80 @@ export const FULL_CONCERTO = 100 * CONCERTO_UNIT;
  *  1 for every other. */
 export const statDisplayScale = (stat: Stat | EnemyStat): number => (stat === Stat.AddMv ? MV_UNIT : 1);
 
-/** An action's one tag — the one its row carries, and what `cancelCost()` charges. Whether its
- *  owner is on field is the engine's (`State.onField`), not the tag's: `OffField` is a press beside
- *  the fight (a summon, a coordinated hit), which no chain or position check reads. */
-export enum ActionTag {
-  Default = "",
-  OffField = "off field",
+/** How one press hands over to the next — what a rotation writes (`.cancel()`, `.mashSwap()`, ...) and its row's
+ *  tag box reads: a kind (`KIND_OF`) through an input (`VIA_OF`). Every press has one (`Action.transition`). */
+export enum Transition {
+  /** No transition written: the next press starts once this one ends, no delay — until transitions are detected. */
+  Temporary = "",
+  /** Played out into a press it chains into, no delay: invisible. Not detected yet (`Temporary`). */
+  Chain = "chain",
 
-  MashCancel = "mash cancel", // the next press, not a held one, mashed in: out the moment it can be cast
-  MashSwap = "mash swap", // swapped out of MASH_DELAY after its no-swap frames end
-
-  HoldCancel = "hold cancel", // the next press, a held one, held through it: out the moment it can be cast
-
+  // aimed at the last bullet's commit, `INPUT_PRECISION` later
   Cancel = "cancel",
-  DodgeCancel = "dodge cancel",
+  DashCancel = "dash cancel",
   JumpCancel = "jump cancel",
-  SwapCancel = "swap cancel", // swapped out of at its last commit, never inside its no-swap frames
+  SwapCancel = "swap cancel",
 
+  // aimed at frame 0, `INPUT_PRECISION` later
   InstaCancel = "instant cancel",
-  InstaDodge = "instant dodge",
+  InstaDash = "instant dash",
   InstaJump = "instant jump",
   InstaSwap = "instant swap",
 
-  HitCancel = "cancel on hit",
-  DodgeOnHit = "dodge on hit",
-  JumpOnHit = "jump on hit",
+  // out the moment the next press can be cast (no sooner than `INPUT_PRECISION`), `MASH_SPEED` later
+  MashCancel = "mash cancel",
+  MashDash = "mash dash",
+  MashJump = "mash jump",
+  MashSwap = "mash swap",
 
-  TimedCancel = "timed cancel", // the next press input at a written frame, no delay after it
+  // held into a held input, out the moment it can be cast (no sooner than `INPUT_PRECISION + HOLD_BUFFER`), no delay
+  HoldCancel = "hold cancel",
+
+  // aimed at the first bullet's hit, `INPUT_PRECISION` later
+  HitCancel = "hit cancel",
+  HitDash = "hit dash",
+  HitJump = "hit jump",
+  HitSwap = "hit swap",
+
+  // at a written frame exactly, no delay
+  TimedCancel = "timed cancel",
 }
+
+/** When a press means to hand over to the next (`.instant()`, `.firstHit()`, `.timed(n)`; `LastCommit` unwritten):
+ *  the engine solves the cut from it and the next press. */
+export enum Timing { LastCommit = "lastcommit", Instant = "instant", FirstHit = "firsthit", Timed = "timed" }
+
+/** When an old written transition's next press starts: what its frame aims at, and the delay after. */
+export type TransitionKind = "temporary" | "chain" | "lastcommit" | "instant" | "mash" | "hold" | "onhit" | "timed";
+export const KIND_OF: Record<Transition, TransitionKind> = {
+  [Transition.Temporary]: "temporary", [Transition.Chain]: "chain",
+  [Transition.Cancel]: "lastcommit", [Transition.DashCancel]: "lastcommit", [Transition.JumpCancel]: "lastcommit", [Transition.SwapCancel]: "lastcommit",
+  [Transition.InstaCancel]: "instant", [Transition.InstaDash]: "instant", [Transition.InstaJump]: "instant", [Transition.InstaSwap]: "instant",
+  [Transition.MashCancel]: "mash", [Transition.MashDash]: "mash", [Transition.MashJump]: "mash", [Transition.MashSwap]: "mash",
+  [Transition.HoldCancel]: "hold",
+  [Transition.HitCancel]: "onhit", [Transition.HitDash]: "onhit", [Transition.HitJump]: "onhit", [Transition.HitSwap]: "onhit",
+  [Transition.TimedCancel]: "timed",
+};
+
+/** The input a transition's next press comes out on: the next press itself, or a dash, jump or swap put in ahead of it. */
+export const enum Via { Next, Dash, Jump, Swap }
+export const VIA_OF: Record<Transition, Via> = {
+  [Transition.Temporary]: Via.Next, [Transition.Chain]: Via.Next,
+  [Transition.Cancel]: Via.Next, [Transition.DashCancel]: Via.Dash, [Transition.JumpCancel]: Via.Jump, [Transition.SwapCancel]: Via.Swap,
+  [Transition.InstaCancel]: Via.Next, [Transition.InstaDash]: Via.Dash, [Transition.InstaJump]: Via.Jump, [Transition.InstaSwap]: Via.Swap,
+  [Transition.MashCancel]: Via.Next, [Transition.MashDash]: Via.Dash, [Transition.MashJump]: Via.Jump, [Transition.MashSwap]: Via.Swap,
+  [Transition.HoldCancel]: Via.Next,
+  [Transition.HitCancel]: Via.Next, [Transition.HitDash]: Via.Dash, [Transition.HitJump]: Via.Jump, [Transition.HitSwap]: Via.Swap,
+  [Transition.TimedCancel]: Via.Next,
+};
+/** A swap form: the press swapped out of, playing on behind the swap. */
+export const isSwapTransition = (t: string): boolean => VIA_OF[t as Transition] === Via.Swap;
+/** A transition that waits for the next press (a dash or jump included) to come out — a hold, or a mash that isn't a swap. */
+export const waitsForNext = (t: string): boolean =>
+  KIND_OF[t as Transition] === "hold" || (KIND_OF[t as Transition] === "mash" && t !== Transition.MashSwap);
+/** The instant transition through the same input as `t`, as a rotation writes it. */
+export const instaOf = (t: Transition): string =>
+  [".instaCancel()", ".instaDash()", ".instaJump()", ".instaSwap()"][VIA_OF[t]]!;
 
 /** Cast identities with no damage type of their own (a Dodge Counter deals whatever `type` says);
  *  kept out of `Type` so they can't be reached for `type`/`subtype` by mistake. */
@@ -317,13 +357,14 @@ export const enum Cast {
   Outro,
   Echo,
   TuneBreak,
-  Dodge,
+  Dash,
   Jump,
   None, // a field's hit, a queued follow-up, a tick — nobody's cast
 }
 
 /** What leads to a press (`ActionDef.input`): a tap or a hold of Basic, Skill or Liberation, one of the rest,
- *  `SwapIn` — arriving with no Intro — or `None`, nobody's press (a field's hit, a queued follow-up, a tick).
+ *  `SuccessfulDodge` — a dash that dodged an attack, which a rotation writes where it happens — `SwapIn` — arriving
+ *  with no Intro — or `None`, nobody's press (a field's hit, a queued follow-up, a tick).
  *  A hold is a held input (`Action.heldInput`). */
 export const enum Input {
   Basic,
@@ -333,7 +374,8 @@ export const enum Input {
   Liberation,
   LiberationHold,
   Echo,
-  Dodge,
+  Dash,
+  SuccessfulDodge,
   TuneBreak,
   Jump,
   Intro,
@@ -343,13 +385,13 @@ export const enum Input {
 }
 export const INPUT_NAME: Record<Input, string> = {
   [Input.Basic]: "Basic", [Input.BasicHold]: "Basic (Hold)", [Input.Skill]: "Skill", [Input.SkillHold]: "Skill (Hold)",
-  [Input.Liberation]: "Liberation", [Input.LiberationHold]: "Liberation (Hold)", [Input.Echo]: "Echo", [Input.Dodge]: "Dodge",
+  [Input.Liberation]: "Liberation", [Input.LiberationHold]: "Liberation (Hold)", [Input.Echo]: "Echo", [Input.Dash]: "Dash", [Input.SuccessfulDodge]: "Successful Dodge",
   [Input.TuneBreak]: "Tune Break", [Input.Jump]: "Jump", [Input.Intro]: "Intro", [Input.Outro]: "Outro", [Input.SwapIn]: "Swap In",
   [Input.None]: "None",
 };
 /** Every input a press can be made on, in enum order (`None` aside). */
 export const INPUTS: readonly Input[] = [Input.Basic, Input.BasicHold, Input.Skill, Input.SkillHold, Input.Liberation, Input.LiberationHold,
-  Input.Echo, Input.Dodge, Input.TuneBreak, Input.Jump, Input.Intro, Input.Outro, Input.SwapIn];
+  Input.Echo, Input.Dash, Input.SuccessfulDodge, Input.TuneBreak, Input.Jump, Input.Intro, Input.Outro, Input.SwapIn];
 /** The held inputs: what a hold cancel holds into and a mash cancel may never go into. */
 export const isHeldInput = (input: Input): boolean =>
   input === Input.BasicHold || input === Input.SkillHold || input === Input.LiberationHold;
@@ -357,7 +399,7 @@ export const isHeldInput = (input: Input): boolean =>
 export const CAST_NAME: Record<Cast, string> = {
   [Cast.DodgeCounter]: "Dodge Counter", [Cast.Basic]: "Basic", [Cast.Heavy]: "Heavy", [Cast.Skill]: "Skill",
   [Cast.Liberation]: "Liberation", [Cast.Intro]: "Intro", [Cast.Outro]: "Outro", [Cast.Echo]: "Echo",
-  [Cast.TuneBreak]: "Tune Break", [Cast.Dodge]: "Dodge", [Cast.Jump]: "Jump",
+  [Cast.TuneBreak]: "Tune Break", [Cast.Dash]: "Dash", [Cast.Jump]: "Jump", [Cast.None]: "None",
 };
 
 /** Which branch of the kit a cast comes from (forte circuit vs liberation vs ordinary attacks),

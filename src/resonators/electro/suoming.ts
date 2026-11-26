@@ -71,9 +71,9 @@ import {
   concerto,
   grounded,
 } from "../../engine/context.js";
-import { Action, ActionField, ActionGroup, Rotation, SWAPIN, ActionTag, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { Action, ActionField, ActionGroup, Rotation, SWAPIN, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
 import { tuneBreak, SWORD_BREAK } from "../tunebreak.js";
-import { NINE_SHADOWS, UNISON, UNISON_BOON, BOON_REACTOR, grantBoon, takeBoon, respondToUnison, unisonIntro, unisonOutro, unisonResponse } from "../unison.js";
+import { NINE_SHADOWS, UNISON, UNISON_BOON, BOON_REACTOR, grantBoon, takeBoon, respondToUnison, unisonIntro, unisonOutro, unisonResponse, UNISON_HANDOFF } from "../unison.js";
 import { RED_SPRING, UNSPOKEN_RUE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
@@ -100,71 +100,14 @@ function suomingAction(id: string, def: object): Action {
 }
 
 // --- Furled Canopy, the Awakened Mind chain
-const BA1 = suomingAction("Basic - Furled Canopy 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [BA1, BA2, RiftCleaver, DC, CrimsonGleamParry], position: Position.Grounded, holds: AWAKENED_MIND, valid: () => !isHeld(DEEP_MIND), animFrames: 24, castPriority: 2, bullets: [{ hitFrame: 10, mv: 3155, energy: 191, concerto: 159, offtune: 3174, forte1: 120 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
-// Rift Cleaver: "While in the Awakened Mind state, press Normal Attack shortly after casting this skill to cast Basic Attack Stage 2"
-const BA2 = suomingAction("Basic - Furled Canopy 2", { input: Input.Basic, after: () => [BA1, RiftCleaver], holds: AWAKENED_MIND, animFrames: 47, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 14, mv: 1573, energy: 95, concerto: 80, offtune: 1583, forte1: 40 },
-    { hitFrame: 19, commitFrame: 14, mv: 1573, energy: 95, concerto: 80, offtune: 1583, forte1: 40 },
-    { hitFrame: 31, mv: 3146, energy: 190, concerto: 159, offtune: 3165, forte1: 80 },
-  ]});
-// out of the Dodge Counter and Crimson Gleam as well, by their own text
-const BA3 = suomingAction("Basic - Furled Canopy 3", { input: Input.Basic, after: () => [BA2, DC, CrimsonGleamParry], holds: AWAKENED_MIND, animFrames: 82, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 16, mv: 2201, energy: 133, concerto: 111, offtune: 2214, forte1: 36 },
-    { hitFrame: 21, commitFrame: 16, mv: 2201, energy: 133, concerto: 111, offtune: 2214, forte1: 36 },
-    { hitFrame: 27, commitFrame: 16, mv: 2201, energy: 133, concerto: 111, offtune: 2214, forte1: 36 },
-    { hitFrame: 63, mv: 4402, energy: 266, concerto: 222, offtune: 4428, forte1: 72 },
-  ]});
-const MA = suomingAction("Mid-air - Furled Canopy Plunge", { input: [Input.Basic, Input.SwapIn], position: Position.Midair, endPosition: Position.Grounded, animFrames: 41, animPriority: { 40: 2 }, castPriority: 4, bullets: [{ hitFrame: 29, mv: 8420, energy: 509, concerto: 424, offtune: 8470 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
-const DC = suomingAction("Dodge Counter - Furled Canopy", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], holds: AWAKENED_MIND, animFrames: 47, animPriority: { 0: 2 }, castPriority: 7, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const BA1 = suomingAction("Basic - Furled Canopy 1", { input: Input.Basic, position: Position.Grounded, holds: AWAKENED_MIND, lacks: DEEP_MIND, animFrames: 24, castPriority: 2, bullets: [{ hitFrame: 10, mv: 3155, energy: 191, concerto: 159, offtune: 3174, forte1: 120 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
+const MA = suomingAction("Mid-air - Furled Canopy Plunge", { input: Input.Basic, position: Position.Midair, endPosition: Position.Grounded, animFrames: 41, animPriority: { 40: 2 }, castPriority: 4, bullets: [{ hitFrame: 29, mv: 8420, energy: 509, concerto: 424, offtune: 8470 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
+const DC = suomingAction("Dodge Counter - Furled Canopy", { input: Input.Basic, after: [SUCCESSFUL_DODGE], holds: AWAKENED_MIND, animFrames: 47, animPriority: { 0: 2 }, castPriority: 7, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 2766, energy: 167, concerto: 140, offtune: 2783, forte1: 40 },
     { hitFrame: 19, commitFrame: 14, mv: 2766, energy: 167, concerto: 140, offtune: 2783, forte1: 40 },
     { hitFrame: 31, mv: 5532, energy: 334, concerto: 279, offtune: 5565, forte1: 80 },
   ], castConcerto: 1000});
-
-// --- Unfurled Canopy, the Deep Mind chain, and Whirling Thunder held out of its stage 2
-const UBA1 = suomingAction("Basic - Unfurled Canopy 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [UBA1, UBA2, UBA3, RiftCleaver, UDC, CrimsonGleamParry, UHA1, IntroThunderRending, IntroWhirlingThunder], position: Position.Grounded, holds: DEEP_MIND, lacks: ENGRAVED_HEART_READY, valid: () => isHeld(DEEP_MIND), animFrames: 39, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 23, mv: 6542, energy: 158, concerto: 132, offtune: 3949, forte1: 60 },
-    { hitFrame: 31, mv: 3271, energy: 79, concerto: 66, offtune: 1975, forte1: 30 },
-    { hitFrame: 35, commitFrame: 31, mv: 3271, energy: 79, concerto: 66, offtune: 1975, forte1: 30 },
-  ]});
-// Seal Master's Stage 4 -> Stage 2 loop is a saved chain (SEAL_MASTER)
-const UBA2 = suomingAction("Basic - Unfurled Canopy 2", { input: Input.Basic, after: () => [UBA1], holds: DEEP_MIND, lacks: ENGRAVED_HEART_READY, animFrames: 68, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 12, mv: 11440, energy: 277, concerto: 231, offtune: 6905, forte1: 80 },
-    { hitFrame: 37, mv: 3814, energy: 93, concerto: 77, offtune: 2302, forte1: 27 },
-    { hitFrame: 43, commitFrame: 37, mv: 3814, energy: 93, concerto: 77, offtune: 2302, forte1: 27 },
-    { hitFrame: 49, commitFrame: 37, mv: 3814, energy: 93, concerto: 77, offtune: 2302, forte1: 27 },
-  ]});
-// Deep Mind's Rift Cleaver and Dodge Counter "chain into Basic Attack - Unfurled Canopy Stage 3"
-const UBA3 = suomingAction("Basic - Unfurled Canopy 3", { input: Input.Basic, after: () => [UBA2, RiftCleaver, UDC], holds: DEEP_MIND, lacks: ENGRAVED_HEART_READY, animFrames: 70, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 30, mv: 5864, energy: 142, concerto: 118, offtune: 3540, forte1: 45 },
-    { hitFrame: 35, commitFrame: 30, mv: 5864, energy: 142, concerto: 118, offtune: 3540, forte1: 45 },
-    { hitFrame: 50, mv: 5864, energy: 142, concerto: 118, offtune: 3540, forte1: 45 },
-    { hitFrame: 60, commitFrame: 50, mv: 5864, energy: 142, concerto: 118, offtune: 3540, forte1: 45 },
-  ]});
-const UBA4 = suomingAction("Basic - Unfurled Canopy 4", { input: Input.Basic, after: () => [UBA3, CrimsonGleamParry], holds: DEEP_MIND, lacks: ENGRAVED_HEART_READY, animFrames: 115, animPriority: { 0: 4, 103: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 15, mv: 10725, energy: 259, concerto: 216, offtune: 6474, forte1: 54 },
-    { hitFrame: 53, mv: 10725, energy: 259, concerto: 216, offtune: 6474, forte1: 54 },
-    { hitFrame: 95, mv: 4767, energy: 116, concerto: 96, offtune: 2878, forte1: 24 },
-    { hitFrame: 102, mv: 4767, energy: 116, concerto: 96, offtune: 2878, forte1: 24 },
-    { hitFrame: 109, mv: 4767, energy: 116, concerto: 96, offtune: 2878, forte1: 24 },
-  ]});
-// held out of Stage 2 or Dodge Counter - Unfurled Canopy
-const UHA1 = suomingAction("Heavy - Unfurled Canopy: Whirling Thunder 1", { input: Input.BasicHold, after: () => [UBA2, UDC], holds: DEEP_MIND, lacks: ENGRAVED_HEART_READY, animFrames: 88, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 11, mv: 7332, energy: 177, concerto: 148, offtune: 4425, forte1: 45 },
-    { hitFrame: 27, mv: 3666, energy: 89, concerto: 74, offtune: 2213, forte1: 23 },
-    { hitFrame: 30, commitFrame: 27, mv: 3666, energy: 89, concerto: 74, offtune: 2213, forte1: 23 },
-    { hitFrame: 38, mv: 7332, energy: 177, concerto: 148, offtune: 4425, forte1: 45 },
-    { hitFrame: 63, mv: 7332, energy: 177, concerto: 148, offtune: 4425, forte1: 45 },
-  ]});
-// both Unfurled Intros "chain into Basic Attack - Unfurled Canopy: Whirling Thunder Stage 2"
-const UHA2 = suomingAction("Heavy - Unfurled Canopy: Whirling Thunder 2", { input: Input.BasicHold, after: () => [UHA1, IntroThunderRending, IntroWhirlingThunder], holds: DEEP_MIND, lacks: ENGRAVED_HEART_READY, animFrames: 85, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 33, mv: 5669, energy: 137, concerto: 115, offtune: 3422, forte1: 36 },
-    { hitFrame: 38, commitFrame: 33, mv: 5669, energy: 137, concerto: 115, offtune: 3422, forte1: 36 },
-    { hitFrame: 43, commitFrame: 33, mv: 5669, energy: 137, concerto: 115, offtune: 3422, forte1: 36 },
-    { hitFrame: 48, commitFrame: 33, mv: 5669, energy: 137, concerto: 115, offtune: 3422, forte1: 36 },
-    { hitFrame: 52, commitFrame: 33, mv: 5669, energy: 137, concerto: 115, offtune: 3422, forte1: 36 },
-  ]});
-const UDC = suomingAction("Dodge Counter - Unfurled Canopy", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], holds: DEEP_MIND, animFrames: 68, animPriority: { 0: 2 }, castPriority: 7, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const UDC = suomingAction("Dodge Counter - Unfurled Canopy", { input: Input.Basic, after: [SUCCESSFUL_DODGE], holds: DEEP_MIND, animFrames: 68, animPriority: { 0: 2 }, castPriority: 7, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 12, mv: 17404, energy: 421, concerto: 351, offtune: 7004, forte1: 80 },
     { hitFrame: 37, mv: 5802, energy: 141, concerto: 117, offtune: 2335, forte1: 27 },
     { hitFrame: 43, commitFrame: 37, mv: 5802, energy: 141, concerto: 117, offtune: 2335, forte1: 27 },
@@ -175,7 +118,7 @@ const UDC = suomingAction("Dodge Counter - Unfurled Canopy", { input: Input.Basi
 //     it, her Unison Boon stack, 20 Concerto, and every point of Delusion, for Seal Master (see SUNKEN_SEAL below).
 //     Crimson Gleam is the follow-up a counter-cast Rift Cleaver triggers, which needs the target
 //     to attack into it — left for a rotation to name.
-const RiftCleaver = suomingAction("Skill - Furled Canopy: Rift Cleaver", { input: Input.Skill, maxForte1: 799, lacks: ENGRAVED_HEART_READY, animFrames: 42, animPriority: { 40: 2 }, castPriority: 4, bullets: [{ hitFrame: 21, commitFrame: 0, mv: 10661, energy: 368, concerto: 307, offtune: 6128 }], cooldown: 60 * 8,
+const RiftCleaver = suomingAction("Skill - Furled Canopy: Rift Cleaver", { input: Input.Skill, lacks: ENGRAVED_HEART_READY, animFrames: 42, animPriority: { 40: 2 }, castPriority: 4, bullets: [{ hitFrame: 21, commitFrame: 0, mv: 10661, energy: 368, concerto: 307, offtune: 6128 }], cooldown: 60 * 8,
   node: Node.Skill, cast: Cast.Skill, type: Type.Skill,
   updateBuffs: () => {
     if (!isHeld(UNISON)) return;
@@ -188,11 +131,24 @@ const RiftCleaver = suomingAction("Skill - Furled Canopy: Rift Cleaver", { input
     if (!isHeld(ALIGNED_SEALS)) applyCurrent(SEAL_MASTER, 1);
   },
 });
-const CrimsonGleamParry = suomingAction("Skill - Unfurled Canopy: Crimson Gleam", { input: Input.Skill, after: () => [RiftCleaver], animFrames: 67, animPriority: { 67: 0 }, castPriority: 5, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+// Rift Cleaver: "While in the Awakened Mind state, press Normal Attack shortly after casting this skill to cast Basic Attack Stage 2"
+const BA2 = suomingAction("Basic - Furled Canopy 2", { input: Input.Basic, inputPriority: 1, after: [BA1, RiftCleaver], holds: AWAKENED_MIND, animFrames: 47, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 14, mv: 1573, energy: 95, concerto: 80, offtune: 1583, forte1: 40 },
+    { hitFrame: 19, commitFrame: 14, mv: 1573, energy: 95, concerto: 80, offtune: 1583, forte1: 40 },
+    { hitFrame: 31, mv: 3146, energy: 190, concerto: 159, offtune: 3165, forte1: 80 },
+  ]});
+const CrimsonGleamParry = suomingAction("Skill - Unfurled Canopy: Crimson Gleam", { input: Input.Skill, after: [RiftCleaver], animFrames: 67, animPriority: { 67: 0 }, castPriority: 5, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 2, mv: 4725, energy: 163, concerto: 136, offtune: 2717, forte1: 48 },
     { hitFrame: 10, mv: 2363, energy: 82, concerto: 68, offtune: 1359, forte1: 24 },
     { hitFrame: 19, commitFrame: 10, mv: 2363, energy: 82, concerto: 68, offtune: 1359, forte1: 24 },
     { hitFrame: 31, mv: 6300, energy: 218, concerto: 182, offtune: 3622, forte1: 64 },
+  ]});
+// out of the Dodge Counter and Crimson Gleam as well, by their own text
+const BA3 = suomingAction("Basic - Furled Canopy 3", { input: Input.Basic, inputPriority: 1, after: [BA2, DC, CrimsonGleamParry], holds: AWAKENED_MIND, animFrames: 82, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 16, mv: 2201, energy: 133, concerto: 111, offtune: 2214, forte1: 36 },
+    { hitFrame: 21, commitFrame: 16, mv: 2201, energy: 133, concerto: 111, offtune: 2214, forte1: 36 },
+    { hitFrame: 27, commitFrame: 16, mv: 2201, energy: 133, concerto: 111, offtune: 2214, forte1: 36 },
+    { hitFrame: 63, mv: 4402, energy: 266, concerto: 222, offtune: 4428, forte1: 72 },
   ]});
 
 // --- Umbral Canopy: Miasma Lock, Deep Mind only; grants Unison and 200 Delusion
@@ -216,7 +172,7 @@ const Liberation = suomingAction("Liberation - Umbral Canopy: Miasma Lock", { in
  *  damage during the Unison outro's window, on her own slot. */
 const BLIGHT_RAIN_FIELD = new ActionField("Suoming: Blight Rain, Miasmic Thunder");
 const ThunderCrest = suomingAction("Liberation - Blight Rain, Miasmic Thunder", {
-  tag: ActionTag.OffField, type: Type.Liberation, // subtype: Subtype.Coordinated, // datamined not actually coordinated damage
+  type: Type.Liberation, // subtype: Subtype.Coordinated, // datamined not actually coordinated damage
   bullets: [{ hitFrame: 3, commitFrame: 0, mv: 5965 }], field: BLIGHT_RAIN_FIELD,
 });
 
@@ -235,7 +191,7 @@ const INTRO_FURLED = {
   ], castConcerto: 1000,
 };
 const IntroFlashRift = suomingAction("Intro - Furled Canopy: Flash Rift", {
-  input: Input.Intro, valid: () => !isHeld(DEEP_MIND) && !unisonIntro(), endPosition: Position.Grounded, animFrames: 103, noSwapFrames: 90, motionStop: [0, 90], animPriority: { 88: 2 }, castPriority: 11,
+  input: Input.Intro, lacks: DEEP_MIND, endPosition: Position.Grounded, animFrames: 103, noSwapFrames: 90, motionStop: [0, 90], animPriority: { 88: 2 }, castPriority: 11,
   ...INTRO_FURLED,
   // entering Deep Mind resets Rift Cleaver's cooldown
   updateBuffs: () => {
@@ -245,7 +201,7 @@ const IntroFlashRift = suomingAction("Intro - Furled Canopy: Flash Rift", {
   },
 });
 const IntroSealedDelusion = suomingAction("Intro - Furled Canopy: Sealed Delusion (Unison)", {
-  input: Input.Intro, valid: () => !isHeld(DEEP_MIND) && unisonIntro(), endPosition: Position.Grounded, animFrames: 103, noSwapFrames: 90, motionStop: [0, 90], animPriority: { 88: 2 }, castPriority: 11,
+  input: Input.Intro, inputPriority: 1, holds: UNISON_HANDOFF, lacks: DEEP_MIND, endPosition: Position.Grounded, animFrames: 103, noSwapFrames: 90, motionStop: [0, 90], animPriority: { 88: 2 }, castPriority: 11,
   ...INTRO_FURLED,
   // entering Deep Mind resets Rift Cleaver's cooldown
   updateBuffs: () => {
@@ -265,14 +221,14 @@ const INTRO_UNFURLED = {
     { hitFrame: 59, mv: 13143, energy: 250, offtune: 4407 },
   ], castConcerto: 1000, castForte1: 200,
 };
-const IntroThunderRending = suomingAction("Intro - Unfurled Canopy: Thunder Rending", { input: Input.Intro, valid: () => isHeld(DEEP_MIND) && !unisonIntro(), ...INTRO_UNFURLED });
-const IntroWhirlingThunder = suomingAction("Intro - Unfurled Canopy: Whirling Thunder (Unison)", { input: Input.Intro, valid: () => isHeld(DEEP_MIND) && unisonIntro(), ...INTRO_UNFURLED, updateBuffs: respondToUnison });
+const IntroThunderRending = suomingAction("Intro - Unfurled Canopy: Thunder Rending", { input: Input.Intro, holds: DEEP_MIND, ...INTRO_UNFURLED });
+const IntroWhirlingThunder = suomingAction("Intro - Unfurled Canopy: Whirling Thunder (Unison)", { input: Input.Intro, inputPriority: 1, holds: [DEEP_MIND, UNISON_HANDOFF], ...INTRO_UNFURLED, updateBuffs: respondToUnison });
 
 
 const INTROS = new Set<Action>([IntroFlashRift, IntroThunderRending, IntroSealedDelusion, IntroWhirlingThunder]);
 
 // --- Forte Circuit: the two full-bar skills and Engraved Heart behind them, all Basic Attack DMG
-const SealedDelusion = suomingAction("Forte Skill - Furled Canopy: Sealed Delusion", { input: Input.Skill, minForte1: 800, holds: AWAKENED_MIND,
+const SealedDelusion = suomingAction("Forte Skill - Furled Canopy: Sealed Delusion", { input: Input.Skill, inputPriority: 1, minForte1: 800, holds: AWAKENED_MIND,
   animFrames: 107, animPriority: { 104: 2 }, castPriority: 5,
   node: Node.Forte, cast: Cast.Skill, type: Type.Basic, bullets: [
     { hitFrame: 61, mv: 6278, energy: 217, concerto: 181, offtune: 3609 },
@@ -292,13 +248,13 @@ const SealedDelusion = suomingAction("Forte Skill - Furled Canopy: Sealed Delusi
     resetCooldown(RiftCleaver);
   },
 });
-const UnforsakenMind = suomingAction("Skill - Unfurled Canopy: Unforsaken Mind", { input: Input.Skill, minForte1: 800, holds: DEEP_MIND, lacks: ENGRAVED_HEART_READY, animFrames: 68, castPriority: 5, bullets: [{ hitFrame: 59, mv: 15267, offtune: 8776 }], node: Node.Forte, cast: Cast.Skill, type: Type.Basic,
+const UnforsakenMind = suomingAction("Skill - Unfurled Canopy: Unforsaken Mind", { input: Input.Skill, inputPriority: 1, minForte1: 800, holds: DEEP_MIND, lacks: ENGRAVED_HEART_READY, animFrames: 68, castPriority: 5, bullets: [{ hitFrame: 59, mv: 15267, offtune: 8776 }], node: Node.Forte, cast: Cast.Skill, type: Type.Basic,
   updateBuffs: () => {
     applyCurrent(ENGRAVED_HEART_READY, 1);
   },
 });
 /** Calamity Mind for its own duration, Awakened Mind once it ends: Deep Mind is simply over. */
-const EngravedHeart = suomingAction("Forte Basic - Umbral Canopy: Engraved Heart", { input: Input.Basic, holds: ENGRAVED_HEART_READY,
+const EngravedHeart = suomingAction("Forte Basic - Umbral Canopy: Engraved Heart", { input: Input.Basic, inputPriority: 2, holds: ENGRAVED_HEART_READY,
   // 263 frames the prio drops to 2; the last hit is in at 250
   animFrames: 308, noSwapFrames: 256, timestop: [107, 240], motionStop: [107, 240], animPriority: { 108: 12, 263: 2 }, castPriority: 12,
   node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
@@ -345,7 +301,7 @@ const EngravedHeart = suomingAction("Forte Basic - Umbral Canopy: Engraved Heart
  *  updateBuffs, after these hooks. */
 const Outro = suomingAction("Outro - Canopy Rumble", {
   animFrames: 0,
-  cast: Cast.Outro, input: Input.Outro, minConcerto: 10000, lacks: () => [UNISON], castConcerto: -10000,
+  cast: Cast.Outro, input: Input.Outro, minConcerto: 10000, castConcerto: -10000,
   updateBuffs: () => {
     queueQTE(CANOPY_RUMBLE);
     queueQTE(CANOPY_RUMBLE_SKILL);
@@ -374,9 +330,6 @@ const RAIN_SOAKED_INHERENT = new Inherent({
   // a gain the press makes once, so on its cast: the Intro now lands as its separate hits
   updateBuffs: () => { if (runningAction(IntroSealedDelusion) || runningAction(IntroWhirlingThunder)) addGain({ concerto: 1000 }); },
 });
-
-/** The stages Seal Master pays: the whole Unfurled Canopy chain and both Whirling Thunder stages. */
-const SEAL_MASTER_STAGES = new Set<Action>([UBA1, UBA2, UBA3, UBA4, UHA1, UHA2]);
 /** Seal Master: +100% DMG Multiplier on the Unfurled Canopy chain and Whirling Thunder, +5 Concerto
  *  a stage on hit, +100% Crit. DMG, 12s or until switched out. Gaining Unison ends it — the next
  *  Liberation — as does Aligned Seals (the Outro cast above). The Concerto is the kit text's, not a
@@ -513,6 +466,69 @@ const SUOMING_TALENTS = new Talent({
   stats: [[Stat.BonusAtk, 11.9999997], [Stat.CritRate, 8]],
 });
 
+/* ---------------------------------------------------------------------------------- rotation */
+
+/** The double-Intro sub-DPS loop. The pre-visit is the short one — in, the Liberation for its
+ *  Unison, and straight out on the Unison outro, the bar handed back so she never pays a real
+ *  one — leaving whoever plays next under six Thunder Crests and the Aligned handoff. Their outro
+ *  brings her round again for the real visit: her Intro (its Unison form when the outro she
+ *  answers carried one) banks 200 Delusion in Deep Mind, the Unfurled chain carries it past 800
+ *  for Unforsaken Mind, and Engraved Heart spends the lot. */
+const BA12 = new ActionGroup("Basic - Furled Canopy 12", [BA1, BA2]);
+
+const SM_ECHOES = [
+  new EchoLoadout(HERON_MAINSLOT, MOONLIT_CLOUDS_5PC),
+  new EchoLoadout(SUHSIN_MAINSLOT, SWORN_VIGIL_5PC),
+  new EchoLoadout(SOULFRAYER_MAINSLOT, SWORN_VIGIL_5PC),
+];
+
+// --- Unfurled Canopy, the Deep Mind chain, and Whirling Thunder held out of its stage 2
+const UBA1 = suomingAction("Basic - Unfurled Canopy 1", { input: Input.Basic, position: Position.Grounded, holds: DEEP_MIND, lacks: ENGRAVED_HEART_READY, animFrames: 39, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 23, mv: 6542, energy: 158, concerto: 132, offtune: 3949, forte1: 60 },
+    { hitFrame: 31, mv: 3271, energy: 79, concerto: 66, offtune: 1975, forte1: 30 },
+    { hitFrame: 35, commitFrame: 31, mv: 3271, energy: 79, concerto: 66, offtune: 1975, forte1: 30 },
+  ]});
+// Seal Master's Stage 4 -> Stage 2 loop is a saved chain (SEAL_MASTER)
+const UBA2 = suomingAction("Basic - Unfurled Canopy 2", { input: Input.Basic, inputPriority: 1, after: [UBA1], holds: DEEP_MIND, animFrames: 68, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 12, mv: 11440, energy: 277, concerto: 231, offtune: 6905, forte1: 80 },
+    { hitFrame: 37, mv: 3814, energy: 93, concerto: 77, offtune: 2302, forte1: 27 },
+    { hitFrame: 43, commitFrame: 37, mv: 3814, energy: 93, concerto: 77, offtune: 2302, forte1: 27 },
+    { hitFrame: 49, commitFrame: 37, mv: 3814, energy: 93, concerto: 77, offtune: 2302, forte1: 27 },
+  ]});
+// Deep Mind's Rift Cleaver and Dodge Counter "chain into Basic Attack - Unfurled Canopy Stage 3"
+const UBA3 = suomingAction("Basic - Unfurled Canopy 3", { input: Input.Basic, inputPriority: 1, after: [UBA2, RiftCleaver, UDC], holds: DEEP_MIND, animFrames: 70, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 30, mv: 5864, energy: 142, concerto: 118, offtune: 3540, forte1: 45 },
+    { hitFrame: 35, commitFrame: 30, mv: 5864, energy: 142, concerto: 118, offtune: 3540, forte1: 45 },
+    { hitFrame: 50, mv: 5864, energy: 142, concerto: 118, offtune: 3540, forte1: 45 },
+    { hitFrame: 60, commitFrame: 50, mv: 5864, energy: 142, concerto: 118, offtune: 3540, forte1: 45 },
+  ]});
+const UBA4 = suomingAction("Basic - Unfurled Canopy 4", { input: Input.Basic, inputPriority: 1, after: [UBA3, CrimsonGleamParry], holds: DEEP_MIND, animFrames: 115, animPriority: { 0: 4, 103: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 15, mv: 10725, energy: 259, concerto: 216, offtune: 6474, forte1: 54 },
+    { hitFrame: 53, mv: 10725, energy: 259, concerto: 216, offtune: 6474, forte1: 54 },
+    { hitFrame: 95, mv: 4767, energy: 116, concerto: 96, offtune: 2878, forte1: 24 },
+    { hitFrame: 102, mv: 4767, energy: 116, concerto: 96, offtune: 2878, forte1: 24 },
+    { hitFrame: 109, mv: 4767, energy: 116, concerto: 96, offtune: 2878, forte1: 24 },
+  ]});
+// held out of Stage 2 or Dodge Counter - Unfurled Canopy
+const UHA1 = suomingAction("Heavy - Unfurled Canopy: Whirling Thunder 1", { input: Input.BasicHold, inputPriority: 1, after: [UBA2, UDC], holds: DEEP_MIND, lacks: ENGRAVED_HEART_READY, animFrames: 88, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 11, mv: 7332, energy: 177, concerto: 148, offtune: 4425, forte1: 45 },
+    { hitFrame: 27, mv: 3666, energy: 89, concerto: 74, offtune: 2213, forte1: 23 },
+    { hitFrame: 30, commitFrame: 27, mv: 3666, energy: 89, concerto: 74, offtune: 2213, forte1: 23 },
+    { hitFrame: 38, mv: 7332, energy: 177, concerto: 148, offtune: 4425, forte1: 45 },
+    { hitFrame: 63, mv: 7332, energy: 177, concerto: 148, offtune: 4425, forte1: 45 },
+  ]});
+// both Unfurled Intros "chain into Basic Attack - Unfurled Canopy: Whirling Thunder Stage 2"
+const UHA2 = suomingAction("Heavy - Unfurled Canopy: Whirling Thunder 2", { input: Input.BasicHold, inputPriority: 1, after: [UHA1, IntroThunderRending, IntroWhirlingThunder], holds: DEEP_MIND, lacks: ENGRAVED_HEART_READY, animFrames: 85, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 33, mv: 5669, energy: 137, concerto: 115, offtune: 3422, forte1: 36 },
+    { hitFrame: 38, commitFrame: 33, mv: 5669, energy: 137, concerto: 115, offtune: 3422, forte1: 36 },
+    { hitFrame: 43, commitFrame: 33, mv: 5669, energy: 137, concerto: 115, offtune: 3422, forte1: 36 },
+    { hitFrame: 48, commitFrame: 33, mv: 5669, energy: 137, concerto: 115, offtune: 3422, forte1: 36 },
+    { hitFrame: 52, commitFrame: 33, mv: 5669, energy: 137, concerto: 115, offtune: 3422, forte1: 36 },
+  ]});
+
+/** The stages Seal Master pays: the whole Unfurled Canopy chain and both Whirling Thunder stages. */
+const SEAL_MASTER_STAGES = new Set<Action>([UBA1, UBA2, UBA3, UBA4, UHA1, UHA2]);
+
 export const SUOMING_RESONATOR = new Resonator({
   id: 1312,
   name: "Suoming",
@@ -525,7 +541,7 @@ export const SUOMING_RESONATOR = new Resonator({
   // which state she is in, and whether the outro she answers was a Unison one — read off the
   // queue, since the handoff is adopted only once the Intro row itself is evaluated
   color: "#ea5d64",
-  actions: [BA1, BA2, BA3, MA, DC, UBA1, UBA2, UBA3, UBA4, UHA1, UHA2, UDC, RiftCleaver, CrimsonGleamParry, Liberation, IntroFlashRift, IntroSealedDelusion, IntroThunderRending, IntroWhirlingThunder, SealedDelusion, UnforsakenMind, EngravedHeart, Outro, OutroUnison, tuneBreak(90, 92, [0, 91], [0, 70], SWORD_BREAK)],
+  actions: [BA1, BA1.swapIn(), BA2, BA3, MA, MA.swapIn(), DC, UBA1, UBA1.swapIn(), UBA2, UBA3, UBA4, UHA1, UHA2, UDC, RiftCleaver, CrimsonGleamParry, Liberation, IntroFlashRift, IntroSealedDelusion, IntroThunderRending, IntroWhirlingThunder, SealedDelusion, UnforsakenMind, EngravedHeart, Outro, OutroUnison, tuneBreak(90, 92, [0, 91], [0, 70], SWORD_BREAK)],
   maxEnergy: 12500,
   maxForte1: 800,
   // Unison Response: the team's Unison Boon, one stack from her, refreshed after the first
@@ -539,16 +555,6 @@ export const SUOMING_RESONATOR = new Resonator({
   },
 });
 
-/* ---------------------------------------------------------------------------------- rotation */
-
-/** The double-Intro sub-DPS loop. The pre-visit is the short one — in, the Liberation for its
- *  Unison, and straight out on the Unison outro, the bar handed back so she never pays a real
- *  one — leaving whoever plays next under six Thunder Crests and the Aligned handoff. Their outro
- *  brings her round again for the real visit: her Intro (its Unison form when the outro she
- *  answers carried one) banks 200 Delusion in Deep Mind, the Unfurled chain carries it past 800
- *  for Unforsaken Mind, and Engraved Heart spends the lot. */
-const BA12 = new ActionGroup("Basic - Furled Canopy 12", [BA1, BA2]);
-
 const UBA12UHA12 = new ActionGroup("Basic - Unfurled 12 + Whirling Thunder 12", [UBA1, UBA2, UHA1, UHA2]);
 const UBA234 = new ActionGroup("Basic - Unfurled Canopy 234", [UBA2, UBA3, UBA4]);
 const UBA34 = new ActionGroup("Basic - Unfurled Canopy 34", [UBA3, UBA4]);
@@ -561,12 +567,12 @@ const UBA123 = new ActionGroup("Basic - Unfurled Canopy 123", [UBA1, UBA2, UBA3]
 
 const SM_ROTATION = new Rotation([
  
-  SWAPIN, BA12.dodgeCancel(), BA12.dodgeCancel(), BA1.dodgeCancel(), BA1.cancel(), SealedDelusion,
+  SWAPIN, BA12.dashCancel(), BA12.dashCancel(), BA1.dashCancel(), BA1.cancel(), SealedDelusion,
   IntroFlashRift.doubleIntro(), IntroSealedDelusion.doubleIntro(), IntroThunderRending.doubleIntro(), IntroWhirlingThunder.doubleIntro(),
   Liberation, OutroUnison,
 
-  IntroFlashRift, IntroSealedDelusion, IntroThunderRending, IntroWhirlingThunder, 
-  UHA2.dodgeCancel(), UBA12.cancel(),
+  IntroFlashRift, IntroSealedDelusion, IntroThunderRending, IntroWhirlingThunder,
+  UHA2.dashCancel(), UBA12.cancel(),
   UnforsakenMind, EngravedHeart.mashCancel(), HERON.instaSwap(), SUHSIN.instaSwap(), SOULFRAYER.instaSwap(), Outro,
 ]);
 
@@ -579,18 +585,18 @@ const SM_ROTATION = new Rotation([
  *  loop's Flash Rift is written for. */
 const SM_ROTATION_MDPS = new Rotation([
 
-  IntroFlashRift.mashCancel(), IntroSealedDelusion.mashCancel(), IntroThunderRending.mashCancel(), IntroWhirlingThunder.mashCancel(), 
-  Liberation, 
-  RiftCleaver.instaDodge(),
-  UBA12UHA12.dodgeCancel(),
+  IntroFlashRift.mashCancel(), IntroSealedDelusion.mashCancel(), IntroThunderRending.mashCancel(), IntroWhirlingThunder.mashCancel(),
+  Liberation,
+  RiftCleaver.instaDash(),
+  UBA12UHA12.dashCancel(),
   UBA12UHA12.cancel(),
   UnforsakenMind, EngravedHeart.mashCancel(), HERON.instaSwap(), SUHSIN.instaSwap(), SOULFRAYER.instaSwap(),
   Outro,
 ]);
 const SM_ROTATION_MDPS_SIMPLE = new Rotation([
 
-  IntroFlashRift.mashCancel(), IntroSealedDelusion.mashCancel(), IntroThunderRending.mashCancel(), IntroWhirlingThunder.mashCancel(), 
-  Liberation, 
+  IntroFlashRift.mashCancel(), IntroSealedDelusion.mashCancel(), IntroThunderRending.mashCancel(), IntroWhirlingThunder.mashCancel(),
+  Liberation,
   RiftCleaver, UBA3, UBA4, UBA2, UBA3, UBA4,
   UnforsakenMind, EngravedHeart.mashCancel(), HERON.instaSwap(), SUHSIN.instaSwap(), SOULFRAYER.instaSwap(),
   Outro,
@@ -600,18 +606,12 @@ const SM_ROTATION_MDPS_DOUBLE = new Rotation([
 
   IntroFlashRift, IntroSealedDelusion, IntroThunderRending, IntroWhirlingThunder, UHA2.cancel(),
   Liberation,
-  RiftCleaver.instaDodge(),
-  UBA12UHA12.dodgeCancel(),
+  RiftCleaver.instaDash(),
+  UBA12UHA12.dashCancel(),
   UBA12UHA12.cancel(),
   UnforsakenMind, EngravedHeart.mashCancel(), HERON.instaSwap(), SUHSIN.instaSwap(), SOULFRAYER.instaSwap(),
   Outro,
 ]);
-
-const SM_ECHOES = [
-  new EchoLoadout(HERON_MAINSLOT, MOONLIT_CLOUDS_5PC),
-  new EchoLoadout(SUHSIN_MAINSLOT, SWORN_VIGIL_5PC),
-  new EchoLoadout(SOULFRAYER_MAINSLOT, SWORN_VIGIL_5PC),
-];
 
 export const SUOMING = new Loadout({
   id: 13121,

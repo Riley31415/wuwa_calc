@@ -70,51 +70,39 @@ const NEW_MOON = new Buff({ name: "Iuno: New Moon", lostWith: LUNAR_CYCLE });
 const CLOSING_REFRAIN_READY = new Buff({ name: "Iuno: Closing Refrain Ready", duration: 60 * 5 });
 
 // --- basics and dodge counter, all shielding
-const BA1 = iunoAction("Basic - Moonring 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [BA1, BA2, DC], position: Position.Grounded, valid: () => !isHeld(NEW_MOON), animFrames: 29, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 16, mv: 8768, energy: 123, concerto: 123, offtune: 3920, forte1: 5 }]});
-const BA2 = iunoAction("Basic - Moonring 2", { input: Input.Basic, after: () => [BA1], animFrames: 51, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = iunoAction("Basic - Moonring 1", { input: Input.Basic, position: Position.Grounded, lacks: NEW_MOON, animFrames: 29, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 16, mv: 8768, energy: 123, concerto: 123, offtune: 3920, forte1: 5 }]});
+const BA2 = iunoAction("Basic - Moonring 2", { input: Input.Basic, inputPriority: 1, after: [BA1], animFrames: 51, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 25, mv: 4606, energy: 65, concerto: 65, offtune: 2060 },
     { hitFrame: 32, mv: 4606, energy: 65, concerto: 65, offtune: 2060 },
     { hitFrame: 42, mv: 4746, energy: 67, concerto: 67, offtune: 2122, forte1: 10 },
   ]});
+const DC = iunoAction("Dodge Counter - Moonring", { input: Input.Basic, after: [SUCCESSFUL_DODGE], animFrames: 51, animPriority: { 0: 5, 51: 1 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+    { hitFrame: 25, mv: 8208, energy: 66, concerto: 131, offtune: 2086 },
+    { hitFrame: 32, mv: 8208, energy: 66, concerto: 131, offtune: 2086 },
+    { hitFrame: 42, mv: 8457, energy: 68, concerto: 135, offtune: 2149, forte1: 10 },
+  ], castConcerto: 1000});
 // Moonring - Dodge Counter: "Press Normal Attack again shortly after ... to cast Moonring - Basic Attack Stage 3"
-const BA3 = iunoAction("Basic - Moonring 3", { input: Input.Basic, after: () => [BA2, DC], animFrames: 100, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA3 = iunoAction("Basic - Moonring 3", { input: Input.Basic, inputPriority: 1, after: [BA2, DC], animFrames: 100, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 29, mv: 8798, energy: 123, concerto: 123, offtune: 3934 },
     { hitFrame: 56, mv: 8798, energy: 123, concerto: 123, offtune: 3934 },
     { hitFrame: 67, mv: 9065, energy: 127, concerto: 127, offtune: 4053, forte1: 20 },
   ],
   updateBuffs: () => { if (!isHeld(LUNAR_CYCLE)) applyCurrent(CLOSING_REFRAIN_READY, 1); },
 });
-const DC = iunoAction("Dodge Counter - Moonring", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], animFrames: 51, animPriority: { 0: 5, 51: 1 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
-    { hitFrame: 25, mv: 8208, energy: 66, concerto: 131, offtune: 2086 },
-    { hitFrame: 32, mv: 8208, energy: 66, concerto: 131, offtune: 2086 },
-    { hitFrame: 42, mv: 8457, energy: 68, concerto: 135, offtune: 2149, forte1: 10 },
-  ], castConcerto: 1000});
 
 const BA123 = new ActionGroup("Basic - Moonring 123", [BA1, BA2, BA3]);
 
 // --- Moonbow basics (Lunar Cycle - New Moon), considered liberation damage; also shield. A stage
 //     follows the one before it plain or Sentience-enhanced (FMA1-3), the same string either way
-const MA1 = iunoAction("Basic - Moonbow 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [MA1, MA2, FMA1, FMA2, MDC], position: Position.Grounded, maxForte1: 0, holds: NEW_MOON, animFrames: 34, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Liberation, bullets: [{ hitFrame: 15, mv: 12645, energy: 233, concerto: 265, offtune: 4240 }]});
-const MA2 = iunoAction("Basic - Moonbow 2", { input: Input.Basic, after: () => [MA1, FMA1], maxForte1: 0, holds: NEW_MOON, animFrames: 45, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Liberation, bullets: [
-    { hitFrame: 10, mv: 5567, energy: 109, concerto: 117, offtune: 1867 },
-    { hitFrame: 17, mv: 5567, energy: 109, concerto: 117, offtune: 1867 },
-    { hitFrame: 24, mv: 5567, energy: 109, concerto: 117, offtune: 1867 },
-  ]});
-// Moonbow - Dodge Counter: "press Normal Attack again shortly after ... to cast Moonbow - Basic Attack Stage 3"
-const MA3 = iunoAction("Basic - Moonbow 3", { input: Input.Basic, after: () => [MA2, FMA2, MDC], maxForte1: 0, holds: NEW_MOON, animFrames: 92, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Liberation, bullets: [
-    { hitFrame: 18, mv: 16701, energy: 300, concerto: 350, offtune: 5600 },
-    { hitFrame: 53, mv: 16701, energy: 300, concerto: 350, offtune: 5600 },
-  ]});
-const MDC = iunoAction("Dodge Counter - Moonbow", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], holds: NEW_MOON, animFrames: 45, animPriority: { 0: 5, 45: 1 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Liberation, bullets: [
+const MA1 = iunoAction("Basic - Moonbow 1", { input: Input.Basic, maxForte1: 0, position: Position.Grounded, holds: NEW_MOON, animFrames: 34, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Liberation, bullets: [{ hitFrame: 15, mv: 12645, energy: 233, concerto: 265, offtune: 4240 }]});
+const MDC = iunoAction("Dodge Counter - Moonbow", { input: Input.Basic, after: [SUCCESSFUL_DODGE], holds: NEW_MOON, animFrames: 45, animPriority: { 0: 5, 45: 1 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Liberation, bullets: [
     { hitFrame: 10, mv: 10339, energy: 59, concerto: 117, offtune: 1867 },
     { hitFrame: 17, mv: 10339, energy: 59, concerto: 117, offtune: 1867 },
     { hitFrame: 24, mv: 10339, energy: 59, concerto: 117, offtune: 1867 },
   ], castConcerto: 1000});
 
-const MA123 = new ActionGroup("Basic - Moonbow 123", [MA1, MA2, MA3]);
-
 // --- resonance skill
-const Skill = iunoAction("Skill - Pulse of Origins", { input: Input.Skill, lacks: [CLOSING_REFRAIN_READY, NEW_MOON], animFrames: 69, animPriority: { 69: 2 }, castPriority: 4, cooldown: 60 * 6, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+const Skill = iunoAction("Skill - Pulse of Origins", { input: Input.Skill, animFrames: 69, animPriority: { 69: 2 }, castPriority: 4, cooldown: 60 * 6, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 28, mv: 1865, energy: 33, offtune: 578 },
     { hitFrame: 32, mv: 1865, energy: 33, offtune: 578 },
     { hitFrame: 35, mv: 1865, energy: 33, offtune: 578 },
@@ -126,7 +114,7 @@ const Skill = iunoAction("Skill - Pulse of Origins", { input: Input.Skill, lacks
   ], castConcerto: 600,
   updateBuffs: () => { if (!isHeld(LUNAR_CYCLE)) applyCurrent(CLOSING_REFRAIN_READY, 1); },
 });
-const ESkill = iunoAction("Skill - Closing Refrain", { input: Input.Skill, holds: CLOSING_REFRAIN_READY, lacks: NEW_MOON, animFrames: 109, animPriority: { 109: 2 }, castPriority: 4, cooldown: 60 * 8, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+const ESkill = iunoAction("Skill - Closing Refrain", { input: Input.Skill, inputPriority: 1, holds: CLOSING_REFRAIN_READY, animFrames: 109, animPriority: { 109: 2 }, castPriority: 4, cooldown: 60 * 8, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 14, mv: 14073, energy: 269, offtune: 4356 },
     { hitFrame: 74, mv: 14073, energy: 269, offtune: 4356 },
     { hitFrame: 82, mv: 14500, energy: 277, offtune: 4488 },
@@ -140,7 +128,7 @@ const ESkill = iunoAction("Skill - Closing Refrain", { input: Input.Skill, holds
 });
 /** Arc Beyond the Edge: 2 charges on a 10s cooldown, its enhanced form the same press. */
 const ARC_CD = new Cooldown({ frames: 60 * 10, charges: 2 });
-const MSkill = iunoAction("Skill - Arc Beyond the Edge", { input: Input.Skill, maxForte1: 0, holds: NEW_MOON, animFrames: 85, animPriority: { 85: 2 }, castPriority: 4, cooldown: ARC_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Liberation, bullets: [
+const MSkill = iunoAction("Skill - Arc Beyond the Edge", { input: Input.Skill, inputPriority: 2, maxForte1: 0, holds: NEW_MOON, animFrames: 85, animPriority: { 85: 2 }, castPriority: 4, cooldown: ARC_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Liberation, bullets: [
     { hitFrame: 50, mv: 21979, energy: 468, offtune: 5360 },
     { hitFrame: 78, commitFrame: 50, mv: 21979, energy: 468, offtune: 5360 },
   ], castConcerto: 800});
@@ -178,10 +166,10 @@ const Outro = iunoAction("Outro - From Gloom to Gleam", {
 });
 
 // --- forte (jump / Flux) casts, all liberation damage while in Lunar Cycle, same shielding
-const JumpHeavy = iunoAction("Heavy - Flux: Moonbow", { input: Input.BasicHold, maxConcerto: 9999, holds: LUNAR_CYCLE, lacks: NEW_MOON, animFrames: 86, animPriority: { 86: 2 }, castPriority: 4, node: Node.Forte, cast: Cast.Heavy, type: Type.Liberation, bullets: [{ hitFrame: 70, mv: 25051, energy: 350, concerto: 700, offtune: 11200 }],
+const JumpHeavy = iunoAction("Heavy - Flux: Moonbow", { input: Input.BasicHold, holds: LUNAR_CYCLE, animFrames: 86, animPriority: { 86: 2 }, castPriority: 4, node: Node.Forte, cast: Cast.Heavy, type: Type.Liberation, bullets: [{ hitFrame: 70, mv: 25051, energy: 350, concerto: 700, offtune: 11200 }],
   updateBuffs: () => applyCurrent(NEW_MOON, 1),
 });
-const FJump = iunoAction("Heavy - Flux: Moonring", { input: Input.BasicHold, maxConcerto: 9999, holds: NEW_MOON, animFrames: 114, animPriority: { 114: 2 }, castPriority: 4, node: Node.Forte, cast: Cast.Heavy, type: Type.Liberation, bullets: [
+const FJump = iunoAction("Heavy - Flux: Moonring", { input: Input.BasicHold, inputPriority: 1, holds: NEW_MOON, animFrames: 114, animPriority: { 114: 2 }, castPriority: 4, node: Node.Forte, cast: Cast.Heavy, type: Type.Liberation, bullets: [
     { hitFrame: 66, mv: 7918, energy: 111, concerto: 222, offtune: 3540 },
     { hitFrame: 82, mv: 7918, energy: 111, concerto: 222, offtune: 3540 },
     { hitFrame: 90, mv: 7918, energy: 111, concerto: 222, offtune: 3540 },
@@ -189,17 +177,29 @@ const FJump = iunoAction("Heavy - Flux: Moonring", { input: Input.BasicHold, max
   ],
   updateBuffs: () => revokeCurrent(NEW_MOON),
 });
-const FMA1 = iunoAction("Forte Basic - Enhanced Moonbow 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [MA1, MA2, FMA1, FMA2, MDC], minForte1: 1, position: Position.Grounded, holds: NEW_MOON, animFrames: 34, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, bullets: [{ hitFrame: 15, mv: 20597, energy: 233, concerto: 265, offtune: 4240 }], castConcerto: 400, castForte1: -10});
-const FMA2 = iunoAction("Forte Basic - Enhanced Moonbow 2", { input: Input.Basic, after: () => [FMA1, MA1], minForte1: 1, holds: NEW_MOON, animFrames: 45, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, bullets: [
+const FMA1 = iunoAction("Forte Basic - Enhanced Moonbow 1", { input: Input.Basic, minForte1: 1, position: Position.Grounded, holds: NEW_MOON, animFrames: 34, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, bullets: [{ hitFrame: 15, mv: 20597, energy: 233, concerto: 265, offtune: 4240 }], castConcerto: 400, castForte1: -10});
+const MA2 = iunoAction("Basic - Moonbow 2", { input: Input.Basic, inputPriority: 1, maxForte1: 0, after: [MA1, FMA1], holds: NEW_MOON, animFrames: 45, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Liberation, bullets: [
+    { hitFrame: 10, mv: 5567, energy: 109, concerto: 117, offtune: 1867 },
+    { hitFrame: 17, mv: 5567, energy: 109, concerto: 117, offtune: 1867 },
+    { hitFrame: 24, mv: 5567, energy: 109, concerto: 117, offtune: 1867 },
+  ]});
+const FMA2 = iunoAction("Forte Basic - Enhanced Moonbow 2", { input: Input.Basic, inputPriority: 1, after: [FMA1, MA1], minForte1: 1, holds: NEW_MOON, animFrames: 45, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, bullets: [
     { hitFrame: 10, mv: 9543, energy: 109, concerto: 117, offtune: 1867 },
     { hitFrame: 17, mv: 9543, energy: 109, concerto: 117, offtune: 1867 },
     { hitFrame: 24, mv: 9543, energy: 109, concerto: 117, offtune: 1867 },
   ], castConcerto: 600, castForte1: -15});
-const FMA3 = iunoAction("Forte Basic - Enhanced Moonbow 3", { input: Input.Basic, after: () => [FMA2, MA2, MDC], minForte1: 1, holds: NEW_MOON, animFrames: 92, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, bullets: [
+// Moonbow - Dodge Counter: "press Normal Attack again shortly after ... to cast Moonbow - Basic Attack Stage 3"
+const MA3 = iunoAction("Basic - Moonbow 3", { input: Input.Basic, inputPriority: 1, maxForte1: 0, after: [MA2, FMA2, MDC], holds: NEW_MOON, animFrames: 92, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Liberation, bullets: [
+    { hitFrame: 18, mv: 16701, energy: 300, concerto: 350, offtune: 5600 },
+    { hitFrame: 53, mv: 16701, energy: 300, concerto: 350, offtune: 5600 },
+  ]});
+
+const MA123 = new ActionGroup("Basic - Moonbow 123", [MA1, MA2, MA3]);
+const FMA3 = iunoAction("Forte Basic - Enhanced Moonbow 3", { input: Input.Basic, inputPriority: 1, after: [FMA2, MA2, MDC], minForte1: 1, holds: NEW_MOON, animFrames: 92, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, bullets: [
     { hitFrame: 18, mv: 26641, energy: 300, concerto: 350, offtune: 5600 },
     { hitFrame: 53, mv: 26641, energy: 300, concerto: 350, offtune: 5600 },
   ], castConcerto: 1000, castForte1: -25});
-const FMSkill = iunoAction("Forte Skill - Enhanced Arc Beyond the Edge", { input: Input.Skill, minForte1: 1, holds: NEW_MOON, animFrames: 85, animPriority: { 85: 2 }, castPriority: 4, cooldown: ARC_CD, node: Node.Forte, cast: Cast.Skill, type: Type.Liberation, bullets: [
+const FMSkill = iunoAction("Forte Skill - Enhanced Arc Beyond the Edge", { input: Input.Skill, inputPriority: 2, minForte1: 1, holds: NEW_MOON, animFrames: 85, animPriority: { 85: 2 }, castPriority: 4, cooldown: ARC_CD, node: Node.Forte, cast: Cast.Skill, type: Type.Liberation, bullets: [
     { hitFrame: 50, mv: 31919, energy: 468, offtune: 5360 },
     { hitFrame: 78, commitFrame: 50, mv: 31919, energy: 468, offtune: 5360 },
   ], castConcerto: 1800, castForte1: -25});
@@ -210,7 +210,7 @@ const FMA123 = new ActionGroup("Forte - Enhanced Moonbow 123", [FMA1, FMA2, FMA3
  *  S6 puts her straight back into New Moon on the same cast. */
 const FHA = iunoAction("Heavy - Absolute Fullness", {
   animFrames: 89, cooldown: 60 * 25, animPriority: { 0: 5, 89: 2 }, castPriority: 8,
-  node: Node.Forte, cast: Cast.Heavy, type: Type.Liberation, bullets: [{ hitFrame: 66, mv: 15905, energy: 500, offtune: 2400 }], input: Input.BasicHold, minConcerto: 10000,
+  node: Node.Forte, cast: Cast.Heavy, type: Type.Liberation, bullets: [{ hitFrame: 66, mv: 15905, energy: 500, offtune: 2400 }], input: Input.BasicHold, inputPriority: 2, minConcerto: 10000,
   updateBuffs: () => {
     applyTeam(IUNO_DOMAIN, 1);
     revokeCurrent(LUNAR_CYCLE);
@@ -249,7 +249,8 @@ const IO_INHERENT_2 = new Inherent({
   name: "Inherent: Derivation",
   updateBuffs: () => { if (casting(Cast.Intro) || casting(Cast.Liberation)) applyCurrent(IUNO_BLESSING, 5); },
 });
-const IO_INHERENT_1 = new Inherent({ name: "Inherent: Waxing Ascent" }); // gains shields
+const IO_INHERENT_1 = new Inherent({ name: "Inherent: Waxing Ascent" });
+ // gains shields
 
 /** The window her outro hands the incoming resonator. */
 const IUNO_OUTRO = new Buff({
@@ -286,7 +287,7 @@ const IUNO_RESONATOR = new Resonator({
   element: Attribute.Aero,
   weapon: WeaponType.Gauntlets,
   color: "#2dd4c0",
-  actions: [BA1, BA2, BA3, DC, MA1, MA2, MA3, MDC, Skill, ESkill, MSkill, Liberation, Intro, Outro, JumpHeavy, FJump, FMA1, FMA2, FMA3, FMSkill, FHA],
+  actions: [BA1, BA1.swapIn(), BA2, BA3, DC, MA1, MA1.swapIn(), MA2, MA3, MDC, Skill, ESkill, MSkill, Liberation, Intro, Outro, JumpHeavy, FJump, FMA1, FMA1.swapIn(), FMA2, FMA3, FMSkill, FHA],
   maxEnergy: 12500,
   maxForte1: 100,
 
@@ -368,9 +369,9 @@ const IO_S6 = new Sequence({
 const IO_SEQUENCES = [IO_S1, IO_S2, IO_S3, IO_S4, IO_S5, IO_S6];
 
 const IO_ROTATION = new Rotation([
-  Intro, MYA.instaCancel(), HERON.instaDodge(), FALLACY.instaCancel(), NM_KELPIE.instaDodge(), 
+  Intro, MYA.instaCancel(), HERON.instaDash(), FALLACY.instaCancel(), NM_KELPIE.instaDash(),
   Liberation, JumpHeavy,
-  FMA123.cancel(), FMSkill, FMSkill.cancel(), 
+  FMA123.cancel(), FMSkill, FMSkill.cancel(),
   FHA.instaSwap(), Outro,
 ]);
 
@@ -378,16 +379,16 @@ const IO_ROTATION_MDPS = new Rotation([
   Intro, ESkill,
   JumpHeavy,
   FMSkill,
-  FMA123.cancel(), MYA.instaCancel(), Liberation, 
-  FMA123.cancel(), FMSkill, 
-  MA123.cancel(), 
+  FMA123.cancel(), MYA.instaCancel(), Liberation,
+  FMA123.cancel(), FMSkill,
+  MA123.cancel(),
   FHA.instaSwap(), Outro,
 ]);
 
 /** The same at S6 — see IO_ROTATION_S6. */
 const IO_ROTATION_MDPS_S6 = new Rotation([
   Intro, Liberation, JumpHeavy,
-  FMSkill, 
+  FMSkill,
   FMA123.cancel(), FMSkill.cancel(),
   FHA, MYA,
   FMSkill, FMA123.cancel(), FMSkill, Outro,

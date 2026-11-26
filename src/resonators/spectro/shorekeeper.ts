@@ -36,7 +36,7 @@ import {
   concerto,
   grounded,
 } from "../../engine/context.js";
-import { ActionGroup, Action, ActionTag, Rotation, START_LAST, SWAPIN, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, START_LAST, SWAPIN, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
 import { HEALS, heal } from "../status.js";
 import { STELLAR_SYMPHONY } from "../../weapons/rectifier.js";
 import { VARIATION } from "../../weapons/standard.js";
@@ -99,7 +99,7 @@ const REALM_HEALS: Buff = new Buff({
 });
 
 /** A Collapsed Core run out (6s on) or one past five: a butterfly firing on its own behind the fight. */
-const Butterfly = skAction("Forte - Flare Star Butterfly", { tag: ActionTag.OffField, node: Node.Forte, type: Type.Basic, bullets: [
+const Butterfly = skAction("Forte - Flare Star Butterfly", { node: Node.Forte, type: Type.Basic, bullets: [
     { hitFrame: 36, commitFrame: 0, mv: 3729, energy: 59, concerto: 100 },
   ]});
 
@@ -115,7 +115,7 @@ const CORES: Buff[] = [1, 2, 3, 4, 5].map((n) => {
 });
 
 // Illation/Transmutation turn every core at once, the k-th riding wuwalab's k-th butterfly frame
-const CONSUMED_STARS = [42, 45, 48, 53, 56].map((hitFrame, k) => skAction(`Forte - Flare Star Butterfly ${k + 1}`, { tag: ActionTag.OffField, node: Node.Forte, type: Type.Basic, bullets: [
+const CONSUMED_STARS = [42, 45, 48, 53, 56].map((hitFrame, k) => skAction(`Forte - Flare Star Butterfly ${k + 1}`, { node: Node.Forte, type: Type.Basic, bullets: [
     { hitFrame, commitFrame: 0, mv: 3729, energy: 59, concerto: 100 },
   ]}));
 
@@ -136,31 +136,18 @@ const collapseCore = (): void => {
 };
 
 // Empirical Data (forte1): 1 a stage (2 on Stage 3), capped at 5; Illation/Transmutation spend it whole.
-const BA1 = skAction("Basic - Origin Calculus 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [BA1, BA2, BA3, MA, Transmutation, Skill], position: Position.Grounded, animFrames: 23, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = skAction("Basic - Origin Calculus 1", { input: Input.Basic, position: Position.Grounded, animFrames: 23, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 0, element: null, type: null, subtype: null, updateDebuffs: collapseCore }, // its core, on the cast
     { hitFrame: 15, mv: 3178, energy: 50, concerto: 160, offtune: 2664, forte1: 1 },
   ]});
-// after the Plunging Attack, Transmutation or Chaos Theory, Basic Attack starts at Stage 2
-const BA2 = skAction("Basic - Origin Calculus 2", { input: Input.Basic, after: () => [BA1, MA, Transmutation, Skill], position: Position.Grounded, animFrames: 33, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 8, mv: 2386, energy: 38, concerto: 120, offtune: 2000, forte1: 1, updateDebuffs: collapseCore },
-    { hitFrame: 20, mv: 2386, energy: 38, concerto: 120, offtune: 2000, updateDebuffs: collapseCore },
-  ]});
-const BA3 = skAction("Basic - Origin Calculus 3", { input: Input.Basic, after: () => [BA2], animFrames: 47, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 20, mv: 2332, energy: 37, concerto: 118, offtune: 1955, updateDebuffs: collapseCore },
-    { hitFrame: 29, commitFrame: 20, mv: 2332, energy: 37, concerto: 118, offtune: 1955, forte1: 1 },
-    { hitFrame: 38, commitFrame: 20, mv: 2332, energy: 37, concerto: 118, offtune: 1955, forte1: 1 },
-  ]});
-const BA4 = skAction("Basic - Origin Calculus 4", { input: Input.Basic, after: () => [BA3], animFrames: 51, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 25, mv: 7272, energy: 115, concerto: 366, offtune: 6096, forte1: 1, updateDebuffs: collapseCore },
-  ]});
 
-const DC = skAction("Dodge Counter - Origin Calculus", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], animFrames: 33, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const DC = skAction("Dodge Counter - Origin Calculus", { input: Input.Basic, after: [SUCCESSFUL_DODGE], animFrames: 33, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 8, mv: 8748, energy: 138, concerto: 440, offtune: 4400, forte1: 1, updateDebuffs: collapseCore },
     { hitFrame: 20, mv: 8748, energy: 138, concerto: 440, offtune: 4400, updateDebuffs: collapseCore },
   ], castConcerto: 1000});
 
 // at 5 Empirical Data the Mid-air Attack comes out as Transmutation instead
-const MA = skAction("Mid-air - Origin Calculus Plunge", { input: [Input.Basic, Input.SwapIn], position: Position.Midair, maxForte1: 4, endPosition: Position.Grounded, animFrames: 50, animPriority: { 0: 6, 50: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MA = skAction("Mid-air - Origin Calculus Plunge", { input: Input.Basic, position: Position.Midair, maxForte1: 4, endPosition: Position.Grounded, animFrames: 50, animPriority: { 0: 6, 50: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 46, mv: 7396, energy: 155, concerto: 500, offtune: 4960, forte1: 1, updateDebuffs: collapseCore },
   ]});
 
@@ -185,6 +172,19 @@ const Illation = skAction("Forte Heavy - Illation", { input: Input.BasicHold, mi
 const Transmutation = skAction("Forte Mid-air - Transmutation", { input: Input.Basic, position: Position.Midair, minForte1: 5, endPosition: Position.Grounded, animFrames: 50, animPriority: { 0: 6, 50: 2 }, castPriority: 6, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 46, mv: 7396, energy: 155, concerto: 500, offtune: 4960 },
   ], castConcerto: 600, castForte1: -5, updateBuffs: turnCores});
+// after the Plunging Attack, Transmutation or Chaos Theory, Basic Attack starts at Stage 2
+const BA2 = skAction("Basic - Origin Calculus 2", { input: Input.Basic, inputPriority: 1, after: [BA1, MA, Transmutation, Skill], position: Position.Grounded, animFrames: 33, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 8, mv: 2386, energy: 38, concerto: 120, offtune: 2000, forte1: 1, updateDebuffs: collapseCore },
+    { hitFrame: 20, mv: 2386, energy: 38, concerto: 120, offtune: 2000, updateDebuffs: collapseCore },
+  ]});
+const BA3 = skAction("Basic - Origin Calculus 3", { input: Input.Basic, inputPriority: 1, after: [BA2], animFrames: 47, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 20, mv: 2332, energy: 37, concerto: 118, offtune: 1955, updateDebuffs: collapseCore },
+    { hitFrame: 29, commitFrame: 20, mv: 2332, energy: 37, concerto: 118, offtune: 1955, forte1: 1 },
+    { hitFrame: 38, commitFrame: 20, mv: 2332, energy: 37, concerto: 118, offtune: 1955, forte1: 1 },
+  ]});
+const BA4 = skAction("Basic - Origin Calculus 4", { input: Input.Basic, inputPriority: 1, after: [BA3], animFrames: 51, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 25, mv: 7272, energy: 115, concerto: 366, offtune: 6096, forte1: 1, updateDebuffs: collapseCore },
+  ]});
 
 // one-press groups: the report folds the butterflies each queues into its row, a plain row with none
 const FHA = new ActionGroup("Forte Heavy - Illation", [Illation]);
@@ -205,7 +205,7 @@ const Liberation = skAction("Liberation - End Loop", {
   },
 });
 
-const Intro = skAction("Intro - Enlightenment", { input: Input.Intro, valid: () => !discerning(), endPosition: Position.Grounded, qteFrames: 40, animFrames: 85, noSwapFrames: 65, animPriority: { 85: 2 }, castPriority: 10, motionStop: [6, 34], node: Node.Intro, cast: Cast.Intro, type: Type.Skill, bullets: [
+const Intro = skAction("Intro - Enlightenment", { input: Input.Intro, endPosition: Position.Grounded, qteFrames: 40, animFrames: 85, noSwapFrames: 65, animPriority: { 85: 2 }, castPriority: 10, motionStop: [6, 34], node: Node.Intro, cast: Cast.Intro, type: Type.Skill, bullets: [
     { hitFrame: 38, element: null, type: null, subtype: null, updateDebuffs: () => applyCurrent(HEALS, 1) }, // its heal, ahead of the hits
     { hitFrame: 83, commitFrame: 44, mv: 4530, energy: 200, concerto: 200, offtune: 2279 },
     { hitFrame: 85, commitFrame: 44, mv: 4530, energy: 200, concerto: 200, offtune: 2279 },
@@ -215,12 +215,11 @@ const Intro = skAction("Intro - Enlightenment", { input: Input.Intro, valid: () 
   ], castConcerto: 1000});
 // replaces plain Intro under a Supernal Stellarealm (see SHOREKEEPER_RESONATOR's own intro() below); scales
 // off HP, counts as liberation damage, always crits, and ends the realm on resolving
-/** Her Intro is Discernment once the Stellarealm stands at its third stage — read ahead of the Outro
- *  that hands it to her too, where that Outro's own handoff still lifts a standing realm a stage. */
-const discerning = (): boolean => realmStage() + (handoffPending() && realmStage() ? 1 : 0) >= 3;
+// Her Intro is Discernment once the Stellarealm stands at its third stage. No rotation plans it a stage early
+// (Inner standing, its Outro still to lift it): every run reads Supernal already held there.
 const EIntro = skAction("Intro - Discernment", { endPosition: Position.Grounded, qteFrames: 142,
   // "When a Supernal Stellarealm is generated, Shorekeeper's first Intro Skill ... is replaced"
-  input: Input.Intro, valid: () => discerning(), animFrames: 215, castPriority: 10, timestop: [6, 140], motionStop: [6, 140],
+  input: Input.Intro, inputPriority: 1, holds: SUPERNAL_REALM, animFrames: 215, castPriority: 10, timestop: [6, 140], motionStop: [6, 140],
   node: Node.Intro, cast: Cast.Intro, type: Type.Liberation, scaling: Scaling.Hp, bullets: [
     { hitFrame: 143, mv: 1964, energy: 334, offtune: 24414 },
     { hitFrame: 144, element: null, type: null, subtype: null, updateDebuffs: () => applyCurrent(HEALS, 1) }, // its heal, a frame behind
@@ -284,7 +283,8 @@ const SK_INHERENT_2 = new Inherent({
   },
 });
 
-const SK_INHERENT_1 = new Inherent({ name: "Inherent: Life Entwined" }); // revive
+const SK_INHERENT_1 = new Inherent({ name: "Inherent: Life Entwined" });
+ // revive
 
 /* --------------------------------------------------------------------------- resonance chain */
 
@@ -349,7 +349,7 @@ const SHOREKEEPER_RESONATOR = new Resonator({
   element: Attribute.Spectro,
   weapon: WeaponType.Rectifier,
   color: "#728cf3",
-  actions: [BA1, BA2, BA3, BA4, DC, MA, Skill, Illation, Transmutation, Liberation, Intro, EIntro, Outro],
+  actions: [BA1, BA1.swapIn(), BA2, BA3, BA4, DC, MA, MA.swapIn(), Skill, Illation, Transmutation, Liberation, Intro, EIntro, Outro],
   maxEnergy: 17500,
   maxForte1: 5,
   // reads the realm as it stands, already stepped by the preceding outro

@@ -70,35 +70,35 @@ const Liberation = sanhuaAction("Liberation - Glacial Gaze", {
   updateBuffs: () => applyCurrent(GLACIER_BUFF, 1),
 });
 
-const BA1 = sanhuaAction("Basic - Frigid Light 1", { input: Input.Basic, notAfter: () => [BA1, BA2, BA3, BA4], position: Position.Grounded, animFrames: 23, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 13, mv: 4871, energy: 87, concerto: 200, offtune: 2800 }]});
-const BA2 = sanhuaAction("Basic - Frigid Light 2", { input: [Input.Basic, Input.SwapIn], after: () => [BA1], position: Position.Grounded, animFrames: 33, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 24, mv: 7376, energy: 132, concerto: 400, offtune: 4240 }]});
-const BA3 = sanhuaAction("Basic - Frigid Light 3", { input: Input.Basic, after: () => [BA2], animFrames: 36, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = sanhuaAction("Basic - Frigid Light 1", { input: Input.Basic, position: Position.Grounded, animFrames: 23, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 13, mv: 4871, energy: 87, concerto: 200, offtune: 2800 }]});
+const BA2 = sanhuaAction("Basic - Frigid Light 2", { input: Input.Basic, inputPriority: 1, after: [BA1], position: Position.Grounded, animFrames: 33, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 24, mv: 7376, energy: 132, concerto: 400, offtune: 4240 }]});
+const BA3 = sanhuaAction("Basic - Frigid Light 3", { input: Input.Basic, inputPriority: 1, after: [BA2], animFrames: 36, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 18, mv: 2158, energy: 38, concerto: 200, offtune: 1240 },
     { hitFrame: 24, mv: 2158, energy: 38, concerto: 200, offtune: 1240 },
     { hitFrame: 30, mv: 2158, energy: 38, concerto: 200, offtune: 1240 },
     { hitFrame: 36, mv: 2158, energy: 38, concerto: 200, offtune: 1240 },
   ]});
-const BA4 = sanhuaAction("Basic - Frigid Light 4", { input: Input.Basic, after: () => [BA3], animFrames: 36, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA4 = sanhuaAction("Basic - Frigid Light 4", { input: Input.Basic, inputPriority: 1, after: [BA3], animFrames: 36, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 12, mv: 3967, energy: 71, concerto: 400, offtune: 2280 },
     { hitFrame: 24, mv: 3967, energy: 71, concerto: 400, offtune: 2280 },
   ]});
-const BA5 = sanhuaAction("Basic - Frigid Light 5", { input: Input.Basic, after: () => [BA4], animFrames: 109, animPriority: { 6: 4, 41: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 32, mv: 23381, energy: 420, concerto: 1000, offtune: 13440 }]});
+const BA5 = sanhuaAction("Basic - Frigid Light 5", { input: Input.Basic, inputPriority: 1, after: [BA4], animFrames: 109, animPriority: { 6: 4, 41: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 32, mv: 23381, energy: 420, concerto: 1000, offtune: 13440 }]});
 // after these presses the held Basic Attack is Detonate
-const HA = sanhuaAction("Heavy - Frigid Light", { input: Input.BasicHold, notAfter: () => [BA5, Skill, Intro, Liberation], animFrames: 50, animPriority: { 47: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+const HA = sanhuaAction("Heavy - Frigid Light", { input: Input.BasicHold, animFrames: 50, animPriority: { 47: 2 }, castPriority: 3, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 10, mv: 2227, energy: 40, concerto: 160, offtune: 1600 },
     { hitFrame: 14, commitFrame: 10, mv: 2227, energy: 40, concerto: 160, offtune: 1600 },
     { hitFrame: 18, commitFrame: 10, mv: 2227, energy: 40, concerto: 160, offtune: 1600 },
     { hitFrame: 22, commitFrame: 10, mv: 2227, energy: 40, concerto: 160, offtune: 1600 },
     { hitFrame: 36, mv: 2227, energy: 40, concerto: 160, offtune: 1600 },
   ]});
-const MA = sanhuaAction("Mid-air - Frigid Light Plunge", { input: [Input.Basic, Input.SwapIn], position: Position.Midair, endPosition: Position.Grounded, animFrames: 60, animPriority: { 44: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 34, mv: 8629, energy: 51, concerto: 100, offtune: 9520 }]});
+const MA = sanhuaAction("Mid-air - Frigid Light Plunge", { input: Input.Basic, position: Position.Midair, endPosition: Position.Grounded, animFrames: 60, animPriority: { 44: 2 }, castPriority: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 34, mv: 8629, energy: 51, concerto: 100, offtune: 9520 }]});
 const BA23 = new ActionGroup("Basic - Frigid Light 23", [BA2, BA3]);
 const BA234 = new ActionGroup("Basic - Frigid Light 234", [BA2, BA3, BA4]);
 
 // Ice Thorn's own burst is a real exception, not a data gap: 0 concerto (every other burst pays
 // 1500), just 200 Energy — kept as given rather than smoothed over.
 const FHA = sanhuaAction("Forte Heavy - Detonate", {
-  input: Input.BasicHold, after: () => [BA5, Skill, Intro, Liberation], animFrames: 101, castPriority: 3,
+  input: Input.BasicHold, inputPriority: 1, after: [BA5, Skill, Intro, Liberation], animFrames: 101, castPriority: 3,
   node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 51, mv: 18629, energy: 234, concerto: 750, offtune: 7496,
       // on its hit, spends whichever Ice Creations are up and queues the matching burst(s)
@@ -245,7 +245,7 @@ const SANHUA_RESONATOR = new Resonator({
   element: Attribute.Glacio,
   weapon: WeaponType.Sword,
   color: "#5fc9e8",
-  actions: [Intro, Outro, Skill, Liberation, BA1, BA2, BA3, BA4, BA5, HA, MA, FHA, tuneBreak(92, 92, [0, 92], [0, 70], SWORD_BREAK)],
+  actions: [Intro, Outro, Skill, Liberation, BA1, BA2, BA2.swapIn(), BA3, BA4, BA5, HA, MA, MA.swapIn(), FHA, tuneBreak(92, 92, [0, 92], [0, 70], SWORD_BREAK)],
   maxEnergy: 12500,
   tier: Rarity.FreeS6,
 

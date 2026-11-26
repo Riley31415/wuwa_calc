@@ -27,6 +27,7 @@ import {
   frozenStacks,
   isHeld,
   setStacksSelf,
+  currentMember,
   currentTeam,
   queueOn,
   queueOnBehindNext,
@@ -48,7 +49,8 @@ import {
   forte1,
   concerto,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, SWAPIN, ActionTag, waitFor, DEFAULT_DODGE, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import type { TeamMember } from "../../engine/state.js";
+import { ActionGroup, Action, Rotation, SWAPIN, waitFor, DEFAULT_DASH, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
 import { CLASS_TUNE_BREAK, breakWhen } from "../tunebreak.js";
 import { LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";
 import { COSMIC_RIPPLES } from "../../weapons/standard.js";
@@ -75,6 +77,20 @@ const RESOLVING_CHORD = new Buff({ name: "Phrolova: Resolving Chord" });
 /** Maestro ended with her off field: switching to her without an Intro casts Curtain Call. Her
  *  next press of her own spends it. */
 const CURTAIN_CALL_READY = new Buff({ name: "Phrolova: Curtain Call Ready" });
+/** Hidden marker: Maestro or Curtain Call Ready held — when Curtain Call can be cast (`syncCurtainCall()`). */
+const CURTAIN_CALL_OPEN = new Buff({ /* name: "Phrolova: Curtain Call Open" */ });
+/** Hidden markers: the leftmost note held (1 Strings, 2 Winds, 3 Cadenza) — which command Hecate 2 leads into (`syncNotes()`). */
+const NOTE_LEFT = [new Buff({ /* name: "Phrolova: Strings Leftmost" */ }), new Buff({ /* name: "Phrolova: Winds Leftmost" */ }), new Buff({ /* name: "Phrolova: Cadenza Leftmost" */ })];
+/** `m`'s note markers to its store's leftmost note. */
+function syncNotes(m: TeamMember): void {
+  const note = m.stacksOf(NOTES) & 3;
+  NOTE_LEFT.forEach((b, i) => { if (!!m.stacksOf(b) !== (note === i + 1)) m.setStacks(b, note === i + 1 ? 1 : 0); });
+}
+/** `m`'s Curtain Call marker to whether it holds Maestro or Curtain Call Ready. */
+function syncCurtainCall(m: TeamMember): void {
+  const open = !!m.stacksOf(MAESTRO) || !!m.stacksOf(CURTAIN_CALL_READY);
+  if (!!m.stacksOf(CURTAIN_CALL_OPEN) !== open) m.setStacks(CURTAIN_CALL_OPEN, open ? 1 : 0);
+}
 
 /** Maestro: the Waltz standing, until its last note is consumed (see the Hecate block below). */
 export const MAESTRO = new Buff({
@@ -90,6 +106,7 @@ export const MAESTRO = new Buff({
     const word = her().stacksOf(NOTES);
     if (!((word >> 12) & 15)) return;
     her().setStacks(NOTES, word - (1 << 12));
+    syncNotes(her());
     queueEnhanced(1);
   },
 });
@@ -97,33 +114,22 @@ export const MAESTRO = new Buff({
 // energy/concerto come off the migrated sheet's combined BA12/BA23/BA123 rows — BA1/BA2 are
 // derived by subtraction, cross-checked both ways against BA12 and BA23.
 // "When in Reincarnate, press Normal Attack on the ground" casts Movement of Fate and Finality instead
-const BA1 = phroAction("Basic - Movement of Life and Death 1", { input: Input.Basic, notAfter: () => [BA1, BA2, Intro, EIntro, HA, DC], lacks: [REINCARNATE, MAESTRO], animFrames: 44, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = phroAction("Basic - Movement of Life and Death 1", { input: Input.Basic, animFrames: 44, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 18, mv: 5345, energy: 84, concerto: 168, offtune: 2688 },
     { hitFrame: 35, mv: 5345, energy: 84, concerto: 168, offtune: 2688 },
   ]});
-// "Press Normal Attack shortly after casting [Heavy Attack] to cast Basic Attack Stage 2"
-const BA2 = phroAction("Basic - Movement of Life and Death 2", { input: [Input.Basic, Input.SwapIn], after: () => [BA1, HA], position: Position.Grounded, lacks: REINCARNATE, valid: () => !stacksOf(MAESTRO) && !stacksOf(CURTAIN_CALL_READY), animFrames: 36, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 12, mv: 9543, energy: 150, concerto: 300, offtune: 4800 }]});
-// "When performing Basic Attack Stage 3, enter Reincarnate state"; either Intro leads into it too
-const BA3 = phroAction("Basic - Movement of Life and Death 3", { input: Input.Basic, after: () => [BA2, Intro, EIntro, DC], lacks: REINCARNATE, animFrames: 81, animPriority: { 0: 4, 81: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic,
-  updateBuffs: () => applyCurrent(REINCARNATE, 1), bullets: [
-    { hitFrame: 30, mv: 3269, energy: 52, concerto: 103, offtune: 1644, forte1: 1,
-      updateDebuffs: () => gainNote(1) },
-    { hitFrame: 36, mv: 3269, energy: 52, concerto: 103, offtune: 1644 },
-    { hitFrame: 42, mv: 3269, energy: 52, concerto: 103, offtune: 1644 },
-    { hitFrame: 48, mv: 3269, energy: 52, concerto: 103, offtune: 1644 },
-    { hitFrame: 54, mv: 3269, energy: 52, concerto: 103, offtune: 1644 },
-    { hitFrame: 60, mv: 3269, energy: 52, concerto: 103, offtune: 1644 },
-  ]});
-const HA = phroAction("Heavy - Movement of Life and Death", { input: Input.BasicHold, maxForte1: 5, animFrames: 62, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+const HA = phroAction("Heavy - Movement of Life and Death", { input: Input.BasicHold, animFrames: 62, animPriority: { 0: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
     { hitFrame: 26, mv: 7985, energy: 126, concerto: 251, offtune: 4016 },
     { hitFrame: 49, mv: 7985, energy: 126, concerto: 251, offtune: 4016 },
   ]});
+// "Press Normal Attack shortly after casting [Heavy Attack] to cast Basic Attack Stage 2"
+const BA2 = phroAction("Basic - Movement of Life and Death 2", { input: Input.Basic, inputPriority: 1, after: [BA1, HA], position: Position.Grounded, lacks: [REINCARNATE, MAESTRO, CURTAIN_CALL_READY], animFrames: 36, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 12, mv: 9543, energy: 150, concerto: 300, offtune: 4800 }]});
 // "Press Normal Attack shortly after casting this skill to cast Basic Attack Stage 3"
-const DC = phroAction("Dodge Counter - Movement of Life and Death", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], animFrames: 50, animPriority: { 0: 8, 2: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const DC = phroAction("Dodge Counter - Movement of Life and Death", { input: Input.Basic, after: [SUCCESSFUL_DODGE], animFrames: 50, animPriority: { 0: 8, 2: 2 }, castPriority: 8, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 24, mv: 12199, energy: 192, concerto: 384, offtune: 1336 },
   ], castConcerto: 1000 });
 
-const Skill = phroAction("Skill - Whispers in a Fleeting Dream", { input: Input.Skill, lacks: REINCARNATE, animFrames: 34, animPriority: { 32: 2 }, castPriority: 4, cooldown: 60 * 12, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+const Skill = phroAction("Skill - Whispers in a Fleeting Dream", { input: Input.Skill, animFrames: 34, animPriority: { 32: 2 }, castPriority: 4, cooldown: 60 * 12, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 10, mv: 10597, energy: 667, offtune: 2132, forte1: 1,
       updateDebuffs: () => gainNote(2) },
     { hitFrame: 48, commitFrame: 18, mv: 10597, energy: 667, offtune: 2132 },
@@ -132,7 +138,7 @@ const Skill = phroAction("Skill - Whispers in a Fleeting Dream", { input: Input.
 });
 
 // both Forte casts: "When in Reincarnate, press ... on the ground"
-const FBA = phroAction("Forte Basic - Movement of Fate and Finality", { input: Input.Basic, position: Position.Grounded, holds: REINCARNATE, animFrames: 92, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Skill,
+const FBA = phroAction("Forte Basic - Movement of Fate and Finality", { input: Input.Basic, inputPriority: 2, position: Position.Grounded, holds: REINCARNATE, animFrames: 92, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Skill,
   updateBuffs: () => revokeCurrent(REINCARNATE), bullets: [
     { hitFrame: 8, commitFrame: 2, mv: 3788, energy: 24, concerto: 75, offtune: 762, forte1: 1,
       updateDebuffs: () => gainNote(1) },
@@ -143,7 +149,7 @@ const FBA = phroAction("Forte Basic - Movement of Fate and Finality", { input: I
     { hitFrame: 60, commitFrame: 2, mv: 11783, energy: 75, concerto: 234, offtune: 2371 },
     { hitFrame: 67, commitFrame: 2, mv: 11783, energy: 75, concerto: 234, offtune: 2371 },
   ]});
-const FSkill = phroAction("Forte Skill - Murmurs in a Haunting Dream", { input: Input.Skill, position: Position.Grounded, holds: REINCARNATE, animFrames: 79, animPriority: { 79: 2 }, castPriority: 4, node: Node.Forte, cast: Cast.Skill, type: Type.Skill,
+const FSkill = phroAction("Forte Skill - Murmurs in a Haunting Dream", { input: Input.Skill, inputPriority: 1, position: Position.Grounded, holds: REINCARNATE, animFrames: 79, animPriority: { 79: 2 }, castPriority: 4, node: Node.Forte, cast: Cast.Skill, type: Type.Skill,
   updateBuffs: () => revokeCurrent(REINCARNATE), bullets: [
     { hitFrame: 10, mv: 2321, energy: 15, concerto: 50, offtune: 467, forte1: 1,
       updateDebuffs: () => gainNote(2) },
@@ -155,7 +161,7 @@ const FSkill = phroAction("Forte Skill - Murmurs in a Haunting Dream", { input: 
   ]});
 
 /** Casting it sends Compose into its 25s cooldown, modelled as the cast's own. */
-const ScarletCoda = phroAction("Forte Heavy - Scarlet Coda", { input: Input.BasicHold, minForte1: 6,
+const ScarletCoda = phroAction("Forte Heavy - Scarlet Coda", { input: Input.BasicHold, inputPriority: 1, minForte1: 6,
   animFrames: 172, castPriority: 9, cooldown: 60 * 25,
   node: Node.Normal, cast: Cast.Heavy, subcast: Cast.Echo, type: Type.Skill, castForte1: -6,  bullets: [
     { hitFrame: 14, mv: 3301, energy: 35, offtune: 8307 },
@@ -192,7 +198,7 @@ const Liberation = phroAction("Liberation - Waltz of Forsaken Depths", {
 });
 /** Recast during Maestro: ends it (and with it Suite of Immortality's replacement). */
 export const CurtainCall = phroAction("Liberation - Curtain Call", {
-  input: [Input.Liberation, Input.SwapIn], position: Position.Grounded, valid: () => stacksOf(MAESTRO) > 0 || stacksOf(CURTAIN_CALL_READY) > 0, animFrames: 83, animPriority: { 47: 5, 83: 2 }, castPriority: 10, bullets: [{ hitFrame: 42, mv: 46522, energy: 293, concerto: 585, offtune: 9360 }],
+  input: Input.Liberation, position: Position.Grounded, holds: CURTAIN_CALL_OPEN, animFrames: 83, animPriority: { 47: 5, 83: 2 }, castPriority: 10, bullets: [{ hitFrame: 42, mv: 46522, energy: 293, concerto: 585, offtune: 9360 }],
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation,
   // its Resolving Chord form (held Liberation) ends that state too; either way it ends Maestro
   updateBuffs: () => {
@@ -202,7 +208,7 @@ export const CurtainCall = phroAction("Liberation - Curtain Call", {
 });
 
 const Intro = phroAction("Intro - Suite of Quietus", {
-  input: Input.Intro, valid: () => !stacksOf(MAESTRO), endPosition: Position.Grounded, qteFrames: 36, animFrames: 80, noSwapFrames: 76, animPriority: { 80: 1 }, castPriority: 11, motionStop: [6, 38],
+  input: Input.Intro, lacks: MAESTRO, endPosition: Position.Grounded, qteFrames: 36, animFrames: 80, noSwapFrames: 76, animPriority: { 80: 1 }, castPriority: 11, motionStop: [6, 38],
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 43, commitFrame: 40, mv: 8061, energy: 400, offtune: 4055 }, { hitFrame: 62, commitFrame: 59, mv: 12091, energy: 600, offtune: 6082 }], castConcerto: 1000,
 });
 /** Maestro-replaced Intro — used whenever she re-enters with Maestro still open. Playing it is
@@ -210,10 +216,21 @@ const Intro = phroAction("Intro - Suite of Quietus", {
 const EIntro = phroAction("Intro - Suite of Immortality", {
   endPosition: Position.Grounded, qteFrames: 10, animFrames: 93, noSwapFrames: 90, animPriority: { 93: 1 }, castPriority: 11, motionStop: [6, 56],
   node: Node.Intro, cast: Cast.Intro, type: Type.Skill, bullets: [{ hitFrame: 60, mv: 59643, energy: 1000, offtune: 9600 }], castConcerto: 1000,resetForte1: true,
-  input: Input.Intro, valid: () => stacksOf(MAESTRO) > 0,
+  input: Input.Intro, holds: MAESTRO,
   // the Waltz ends here, and the notes it was playing through go with it
   updateBuffs: () => endMaestro(),
 });
+// "When performing Basic Attack Stage 3, enter Reincarnate state"; either Intro leads into it too
+const BA3 = phroAction("Basic - Movement of Life and Death 3", { input: Input.Basic, inputPriority: 1, after: [BA2, Intro, EIntro, DC], animFrames: 81, animPriority: { 0: 4, 81: 2 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic,
+  updateBuffs: () => applyCurrent(REINCARNATE, 1), bullets: [
+    { hitFrame: 30, mv: 3269, energy: 52, concerto: 103, offtune: 1644, forte1: 1,
+      updateDebuffs: () => gainNote(1) },
+    { hitFrame: 36, mv: 3269, energy: 52, concerto: 103, offtune: 1644 },
+    { hitFrame: 42, mv: 3269, energy: 52, concerto: 103, offtune: 1644 },
+    { hitFrame: 48, mv: 3269, energy: 52, concerto: 103, offtune: 1644 },
+    { hitFrame: 54, mv: 3269, energy: 52, concerto: 103, offtune: 1644 },
+    { hitFrame: 60, mv: 3269, energy: 52, concerto: 103, offtune: 1644 },
+  ]});
 /** In Maestro the Outro also queues two enhanced Hecate attacks, not charge-gated. */
 const Outro = phroAction("Outro - Unfinished Piece", {
   animFrames: 0,
@@ -230,7 +247,7 @@ function hecateAction(id: string, def: object): Action {
 /** One Hecate attack beside the fight: its bullets on their frames (wuwalab), and its end playing
  *  whatever she has queued next (`hecateEnded()`). Its priority is for its pressed form, below. */
 const hecateMove = (id: string, animFrames: number, bullets: [number, number, object?][], animPriority: Record<number, number>, castPriority: number): Action => hecateAction(id, {
-  tag: ActionTag.OffField, animFrames, animPriority, castPriority, bullets: bullets.map(([hitFrame, mv, extra]) => ({ hitFrame, mv, ...extra })), afterAction: () => hecateEnded(),
+  animFrames, animPriority, castPriority, bullets: bullets.map(([hitFrame, mv, extra]) => ({ hitFrame, mv, ...extra })), afterAction: () => hecateEnded(),
 });
 // Hecate 2's frames include the idle before the loop's next Hecate 1
 const HECATE_1 = hecateMove("Basic - Hecate 1", 40, [[10, 2784]], { 0: 2, 35: 0 }, 2);
@@ -246,17 +263,15 @@ const NOTE_MOVES = [
 // The manual command, pressed on field: Hecate 1-2 by hand, then the leftmost note's attack as
 // its swap form (`EnhancedHecate.instaSwap()`), Hecate carrying on from its end once Phrolova is out.
 // the cues only exist in Maestro
-const HBA1 = HECATE_1.variant(HECATE_1.name, { input: Input.Basic, notAfter: () => [HBA1], holds: MAESTRO, yieldsTo: () => [...COMMANDS], cast: Cast.Basic, tag: ActionTag.Default, afterAction: undefined,  });
-const HBA2 = HECATE_2.variant(HECATE_2.name, { input: Input.Basic, after: () => [HBA1], holds: MAESTRO, cast: Cast.Basic, tag: ActionTag.Default, afterAction: undefined,  });
-/** The leftmost note held: 1 Strings, 2 Winds, 3 Cadenza, 0 none — which command Hecate 2 leads into. */
-const leftNote = (): number => stacksOf(NOTES) & 3;
+const HBA1 = HECATE_1.variant(HECATE_1.name, { input: Input.Basic, inputPriority: 1, holds: MAESTRO, cast: Cast.Basic, afterAction: undefined,  });
+const HBA2 = HECATE_2.variant(HECATE_2.name, { input: Input.Basic, inputPriority: 2, after: [HBA1], holds: MAESTRO, cast: Cast.Basic, afterAction: undefined,  });
 const COMMANDS = NOTE_MOVES.map((move, i) => move.variant(`${move.name} (Command)`, {
-  input: Input.Basic, cast: Cast.Basic, tag: ActionTag.Default, after: () => [HBA2], holds: MAESTRO, valid: () => leftNote() === i + 1, updateBuffs: () => startEnhanced(),
+  input: Input.Basic, inputPriority: 2, cast: Cast.Basic, after: [HBA2], holds: [MAESTRO, NOTE_LEFT[i]!], updateBuffs: () => startEnhanced(),
 }));
 /** Her dash while she commands Hecate in Maestro: the plain one under Hecate's name, ending nothing. */
-const HecateDodge = DEFAULT_DODGE.variant("Dodge - Hecate", { position: Position.Grounded, valid: () => stacksOf(MAESTRO) > 0});
+const HecateDash = DEFAULT_DASH.variant("Dash - Hecate", { inputPriority: 0, position: Position.Grounded, holds: MAESTRO});
 /** Her Tune Break: none while she commands Hecate in Maestro (the bar waits full). */
-const PHRO_TUNE_BREAK = breakWhen(CLASS_TUNE_BREAK[WeaponType.Rectifier], () => !stacksOf(MAESTRO));
+const PHRO_TUNE_BREAK = breakWhen(CLASS_TUNE_BREAK[WeaponType.Rectifier], { lacks: MAESTRO });
 /** The leftmost note's attack, commanded — resolved when reached. */
 const EnhancedHecate = new Action("Enhanced Hecate Resolver", {
   resolve: () => {
@@ -278,7 +293,7 @@ export const HECATE_ACTIONS = new Set<Action>([...MOVES, HBA1, HBA2]);
 
 /** Bank one gathered note into the store's first empty slot — 1 Strings, 2 Winds, 3 Cadenza.
  *  Gated on a landed hit ("hitting a target with..."), so a dodge-cancelled Basic 3 (mv stripped
- *  by instaDodge()) pays nothing and leaves an armed Accidental standing. Accidental is the one
+ *  by instaDash()) pays nothing and leaves an armed Accidental standing. Accidental is the one
  *  road to a Cadenza: armed, the next note gained turns into one, whatever the cast would have
  *  paid. A full store makes room the kit's own way — every note past the leftmost Strings or
  *  Winds slides down a slot, that note is removed, and the new one takes the last slot; six
@@ -289,12 +304,14 @@ function gainNote(note: number): void {
   for (let shift = 0; shift < 12; shift += 2) {
     if ((word >> shift) & 3) continue;
     setStacksSelf(NOTES, word | (note << shift));
+    syncNotes(currentMember());
     return;
   }
   for (let shift = 0; shift < 12; shift += 2) {
     if (((word >> shift) & 3) === 3) continue;
     const notes = word & 0xfff;
     setStacksSelf(NOTES, (word & ~0xfff) | (notes & ((1 << shift) - 1)) | (((notes >> (shift + 2)) << shift) & 0xfff) | (note << 10));
+    syncNotes(currentMember());
     return;
   }
 }
@@ -325,9 +342,9 @@ function offField(): boolean {
 /** Would casting `a` end Maestro: any cast of hers but Hecate's (her dash included), the Waltz
  *  that opens it and the Outro that hands it over. */
 function endsMaestro(a: Readonly<Action>): boolean {
-  if (a.cast === null) return false;
+  if (a.cast === Cast.None) return false;
   for (let x: Readonly<Action> | null = a; x; x = x.cancelOf ?? x.formOf) {
-    if (HECATE_ACTIONS.has(x as Action) || x === HecateDodge || x === Liberation || x === Outro) return false;
+    if (HECATE_ACTIONS.has(x as Action) || x === HecateDash || x === Liberation || x === Outro) return false;
   }
   return true;
 }
@@ -419,7 +436,9 @@ function queueEnhanced(n: number, behind = false): void {
 /** The Waltz opens: Maestro, the ten Echo-cast chances, and Hecate's queue empty. */
 function startMaestro(): void {
   applyCurrent(MAESTRO, 1);
+  syncCurtainCall(currentMember());
   setStacksSelf(NOTES, (stacksOf(NOTES) & ~(15 << 12)) | (10 << 12));
+  syncNotes(currentMember());
   cancelHits(MOVES);
   setQueue(0, 0);
   her().addStack(HECATE_BUSY, 1);
@@ -437,6 +456,8 @@ function endMaestro(keepHits = false): void {
   setQueue(0, 0);
   // and every note she held with it, the Echo chances too
   her().setStacks(NOTES, 1 << 16);
+  syncNotes(her());
+  syncCurtainCall(her());
 }
 
 /** Every 240 frames of Maestro: the leftmost note is consumed; the last one ends Maestro. */
@@ -446,6 +467,7 @@ function consumeNotes(n: number): void {
     if (!(word & 3)) break;
     const next = (word & ~0xfff) | ((word & 0xfff) >> 2);
     her().setStacks(NOTES, next);
+    syncNotes(her());
     if (!(next & 0xfff)) {
       endMaestro();
       return;
@@ -510,7 +532,7 @@ const PHROLOVA_OUTRO = new Buff({
 
 /** S6's own Hecate cast, queued out of her two Forte actions — she's on the field for those, so
  *  unlike the Maestro notes this is an active action. */
-const Apparition = phroAction("Hecate - Apparition of Beyond", { tag: ActionTag.OffField, type: Type.Echo, bullets: [{ hitFrame: 70, commitFrame: 0, mv: 21642 }] });
+const Apparition = phroAction("Hecate - Apparition of Beyond", { type: Type.Echo, bullets: [{ hitFrame: 70, commitFrame: 0, mv: 21642 }] });
 HECATE_ACTIONS.add(Apparition);
 
 /** S1: the out-of-combat top-up only ever reads, in a rotation, as opening the fight holding 2
@@ -520,6 +542,7 @@ const PH_S1 = new Sequence({
   name: "Phrolova S1: A Key to Netherworld's Secrets",
   combatStart: () => {
     applyCurrent(NOTES, 3 | (3 << 2));
+    syncNotes(currentMember());
     addForte1(2);
   },
   applyStats: () => { if (runningAction(FBA) || runningAction(FSkill)) addStat(Stat.MulMv, 80); },
@@ -542,6 +565,7 @@ const PH_S3 = new Sequence({
     let word = stacksOf(NOTES);
     for (let shift = 0; shift < 12; shift += 2) if ((word >> shift) & 3) word |= 3 << shift;
     setStacksSelf(NOTES, word);
+    syncNotes(currentMember());
   },
 });
 
@@ -598,7 +622,7 @@ export const PHROLOVA_RESONATOR = new Resonator({
   element: Attribute.Havoc,
   weapon: WeaponType.Rectifier,
   color: "#a62c57",
-  actions: [BA1, BA2, BA3, HA, DC, Skill, FBA, FSkill, ScarletCoda, Liberation, CurtainCall, Intro, EIntro, Outro, HBA1, HBA2, ...COMMANDS, HecateDodge, PHRO_TUNE_BREAK],
+  actions: [BA1, BA2, BA2.swapIn(), BA3, HA, DC, Skill, FBA, FSkill, ScarletCoda, Liberation, CurtainCall, CurtainCall.swapIn(), Intro, EIntro, Outro, HBA1, HBA2, ...COMMANDS, HecateDash, PHRO_TUNE_BREAK],
   maxEnergy: 0,
   maxForte1: 6,
   holdBefore: (next) => hecateHold(next),
@@ -606,6 +630,7 @@ export const PHROLOVA_RESONATOR = new Resonator({
   // the note store and Hecate's queue, both empty (their always-set bits alone)
   combatStart: () => {
     applyCurrent(NOTES, 1 << 16);
+    syncNotes(currentMember());
     applyCurrent(HECATE_QUEUE, 1 << 16);
   },
   // leaving the field in Maestro is where Hecate takes over
@@ -613,6 +638,7 @@ export const PHROLOVA_RESONATOR = new Resonator({
   updateBuffs: () => {
     if (currentCast().swapOut && stacksOf(MAESTRO)) hecateNext(0, true);
     if (!triggeredAction()) revokeCurrent(CURTAIN_CALL_READY);
+    syncCurtainCall(currentMember());
   },
   // Augusta's Everbright Protector sends her off: Maestro ends and Hecate stops, her attack
   // already out still landing
@@ -629,75 +655,75 @@ const BA23 = new ActionGroup("Basic - Movement of Life and Death 23", [BA2, BA3]
 const HBA12 = new ActionGroup("Basic - Hecate 12", [HBA1, HBA2]);
 
 const PHRO_3FBA_MANUAL = new Rotation([
-  SWAPIN, BA23.hitCancel(), NM_HECATE, FBA.instaDodge(),
-  BA123.hitDodge(), FBA.instaCancel(), Skill, FBA.holdCancel(),
+  SWAPIN, BA23.hitCancel(), NM_HECATE, FBA.instaDash(),
+  BA123.hitDash(), FBA.instaCancel(), Skill, FBA.holdCancel(),
   ScarletCoda.mashCancel(), Liberation.mashSwap(), Outro,
   
-  Intro, EIntro, BA3.hitDodge(), FBA.instaCancel(), NM_HECATE, 
-  BA123.hitDodge(), FBA.instaCancel(), Skill, FBA.holdCancel(),
-  ScarletCoda.mashCancel(), Liberation, HBA12.instaDodge(), EnhancedHecate.instaSwap(), Outro,
+  Intro, EIntro, BA3.hitDash(), FBA.instaCancel(), NM_HECATE,
+  BA123.hitDash(), FBA.instaCancel(), Skill, FBA.holdCancel(),
+  ScarletCoda.mashCancel(), Liberation, HBA12.instaDash(), EnhancedHecate.instaSwap(), Outro,
 ]);
 
 const PHRO_3FBA = new Rotation([
-  SWAPIN, BA23.hitCancel(), NM_HECATE, FBA.instaDodge(),
-  BA123.hitDodge(), FBA.instaCancel(), Skill, FBA.holdCancel(),
+  SWAPIN, BA23.hitCancel(), NM_HECATE, FBA.instaDash(),
+  BA123.hitDash(), FBA.instaCancel(), Skill, FBA.holdCancel(),
   ScarletCoda.mashCancel(), Liberation.mashSwap(), Outro,
   
-  Intro, EIntro, BA3.hitDodge(), FBA.instaCancel(), NM_HECATE, 
-  BA123.hitDodge(), FBA.instaCancel(), Skill, FBA.holdCancel(),
+  Intro, EIntro, BA3.hitDash(), FBA.instaCancel(), NM_HECATE,
+  BA123.hitDash(), FBA.instaCancel(), Skill, FBA.holdCancel(),
   ScarletCoda.mashCancel(), Liberation.mashSwap(), Outro,
 ]);
 const PHRO_3FBA_S2 = new Rotation([
-  SWAPIN, BA23.instaCancel(), NM_HECATE, FBA.instaDodge(), 
-  BA123.instaDodge(), FBA.instaCancel(), Skill, FBA.holdCancel(),
+  SWAPIN, BA23.instaCancel(), NM_HECATE, FBA.instaDash(),
+  BA123.instaDash(), FBA.instaCancel(), Skill, FBA.holdCancel(),
   ScarletCoda.mashCancel(), Liberation.mashSwap(), Outro,
   
-  Intro, EIntro, BA3.hitDodge(), FBA.instaCancel(), NM_HECATE,
-  BA123.hitDodge(), FBA.instaCancel(), Skill, FBA.holdCancel(),
+  Intro, EIntro, BA3.hitDash(), FBA.instaCancel(), NM_HECATE,
+  BA123.hitDash(), FBA.instaCancel(), Skill, FBA.holdCancel(),
   ScarletCoda.mashCancel(), Liberation.mashSwap(), Outro,
 ]);
 
 const PHRO_4FBA = new Rotation([
-  SWAPIN, BA23.hitCancel(), NM_HECATE, FBA.instaDodge(),
-  BA123.hitDodge(), FBA.instaCancel(), Skill, FBA.holdCancel(),
+  SWAPIN, BA23.hitCancel(), NM_HECATE, FBA.instaDash(),
+  BA123.hitDash(), FBA.instaCancel(), Skill, FBA.holdCancel(),
   ScarletCoda.mashCancel(), Liberation.mashSwap(), Outro,
 
-  Intro, EIntro, BA3.hitDodge(), FBA.instaDodge(),
-  BA123.instaDodge(), FBA.instaCancel(),  NM_HECATE,
-  BA123.instaDodge(), FBA.instaCancel(), Skill, FBA.holdCancel(),
+  Intro, EIntro, BA3.hitDash(), FBA.instaDash(),
+  BA123.instaDash(), FBA.instaCancel(),  NM_HECATE,
+  BA123.instaDash(), FBA.instaCancel(), Skill, FBA.holdCancel(),
   ScarletCoda.mashCancel(), Liberation.mashSwap(), Outro,
 ]);
 const PHRO_4FBA_S2 = new Rotation([
-  SWAPIN, BA23.instaCancel(), NM_HECATE, FBA.instaDodge(), 
-  BA123.instaDodge(), FBA.instaCancel(), Skill, FBA.holdCancel(),
+  SWAPIN, BA23.instaCancel(), NM_HECATE, FBA.instaDash(),
+  BA123.instaDash(), FBA.instaCancel(), Skill, FBA.holdCancel(),
   ScarletCoda.mashCancel(), Liberation.mashSwap(), Outro,
 
-  Intro, EIntro, BA3.hitDodge(), FBA.instaDodge(),
-  BA123.instaDodge(), FBA.instaCancel(), NM_HECATE, 
-  BA123.instaDodge(), FBA.instaCancel(), Skill, FBA.holdCancel(),
+  Intro, EIntro, BA3.hitDash(), FBA.instaDash(),
+  BA123.instaDash(), FBA.instaCancel(), NM_HECATE,
+  BA123.instaDash(), FBA.instaCancel(), Skill, FBA.holdCancel(),
   ScarletCoda.mashCancel(), Liberation.mashSwap(), Outro,
 ]);
 
 const PHRO_5FBA = new Rotation([
-  SWAPIN, BA23.hitCancel(), NM_HECATE, FBA.instaDodge(),
-  BA123.hitDodge(), FBA.instaCancel(), Skill, FBA.holdCancel(),
+  SWAPIN, BA23.hitCancel(), NM_HECATE, FBA.instaDash(),
+  BA123.hitDash(), FBA.instaCancel(), Skill, FBA.holdCancel(),
   ScarletCoda.mashCancel(), Liberation.mashSwap(), Outro,
 
-  Intro, EIntro, BA3.instaDodge(), FBA.instaDodge(),
-  BA123.instaDodge(), FBA.instaDodge(),
-  BA123.instaDodge(), FBA.instaCancel(),  NM_HECATE,
-  BA123.instaDodge(), FBA.instaCancel(), Skill, FBA.holdCancel(),
+  Intro, EIntro, BA3.instaDash(), FBA.instaDash(),
+  BA123.instaDash(), FBA.instaDash(),
+  BA123.instaDash(), FBA.instaCancel(),  NM_HECATE,
+  BA123.instaDash(), FBA.instaCancel(), Skill, FBA.holdCancel(),
   ScarletCoda.mashCancel(), Liberation.mashSwap(), Outro,
 ]);
 const PHRO_5FBA_S2 = new Rotation([
-  SWAPIN, BA23.instaCancel(), NM_HECATE, FBA.instaDodge(), 
-  BA123.instaDodge(), FBA.instaCancel(), Skill, FBA.holdCancel(),
+  SWAPIN, BA23.instaCancel(), NM_HECATE, FBA.instaDash(),
+  BA123.instaDash(), FBA.instaCancel(), Skill, FBA.holdCancel(),
   ScarletCoda.mashCancel(), Liberation.mashSwap(), Outro,
 
-  Intro, EIntro, BA3.instaDodge(), FBA.instaDodge(),
-  BA123.instaDodge(), FBA.instaDodge(),
-  BA123.instaDodge(), FBA.instaCancel(), NM_HECATE, 
-  BA123.instaDodge(), FBA.instaCancel(), Skill, FBA.holdCancel(),
+  Intro, EIntro, BA3.instaDash(), FBA.instaDash(),
+  BA123.instaDash(), FBA.instaDash(),
+  BA123.instaDash(), FBA.instaCancel(), NM_HECATE,
+  BA123.instaDash(), FBA.instaCancel(), Skill, FBA.holdCancel(),
   ScarletCoda.mashCancel(), Liberation.mashSwap(), Outro,
 ]);
 

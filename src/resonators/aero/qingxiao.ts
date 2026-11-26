@@ -104,30 +104,15 @@ const ASCENDANT_WINDOW = new Buff({
 //     chain and the dodge counter are Drawn Stance (Sword Cadence, forte2). Gauge gains at their
 //     plain rate, doubled by HEAVENS_CLARITY; everything else is the same row either way.
 //     Sword Flight is airborne ("Exit ... by returning to the ground"): what enters it leaves her mid-air.
-const BA1 = qxAction("Basic - Stringblade 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [BA1, BA2, BA3, MA3, Plunge, TUNE_BREAK, DC, Skill], position: Position.Grounded, valid: () => !isHeld(EPHEMERAL), animFrames: 29, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA1 = qxAction("Basic - Stringblade 1", { input: Input.Basic, position: Position.Grounded, lacks: EPHEMERAL, animFrames: 29, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 15, mv: 3013, energy: 55, concerto: 109, offtune: 1732, forte1: 487 },
     { hitFrame: 22, mv: 3013, energy: 55, concerto: 109, offtune: 1732, forte1: 487 },
   ]});
-const BA2 = qxAction("Basic - Stringblade 2", { input: Input.Basic, after: () => [BA1], animFrames: 37, castPriority: 2, updateBuffs: () => applyCurrent(ASCENDANT_WINDOW, 1), node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const BA2 = qxAction("Basic - Stringblade 2", { input: Input.Basic, inputPriority: 1, after: [BA1], animFrames: 37, castPriority: 2, updateBuffs: () => applyCurrent(ASCENDANT_WINDOW, 1), node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 12, mv: 3709, energy: 67, concerto: 134, offtune: 2132, forte2: 356 },
     { hitFrame: 28, mv: 3709, energy: 67, concerto: 134, offtune: 2132, forte2: 356 },
   ]});
-// Stage 3 also follows landing from Mid-air Stage 3, the Plunging Attack and her Tune Break
-const BA3 = qxAction("Basic - Stringblade 3", { input: Input.Basic, after: () => [BA2, MA3, Plunge, TUNE_BREAK], lacks: EPHEMERAL, animFrames: 48, castPriority: 2, updateBuffs: () => applyCurrent(ASCENDANT_WINDOW, 1), node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 6, mv: 2436, energy: 44, concerto: 88, offtune: 1400, forte2: 234 },
-    { hitFrame: 12, mv: 2436, energy: 44, concerto: 88, offtune: 1400, forte2: 234 },
-    { hitFrame: 18, mv: 2436, energy: 44, concerto: 88, offtune: 1400, forte2: 234 },
-    { hitFrame: 20, mv: 2436, energy: 44, concerto: 88, offtune: 1400, forte2: 234 },
-  ]});
-// Stage 4 also follows the Dodge Counter and Severing Note: Judgement
-const BA4 = qxAction("Basic - Stringblade 4", { input: Input.Basic, after: () => [BA3, DC, Skill], animFrames: 52, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
-    { hitFrame: 17, mv: 8673, energy: 156, concerto: 312, offtune: 4986, forte1: 1402 },
-    { hitFrame: 32, mv: 543, energy: 10, concerto: 20, offtune: 312, forte1: 88 },
-    { hitFrame: 36, mv: 543, energy: 10, concerto: 20, offtune: 312, forte1: 88 },
-    { hitFrame: 39, mv: 543, energy: 10, concerto: 20, offtune: 312, forte1: 88 },
-    { hitFrame: 42, mv: 543, energy: 10, concerto: 20, offtune: 312, forte1: 88 },
-  ]});
-const MA1 = qxAction("Mid-air - Stringblade 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [MA1], position: Position.Midair, lacks: EPHEMERAL, animFrames: 42, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MA1 = qxAction("Mid-air - Stringblade 1", { input: Input.Basic, position: Position.Midair, animFrames: 42, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 0, mv: 724, energy: 13, concerto: 26, offtune: 416, forte2: 70 },
     { hitFrame: 6, commitFrame: 0, mv: 724, energy: 13, concerto: 26, offtune: 416, forte2: 70 },
     { hitFrame: 12, commitFrame: 0, mv: 724, energy: 13, concerto: 26, offtune: 416, forte2: 70 },
@@ -135,7 +120,7 @@ const MA1 = qxAction("Mid-air - Stringblade 1", { input: [Input.Basic, Input.Swa
     { hitFrame: 24, commitFrame: 0, mv: 724, energy: 13, concerto: 26, offtune: 416, forte2: 70 },
     { hitFrame: 30, commitFrame: 0, mv: 5428, energy: 98, concerto: 195, offtune: 3120, forte2: 521 },
   ]});
-const MA2 = qxAction("Mid-air - Stringblade 2", { input: Input.Basic, after: () => [MA1], position: Position.Midair, animFrames: 45, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+const MA2 = qxAction("Mid-air - Stringblade 2", { input: Input.Basic, inputPriority: 1, after: [MA1], position: Position.Midair, animFrames: 45, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 12, mv: 4489, energy: 81, concerto: 162, offtune: 2580, forte2: 431 },
     { hitFrame: 18, mv: 2245, energy: 41, concerto: 81, offtune: 1290, forte2: 216 },
     { hitFrame: 23, mv: 2245, energy: 41, concerto: 81, offtune: 1290, forte2: 216 },
@@ -152,7 +137,14 @@ const MA3 = qxAction("Mid-air - Stringblade 3", { input: Input.Skill, position: 
   ]});
 // "While in the Sword Flight state, Jump is replaced by Plunging Attack"
 const Plunge = qxAction("Mid-air - Plunging Attack", { input: Input.Jump, position: Position.Midair, endPosition: Position.Grounded, animFrames: 63, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 39, mv: 8629, energy: 155, concerto: 310, offtune: 4960 }]});
-const DC = qxAction("Dodge Counter - Stringblade", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], animFrames: 48, castPriority: 2, updateBuffs: () => applyCurrent(ASCENDANT_WINDOW, 1), node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+// Stage 3 also follows landing from Mid-air Stage 3, the Plunging Attack and her Tune Break
+const BA3 = qxAction("Basic - Stringblade 3", { input: Input.Basic, inputPriority: 1, after: [BA2, MA3, Plunge, TUNE_BREAK], animFrames: 48, castPriority: 2, updateBuffs: () => applyCurrent(ASCENDANT_WINDOW, 1), node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 6, mv: 2436, energy: 44, concerto: 88, offtune: 1400, forte2: 234 },
+    { hitFrame: 12, mv: 2436, energy: 44, concerto: 88, offtune: 1400, forte2: 234 },
+    { hitFrame: 18, mv: 2436, energy: 44, concerto: 88, offtune: 1400, forte2: 234 },
+    { hitFrame: 20, mv: 2436, energy: 44, concerto: 88, offtune: 1400, forte2: 234 },
+  ]});
+const DC = qxAction("Dodge Counter - Stringblade", { input: Input.Basic, after: [SUCCESSFUL_DODGE], animFrames: 48, castPriority: 2, updateBuffs: () => applyCurrent(ASCENDANT_WINDOW, 1), node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 6, mv: 4523, energy: 82, concerto: 163, offtune: 2600, forte2: 434 },
     { hitFrame: 12, mv: 4523, energy: 82, concerto: 163, offtune: 2600, forte2: 434 },
     { hitFrame: 18, mv: 4523, energy: 82, concerto: 163, offtune: 2600, forte2: 434 },
@@ -183,14 +175,22 @@ const HA = qxAction("Heavy - Stringblade", { endPosition: Position.Midair, input
 //     past its last hit; Resonant Chime adds 30 after an Intro. Ascendant is the Drawn-stance
 //     skill inside a basic chain.
 // in mid-air her Resonance Skill is Mid-air Attack Stage 3 instead
-const Skill = qxAction("Skill - Severing Note: Judgement", { input: Input.Skill, position: Position.Grounded, yieldsTo: () => [Ascendant], animFrames: 81, castPriority: 5, cooldown: 60 * 20, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+const Skill = qxAction("Skill - Severing Note: Judgement", { input: Input.Skill, position: Position.Grounded, animFrames: 81, castPriority: 5, cooldown: 60 * 20, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 4, mv: 2088, energy: 38, concerto: 75, offtune: 1200 },
     { hitFrame: 13, mv: 2088, energy: 38, concerto: 75, offtune: 1200 },
     { hitFrame: 72, mv: 9742, energy: 175, concerto: 350, offtune: 5600 },
     { hitFrame: 80, element: null, type: null, subtype: null, forte1: 4500 },
   ]});
+// Stage 4 also follows the Dodge Counter and Severing Note: Judgement
+const BA4 = qxAction("Basic - Stringblade 4", { input: Input.Basic, inputPriority: 1, after: [BA3, DC, Skill], animFrames: 52, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 17, mv: 8673, energy: 156, concerto: 312, offtune: 4986, forte1: 1402 },
+    { hitFrame: 32, mv: 543, energy: 10, concerto: 20, offtune: 312, forte1: 88 },
+    { hitFrame: 36, mv: 543, energy: 10, concerto: 20, offtune: 312, forte1: 88 },
+    { hitFrame: 39, mv: 543, energy: 10, concerto: 20, offtune: 312, forte1: 88 },
+    { hitFrame: 42, mv: 543, energy: 10, concerto: 20, offtune: 312, forte1: 88 },
+  ]});
 // "While casting Basic Attack - Stringblade Stage 2, Stage 3, or Dodge Counter - Stringblade"
-const Ascendant = qxAction("Skill - Severing Note: Ascendant", { input: Input.Skill, after: () => [BA2, BA3, DC], position: Position.Grounded, holds: ASCENDANT_WINDOW, endPosition: Position.Midair, animFrames: 64, animPriority: { 49: 0 }, castPriority: 5, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+const Ascendant = qxAction("Skill - Severing Note: Ascendant", { input: Input.Skill, inputPriority: 1, after: [BA2, BA3, DC], position: Position.Grounded, holds: ASCENDANT_WINDOW, endPosition: Position.Midair, animFrames: 64, animPriority: { 49: 0 }, castPriority: 5, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 16, mv: 3313, energy: 60, concerto: 119, offtune: 1904, forte2: 318 },
     { hitFrame: 16, mv: 2840, energy: 51, concerto: 102, offtune: 1632, forte2: 273 },
     { hitFrame: 25, commitFrame: 16, mv: 3313, energy: 60, concerto: 119, offtune: 1904, forte2: 318 },
@@ -201,14 +201,14 @@ const Ascendant = qxAction("Skill - Severing Note: Ascendant", { input: Input.Sk
 //     applyStats. Heaven's Reckoning spends it all and ends the state. Stage 1 is nanoka's
 //     44.89%+22.45%*2. Both dodge counters carry +10 Concerto (CLAUDE.md). All of them enter
 //     Sword Flight, as do Heavy Attack - Stringblade, Ascendant and the Intro.
-const FBA1 = qxAction("Basic - Ephemeral Transcendence 1", { input: [Input.Basic, Input.SwapIn], notAfter: () => [FBA1, FBA2, FBA3], holds: EPHEMERAL, endPosition: Position.Midair, animFrames: 40, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
+const FBA1 = qxAction("Basic - Ephemeral Transcendence 1", { input: Input.Basic, inputPriority: 2, holds: EPHEMERAL, endPosition: Position.Midair, animFrames: 40, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 12, mv: 4489, energy: 81, concerto: 162, offtune: 2580, forte1: 1022 },
     { hitFrame: 16, mv: 2245, energy: 41, concerto: 81, offtune: 1290, forte1: 511 },
     { hitFrame: 19, mv: 2245, energy: 41, concerto: 81, offtune: 1290, forte1: 511 },
   ],
   applyStats: () => { if (forte1() < 10000) addStat(Stat.MulMv, 100); }
 });
-const FBA2 = qxAction("Basic - Ephemeral Transcendence 2", { input: Input.Basic, after: () => [FBA1], holds: EPHEMERAL, endPosition: Position.Midair, animFrames: 58, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
+const FBA2 = qxAction("Basic - Ephemeral Transcendence 2", { input: Input.Basic, inputPriority: 3, after: [FBA1], holds: EPHEMERAL, endPosition: Position.Midair, animFrames: 58, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 14, mv: 2311, energy: 42, concerto: 83, offtune: 1328, forte1: 527 },
     { hitFrame: 17, mv: 2311, energy: 42, concerto: 83, offtune: 1328, forte1: 527 },
     { hitFrame: 20, mv: 2311, energy: 42, concerto: 83, offtune: 1328, forte1: 527 },
@@ -217,7 +217,7 @@ const FBA2 = qxAction("Basic - Ephemeral Transcendence 2", { input: Input.Basic,
   ],
 applyStats: () => { if (forte1() < 10000) addStat(Stat.MulMv, 100); }
 });
-const FBA3 = qxAction("Basic - Ephemeral Transcendence 3", { input: Input.Basic, after: () => [FBA2], holds: EPHEMERAL, endPosition: Position.Midair, animFrames: 57, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
+const FBA3 = qxAction("Basic - Ephemeral Transcendence 3", { input: Input.Basic, inputPriority: 3, after: [FBA2], holds: EPHEMERAL, endPosition: Position.Midair, animFrames: 57, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 10, mv: 2088, energy: 38, concerto: 75, offtune: 1200, forte1: 476 },
     { hitFrame: 20, mv: 3132, energy: 57, concerto: 113, offtune: 1800, forte1: 714 },
     { hitFrame: 30, mv: 2088, energy: 38, concerto: 75, offtune: 1200, forte1: 476 },
@@ -226,7 +226,7 @@ const FBA3 = qxAction("Basic - Ephemeral Transcendence 3", { input: Input.Basic,
   ],
 applyStats: () => { if (forte1() < 10000) addStat(Stat.MulMv, 100); }
 });
-const FBA4 = qxAction("Basic - Ephemeral Transcendence 4", { input: Input.Basic, after: () => [FBA3], holds: EPHEMERAL, endPosition: Position.Midair, animFrames: 87, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
+const FBA4 = qxAction("Basic - Ephemeral Transcendence 4", { input: Input.Basic, inputPriority: 3, after: [FBA3], holds: EPHEMERAL, endPosition: Position.Midair, animFrames: 87, castPriority: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
     { hitFrame: 10, mv: 1810, energy: 33, concerto: 65, offtune: 1040, forte1: 412 },
     { hitFrame: 23, mv: 1810, energy: 33, concerto: 65, offtune: 1040, forte1: 412 },
     { hitFrame: 32, mv: 1810, energy: 33, concerto: 65, offtune: 1040, forte1: 412 },
@@ -236,7 +236,7 @@ const FBA4 = qxAction("Basic - Ephemeral Transcendence 4", { input: Input.Basic,
 applyStats: () => { if (forte1() < 10000) addStat(Stat.MulMv, 100); }
 });
 // wuwalab's "Ephemeral Transcendence 4 (Dodge Counter)": stage 4's counter form, so Basic after it restarts at FBA1
-const FDC = qxAction("Dodge Counter - Ephemeral Transcendence", { input: Input.Basic, after: () => [SUCCESSFUL_DODGE], holds: EPHEMERAL, endPosition: Position.Midair, animFrames: 87, castPriority: 2, node: Node.Forte, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+const FDC = qxAction("Dodge Counter - Ephemeral Transcendence", { input: Input.Basic, inputPriority: 1, after: [SUCCESSFUL_DODGE], holds: EPHEMERAL, endPosition: Position.Midair, animFrames: 87, castPriority: 2, node: Node.Forte, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
     { hitFrame: 10, mv: 2645, energy: 48, concerto: 95, offtune: 1520, forte1: 603 },
     { hitFrame: 23, mv: 2645, energy: 48, concerto: 95, offtune: 1520, forte1: 603 },
     { hitFrame: 32, mv: 2645, energy: 48, concerto: 95, offtune: 1520, forte1: 603 },
@@ -312,7 +312,7 @@ const Outro = qxAction("Outro - Lingering Song", { animFrames: 0, cast: Cast.Out
 /* ------------------------------------------------------------------------------------- buffs */
 
 /** Mindlock, her own enemy debuff — 15 frozenStacks, never decays. Nothing but her reads it. */
-const MINDLOCK = new Debuff({ name: "Qingxiao: Mindlock", 
+const MINDLOCK = new Debuff({ name: "Qingxiao: Mindlock",
   maxStacks: 15,
   applyStats: () => {
     if (!mindlockPays()) return;
@@ -429,7 +429,7 @@ export const QINGXIAO_RESONATOR = new Resonator({
   element: Attribute.Aero,
   weapon: WeaponType.Sword,
   color: "#6cc5b0",
-  actions: [BA1, BA2, BA3, BA4, MA1, MA2, MA3, Plunge, DC, HA, Skill, Ascendant, FBA1, FBA2, FBA3, FBA4, FDC, FHA, Liberation, Intro, Outro, tuneBreak(120, 120, [0, 120], [0, 100], [[64, 10000], [70, 10000, 64], [76, 10000, 64], [82, 10000, 64], [101, 120000]])],
+  actions: [BA1, BA1.swapIn(), BA2, BA3, BA4, MA1, MA1.swapIn(), MA2, MA3, Plunge, DC, HA, Skill, Ascendant, FBA1, FBA1.swapIn(), FBA2, FBA3, FBA4, FDC, FHA, Liberation, Intro, Outro, tuneBreak(120, 120, [0, 120], [0, 100], [[64, 10000], [70, 10000, 64], [76, 10000, 64], [82, 10000, 64], [101, 120000]])],
   maxEnergy: 12500,
   forteScale: [0.01, 0.01, 1, 1, 1],
   maxForte1: 10000,
@@ -447,7 +447,7 @@ export const QINGXIAO_RESONATOR = new Resonator({
   // every damaging cast of hers lays Tune Strain - Shifting (the echo is its own cast, not hers)
   updateDebuffs: () => {
     const cast = currentCast().cast;
-    if (cast !== null && cast !== Cast.Echo) applyStrain();
+    if (cast !== Cast.None && cast !== Cast.Echo) applyStrain();
   },
 
   // The Forte Circuit's own Mindlock line: +1 for every Tune Strain - Interfered the team inflicts.

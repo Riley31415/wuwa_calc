@@ -190,16 +190,11 @@ export const SUHSIN_MAINSLOT = new Mainslot({
   grants: SUHSIN_BUFF_GRANTS,
 });
 export const SUHSIN = new SummonEcho("Echo - Reminiscence: Suhsin", {
-  mainslot: SUHSIN_MAINSLOT, cooldown: 60 * 20, valid: () => !wears("Hsin"),
+  mainslot: SUHSIN_MAINSLOT, cooldown: 60 * 20,
   element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
   bullets: [...[14, 19, 23, 29].map((f) => ({ hitFrame: f, commitFrame: 0, mv: 2736, energy: 38 })), { hitFrame: 48, commitFrame: 0, mv: 16416, energy: 228 }],
 });
-/** Hsin's own form of it. */
-export const SUHSIN_HSIN = new SummonEcho("Echo - Reminiscence: Suhsin (Hsin)", {
-  mainslot: SUHSIN_MAINSLOT, cooldown: 60 * 20, valid: () => wears("Hsin"),
-  element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
-  bullets: [...[11, 14, 21, 24, 31].map((f) => ({ hitFrame: f, commitFrame: 0, mv: 1368, energy: 19 })), { hitFrame: 54, commitFrame: 0, mv: 23256, energy: 323 }],
-});
+// Hsin's own form lives in her kit (`holds` her Resonator, one inputPriority above this)
 
 /** Soulfrayer (6000224, the 3-cost "Stay tuned"), Electro Rover's own mainslot: three
  *  91.18% Electro hits, and the Impermanence Heron shape — its cast primes an Outro handoff, the

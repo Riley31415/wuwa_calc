@@ -304,39 +304,3 @@ export const BLOOMING_JADEHAVEN = refinements((r, rank) => {
   });
 });
 
-/** Anna Sig — Unspoken Rue (Suoming's) made Fusion for Anna: her Liberation (where Suoming gains
- *  Unison) grants Locked Thunder to her and Binding Mind to the team and ends Yearning Mind;
- *  spending Concerto grants Yearning Mind and ends the team's Binding Mind. */
-export const ANNA_SIG = refinements((r, rank) => {
-  const LOCKED_THUNDER = new Buff({
-    name: `Anna Sig: Locked Thunder, Trapped Rain${rank}`,
-    duration: 60 * 30,
-    stats: [[Stat.DmgBonus, [30, 37.5, 45, 52.5, 60][r]!, Attribute.Fusion]],
-  });
-  const BINDING_MIND = new Buff({
-    name: `Anna Sig: Binding Mind${rank}`,
-    duration: 60 * 30,
-    stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Attribute.Fusion]],
-  });
-  const YEARNING_MIND = new Buff({
-    name: `Anna Sig: Yearning Mind${rank}`, lostOnSwap: true,
-    duration: 60 * 14,
-    stats: [[Stat.DmgBonus, [40, 50, 60, 70, 80][r]!, Attribute.Fusion]],
-  });
-  return new Weapon({
-    id: 21050126,
-    weaponType: WeaponType.Rectifier, name: `Anna Sig${rank}`,
-    stats: [[Stat.BaseAtk, 587.5], [Stat.CritRate, 24.3], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
-    updateBuffs: () => {
-      if (casting(Cast.Liberation)) {
-        applyCurrent(LOCKED_THUNDER, 1);
-        applyTeam(BINDING_MIND, 1);
-        revokeCurrent(YEARNING_MIND);
-      }
-      if (consumedConcerto()) {
-        applyCurrent(YEARNING_MIND, 1);
-        revokeTeam(BINDING_MIND);
-      }
-    },
-  });
-});
