@@ -40,7 +40,7 @@ import {
   concerto,
   grounded,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, SWAPIN, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, SWAPIN, SUCCESSFUL_DODGE, JUMP, DASH } from "../../engine/rotation.js";
 import { tuneBreak } from "../tunebreak.js";
 import { AERO_EROSION, SPECTRO_FRAZZLE, gainShield } from "../status.js";
 import { WOODLAND_ARIA } from "../../weapons/pistol.js";
@@ -357,35 +357,35 @@ const BA34 = new ActionGroup("Basic - Quadruple Time Steps 34", [BA3, BA4]);
 const BA234 = new ActionGroup("Basic - Quadruple Time Steps 234", [BA2, BA3, BA4]);
 
 const CI_ROTATION = new Rotation([
-  SWAPIN, BA1.instaCancel(),
-  Skill, BA234.instaJump(), MA12, BA4.instaJump(), MA12, BA4.holdCancel(),
-  Downbeat.cancel(), NM_KELPIE.instaDash(), HERON.instaDash(), Liberation.swapCancel(), Outro,
+  SWAPIN, BA1,
+  Skill, BA234, JUMP, MA12, BA4, JUMP, MA12, BA4,
+  Downbeat, NM_KELPIE.instant(), DASH, HERON.instant(), DASH, Liberation, Outro,
 
-  Intro, BA34.instaJump(),
-  MA12, BA4.instaCancel(),
-  Skill, Downbeat.cancel(), NM_KELPIE.instaDash(), HERON.instaDash(), Liberation.swapCancel(), Outro,
+  Intro, BA34, JUMP,
+  MA12, BA4,
+  Skill, Downbeat, NM_KELPIE.instant(), DASH, HERON.instant(), DASH, Liberation, Outro,
 ]);
 
 /** The same loop with the yellow Tonic picked, for a Spectro Frazzle team. */
 const CI_ROTATION_YELLOW = new Rotation([
-  SWAPIN, BA1.instaCancel(),
-  Skill, BA234.instaJump(), MA12, BA4.instaJump(), MA12, BA4.holdCancel(),
-  Downbeat.cancel(), NM_KELPIE.instaDash(), HERON.instaDash(), LiberationYellow.swapCancel(), Outro,
+  SWAPIN, BA1,
+  Skill, BA234, JUMP, MA12, BA4, JUMP, MA12, BA4,
+  Downbeat, NM_KELPIE.instant(), DASH, HERON.instant(), DASH, LiberationYellow, Outro,
 
-  Intro, BA34.instaJump(),
-  MA12, BA4.instaCancel(),
-  Skill, Downbeat.cancel(), NM_KELPIE.instaDash(), HERON.instaDash(), LiberationYellow.swapCancel(), Outro,
+  Intro, BA34, JUMP,
+  MA12, BA4,
+  Skill, Downbeat, NM_KELPIE.instant(), DASH, HERON.instant(), DASH, LiberationYellow, Outro,
 ]);
 
 /** From S3 on Harmonic Allegro has two charges, so both go before the Downbeat; the second
  *  segment Stage 4 banks changes nothing here, the Downbeat spends the capped three either way. */
 const CI_ROTATION_S3 = new Rotation([
-  SWAPIN, BA1.instaCancel(),
-  Skill, BA234.instaJump(), MA12, BA4.instaCancel(),
-  Skill, Downbeat.cancel(), NM_KELPIE.instaDash(), HERON.instaDash(), Liberation.swapCancel(), Outro,
+  SWAPIN, BA1,
+  Skill, BA234, JUMP, MA12, BA4,
+  Skill, Downbeat, NM_KELPIE.instant(), DASH, HERON.instant(), DASH, Liberation, Outro,
 
-  Intro, BA34.instaCancel(),
-  Skill, Downbeat.cancel(), Skill, NM_KELPIE.instaDash(), HERON.instaDash(), Liberation.swapCancel(), Outro,
+  Intro, BA34,
+  Skill, Downbeat, Skill, NM_KELPIE.instant(), DASH, HERON.instant(), DASH, Liberation, Outro,
 ]);
 /* ----------------------------------------------------------------------------------- loadout */
 

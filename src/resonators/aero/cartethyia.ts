@@ -577,10 +577,10 @@ export const CARTETHYIA_RESONATOR = new Resonator({
 // covers opener and loop both.
 
 const CT_ROTATION = new Rotation([
-  Intro, BA234.cancel(),
-  Skill, PlungeResolver.cancel(), FLEURDELYS.instaCancel(),
-  Liberation, FBA12345.cancel(),
-  FSkill1, FSkill2, FBA345.cancel(),
+  Intro, BA234,
+  Skill, PlungeResolver, FLEURDELYS.instant(),
+  Liberation, FBA12345,
+  FSkill1, FSkill2, FBA345,
   Lib2, Outro,
 ]);
 

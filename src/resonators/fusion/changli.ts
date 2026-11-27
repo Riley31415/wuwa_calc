@@ -30,7 +30,7 @@ import {
   midair,
   concerto,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, START_LAST, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, START_LAST, SUCCESSFUL_DODGE, SWAP, DASH } from "../../engine/rotation.js";
 import { BLAZING_BRILLIANCE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
@@ -298,14 +298,14 @@ const BA1234 = new ActionGroup("Basic - Blazing Enlightenment 1234", [BA1, BA2, 
 const BA34 = new ActionGroup("Basic - Blazing Enlightenment 34", [BA3, BA4]);
 
 const CH_ROTATION = new Rotation([
-  START_LAST, BA1.instaCancel(), Skill.hitCancel(), Liberation, FlamingSacrifice.instaSwap(),
+  START_LAST, BA1.instant(), Skill.firstHit(), Liberation, FlamingSacrifice.firstHit(), SWAP,
 
   Intro, SMA,
-  MHA, BA34.dashCancel(), SBA,
+  MHA, BA34, DASH, SBA,
   Skill, SBA,
   Skill, SBA, // cance?
-  FlamingSacrifice.cancel(),
-  Liberation, FlamingSacrifice.swapCancel(),
+  FlamingSacrifice,
+  Liberation, FlamingSacrifice,
   Outro,
 ]);
 

@@ -212,10 +212,10 @@ const BA123 = new ActionGroup("Basic - Concealed Edge 123", [BA1, BA2, BA3]);
 // Concerto Iron Will needs on any weapon (Discord's +8 aside)
 const TQ_ROTATION = new Rotation([
   // opener: the shields, Basic 4 turning them into Caliber, then the Liberation
-  SWAPIN, Skill, BA1234, BA123.cancel(), Liberation, BA1234.cancel(), HERON.instaSwap(), Outro,
+  SWAPIN, Skill, BA1234, BA123, Liberation, BA1234, HERON.instant(), Outro,
 
   // loop: Timed Counters off the Intro's Caliber, the shields, Basic 4 to bank them for the next Intro
-  Intro, TC123, Skill, BA1234.cancel(), Liberation, BA1.cancel(), HERON.instaSwap(), Outro,
+  Intro, TC123, Skill, BA1234, Liberation, BA1, HERON.instant(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

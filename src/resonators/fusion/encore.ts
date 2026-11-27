@@ -43,7 +43,7 @@ import {
   grounded,
   lacks,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, SUCCESSFUL_DODGE, DASH } from "../../engine/rotation.js";
 import { LETHEAN_ELEGY, RIME_DRAPED_SPROUTS, STRINGMASTER, WHISPERS_OF_SIRENS } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { AUGMENT, RADIANT_DAWN } from "../../weapons/battlepass.js";
@@ -263,12 +263,12 @@ const EN_ROTATION = new Rotation([
   Intro, NM_INFERNO_RIDER,
   Skill1,
   Liberation,
-  UBA1234.cancel(),
+  UBA1234,
   USkill,
-  UBA1234.dashCancel(),
-  UBA1234.cancel(),
+  UBA1234, DASH,
+  UBA1234,
   USkill,
-  FHA.instaSwap(), Outro,
+  FHA.instant(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

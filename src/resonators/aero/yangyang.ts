@@ -26,7 +26,7 @@ import {
   midair,
   grounded,
 } from "../../engine/context.js";
-import { Action, ActionGroup, Rotation, SWAPIN, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { Action, ActionGroup, Rotation, SWAPIN, SUCCESSFUL_DODGE, JUMP } from "../../engine/rotation.js";
 import { tuneBreak, SWORD_BREAK } from "../tunebreak.js";
 import { EMERALD_OF_GENESIS, OVERTURE } from "../../weapons/standard.js";
 import { HERON_MAINSLOT, MOONLIT_CLOUDS_5PC, HERON } from "../../echoes/jinzhou.js";
@@ -253,17 +253,17 @@ const HA12 = new ActionGroup("Heavy - Feather as Blade + Zephyr Song", [HA, Zeph
 
 const YY_ROTATION = new Rotation([
   SWAPIN,
-  HA12.instaCancel(),
+  HA12,
   Liberation,
-  HA12.instaCancel(),
-  Skill.jumpCancel(), FeatherRelease.cancel(),
-  HERON.instaSwap(), Outro,
+  HA12,
+  Skill, JUMP, FeatherRelease,
+  HERON.instant(), Outro,
 
-  Intro, MA.cancel(),
+  Intro, MA,
   Liberation, BA1,
-  HA12.instaCancel(),
-  Skill.jumpCancel(), FeatherRelease.cancel(),
-  HERON.instaSwap(), Outro,
+  HA12,
+  Skill, JUMP, FeatherRelease,
+  HERON.instant(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

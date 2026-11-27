@@ -344,7 +344,7 @@ const ROVER_ELECTRO_TALENTS = new Talent({
 const BA1234 = new ActionGroup("Basic - Deterrence 1234", [BA1, BA2, BA3, BA4]);
 
 const ER_ROTATION = new Rotation([
-  Intro, BA1234, Skill, Repel.cancel(), Liberation, Overshock, HERON.instaSwap(), SOULFRAYER.instaSwap(), SUHSIN.instaSwap(), Outro,
+  Intro, BA1234, Skill, Repel, Liberation, Overshock, HERON.instant(), SOULFRAYER.instant(), SUHSIN.instant(), Outro,
 ]);
 
 // The main-DPS loop: the same fill, the Liberation while the Surge is being built, then Overshock
@@ -362,7 +362,7 @@ const THRUM_HAVOC = new ActionGroup("Skill - Thrum: Havoc 123", [
 const ER_ROTATION_MDPS = new Rotation([
   Intro, BA1234, Skill, Repel, OvershockHold, Liberation,
   THRUM_SPECTRO, THRUM_HAVOC, SilencingBlade,
-  HERON.instaSwap(), SOULFRAYER.instaSwap(), SUHSIN.instaSwap(), Outro,
+  HERON.instant(), SOULFRAYER.instant(), SUHSIN.instant(), Outro,
 ]);
 
 const ThrumMaHavoc1 = roverAction("Skill - Thrum: Havoc Mid-air 1", { input: Input.Skill, inputPriority: 1, position: Position.Midair, minForte2: 1, holds: APEX_RESONANCE, animFrames: 14, animPriority: { 14: 1 }, castPriority: 2, bullets: [{ hitFrame: 12, mv: 5063, energy: 59, concerto: 210, offtune: 4660, forte2: 256 }], node: Node.Forte, cast: Cast.Skill, type: Type.Skill, element: Attribute.Havoc, hitGlobal: () => queue(ThunderBane) });

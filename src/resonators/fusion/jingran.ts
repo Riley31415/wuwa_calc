@@ -55,7 +55,7 @@ import {
   grounded,
   lacks,
 } from "../../engine/context.js";
-import { ActionGroup, Action, ActionField, Rotation, START, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, ActionField, Rotation, START, SUCCESSFUL_DODGE, SWAP, DODGE_GRANTS, GROUND_DODGE_LACKS } from "../../engine/rotation.js";
 import { applied, applyTeam } from "../../engine/context.js";
 import { SHIELD, gainShield } from "../status.js";
 import { JINGRAN_SIG, THUNDERFLARE_DOMINION, VERDANT_SUMMIT } from "../../weapons/broadblade.js";
@@ -433,7 +433,7 @@ const JINGRAN_TALENTS = new Talent({
 
 /** Shadow Step: every dodge she makes on the ground in combat — a fixed 30 + 25 Fusion, Basic
  *  Attack DMG. */
-const ShadowStep = jingranAction("Dash - Shadow Step", { input: Input.Dash, position: Position.Grounded, cast: Cast.Dash, animFrames: 20, animPriority: { 20: 0 }, castPriority: 6, type: Type.Basic, scaling: Scaling.Fixed, bullets: [{ hitFrame: 4, mv: 3000 }, { hitFrame: 16, mv: 2500 }]});
+const ShadowStep = jingranAction("Dash - Shadow Step", { input: Input.Dash, position: Position.Grounded, lacks: GROUND_DODGE_LACKS, grants: DODGE_GRANTS, cast: Cast.Dash, animFrames: 20, animPriority: { 20: 0 }, castPriority: 6, type: Type.Basic, scaling: Scaling.Fixed, bullets: [{ hitFrame: 4, mv: 3000 }, { hitFrame: 16, mv: 2500 }]});
 // "press or hold Normal Attack shortly after" the plunge, Shadow Step, Afterlife's Guide, Soul Raid or the Intro
 // his Tune Break: "press or hold Normal Attack shortly after casting this skill to Basic Attack - ... Stage 2"
 const BA2 = jingranAction("Basic - Devil's Bane 2", { input: Input.Basic, inputPriority: 2, after: [BA1, MA, ShadowStep, Skill2, EFHA, Intro, TUNE_BREAK], holds: YANG_FONT, animFrames: 43, animPriority: { 43: 0 }, castPriority: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
@@ -519,21 +519,21 @@ const BA234 = new ActionGroup("Basic - Devil's Bane 234", [BA2, BA3, BA4]);
 const JR_ROTATION = new Rotation([
   Intro,
   Lib, FHA,
-  EBA234.cancel(), EFHA,
+  EBA234, EFHA,
   Skill12, FHA,
-  ESkill12.cancel(), EFHA,
-  MYRIAD_SNARE.instaSwap(), Outro,
+  ESkill12, EFHA,
+  MYRIAD_SNARE.instant(), Outro,
 ]);
 
 const JR_ROTATION_S2 = new Rotation([
-  START, BA1.instaCancel(), FHA.instaSwap(),
+  START, BA1.instant(), FHA.instant(), SWAP,
 
   Intro,
   Lib, EFHA,
-  BA234.cancel(), FHA,
-  ESkill12.cancel(), EFHA,
+  BA234, FHA,
+  ESkill12, EFHA,
   Skill12, FHA,
-  MYRIAD_SNARE.instaSwap(), Outro,
+  MYRIAD_SNARE.instant(), Outro,
 ]);
 
 

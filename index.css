@@ -113,9 +113,10 @@ body {
   text-decoration: none;
   transition: background .12s, border-color .12s;
 }
-.backbtn .arrow { font-size: 16px; line-height: 1; transition: transform .12s; }
+/* the "view rotation" chevron mirrored; the glyph sits low, so it is lifted to centre */
+.backbtn .arrow { position: relative; top: -1px; color: var(--faint); transition: color .12s, transform .12s; }
 .backbtn:hover { background: color-mix(in srgb, var(--bg) 35%, transparent); border-color: color-mix(in srgb, var(--accent) 65%, transparent); }
-.backbtn:hover .arrow { transform: translateX(-3px); }
+.backbtn:hover .arrow { color: var(--accent); transform: translateX(-2px); }
 
 /* ------------------------------------------------------------------- loading */
 
@@ -1160,8 +1161,10 @@ main {
 .ctag-jump { --tag: #3e8ef7; }
 .ctag-insta { --tag: #e5484d; }
 .ctag-field { --tag: #8b8d98; }
-/* a swap cancel, whose hit lands on field before the swap */
-.ctag-swap { --tag: #3e8ef7; }
+/* a swap, whatever its timing */
+.ctag-swap { --tag: #a970ff; }
+/* a press a swap-in opened on */
+.ctag-swapin { --tag: #3ddc7a; }
 .ctag-easy { --tag: #3ddc7a; }
 /* a hit cancel, cut 12 frames after its first hit */
 .ctag-hit { --tag: #e3e32b; }

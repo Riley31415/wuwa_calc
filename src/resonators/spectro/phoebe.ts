@@ -62,7 +62,7 @@ import {
   grounded,
   lacks,
 } from "../../engine/context.js";
-import { Action, ActionGroup, Rotation, SWAPIN, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { Action, ActionGroup, Rotation, SWAPIN, SUCCESSFUL_DODGE, DASH } from "../../engine/rotation.js";
 import { FRAZZLE_SLOWED, SPECTRO_FRAZZLE } from "../status.js";
 import { LUMINOUS_HYMN, STRINGMASTER } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
@@ -253,7 +253,7 @@ const libHit = (mv: number, offtune: number) => [{ hitFrame: 186, mv, offtune, u
   applyEnemy(SPECTRO_FRAZZLE, isHeld(PHOEBE_S1) ? currentTeam().enemyMax(SPECTRO_FRAZZLE) : 8);
 } }];
 const LibPlain = phoebeAction("Liberation - Dawn of Enlightenment", {
-  input: Input.Liberation, animFrames: 220, castPriority: 10, timestop: [0, 220], motionStop: [0, 218],
+  input: Input.Liberation, position: Position.Grounded, animFrames: 220, castPriority: 10, timestop: [0, 220], motionStop: [0, 218],
   cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation,
   bullets: libHit(40160, 48000), castConcerto: 2000, castEnergy: -12500,
@@ -339,10 +339,10 @@ const SILENT_PRAYER_S2 = new Buff({
 /** S1: the Liberation's own multipliers and the Confession Frazzle cap — paid out on the cast
  *  itself, which is where both halves are read. */
 const PHOEBE_S1 = new Sequence({ name: "Phoebe S1: Warm Light and Bedside Wishes" });
-const LibAbsolution = LibPlain.variant("Liberation - Dawn of Enlightenment (Absolution)", { inputPriority: 2, holds: ABSOLUTION, lacks: PHOEBE_S1, bullets: libHit(142567, 84000) });
-const LibAbsolutionS1 = LibPlain.variant("Liberation - Dawn of Enlightenment (Absolution S1)", { inputPriority: 2, holds: [ABSOLUTION, PHOEBE_S1], bullets: libHit(232926, 48000) });
-const LibConfession = LibPlain.variant("Liberation - Dawn of Enlightenment (Confession)", { inputPriority: 1, holds: CONFESSION, lacks: PHOEBE_S1,});
-const LibConfessionS1 = LibPlain.variant("Liberation - Dawn of Enlightenment (Confession S1)", { inputPriority: 1, holds: [CONFESSION, PHOEBE_S1], bullets: libHit(76304, 84000) });
+const LibAbsolution = LibPlain.variant("Liberation - Dawn of Enlightenment (Absolution)", { inputPriority: 2, position: Position.Grounded, holds: ABSOLUTION, lacks: PHOEBE_S1, bullets: libHit(142567, 84000) });
+const LibAbsolutionS1 = LibPlain.variant("Liberation - Dawn of Enlightenment (Absolution S1)", { inputPriority: 2, position: Position.Grounded, holds: [ABSOLUTION, PHOEBE_S1], bullets: libHit(232926, 48000) });
+const LibConfession = LibPlain.variant("Liberation - Dawn of Enlightenment (Confession)", { inputPriority: 1, position: Position.Grounded, holds: CONFESSION, lacks: PHOEBE_S1,});
+const LibConfessionS1 = LibPlain.variant("Liberation - Dawn of Enlightenment (Confession S1)", { inputPriority: 1, position: Position.Grounded, holds: [CONFESSION, PHOEBE_S1], bullets: libHit(76304, 84000) });
 
 /** S2: Absolution amplifies her Outro against a Frazzled target; Confession pays into Silent
  *  Prayer. Both halves live on the casts that grant them (the Outro above). */
@@ -449,25 +449,25 @@ const PHOEBE_RESONATOR = new Resonator({
  *  that hands Silent Prayer on. 101.5 Concerto over the visit, so the Outro fires. */
 const PHOEBE_CONFESSION_ROTATION = new Rotation([
   // leading, she has no Intro's 10 Concerto: one more chains make up the OUTRO's 100
-  SWAPIN, BA1.instaCancel(), SkillConf.instaCancel(), Liberation, Skill.instaDash(),
-  CBA123.instaDash(), Starflash,
-  CBA123.instaDash(),
-  CBA123.instaDash(), Starflash.cancel(), HERON.instaCancel(), Outro,
+  SWAPIN, BA1.instant(), SkillConf, Liberation, Skill, DASH,
+  CBA123, DASH, Starflash,
+  CBA123, DASH,
+  CBA123, DASH, Starflash, HERON.instant(), Outro,
 
-  Intro.mashCancel(), Liberation, SkillConf.instaDash(), Skill.instaDash(),
-  CBA123.instaDash(), Starflash,
-  CBA123.instaDash(), Starflash.cancel(), HERON.instaCancel(), Outro,
+  Intro, Liberation, SkillConf, DASH, Skill, DASH,
+  CBA123, DASH, Starflash,
+  CBA123, DASH, Starflash, HERON.instant(), Outro,
 ]);
 
 /** Absolution: Starflash costs 15 instead of 30, so the same bar pays for four of them, and it is
  *  those four the stance is built around. Absolution Litany banks only 10 Concerto against Utter
  *  Confession's 40, which is exactly why this loop needs the two extra chains to reach 100. */
 const PHOEBE_ABSOLUTION_ROTATION = new Rotation([
-  Intro.mashCancel(), CAPITANEUS.instaCancel(), Liberation, HeavyAbs.instaDash(), Skill.instaDash(),
-  CBA123.instaDash(), Starflash,
-  CBA123.instaDash(), Starflash,
-  CBA123.instaDash(), Starflash,
-  CBA123.instaDash(), Starflash.cancel(),
+  Intro, CAPITANEUS.instant(), Liberation, HeavyAbs, DASH, Skill, DASH,
+  CBA123, DASH, Starflash,
+  CBA123, DASH, Starflash,
+  CBA123, DASH, Starflash,
+  CBA123, DASH, Starflash,
   Outro,
 ]);
 

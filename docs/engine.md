@@ -15,16 +15,74 @@ where the press runs out. a bullet's `commitFrame` (default `hitFrame`) is where
 after it can't stop it. the action itself has no element/type/subtype: a def's own are only what its
 bullets share. no `bullets` = a cast alone that deals as nothing. an action has no `mv` of its own:
 every motion value is a bullet's
+- solved transitions (being verified; the old written cancels below still play the fight): a rotation writes a
+  press's intended `Timing` — `LastCommit` unwritten, `.instant()`, `.firstHit()`, `.timed(n)` — and any DASH/JUMP/SWAP
+  itself; the engine solves the cut into the next written press, "valid at f" meaning that press comes out at
+  frame f of this one (past its priority, transform and no-swap frames, its conditions met on the bars banked by
+  f, buffs as they stand when it is reached). with `TRANSITION_CHECK.on` each solve lands in `TRANSITION_CHECK.found`
+  beside the cut that played (`Result.cutAt`); an old cancel reads as instant, on hit and timed as written, every other
+  as last commit.
+  - every press with no old cancel is watched as the fight plays (`TransitionWatch`), at its timing or, none written,
+    last commit (never written: `.lastCommit()` is the default): it holds the field for as long as any timing could cut it, and each frame, everything due
+    there played, records what the fight shows — the next press available, castable, mashing its input safe — then
+    cuts on the first frame the timing's rules (`cutsAt()`) are met on frames already seen, with no look-ahead: buffs its own hits
+    grant, gauges its hooks fill, all read as they really land. none by its horizon: it throws; the fight ending first
+    ends the watch. it ends where its animation runs out (its `afterAction`, the chain), or at its cut where that is
+    sooner: from its last frame on, nothing it holds keeps the next press out. the next press is read as following
+    the chain the cast left (`chainAs()`, a press that keeps it). a resolver written next is resolved again each frame
+    (its form may change as the hits land). every other press plays its old cancel; the check of an old cut (`TRANSITION_CHECK`) still
+    predicts, since past that cut the fight no longer shows what would have come. to what still reads an old cut (the Tune Break's openings) it stands for the instant cancel inside
+    `INPUT_PRECISION`, else the plain one — through a dash or jump where that is the next press
+  - a DASH or JUMP is a press like any other, watched at last commit (frame 0: cut `INPUT_PRECISION` on, or where
+    the next press opens): its member's own valid there, else the plain one where they declare none; none valid,
+    they can't dash — it resolves to `NO_VALID_DASH`/`NO_VALID_JUMP`, never castable ahead, refused where reached.
+    a ready Tune Break may take a written DASH's place. a watched press's break (in a dash's place or ahead of
+    the next press) is solved as any other press: it comes out at the cut only where the press's timing would bring
+    it out there (`cutsAt()`: ready on every frame of a precise cut's `INPUT_PRECISION`, or buffered)
+  - a DASH or JUMP written right after a press that is skipped (`SKIP`) is skipped with it
+  - a plan ahead of play (`chainGates()`: an Outro waiting on the next visit's cooldowns) reads a press written with a
+    timing as the cut it last played this fight (`State.playedCuts`); not played yet, as the old cut its timing
+    stands for (`PLANNED_CUT`), or into a held press where that press can follow it from its target
+  - a swap (a written SWAP, or an Outro with no animation) cuts nothing: the press plays on behind it, every hit
+    landing, so it is solved over the hits still to come past the animation's end. a swap is never buffered: it is
+    always precise, `INPUT_PRECISION` after its target or after it opens there (no-swap frames ending, an Outro's
+    Concerto banked); a solved swap pays the swap: the SWAP after it waits nothing more. rotations write
+    `X.instant(), SWAP` (or `, Outro`); a run of mainslot echoes takes one SWAP after it
+  - compile time: instant throws where the last commit is at `INPUT_PRECISION` or sooner (use last commit), else where
+    the first hit is (use first hit): either lands `INPUT_PRECISION` after it
+  - available (`Action.available()`/`availableOn()`): every condition a press declares is met, and no press above it on
+    its input (`inputPriority`) has its own met — it is what its input gives. two at one priority with theirs met
+    (a charge ready) is a tie, which throws. castable at f: available there, and this press's priority, transform and
+    no-swap frames let it out
+  - not a held input: timed n must be castable at n. instant, first hit and last commit aim at 0 / the first hit /
+    the last commit and take the first frame f from the target either way makes, searched past the animation's end
+    (to the last hit still landing): precise, aimed at f - `INPUT_PRECISION` (from the target on), castable through
+    every frame from the aim to f (instant's aim at frame 0 need only be available); buffered (never a swap), castable at f after
+    `INPUT_PRECISION` frames (from the cast on) it wasn't, its input giving no other press through them (that press
+    would come out). none: "cancel automation failed"
+  - a held input never reads what its tap would give: pressed `INPUT_PRECISION + HOLD_BUFFER` (22) before it comes
+    out, from that long before the target on (target 100: pressed at 78, out at 100 where castable, else the first
+    castable frame after), and never sooner than `INPUT_PRECISION` before this press's cast, so out at 12 at the
+    soonest; timed n must be castable at n, n at least `HOLD_BUFFER`
+  - each throws where it cuts later than another timing aims: first hit or instant at or past the last commit (use
+    last commit), instant past the first hit where first hit is allowed (use first hit)
+  - the row's tag box reads the cut (`cutAt`) and the next press's input alone: none where it played out; red at or
+    inside `INPUT_PRECISION`, yellow short of the last commit, blue past it; DASH/JUMP/SWAP for a next press on Dash
+    (or Successful Dodge), Jump or Outro, else CANCEL; `@ Nf`. its panel names the old written cancel
+- off field: a press with no input but a cast or a bullet plays beside the fight (a wait has neither), and so does
+  the swap; `onField: true` keeps one on field (its owner's own animation carrying on, Brant's flips). the log dims
+  those and Outros by input
 - transitions: every press hands over to the next by a `Transition` (`.cancel()`, `.mashSwap()`, ...): a
   timing (`TIMING_OF`) through the next press itself or a dash, jump or swap the transition puts in
   (`VIA_OF`, which must be valid there or it throws). the next press starts at the frame the cut aims at plus
   its delay; past the animation's end that delay plays with nothing animating. `INPUT_PRECISION` (10),
-  `MASH_SPEED` (5), `HOLD_BUFFER` (17):
+  `HOLD_BUFFER` (12):
   - lastcommit (`cancel`, `dashCancel`, `jumpCancel`, `swapCancel`): aims at `cutFrame` (the last commit), + precision
   - instant (`instaCancel`/`instaDash`/`instaJump`/`instaSwap`): aims at 0, + precision, keeping the bullets committed by then
   - onhit (`hitCancel`/`hitDash`/`hitJump`/`hitSwap`): aims at the first hit, + precision, keeping what commits by then
   - mash (`mashCancel`/`mashDash`/`mashJump`/`mashSwap`): the first frame the next press can come out, no
-    sooner than precision, + `MASH_SPEED`; a mash swap's is past its `noSwapFrames`
+    sooner than precision, no delay; into a swap or an Outro (a mash swap's included) it is never buffered: precision
+    after the frame it opens (its `noSwapFrames` ending, its Concerto banked)
   - hold (`holdCancel`): the first frame the next press can come out, no sooner than precision + `HOLD_BUFFER`, no delay
   - timed (`cancelAt(n)`): frame n exactly, no delay. `OffField`: beside the fight. `Chain`: not detected yet
   - `Temporary` (nothing written): the next press starts as this one ends, no delay
@@ -46,6 +104,7 @@ every motion value is a bullet's
   it valid (its conditions read on the bars its cast and bullets bank, an earlier press's still-landing ones included,
   else as the fight plays — a buff landing) and the window below open; bullets not committed by then are lost.
 - a transform echo casts and holds at 5 (wuwalab's `skill_priority`) with `transformFrames` over its whole animation: inside them only a Dodge-input press cuts it — a mash or hold cancel into anything else waits them out, a plain cut throws — while a swap or an Outro is free. it holds its owner through them: a swap-in or Intro into them before then throws (`Slot.arrive`); their own next press ends it
+- dodge lockout, on the dodge definitions alone (rotation.ts): every press on Dodge, a kit's own and a successful dodge included, `grants: DODGE_GRANTS` and `lacks: GROUND_DODGE_LACKS` (`AIR_DODGE_LACKS` for a mid-air one). a ground one starts a hidden 0.5s window, and a second inside it gives `No Dash/Dodge` (1s, no dash of any kind); an air one gives `No Air Dash/Dodge` until grounded or a transform echo
 - swap cooldown: leaving the field (a swap or an Outro) starts 60 real frames (they run through time stop) before a swap may bring that member back, else it throws (`TeamMember.swappedInto`); an Intro into them bypasses and clears it, and leaving during their own Intro starts none. An exit resolver that plays a plain `SWAP` hands over as a swap form: the next member opens on their SWAPIN chain
 - priority: a press's `animPriority` (`{ 0: 5, 10: 2 }`, frame -> tier) is what it holds while it
   plays, its `castPriority` what it cuts in at; one press cuts another only with a `castPriority`
@@ -57,7 +116,7 @@ every motion value is a bullet's
   Cast.Echo` press, never a subcast, the dodge is `Dodge - Out of echo`, casting at 14), the rest the
   next press. a hold or mash waits for it
   instead — into an Outro for the press's `noSwapFrames` too — a hold letting go the frame the
-  window opens, a mash `MASH_SPEED` after it (see transitions). an OFF_FIELD hit and an Outro with no animation carry no priority; an Outro with
+  window opens, a mash too (see transitions). an OFF_FIELD hit and an Outro with no animation carry no priority; an Outro with
   animation frames is cut into like any press
 - echo casts: a summon casts at 10 as the next press starts and never cuts the press before it (`castsWithNext`: that press's cut, hold or mash is made by, and weighed against, the press past the summon), holding 8 (a Liberation cuts it); a transform ("Transform into ...") at 5, holding 13; a
   pseudo-transform (wuwalab's `semi_transform`: Bell-Borne Geochelone, Mech Abomination, Chisa's

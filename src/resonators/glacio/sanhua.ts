@@ -258,11 +258,11 @@ const SANHUA_RESONATOR = new Resonator({
 
 const SH_ROTATION_S5 = new Rotation([
   SWAPIN, BA23,
-  Intro, Skill.cancel(), Liberation, FHA, HERON.instaSwap(), Outro,
+  Intro, Skill, Liberation, FHA, HERON.instant(), Outro,
 ]);
 const SH_ROTATION = new Rotation([
-  SWAPIN, BA234.cancel(), Skill, Liberation, FHA, HERON.instaSwap(), Outro,
-  Intro, FHA, Skill.cancel(), Liberation, FHA, HERON.instaSwap(), Outro,
+  SWAPIN, BA234, Skill, Liberation, FHA, HERON.instant(), Outro,
+  Intro, FHA, Skill, Liberation, FHA, HERON.instant(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

@@ -357,7 +357,7 @@ const YL_SEQUENCES = [YL_S1, YL_S2, YL_S3, YL_S4, YL_S5, YL_S6];
 const BA1234 = new ActionGroup("Basic - Zapstring's Dance 1234", [BA1, BA2, BA3, BA4]);
 
 const YL_ROTATION = new Rotation([
-  Intro, Skill1, Liberation, BA1234, Skill2, FHA, NM_TEMPEST_MEPHIS.instaSwap(), HERON.instaSwap(),
+  Intro, Skill1, Liberation, BA1234, Skill2, FHA, NM_TEMPEST_MEPHIS.instant(), HERON.instant(),
   Outro,
 ]);
 

@@ -28,7 +28,7 @@ console.warn = (): void => {};
 
 // a test's own delays, in frames, off the environment; the engine's defaults otherwise
 const env = (k: string): number | undefined => (process.env[k] === undefined ? undefined : Number(process.env[k]));
-setDelays({ precision: env("PRECISION"), mash: env("MASH"), holdBuffer: env("HOLD_BUFFER") });
+setDelays({ precision: env("PRECISION"), holdBuffer: env("HOLD_BUFFER") });
 
 /** How a press is cut into what follows it. `CancelOrNone` is a cancel where the engine takes it, and
  *  played out where it refuses one (into the Skill or the Liberation). */
@@ -106,7 +106,7 @@ const WATCH = new Buff({ name: "Explorer: Outro Concerto", updateBuffs: () => {
     outroConcerto = Math.min(outroConcerto, m.concerto);
     return;
   }
-  if (unmetCast === null && !currentCast().isValid()) unmetCast = currentCast().name;
+  if (unmetCast === null && !currentCast().available()) unmetCast = currentCast().name;
 } });
 
 /** `rotation` played in the duo for `sections` rotations; traced where a caller reads the rows' hits. `extra`

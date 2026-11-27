@@ -51,7 +51,7 @@ import {
   grounded,
   lacks,
 } from "../../engine/context.js";
-import { Action, Cooldown, Rotation, START_LAST, ActionField, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { Action, Cooldown, Rotation, START_LAST, ActionField, SUCCESSFUL_DODGE, SWAP, DASH } from "../../engine/rotation.js";
 import { VERDANT_SUMMIT } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { AUTUMNTRACE, AUREATE_ZENITH } from "../../weapons/battlepass.js";
@@ -365,33 +365,33 @@ const JY_S6 = new Sequence({
 const JY_SEQUENCES = [JY_S1, JY_S2, JY_S3, JY_S4, JY_S5, JY_S6];
 
 const JY_ROTATION = new Rotation([
-  START_LAST, BA1.instaCancel(), Skill.instaSwap(),
+  START_LAST, BA1.instant(), Skill.instant(), SWAP,
 
-  Intro, NM_FEILIAN_BERINGAL.instaCancel(),
+  Intro, NM_FEILIAN_BERINGAL.instant(),
   Liberation,
-  Lance1.cancel(), Skill,
-  Lance1.dashCancel(),
-  Lance1.dashCancel(),
-  Lance1.dashCancel(),
-  Lance1.dashCancel(),
-  Lance1.dashCancel(),
-  Lance1.dashCancel(),
-  Skill.instaSwap(), Outro,
+  Lance1, Skill,
+  Lance1, DASH,
+  Lance1, DASH,
+  Lance1, DASH,
+  Lance1, DASH,
+  Lance1, DASH,
+  Lance1, DASH,
+  Skill.instant(), Outro,
 ]);
 
 const JY_ROTATION_S6 = new Rotation([
-  START_LAST, BA1.instaCancel(), Skill.instaSwap(),
+  START_LAST, BA1.instant(), Skill.instant(), SWAP,
 
-  Intro, NM_FEILIAN_BERINGAL.instaCancel(),
+  Intro, NM_FEILIAN_BERINGAL.instant(),
   Liberation,
-  Lance1.cancel(), Skill,
-  Lance1.dashCancel(),
-  Lance1.dashCancel(),
-  Lance1.dashCancel(),
-  Lance1.dashCancel(),
-  Lance1.dashCancel(),
-  Lance1.dashCancel(),
-  Skill.instaSwap(), Outro,
+  Lance1, Skill,
+  Lance1, DASH,
+  Lance1, DASH,
+  Lance1, DASH,
+  Lance1, DASH,
+  Lance1, DASH,
+  Lance1, DASH,
+  Skill.instant(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

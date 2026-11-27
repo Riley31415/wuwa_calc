@@ -546,17 +546,17 @@ const Jump23 = new ActionGroup("Mid-air - Scythe: Resection 23", [MA2R, MA3R]);
 
 const LK_ROTATION = new Rotation([
   // start lib costs too much ER
-  Intro, Jump23.mashCancel(), Ring, GoldenImpale,
-  Jump123.mashCancel(), Breach, GoldenImpale,
-  Jump123.mashCancel(), Glare.mashCancel(), Gavel.cancel(),
-  Liberation, Skill.instaSwap(), Outro,
+  Intro, Jump23, Ring, GoldenImpale,
+  Jump123, Breach, GoldenImpale,
+  Jump123, Glare, Gavel,
+  Liberation, Skill.instant(), Outro,
 ]);
 
 const LK_ROTATION_16s = new Rotation([
-  Intro, Jump23.mashCancel(), Ring, GoldenImpale,
-  Jump123.mashCancel(), Breach, GoldenImpale,
-  Jump123.mashCancel(), Glare.mashCancel(), Gavel.cancel(),
-  Liberation, Jump123.mashCancel(), Ring.instaSwap(), Outro,
+  Intro, Jump23, Ring, GoldenImpale,
+  Jump123, Breach, GoldenImpale,
+  Jump123, Glare, Gavel,
+  Liberation, Jump123, Ring.instant(), Outro,
 ]);
 
 export const LUUK = new Loadout({

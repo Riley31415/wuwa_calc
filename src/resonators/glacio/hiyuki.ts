@@ -90,7 +90,7 @@ import {
   grounded,
   concerto,
 } from "../../engine/context.js";
-import { ActionGroup, Action, ActionField, Cooldown, Rotation, SWAPIN, SWAPIN_OPENER, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, ActionField, Cooldown, Rotation, SWAPIN, SWAPIN_OPENER, SUCCESSFUL_DODGE, JUMP, DASH, DODGE_GRANTS, GROUND_DODGE_LACKS } from "../../engine/rotation.js";
 import { TUNE_BREAK } from "../tunebreak.js";
 import { GLACIO_CHAFE, GLACIO_CHAFE_ACTIONS, HAVOC_BANE, HEALS, OWN_CHAFE_RUNGS } from "../status.js";
 import { FROSTBURN } from "../../weapons/sword.js";
@@ -247,7 +247,7 @@ const USkill1 = hiyukiAction("Skill - Frostblight: Jade Cleave", { input: Input.
     { hitFrame: 29, mv: 6601, energy: 250, concerto: 75, offtune: 1328 },
     { hitFrame: 34, mv: 6601, energy: 250, concerto: 75, offtune: 1328 },
   ]});
-const USkill2 = hiyukiAction("Skill - Frostblight: Petalfall", { input: Input.Skill, position: Position.Midair, holds: FORECLAIMED_SELF, animFrames: 55, animPriority: { 57: 2 }, castPriority: 4, cooldown: USKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+const USkill2 = hiyukiAction("Skill - Frostblight: Petalfall", { input: Input.Skill, position: Position.Midair, endPosition: Position.Grounded, holds: FORECLAIMED_SELF, animFrames: 55, animPriority: { 57: 2 }, castPriority: 4, cooldown: USKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 16, mv: 6402, energy: 206, concerto: 73, offtune: 1288, forte2: 75 },
     { hitFrame: 20, mv: 6402, energy: 206, concerto: 73, offtune: 1288 },
     { hitFrame: 26, mv: 6402, energy: 206, concerto: 73, offtune: 1288 },
@@ -666,7 +666,7 @@ const Iai = hiyukiAction("Forte Basic - Iai", {
 
 /** Iai Stance: with 100 Frostheart, a dodge out of a Foreclaimed Self attack (Bitterfrost aside), a
  *  Frostblight skill, an Iai or her Intro flashes her into the stance — no hit of its own. */
-const IaiFlash = hiyukiAction("Dash - Iai Stance", { input: Input.Dash, after: [UBA1, UBA2, UBA3, FBA4, FBA5, UHA, FMA1, FMA2, FMA3, FDC, USkill1, USkill2, Iai, Intro, FIntro], minForte2: 100, cast: Cast.Dash, animFrames: 30, castPriority: 6, animPriority: { 0: 9 }, updateBuffs: () => applyCurrent(IAI_STANCE, 1) });
+const IaiFlash = hiyukiAction("Dash - Iai Stance", { input: Input.Dash, lacks: GROUND_DODGE_LACKS, grants: DODGE_GRANTS, after: [UBA1, UBA2, UBA3, FBA4, FBA5, UHA, FMA1, FMA2, FMA3, FDC, USkill1, USkill2, Iai, Intro, FIntro], minForte2: 100, cast: Cast.Dash, animFrames: 30, castPriority: 6, animPriority: { 0: 9 }, updateBuffs: () => applyCurrent(IAI_STANCE, 1) });
 Iai.setAfter([IaiFlash, Iai]);
 
 export const HIYUKI_RESONATOR = new Resonator({
@@ -741,18 +741,18 @@ export const HIYUKI_RESONATOR = new Resonator({
 });
 
 const HY_ROTATION = new Rotation([
-  SWAPIN_OPENER, BA123.instaCancel(), Skill, BA3, FrostSplinter.mashCancel(), Lib1,
-  UBA123.dashCancel(), UBA123.dashCancel(), Iai.instaJump(), USkill2.dashCancel(), Iai.instaJump(), USkill2.dashCancel(), Iai.hitDash(),
-  FHA, VOIDBORNE_CONSTRUCT.instaCancel(), Lib2Tap, Outro,
+  SWAPIN_OPENER, BA123.firstHit(), Skill, BA3, FrostSplinter, Lib1,
+  UBA123, DASH, UBA123, DASH, Iai, JUMP, USkill2, DASH, Iai, JUMP, USkill2, DASH, Iai, DASH,
+  FHA, VOIDBORNE_CONSTRUCT.instant(), Lib2Tap, Outro,
 
-  Intro.firstIntro(), BA3, FrostSplinter.mashCancel(), Lib1,
-  UBA123.dashCancel(), UBA123.dashCancel(), Iai.instaJump(), USkill2.dashCancel(), Iai.instaJump(), USkill2.dashCancel(), Iai.hitDash(),
-  FHA, VOIDBORNE_CONSTRUCT.instaCancel(), Lib2Tap, Skill.instaSwap(), Outro,
+  Intro.firstIntro(), BA3, FrostSplinter, Lib1,
+  UBA123, DASH, UBA123, DASH, Iai, JUMP, USkill2, DASH, Iai, JUMP, USkill2, DASH, Iai, DASH,
+  FHA, VOIDBORNE_CONSTRUCT.instant(), Lib2Tap, Skill.instant(), Outro,
 
-  SWAPIN, BA123.instaCancel(), Skill,
-  Intro, BA3, FrostSplinter.mashCancel(), Lib1,
-  UBA123.dashCancel(), UBA123.dashCancel(), Iai.instaJump(), USkill2.dashCancel(), Iai.instaJump(), USkill2.dashCancel(), Iai.hitDash(),
-  FHA, VOIDBORNE_CONSTRUCT.instaCancel(), Lib2Hold, Skill.instaSwap(), Outro,
+  SWAPIN, BA123.firstHit(), Skill,
+  Intro, BA3, FrostSplinter, Lib1,
+  UBA123, DASH, UBA123, DASH, Iai, JUMP, USkill2, DASH, Iai, JUMP, USkill2, DASH, Iai, DASH,
+  FHA, VOIDBORNE_CONSTRUCT, Lib2Hold, Skill.instant(), Outro,
 ]);
 
 /** From S2 on, the first visit alone has the Frostheart for a fourth Iai: the two Frostblight casts
@@ -760,20 +760,20 @@ const HY_ROTATION = new Rotation([
  *  Bitterfrost, and carries no Frostharden of its own — the three Inward Vision granted are spent
  *  by then, so it is the bare hit. Every later visit runs the ordinary line. */
 const HY_ROTATION_S2 = new Rotation([
-  SWAPIN_OPENER, BA123.instaCancel(), Skill, BA3, FrostSplinter.mashCancel(), Lib1,
-  UBA123.dashCancel(), UBA123.dashCancel(), Iai.instaJump(), USkill2.dashCancel(), Iai.instaJump(), USkill2.dashCancel(), Iai,
-  Iai.hitDash(), // extra from s2
-  FHA, VOIDBORNE_CONSTRUCT.instaCancel(), Lib2Tap, Outro,
+  SWAPIN_OPENER, BA123.firstHit(), Skill, BA3, FrostSplinter, Lib1,
+  UBA123, DASH, UBA123, DASH, Iai, JUMP, USkill2, DASH, Iai, JUMP, USkill2, DASH, Iai,
+  Iai, DASH, // extra from s2
+  FHA, VOIDBORNE_CONSTRUCT.instant(), Lib2Tap, Outro,
 
-  Intro.firstIntro(), BA3, FrostSplinter.mashCancel(), Lib1,
-  UBA123.dashCancel(), UBA123.dashCancel(), Iai.instaJump(), USkill2.dashCancel(), Iai.instaJump(), USkill2.dashCancel(), Iai,
-  Iai.hitDash(), // extra from s2
-  FHA, VOIDBORNE_CONSTRUCT.instaCancel(), Lib2Tap, Skill.instaSwap(), Outro,
+  Intro.firstIntro(), BA3, FrostSplinter, Lib1,
+  UBA123, DASH, UBA123, DASH, Iai, JUMP, USkill2, DASH, Iai, JUMP, USkill2, DASH, Iai,
+  Iai, DASH, // extra from s2
+  FHA, VOIDBORNE_CONSTRUCT.instant(), Lib2Tap, Skill.instant(), Outro,
 
-  SWAPIN, BA123.instaCancel(), Skill,
-  Intro, BA3, FrostSplinter.mashCancel(), Lib1,
-  UBA123.dashCancel(), UBA123.dashCancel(), Iai.instaJump(), USkill2.dashCancel(), Iai.instaJump(), USkill2.dashCancel(), Iai.hitDash(),
-  FHA, VOIDBORNE_CONSTRUCT.instaCancel(), Lib2Hold, Skill.instaSwap(), Outro,
+  SWAPIN, BA123.firstHit(), Skill,
+  Intro, BA3, FrostSplinter, Lib1,
+  UBA123, DASH, UBA123, DASH, Iai, JUMP, USkill2, DASH, Iai, JUMP, USkill2, DASH, Iai, DASH,
+  FHA, VOIDBORNE_CONSTRUCT, Lib2Hold, Skill.instant(), Outro,
 ]);
 
 export const HIYUKI = new Loadout({

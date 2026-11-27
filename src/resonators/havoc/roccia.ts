@@ -39,7 +39,7 @@ import {
   grounded,
   lacks,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, SWAPIN, JUMP, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, SWAPIN, JUMP, SUCCESSFUL_DODGE, DASH } from "../../engine/rotation.js";
 import { TRAGICOMEDY } from "../../weapons/gauntlet.js";
 import { NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
 import { STONARD, AETHER_STRIKE } from "../../weapons/battlepass.js";
@@ -331,37 +331,37 @@ const FBA123Success = new ActionGroup("Forte Basic - Real Fantasy 123 (Success)"
 
 const RC_ROTATION = new Rotation([
   SWAPIN,
-  BA1234.cancel(),
+  BA1234,
   Liberation,
-  Skill.instaDash(), JUMP, FBA123,
-  NM_HERON.instaSwap(), HERON.instaSwap(), BELL_BORNE_GEOCHELONE.instaSwap(), NM_CROWNLESS.instaSwap(),
+  Skill.instant(), DASH, JUMP, FBA123,
+  NM_HERON.instant(), HERON.instant(), BELL_BORNE_GEOCHELONE, NM_CROWNLESS,
   Outro,
 
-  Intro, BA4.cancel(),
+  Intro, BA4,
   Liberation,
-  Skill.instaDash(), JUMP, FBA123,
-  NM_HERON.instaSwap(), HERON.instaSwap(), BELL_BORNE_GEOCHELONE.instaSwap(), NM_CROWNLESS.instaSwap(),
+  Skill.instant(), DASH, JUMP, FBA123,
+  NM_HERON.instant(), HERON.instant(), BELL_BORNE_GEOCHELONE, NM_CROWNLESS,
   Outro,
 ]);
 
 const RC_ROTATION_S1 = new Rotation([
   SWAPIN,
   BA123,
-  Skill.instaDash(), JUMP, FBA123,
-  Liberation, NM_HERON.instaSwap(), HERON.instaSwap(), BELL_BORNE_GEOCHELONE.instaSwap(), NM_CROWNLESS.instaSwap(),
+  Skill.instant(), DASH, JUMP, FBA123,
+  Liberation, NM_HERON.instant(), HERON.instant(), BELL_BORNE_GEOCHELONE, NM_CROWNLESS,
   Outro,
 
   Intro,
-  Skill.instaDash(), JUMP, FBA123,
-  Liberation, NM_HERON.instaSwap(), HERON.instaSwap(), BELL_BORNE_GEOCHELONE.instaSwap(), NM_CROWNLESS.instaSwap(),
+  Skill.instant(), DASH, JUMP, FBA123,
+  Liberation, NM_HERON.instant(), HERON.instant(), BELL_BORNE_GEOCHELONE, NM_CROWNLESS,
   Outro,
 ]);
 
 // S6: six Reality Recreations land inside the Liberation's 12s after the Skill and the chain; the
 // seventh is cast in it but lands after, so it relaunches nothing and ends the loop
 const RC_ROTATION_S6_MDPS = new Rotation([
-  Intro, BA4.cancel(), Liberation,
-  Skill.instaDash(), JUMP, FBA123Success,
+  Intro, BA4, Liberation,
+  Skill.instant(), DASH, JUMP, FBA123Success,
   RealityRecreation, RealityRecreation, RealityRecreation,
   RealityRecreation, RealityRecreation, RealityRecreation,
   RealityRecreationFail,

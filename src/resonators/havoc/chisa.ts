@@ -89,7 +89,7 @@ import {
   forte1,
   lacks,
 } from "../../engine/context.js";
-import { Action, ActionGroup, Rotation, SWAPIN, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { Action, ActionGroup, Rotation, SWAPIN, SUCCESSFUL_DODGE, DASH } from "../../engine/rotation.js";
 import {
   HEALS, HAVOC_BANE, GLACIO_CHAFE, ELECTRO_FLARE, FUSION_BURST, AERO_EROSION, SPECTRO_FRAZZLE, ELECTRO_RAGE,
   inflictedNegativeStatusBy, gainShield,
@@ -674,14 +674,14 @@ const CHISA_RESONATOR = new Resonator({
  *  here models the timing that earns them, so the chain reads as the plain taps it is. */
 
 const CS_ROTATION = new Rotation([
-  SWAPIN, BA1, BA2.cancel(), Skill, RendingLunge, DeathSnip, Spread, ThreadWithdrawn.instaCancel(),
-  THRENODIAN_LEVIATHAN.instaCancel(), FALLACY.instaCancel(), HERON.instaDash(), BELL_BORNE_GEOCHELONE.instaCancel(), Liberation,
-  SerratedLoop, Blitz2Hold, Blitz3Hold, Eradication.instaSwap(),
+  SWAPIN, BA1, BA2, Skill, RendingLunge, DeathSnip, Spread, ThreadWithdrawn,
+  THRENODIAN_LEVIATHAN, FALLACY.instant(), HERON.instant(), DASH, BELL_BORNE_GEOCHELONE, Liberation,
+  SerratedLoop, Blitz2Hold, Blitz3Hold, Eradication.instant(),
   Outro,
 
   Intro, Skill, RendingLunge, DeathSnip, Spread,
-  THRENODIAN_LEVIATHAN.instaCancel(), FALLACY.instaCancel(), HERON.instaDash(), BELL_BORNE_GEOCHELONE.instaCancel(), Liberation,
-  SerratedLoop, Blitz2Hold, Blitz3Hold, Eradication.instaSwap(),
+  THRENODIAN_LEVIATHAN, FALLACY.instant(), HERON.instant(), DASH, BELL_BORNE_GEOCHELONE, Liberation,
+  SerratedLoop, Blitz2Hold, Blitz3Hold, Eradication.instant(),
   Outro,
 ]);
 

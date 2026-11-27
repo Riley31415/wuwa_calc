@@ -67,7 +67,7 @@ import {
   concerto,
   lacks,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, START_LAST, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, START_LAST, SUCCESSFUL_DODGE, SWAP } from "../../engine/rotation.js";
 import { applyStrain, TUNE_BREAK, TUNE_STRAIN_SHIFTING, TUNE_STRAIN_INTERFERED, TUNE_SHIFTABLE, strainPayout, tuneBreak } from "../tunebreak.js";
 import { GLINT_OF_CLOUDS, RED_SPRING } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS, NEW_STD_SWORD } from "../../weapons/standard.js";
@@ -563,10 +563,10 @@ const MA123 = new ActionGroup("Mid-air - Stringblade 123", [MA1, MA2, MA3]);
 const BA34 = new ActionGroup("Basic - Stringblade 34", [BA3, BA4]);
 
 const QX_ROTATION = new Rotation([
-  START_LAST, BA1.instaCancel(), Liberation, CALAMITY_EFFIGY.instaSwap(),
+  START_LAST, BA1.instant(), Liberation, CALAMITY_EFFIGY.instant(), SWAP,
   Intro, MA123, BA34, Skill, HA,
-  FBA1234.holdCancel(), FHA,
-  Liberation, CALAMITY_EFFIGY.instaSwap(), Outro,
+  FBA1234, FHA,
+  Liberation, CALAMITY_EFFIGY.instant(), Outro,
 ]);
 
 export const QINGXIAO = new Loadout({

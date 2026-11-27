@@ -428,19 +428,19 @@ const BA123 = new ActionGroup("Basic - Mend and Cleanse 123", [BA1, BA2, BA3]);
  *  cooldown on the Finale waits where a loop runs short of it, and the Liberation goes last so Slumberland and
  *  Cradle Lullaby open on the teammates' visits. */
 const SL_ROTATION = new Rotation([
-  SWAPIN, BA12.cancel(), SkillPhantasm, BA1, WovenPhantasm.holdCancel(), PhantasmsEnd.cancel(),
-  FALLACY.instaCancel(), FORMRENDER.instaCancel(), SPACETREK_EXPLORER.instaCancel(), Liberation.mashSwap(), Outro,
+  SWAPIN, BA12, SkillPhantasm, BA1, WovenPhantasm.firstHit(), PhantasmsEnd,
+  FALLACY.instant(), FORMRENDER.instant(), SPACETREK_EXPLORER.instant(), Liberation.instant(), Outro,
 
   // ba3 c skill is barely faster than skill ba1
-  IntroEternalPhantasm, BA3.cancel(), SkillFairytale, WovenFairytale.holdCancel(), FairytalesFinale.cancel(),
-  FALLACY.instaCancel(), FORMRENDER.instaCancel(), SPACETREK_EXPLORER.instaCancel(), Liberation.mashSwap(), Outro,
+  IntroEternalPhantasm, BA3, SkillFairytale, WovenFairytale.firstHit(), FairytalesFinale,
+  FALLACY.instant(), FORMRENDER.instant(), SPACETREK_EXPLORER.instant(), Liberation.instant(), Outro,
 
-  IntroEternalFairytale, BA3.cancel(), SkillPhantasm, WovenPhantasm.holdCancel(), PhantasmsEnd.cancel(),
-  FALLACY.instaCancel(), FORMRENDER.instaCancel(), SPACETREK_EXPLORER.instaCancel(), Liberation.mashSwap(), Outro,
+  IntroEternalFairytale, BA3, SkillPhantasm, WovenPhantasm.firstHit(), PhantasmsEnd,
+  FALLACY.instant(), FORMRENDER.instant(), SPACETREK_EXPLORER.instant(), Liberation.instant(), Outro,
 
   // unenhanced intro, untested
-  IntroBase, BA3, BA4.cancel(), SkillPhantasm, WovenPhantasm.holdCancel(), PhantasmsEnd.cancel(),
-  FALLACY.instaCancel(), FORMRENDER.instaCancel(), SPACETREK_EXPLORER.instaCancel(), Liberation.mashSwap(), Outro,
+  IntroBase, BA3, BA4, SkillPhantasm, WovenPhantasm.firstHit(), PhantasmsEnd,
+  FALLACY.instant(), FORMRENDER.instant(), SPACETREK_EXPLORER.instant(), Liberation.instant(), Outro,
 ]);
 
 /** Her presses the rotation explorer's bench stands her in with (src/explorer/skbench.ts). */

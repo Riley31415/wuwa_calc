@@ -204,12 +204,14 @@ export function framesPopover(snaps: ResolvedSnapshot[]): string {
     const fast = t === "mash" && s.tag !== Transition.MashSwap;
     const hold = (t === "hold" || fast) && s.holdPaid >= 0;
     // at the delays it played at: its own rotation's, not the defaults standing now
-    const cost = atDelays(s.delays, () => (hold ? press.holdCost(s.holdCut) : press.cost(s.tag)));
+    // a press written with a timing played the cut the engine solved for it
+    const solved = t === "temporary" && s.cutAt >= 0 && s.cutAt !== press.animFrames;
+    const cost = atDelays(s.delays, () => (hold ? press.holdCost(s.holdCut) : solved ? press.holdCost(s.cutAt) : press.cost(s.tag)));
     total += cost.total - s.timestopBanked;
     const insta = t === "instant";
     // every press is listed at the frames it played but an insta cut, which lists only what it cost;
     // "(c)" where it played to its cancel frame rather than its whole length
-    const cut = t !== "temporary" && t !== "chain" && !insta;
+    const cut = (t !== "temporary" && t !== "chain" && !insta) || solved;
     // a hold cancel plays to the hit that paid for the next press, or until its priority gave way to
     // that press if later (`holdPaid` reads both), then holds out what is left of its minimum
     if (hold) {

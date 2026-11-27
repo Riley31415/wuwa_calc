@@ -7,6 +7,7 @@ import {
   ENERGY_UNIT,
   INPUT_NAME,
   INTERCHANGEABLE,
+  KIND_OF,
   LEVEL_90_DOT,
   LEVEL_90_TUNE,
   MV_UNIT,
@@ -26,7 +27,7 @@ import {
   TAG_NAME,
   TUNE_BREAK,
   TUNE_BREAK_ENEMY,
-  Transition,
+  Timing,
   Weapon,
   axisOpen,
   axisUsed,
@@ -75,7 +76,7 @@ import {
   teamAt,
   teamKey,
   weaponBase
-} from "./chunk-UAEIIFKI.js";
+} from "./chunk-IJUQLX43.js";
 
 // dist/src/page/display.js
 var shown = (s, i) => s.shownAfter?.[i] ?? [s.energy, s.concerto, s.offtune, ...s.forte][i];
@@ -482,7 +483,55 @@ var BETWEEN = "Between Actions";
 var RATE_SECTIONS = /* @__PURE__ */ new Set([OFFTUNE_RATE, OFFTUNE_MULT, HIT_ENERGY_MULT]);
 var ENERGY_REGEN = "Energy Regen";
 var MV_MULTIPLIER = "MV Multiplier";
-var tagOf = (snap) => snap.action.offField ? "" : snap.tag === Transition.TimedCancel ? `cancel @ ${snap.action.timedAt}f` : snap.tag;
+function tagOf(snap) {
+  let press = snap.action;
+  while (press.cancelOf)
+    press = press.cancelOf;
+  const cut = snap.cutAt;
+  if (cut < 0 || press.offField || cut >= press.animFrames)
+    return null;
+  const word = NEXT_WORD[snap.nextInput] ?? "cancel";
+  const kind = word === "swap" ? "swap" : cut <= snap.delays.precision ? "insta" : cut < press.cutFrame ? "hit" : "cancel";
+  return { text: `${word} @ ${cut}f`, kind, note: intentNote(snap, cut) };
+}
+function intentNote(snap, cut) {
+  const t = snap.timing;
+  const old = KIND_OF[snap.tag] ?? "temporary";
+  const kind = t ? t.kind : old === "instant" || old === "mash" || old === "hold" ? Timing.Instant : old === "onhit" ? Timing.FirstHit : old === "timed" ? Timing.Timed : Timing.LastCommit;
+  if (kind === Timing.Timed)
+    return `Cancel at exactly ${t?.kind === Timing.Timed ? t.frame : cut}f`;
+  return INTENT_NOTE[kind];
+}
+var INTENT_NOTE = {
+  [Timing.Instant]: "Cancel as soon as possible",
+  [Timing.FirstHit]: "Cancel after first hit",
+  [Timing.LastCommit]: "Cancel endlag after lastcommit"
+};
+var swappedIn = (snap) => snap.swapIn;
+var SWAP_IN_TAG = "SWAP IN";
+var NEXT_WORD = { [
+  7
+  /* Input.Dash */
+]: "dash", [
+  8
+  /* Input.SuccessfulDodge */
+]: "dash", [
+  10
+  /* Input.Jump */
+]: "jump", [
+  12
+  /* Input.Outro */
+]: "swap" };
+function putTag(raw, snap, swapIn = swappedIn(snap)) {
+  if (swapIn)
+    raw["swapin:action"] = 1;
+  const tag = tagOf(snap);
+  if (!tag)
+    return;
+  raw["tag:action"] = tag.text;
+  raw["tagkind:action"] = tag.kind;
+  raw["tagnote:action"] = tag.note;
+}
 function ownShares(snap, cast, hit) {
   if (cast && hit) {
     return [
@@ -839,7 +888,43 @@ function rowValues(snap, { mv, avg }, members = []) {
   }
   return { raw, sources, buffed, hits };
 }
+var DASH_INPUTS = /* @__PURE__ */ new Set([
+  7,
+  8
+  /* Input.SuccessfulDodge */
+]);
+var viaInputs = (next) => DASH_INPUTS.has(next) ? DASH_INPUTS : next === 10 ? /* @__PURE__ */ new Set([
+  10
+  /* Input.Jump */
+]) : null;
+function foldCutDashes(lines) {
+  const out = lines.slice();
+  for (let i = 0; i < out.length; i++) {
+    const line = out[i], snap = line.snap;
+    const via = viaInputs(snap.nextInput);
+    if (!via || line.aggregate || line.spill || !tagOf(snap))
+      continue;
+    let k = i + 1;
+    while (k < out.length && (out[k].aggregate || out[k].snap.triggered))
+      k++;
+    const dash = out[k];
+    if (!dash || dash.isChain || dash.spill || dash.fieldKey !== void 0 || dash.snap.member !== snap.member || !via.has(dash.snap.action.input))
+      continue;
+    const parts = line.isChain ? line.parts : [{ snap, dmg: { avg: line.avg } }];
+    out[i] = {
+      ...line,
+      isChain: true,
+      parts: [...parts, { snap: dash.snap, dmg: { avg: dash.avg } }],
+      members: [...line.members?.length ? line.members : [snap], dash.snap],
+      mv: line.mv + dash.mv,
+      avg: line.avg + dash.avg
+    };
+    out.splice(k, 1);
+  }
+  return out;
+}
 function buildReport(lines, origin = 0) {
+  lines = foldCutDashes(lines);
   const columns = [
     { key: "member", label: "member", align: "left" },
     { key: "action", label: "action", align: "left" },
@@ -872,14 +957,13 @@ function buildReport(lines, origin = 0) {
       full: RESOURCE_NAME[key]
     }))
   ];
-  const isShort = (snap) => snap.triggered && !(snap.action.cast === 8 && snap.action.castOfftune < 0);
+  const isShort = (snap) => (snap.triggered || snap.action.offField || snap.action.input === 12) && !(snap.action.cast === 8 && snap.action.castOfftune < 0);
   const isShortLine = (line) => line.members?.length ? line.members.every(isShort) : isShort(line.snap);
   const endOf = (s) => s.action.cast === 6 ? s.frame + s.action.animFrames : s.triggered && s.hitAt !== void 0 ? s.hitAt : s.frame + s.frames + (s.swapFrames ?? 0);
   const partOf = (snap, avg, shown3) => {
     const part = rowValues(snap, { mv: landedMv(snap), avg });
     part.raw.action = snap.action.name;
-    if (tagOf(snap))
-      part.raw["tag:action"] = tagOf(snap);
+    putTag(part.raw, snap);
     const end = endOf(snap);
     part.raw.time = clockAt(end - origin);
     part.raw["end:time"] = end;
@@ -897,8 +981,7 @@ function buildReport(lines, origin = 0) {
     const snap = line.snap;
     const { raw, sources, buffed, hits } = rowValues(snap, { mv: line.mv, avg: line.avg }, line.members ?? []);
     raw.action = line.id;
-    if (tagOf(snap))
-      raw["tag:action"] = tagOf(snap);
+    putTag(raw, snap, (line.members?.length ? line.members : [snap]).some(swappedIn));
     const members = line.members?.length ? line.members : [snap];
     const pressed = members.filter((m) => !isShort(m));
     const end = pressed.length ? endOf(pressed[pressed.length - 1]) : Math.max(...members.map(endOf));
@@ -945,7 +1028,8 @@ function buildReport(lines, origin = 0) {
     const v = r.raw[c.key];
     return typeof v === "number" ? (c.percent ? `${fmtPctCell(v, c.key, PAD_DIGITS_COLUMNS.has(c.key))}%` : fmt(v, digitsOf(r.raw, c), PAD_DIGITS_COLUMNS.has(c.key), GROUPED_COLUMNS.has(c.key))) + gaugeSuffix(r.raw, c.key) : String(v ?? "");
   };
-  const tagLen = (r, c) => c.key === "action" && r.raw["tag:action"] ? Math.ceil(String(r.raw["tag:action"]).length * 0.82 + 2.6) : 0;
+  const boxLen = (text) => Math.ceil(text.length * 0.82 + 2.6);
+  const tagLen = (r, c) => c.key !== "action" ? 0 : (r.raw["tag:action"] ? boxLen(String(r.raw["tag:action"])) : 0) + (r.raw["swapin:action"] ? boxLen(SWAP_IN_TAG) : 0);
   const sized = used.map((c) => {
     const lens = [c.label.length];
     for (const r of rows) {
@@ -2365,6 +2449,7 @@ export {
   GROUPED_COLUMNS,
   digitsOf,
   RATE_SECTIONS,
+  SWAP_IN_TAG,
   buildReport,
   TEAMS,
   RESONATOR_HUE,

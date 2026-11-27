@@ -44,7 +44,7 @@ import {
   forte2,
   grounded,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, ActionField } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, ActionField, DASH } from "../../engine/rotation.js";
 import { HEALS } from "../status.js";
 import { HECATE_ACTIONS } from "./phrolova.js";
 import { LETHEAN_ELEGY, RIME_DRAPED_SPROUTS, STRINGMASTER, WHISPERS_OF_SIRENS } from "../../weapons/rectifier.js";
@@ -341,14 +341,8 @@ const BA123 = new ActionGroup("Basic - Illusion Collapse 123", [BA1, BA2, BA3]);
 // Liberation lays and leaves its own for Phantom Sting, two Jolts a loop
 
 const CA_ROTATION = new Rotation([
-  Intro, BA3.cancel(), Skill.instaCancel(), LORELEI.dashCancel(), FALLACY.instaCancel(), HERON.instaDash(), HECATE.instaCancel(), NM_CROWNLESS.instaDash(), Liberation,
-  EHA, FBA1.mashCancel(), ESkill, FBA1, FBA2.mashCancel(), FSkill, FBA1, FBA2.instaSwap(), Outro,
-]);
-
-const CA_ROTATION_MDPS = new Rotation([
-  Intro, BA3.cancel(), Skill.instaCancel(), LORELEI.dashCancel(), FALLACY.instaCancel(), HERON, HECATE.instaCancel(), NM_CROWNLESS, Liberation,
-  EHA, FBA123.cancel(), FSkill, NM_CROWNLESS.instaDash(), ESkill, // TODO check if fskill cancelled by echo
-  FBA123, Outro,
+  Intro, BA3, Skill.instant(), LORELEI, DASH, FALLACY.instant(), HERON.instant(), DASH, HECATE.instant(), NM_CROWNLESS.instant(), DASH, Liberation,
+  EHA, FBA1, ESkill, FBA1, FBA2.firstHit(), FSkill, Outro,
 ]);
 
 
@@ -382,19 +376,19 @@ export const CANTARELLA = new Loadout({
 // her real 43311 build: resonator + talents + both Inherent Skills, viable weapons, and three real
 // echo choices sharing Impermanence Heron as mainslot — Midnight Veil, Rejuvenating Glow, Moonlit
 // Clouds — all automatically iterated (see gear.ts's own EchoLoadout)
-export const CANTARELLA_MDPS = new Loadout({
-  id: 16072,
-  resonator: CANTARELLA_RESONATOR,
-  weapons: [WHISPERS_OF_SIRENS, COSMIC_RIPPLES, NEW_STD_RECTIFIER, STRINGMASTER, LETHEAN_ELEGY, RIME_DRAPED_SPROUTS, AUGMENT, RADIANT_DAWN],
-  echoes: new Echoes({
-    sets: [
-    new EchoLoadout(NM_CROWNLESS_MAINSLOT, HAVOC_ECLIPSE_5PC),
-  ],
-    mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
-    substats: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Skill),
-    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Skill, Substat.Heavy),
-  }),
-  // same ER 3-cost her support build carries: her own bar wants more than a spread holds
-  rotation: {1: CA_ROTATION_MDPS},
-  sequences: CA_SEQUENCES,
-});
+// export const CANTARELLA_MDPS = new Loadout({
+//   id: 16072,
+//   resonator: CANTARELLA_RESONATOR,
+//   weapons: [WHISPERS_OF_SIRENS, COSMIC_RIPPLES, NEW_STD_RECTIFIER, STRINGMASTER, LETHEAN_ELEGY, RIME_DRAPED_SPROUTS, AUGMENT, RADIANT_DAWN],
+//   echoes: new Echoes({
+//     sets: [
+//     new EchoLoadout(NM_CROWNLESS_MAINSLOT, HAVOC_ECLIPSE_5PC),
+//   ],
+//     mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
+//     substats: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Skill),
+//     highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Skill, Substat.Heavy),
+//   }),
+//   // same ER 3-cost her support build carries: her own bar wants more than a spread holds
+//   rotation: {},
+//   sequences: CA_SEQUENCES,
+// });

@@ -6,7 +6,7 @@ import {
   Stat, EnemyStat, Resource, Scaling,
   scopedStat, splitStat, statLabel, tagKind,
   TAG_NAME, CAST_NAME, NODE_NAME, SCALING_NAME, RESOURCE_NAME,
-  Transition, Cast, Input, POSITION_NAME, INPUT_NAME,
+  Transition, Cast, Input, POSITION_NAME, INPUT_NAME, KIND_OF, Timing,
   statDisplayScale, ENERGY_UNIT, CONCERTO_UNIT, MV_UNIT,
 } from "../engine/stats.js";
 import type { Type, Subtype, StatKey, Tag } from "../engine/stats.js";
@@ -373,10 +373,47 @@ export const ENERGY_REGEN = "Energy Regen";
 /** The MV panel's multiplying half (Stat.MulMv), kept out of the summing section. */
 export const MV_MULTIPLIER = "MV Multiplier";
 
-/** The tag box a row wears — none for OFF_FIELD, which the row's dimming already says. */
-// a timed cut reads its frame: CANCEL @ 23f
-const tagOf = (snap: ResolvedSnapshot): string =>
-  (snap.action.offField ? "" : snap.tag === Transition.TimedCancel ? `cancel @ ${snap.action.timedAt}f` : snap.tag);
+/** The tag box a row wears, read off where its press was cut and the next press's input: none where it played
+ *  out; red inside `INPUT_PRECISION`, yellow short of its last commit, blue past it. `note`: the old written cancel. */
+function tagOf(snap: ResolvedSnapshot): { text: string; kind: string; note: string } | null {
+  let press = snap.action;
+  while (press.cancelOf) press = press.cancelOf;
+  const cut = snap.cutAt;
+  if (cut < 0 || press.offField || cut >= press.animFrames) return null;
+  const word = NEXT_WORD[snap.nextInput] ?? "cancel";
+  // a swap is always purple, whatever its timing
+  const kind = word === "swap" ? "swap" : cut <= snap.delays.precision ? "insta" : cut < press.cutFrame ? "hit" : "cancel";
+  return { text: `${word} @ ${cut}f`, kind, note: intentNote(snap, cut) };
+}
+/** What the rotation meant the cut as: its written timing, else the old cut's kind, else the last-commit default. */
+function intentNote(snap: ResolvedSnapshot, cut: number): string {
+  const t = snap.timing;
+  const old = KIND_OF[snap.tag] ?? "temporary";
+  const kind = t ? t.kind : old === "instant" || old === "mash" || old === "hold" ? Timing.Instant
+    : old === "onhit" ? Timing.FirstHit : old === "timed" ? Timing.Timed : Timing.LastCommit;
+  if (kind === Timing.Timed) return `Cancel at exactly ${t?.kind === Timing.Timed ? t.frame : cut}f`;
+  return INTENT_NOTE[kind];
+}
+const INTENT_NOTE: Record<Exclude<Timing, Timing.Timed>, string> = {
+  [Timing.Instant]: "Cancel as soon as possible",
+  [Timing.FirstHit]: "Cancel after first hit",
+  [Timing.LastCommit]: "Cancel endlag after lastcommit",
+};
+/** A press an arrival with no Intro opened on (evaluate.ts's `checkPress()`): its row's SWAP IN tag. */
+const swappedIn = (snap: ResolvedSnapshot): boolean => snap.swapIn;
+/** The SWAP IN tag's text, drawn left of a row's cancel tag (detail.ts). */
+export const SWAP_IN_TAG = "SWAP IN";
+/** The word a tag box names its next press by: a dash, jump or swap, else a plain cancel. */
+const NEXT_WORD: Partial<Record<Input, string>> = { [Input.Dash]: "dash", [Input.SuccessfulDodge]: "dash", [Input.Jump]: "jump", [Input.Outro]: "swap" };
+/** `raw`'s tag box fields off `snap`. */
+function putTag(raw: RawRow, snap: ResolvedSnapshot, swapIn = swappedIn(snap)): void {
+  if (swapIn) raw["swapin:action"] = 1;
+  const tag = tagOf(snap);
+  if (!tag) return;
+  raw["tag:action"] = tag.text;
+  raw["tagkind:action"] = tag.kind;
+  raw["tagnote:action"] = tag.note;
+}
 
 /** The action's own gain as panel rows: one where it all comes from the cast or all from the hit,
  *  and the same action twice — its cast's share, then its hit's — where it has both. */
@@ -772,9 +809,38 @@ export interface Report {
   total: number;
 }
 
+/** The inputs a dash or jump cut puts in, by the cut press's `nextInput` (the tag's DASH/JUMP word). */
+const DASH_INPUTS = new Set<Input>([Input.Dash, Input.SuccessfulDodge]);
+const viaInputs = (next: Input): Set<Input> | null => (DASH_INPUTS.has(next) ? DASH_INPUTS : next === Input.Jump ? new Set([Input.Jump]) : null);
+
+/** A press cut into a dash or jump folded into one group with that dash or jump, read the way its tag is
+ *  (`tagOf()`): the next own untriggered press, past any triggered hit between them, on the cut's input. */
+function foldCutDashes(lines: ChainGroup[]): ChainGroup[] {
+  const out = lines.slice();
+  for (let i = 0; i < out.length; i++) {
+    const line = out[i]!, snap = line.snap;
+    const via = viaInputs(snap.nextInput);
+    if (!via || line.aggregate || line.spill || !tagOf(snap)) continue;
+    let k = i + 1;
+    while (k < out.length && (out[k]!.aggregate || out[k]!.snap.triggered)) k++;
+    const dash = out[k];
+    if (!dash || dash.isChain || dash.spill || dash.fieldKey !== undefined || dash.snap.member !== snap.member || !via.has(dash.snap.action.input)) continue;
+    const parts = line.isChain ? line.parts : [{ snap, dmg: { avg: line.avg } }];
+    out[i] = {
+      ...line, isChain: true,
+      parts: [...parts, { snap: dash.snap, dmg: { avg: dash.avg } }],
+      members: [...(line.members?.length ? line.members : [snap]), dash.snap],
+      mv: line.mv + dash.mv, avg: line.avg + dash.avg,
+    };
+    out.splice(k, 1);
+  }
+  return out;
+}
+
 /** The forte gauges are shown under their generic names: the table holds a whole team. The clock
  *  reads from `origin`, the frame shown as 0.00s. */
 export function buildReport(lines: ChainGroup[], origin = 0): Report {
+  lines = foldCutDashes(lines);
   const columns: Column[] = [
     { key: "member", label: "member", align: "left" },
     { key: "action", label: "action", align: "left" },
@@ -807,7 +873,9 @@ export function buildReport(lines: ChainGroup[], origin = 0): Report {
 
   // a short row is one the engine queued rather than a rotation beat — the Tune Break itself excepted
   // (the cast that drains the bar), a press of the fight's own; a folded row is short only if every member is
-  const isShort = (snap: ResolvedSnapshot) => snap.triggered && !(snap.action.cast === Cast.TuneBreak && snap.action.castOfftune < 0);
+  // dimmed: a press beside the fight (no input) or an Outro, read off its input, as well as anything queued
+  const isShort = (snap: ResolvedSnapshot) => (snap.triggered || snap.action.offField || snap.action.input === Input.Outro)
+    && !(snap.action.cast === Cast.TuneBreak && snap.action.castOfftune < 0);
   const isShortLine = (line: ChainGroup) => (line.members?.length ? line.members.every(isShort) : isShort(line.snap));
 
   // a press ends where its animation ran out, or was cut or swapped out of (the swap delay a swap out
@@ -817,7 +885,7 @@ export function buildReport(lines: ChainGroup[], origin = 0): Report {
   const partOf = (snap: ResolvedSnapshot, avg: number, shown: ResolvedSnapshot): ReportPart => {
     const part = rowValues(snap, { mv: landedMv(snap), avg });
     part.raw.action = snap.action.name;
-    if (tagOf(snap)) part.raw["tag:action"] = tagOf(snap);
+    putTag(part.raw, snap);
     const end = endOf(snap);
     part.raw.time = clockAt(end - origin);
     part.raw["end:time"] = end;
@@ -832,8 +900,8 @@ export function buildReport(lines: ChainGroup[], origin = 0): Report {
     const snap = line.snap;
     const { raw, sources, buffed, hits } = rowValues(snap, { mv: line.mv, avg: line.avg }, line.members ?? []);
     raw.action = line.id;
-    // a group is cut where its last press is
-    if (tagOf(snap)) raw["tag:action"] = tagOf(snap);
+    // a group is cut where its last press is, and swapped in on where any of its presses was
+    putTag(raw, snap, (line.members?.length ? line.members : [snap]).some(swappedIn));
     // a group or a field's run ends when its last press does, whatever snap the row reads — its last
     // untriggered one, unless every press was triggered
     const members = line.members?.length ? line.members : [snap];
@@ -884,7 +952,9 @@ export function buildReport(lines: ChainGroup[], origin = 0): Report {
   };
   // a cancel tag rides in the name cell, boxed, beside the name: 10px letters (about 0.82 of a
   // name character) plus its 16px of padding, border and margin (about 2 characters)
-  const tagLen = (r: { raw: RawRow }, c: Column): number => (c.key === "action" && r.raw["tag:action"] ? Math.ceil(String(r.raw["tag:action"]).length * 0.82 + 2.6) : 0);
+  const boxLen = (text: string): number => Math.ceil(text.length * 0.82 + 2.6);
+  const tagLen = (r: { raw: RawRow }, c: Column): number => (c.key !== "action" ? 0
+    : (r.raw["tag:action"] ? boxLen(String(r.raw["tag:action"])) : 0) + (r.raw["swapin:action"] ? boxLen(SWAP_IN_TAG) : 0));
   const sized: Column[] = used.map((c) => {
     const lens = [c.label.length];
     for (const r of rows) {

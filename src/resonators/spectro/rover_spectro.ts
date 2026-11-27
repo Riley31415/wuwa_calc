@@ -251,11 +251,11 @@ const ROVER_SPECTRO_RESONATOR = new Resonator({
 const SPR_ROTATION = new Rotation([
   SWAPIN, BA1, HA123, FSkill1, Liberation,
   HA123, HA123, FSkill1,
-  FALLACY.instaSwap(), HERON.instaSwap(), Outro,
+  FALLACY.instant(), HERON.instant(), Outro,
 
-  Intro, FSkill1, FBA.cancel(), Liberation,
+  Intro, FSkill1, FBA, Liberation,
   HA123, HA123, FSkill1,
-  FALLACY.instaSwap(), HERON.instaSwap(), Outro,
+  FALLACY.instant(), HERON.instant(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

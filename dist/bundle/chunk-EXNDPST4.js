@@ -44,7 +44,7 @@ import {
   weaponHue,
   weaponIconByName,
   weaponPart
-} from "./chunk-NMUZQX2E.js";
+} from "./chunk-PF5NFSRD.js";
 import {
   AXES,
   Echo,
@@ -91,7 +91,7 @@ import {
   substatRollBuffs,
   tierRoll,
   weaponBase
-} from "./chunk-UAEIIFKI.js";
+} from "./chunk-IJUQLX43.js";
 
 // dist/src/page/substatvalue.js
 var SUBSTAT_LABEL = {
@@ -248,10 +248,11 @@ function framesPopover(snaps) {
     const t = KIND_OF[s.tag];
     const fast = t === "mash" && s.tag !== Transition.MashSwap;
     const hold = (t === "hold" || fast) && s.holdPaid >= 0;
-    const cost = atDelays(s.delays, () => hold ? press.holdCost(s.holdCut) : press.cost(s.tag));
+    const solved = t === "temporary" && s.cutAt >= 0 && s.cutAt !== press.animFrames;
+    const cost = atDelays(s.delays, () => hold ? press.holdCost(s.holdCut) : solved ? press.holdCost(s.cutAt) : press.cost(s.tag));
     total += cost.total - s.timestopBanked;
     const insta = t === "instant";
-    const cut = t !== "temporary" && t !== "chain" && !insta;
+    const cut = t !== "temporary" && t !== "chain" && !insta || solved;
     if (hold) {
       const own = Math.min(s.holdPaid, cost.action);
       if (own)

@@ -38,7 +38,7 @@ import {
   grounded,
   lacks,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, SUCCESSFUL_DODGE, DASH } from "../../engine/rotation.js";
 import { SHIELD } from "../status.js";
 import { IUNO_SIG, VERITYS_HANDLE } from "../../weapons/gauntlet.js";
 import { MARCATO, NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
@@ -369,29 +369,29 @@ const IO_S6 = new Sequence({
 const IO_SEQUENCES = [IO_S1, IO_S2, IO_S3, IO_S4, IO_S5, IO_S6];
 
 const IO_ROTATION = new Rotation([
-  Intro, MYA.instaCancel(), HERON.instaDash(), FALLACY.instaCancel(), NM_KELPIE.instaDash(),
+  Intro, MYA.instant(), HERON.instant(), DASH, FALLACY.instant(), NM_KELPIE.instant(), DASH,
   Liberation, JumpHeavy,
-  FMA123.cancel(), FMSkill, FMSkill.cancel(),
-  FHA.instaSwap(), Outro,
+  FMA123, FMSkill, FMSkill,
+  FHA.instant(), Outro,
 ]);
 
 const IO_ROTATION_MDPS = new Rotation([
   Intro, ESkill,
   JumpHeavy,
   FMSkill,
-  FMA123.cancel(), MYA.instaCancel(), Liberation,
-  FMA123.cancel(), FMSkill,
-  MA123.cancel(),
-  FHA.instaSwap(), Outro,
+  FMA123, MYA.instant(), Liberation,
+  FMA123, FMSkill,
+  MA123,
+  FHA.instant(), Outro,
 ]);
 
 /** The same at S6 — see IO_ROTATION_S6. */
 const IO_ROTATION_MDPS_S6 = new Rotation([
   Intro, Liberation, JumpHeavy,
   FMSkill,
-  FMA123.cancel(), FMSkill.cancel(),
+  FMA123, FMSkill,
   FHA, MYA,
-  FMSkill, FMA123.cancel(), FMSkill, Outro,
+  FMSkill, FMA123, FMSkill, Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

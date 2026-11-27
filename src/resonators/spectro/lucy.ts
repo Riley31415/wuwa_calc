@@ -71,7 +71,7 @@ import {
   grounded,
   lacks,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, START_LAST, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, START_LAST, SUCCESSFUL_DODGE, SWAP } from "../../engine/rotation.js";
 import { applied } from "../../engine/context.js";
 import { applyHack, tuneHackResponse, TUNE_HACK_SHIFTING, TUNE_HACK_INTERFERED, TUNE_SHIFTABLE } from "../tunebreak.js";
 import { SPECTRAL_TRIGGER } from "../../weapons/pistol.js";
@@ -591,12 +591,12 @@ const BA234 = new ActionGroup("Basic - Locked Thread 234", [BA2, BA3, BA4]);
 const EBA234 = new ActionGroup("Basic - Thread Shredding 234", [EBA2, EBA3, EBA4]);
 
 const LC_ROTATION = new Rotation([
-  START_LAST, BA1.instaCancel(), Lib, ADAM_SMASHER_LUCY, HA1.instaSwap(),
+  START_LAST, BA1.instant(), Lib, ADAM_SMASHER_LUCY, HA1.instant(), SWAP,
 
-  Intro.inLastSlot(), BA234.cancel(), Skill1, Skill3,
+  Intro.inLastSlot(), BA234, Skill1, Skill3,
   Deadlock, EBA234,
   DualThreading, MultiThreadingResolver, ADAM_SMASHER_LUCY,
-  ELib, HA1, HA2.instaSwap(), Outro,
+  ELib, HA1, HA2.firstHit(), Outro,
 ]);
 
 /** Adam Smasher carries its own 1pc set, so the other four echoes run two ordinary 2-piece sets

@@ -30,7 +30,7 @@ import {
   currentMember,
   lacks,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, START, SUCCESSFUL_DODGE, pickInput } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, START, SUCCESSFUL_DODGE, pickInput, DASH, SWAP } from "../../engine/rotation.js";
 import { HEALS } from "../status.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { BLAZING_BRILLIANCE, RED_SPRING } from "../../weapons/sword.js";
@@ -252,12 +252,12 @@ const EBA12345 = new ActionGroup("Forte Basic - Umbra 12345", [EBA1, EBA2, EBA3,
 const OutroOrSwap = new Action("Outro Or Swap Resolver", { cast: Cast.Outro, resolve: () => pickInput(currentMember(), Input.Outro)! });
 
 const RH_ROTATION = new Rotation([
-  START, BA1.instaCancel(), Liberation, Skill.instaSwap(),
+  START, BA1.instant(), Liberation, Skill.instant(), SWAP,
 
-  Intro, MA, Skill, NM_CROWNLESS.instaDash(),
-  BA123, FHA, NM_CROWNLESS.instaDash(),
-  EBA12345.cancel(), ESkill, Liberation,
-  EBA12345.swapCancel(), OutroOrSwap,
+  Intro, MA, Skill, NM_CROWNLESS, DASH,
+  BA123, FHA, NM_CROWNLESS, DASH,
+  EBA12345, ESkill, Liberation,
+  EBA12345, OutroOrSwap,
 ]);
 // TODO double intro rot when possible
 

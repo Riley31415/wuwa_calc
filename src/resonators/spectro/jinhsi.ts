@@ -69,7 +69,7 @@ import {
   concerto,
   grounded,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, START_LAST, SWAPIN, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, START_LAST, SWAPIN, SUCCESSFUL_DODGE, SWAP, JUMP, DASH } from "../../engine/rotation.js";
 import { AGES_OF_HARVEST } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { AUTUMNTRACE, AUREATE_ZENITH } from "../../weapons/battlepass.js";
@@ -472,14 +472,14 @@ const IncBA123 = new ActionGroup("Basic - Incarnation 123", [IncBA1, IncBA2, Inc
  *  kit's state calls for there (a kit with more than one). */
 
 const JX_ROTATION_FULL = new Rotation([
-  START_LAST, BA1.instaCancel(), Liberation, Skill.instaSwap(),
+  START_LAST, BA1.instant(), Liberation, Skill.instant(), SWAP,
 
   Intro.doubleIntro(), Skill2,
-  IncBA12.cancel(), Skill3, IncBA34.instaCancel(),
+  IncBA12, Skill3, IncBA34,
   JUE, SUHSIN, Skill4_Unison, OutroUnison,
 
   Intro, Skill2,
-  IncBA12.cancel(), Skill3, IncBA34.instaCancel(),
+  IncBA12, Skill3, IncBA34,
   Skill4, Liberation, Outro,
 ]);
 
@@ -489,30 +489,30 @@ const JX_ROTATION_FULL = new Rotation([
 // only fills every other time it comes round, so the cast alternates rather than being listed
 // every loop and paid for on credit
 const JX_ROTATION_EVERY_OTHER = new Rotation([
-  START_LAST, BA2.instaCancel(), Liberation.everyOther(), Skill.instaSwap(),
+  START_LAST, BA2.instant(), Liberation.everyOther(), Skill.instant(), SWAP,
 
-  SWAPIN, BA234.instaCancel(), Skill2.instaCancel(), JUE, SUHSIN, Liberation.everyOther(),
-  IncBA1, IncBA2.instaJump(), IncBA3.instaJump(), IncBA4.instaCancel(),
+  SWAPIN, BA234.instant(), Skill2.instant(), JUE, SUHSIN, Liberation.everyOther(),
+  IncBA1, IncBA2.instant(), JUMP, IncBA3.instant(), JUMP, IncBA4,
   Skill4_Unison, OutroUnison,
 
-  Intro.doubleIntro(), Skill2.instaDash(),
-  IncBA12.cancel(), Skill3, IncBA34.instaCancel(),
+  Intro.doubleIntro(), Skill2.instant(), DASH,
+  IncBA12, Skill3, IncBA34,
   JUE, SUHSIN, Skill4_Unison, Liberation.everyOther(), OutroUnison,
 
-  Intro, Skill2.instaDash(),
-  IncBA12.cancel(), Skill3, IncBA34.instaCancel(),
+  Intro, Skill2.instant(), DASH,
+  IncBA12, Skill3, IncBA34,
   Skill4, Outro,
 ]);
 
 const JX_ROTATION_SUPPORT = new Rotation([
-  START_LAST, BA2.instaCancel(), Liberation.everyOther(), Skill.instaSwap(),
+  START_LAST, BA2.instant(), Liberation.everyOther(), Skill.instant(), SWAP,
 
-  SWAPIN, BA234.instaCancel(), Skill2.instaCancel(), JUE, SUHSIN, Liberation.everyOther(),
-  IncBA1, IncBA2.instaJump(), IncBA3.instaJump(), IncBA4.instaCancel(),
+  SWAPIN, BA234.instant(), Skill2.instant(), JUE, SUHSIN, Liberation.everyOther(),
+  IncBA1, IncBA2.instant(), JUMP, IncBA3.instant(), JUMP, IncBA4,
   Skill4_Unison, OutroUnison,
 
-  Intro, Skill2.instaDash(), JUE, SUHSIN,
-  IncBA12.cancel(), Skill3, IncBA34.instaCancel(),
+  Intro, Skill2.instant(), DASH, JUE, SUHSIN,
+  IncBA12, Skill3, IncBA34,
   Skill4_Unison, Liberation.everyOther(), OutroUnison,
 ]);
 

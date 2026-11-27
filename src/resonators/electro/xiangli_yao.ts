@@ -127,7 +127,8 @@ const UBA3 = xlyAction("Basic - Pivot: Impale 3", { input: Input.Basic, inputPri
   ]});
 // PLACEHOLDER FRAMES
 // leaves him in mid-air for Revamp, as Decipher does
-const USkill = xlyAction("Skill - Divergence", { endPosition: Position.Midair, input: Input.Skill, holds: INTUITION, animFrames: 85, castPriority: 4, cooldown: 60 * 7, node: Node.Liberation, cast: Cast.Skill, type: Type.Skill, bullets: [
+// above Deduction: it needs the Intuition window
+const USkill = xlyAction("Skill - Divergence", { endPosition: Position.Midair, input: Input.Skill, inputPriority: 1, holds: INTUITION, animFrames: 85, castPriority: 4, cooldown: 60 * 7, node: Node.Liberation, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 85, mv: 4959, energy: 100, concerto: 50, offtune: 932 },
     { hitFrame: 85, mv: 4959, energy: 100, concerto: 50, offtune: 932 },
     { hitFrame: 85, mv: 4959, energy: 100, concerto: 50, offtune: 932 },
@@ -143,7 +144,7 @@ const UDC = xlyAction("Dodge Counter - Unfathomed", { input: Input.Basic, after:
 
 /** Law of Reigns: 5 Performance Capacity and a Hypercube a cast, considered Liberation DMG. */
 // PLACEHOLDER FRAMES
-const UForte = xlyAction("Forte Skill - Law of Reigns", { input: Input.Skill, inputPriority: 1, minForte2: 5, holds: INTUITION, animFrames: 93, castPriority: 4, node: Node.Forte, cast: Cast.Skill, type: Type.Liberation, bullets: [
+const UForte = xlyAction("Forte Skill - Law of Reigns", { input: Input.Skill, inputPriority: 2, minForte2: 5, holds: INTUITION, animFrames: 93, castPriority: 4, node: Node.Forte, cast: Cast.Skill, type: Type.Liberation, bullets: [
     { hitFrame: 85, mv: 9573, energy: 72, offtune: 6840 },
     { hitFrame: 85, mv: 9573, energy: 72, offtune: 6840 },
     { hitFrame: 85, mv: 9573, energy: 72, offtune: 6840 },
@@ -315,7 +316,7 @@ const XLY_ROTATION = new Rotation([
   USkill, FBA, UForte,
   UBA123, UForte,
   USkill, FBA, UForte,
-  NM_MEPHIS.instaSwap(), Outro,
+  NM_MEPHIS.instant(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

@@ -64,7 +64,7 @@ import {
   grounded,
   lacks,
 } from "../../engine/context.js";
-import { Action, ActionField, Cooldown, Rotation, SWAPIN, ActionGroup, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { Action, ActionField, Cooldown, Rotation, SWAPIN, ActionGroup, SUCCESSFUL_DODGE, JUMP } from "../../engine/rotation.js";
 import type { BulletDef } from "../../engine/rotation.js";
 import { HEALS, heal, inflictElectroFlare } from "../status.js";
 import { VARIATION } from "../../weapons/standard.js";
@@ -422,9 +422,9 @@ const BULING_RESONATOR = new Resonator({
 // Thunder Over Mountain for Minor Yang; Skill and Basic 4 bank two Thunders and the Heavy reads
 // [T, T] as Twin Thunders for Minor Yin — Yin-Yang Balance, so the Liberation resolves to Harmony.
 const BL_ROTATION = new Rotation([
-  SWAPIN, BA1.instaCancel(),
-  Intro.mashCancel(),
-  Skill, BA4.jumpCancel(), MA, BA12.instaCancel(), HA, HA.cancel(), FALLACY.instaCancel(), FORMRENDER.instaCancel(), // TODO maybe cancel HA?
+  SWAPIN, BA1,
+  Intro,
+  Skill, BA4, JUMP, MA, BA12, HA, HA, FALLACY.instant(), FORMRENDER.instant(), // TODO maybe cancel HA?
   LIB, Outro,
 ]);
 

@@ -50,7 +50,7 @@ import {
   concerto,
 } from "../../engine/context.js";
 import type { TeamMember } from "../../engine/state.js";
-import { ActionGroup, Action, Rotation, SWAPIN, waitFor, DEFAULT_DASH, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, SWAPIN, waitFor, DEFAULT_DASH, SUCCESSFUL_DODGE, DASH, GROUND_DODGE_LACKS } from "../../engine/rotation.js";
 import { CLASS_TUNE_BREAK, breakWhen } from "../tunebreak.js";
 import { LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";
 import { COSMIC_RIPPLES } from "../../weapons/standard.js";
@@ -261,7 +261,7 @@ const NOTE_MOVES = [
 ].map((move) => move.variant(move.name, { updateBuffs: () => addBuff(PHROLOVA_RESONATOR, AFTERSOUND, 1) }));
 
 // The manual command, pressed on field: Hecate 1-2 by hand, then the leftmost note's attack as
-// its swap form (`EnhancedHecate.instaSwap()`), Hecate carrying on from its end once Phrolova is out.
+// an instant swap (`EnhancedHecate.instant(), SWAP`), Hecate carrying on from its end once Phrolova is out.
 // the cues only exist in Maestro
 const HBA1 = HECATE_1.variant(HECATE_1.name, { input: Input.Basic, inputPriority: 1, holds: MAESTRO, cast: Cast.Basic, afterAction: undefined,  });
 const HBA2 = HECATE_2.variant(HECATE_2.name, { input: Input.Basic, inputPriority: 2, after: [HBA1], holds: MAESTRO, cast: Cast.Basic, afterAction: undefined,  });
@@ -269,7 +269,7 @@ const COMMANDS = NOTE_MOVES.map((move, i) => move.variant(`${move.name} (Command
   input: Input.Basic, inputPriority: 2, cast: Cast.Basic, after: [HBA2], holds: [MAESTRO, NOTE_LEFT[i]!], updateBuffs: () => startEnhanced(),
 }));
 /** Her dash while she commands Hecate in Maestro: the plain one under Hecate's name, ending nothing. */
-const HecateDash = DEFAULT_DASH.variant("Dash - Hecate", { inputPriority: 0, position: Position.Grounded, holds: MAESTRO});
+const HecateDash = DEFAULT_DASH.variant("Dash - Hecate", { inputPriority: 0, position: Position.Grounded, holds: MAESTRO, lacks: GROUND_DODGE_LACKS });
 /** Her Tune Break: none while she commands Hecate in Maestro (the bar waits full). */
 const PHRO_TUNE_BREAK = breakWhen(CLASS_TUNE_BREAK[WeaponType.Rectifier], { lacks: MAESTRO });
 /** The leftmost note's attack, commanded — resolved when reached. */
@@ -655,76 +655,76 @@ const BA23 = new ActionGroup("Basic - Movement of Life and Death 23", [BA2, BA3]
 const HBA12 = new ActionGroup("Basic - Hecate 12", [HBA1, HBA2]);
 
 const PHRO_3FBA_MANUAL = new Rotation([
-  SWAPIN, BA23.hitCancel(), NM_HECATE, FBA.instaDash(),
-  BA123.hitDash(), FBA.instaCancel(), Skill, FBA.holdCancel(),
-  ScarletCoda.mashCancel(), Liberation.mashSwap(), Outro,
+  SWAPIN, BA23.firstHit(), NM_HECATE, FBA, DASH,
+  BA123.firstHit(), DASH, FBA, Skill, FBA,
+  ScarletCoda, Liberation, Outro,
   
-  Intro, EIntro, BA3.hitDash(), FBA.instaCancel(), NM_HECATE,
-  BA123.hitDash(), FBA.instaCancel(), Skill, FBA.holdCancel(),
-  ScarletCoda.mashCancel(), Liberation, HBA12.instaDash(), EnhancedHecate.instaSwap(), Outro,
+  Intro, EIntro, BA3.firstHit(), DASH, FBA, NM_HECATE,
+  BA123.firstHit(), DASH, FBA, Skill, FBA,
+  ScarletCoda, Liberation, HBA12.firstHit(), DASH, EnhancedHecate.instant(), Outro,
 ]);
 
 const PHRO_3FBA = new Rotation([
-  SWAPIN, BA23.hitCancel(), NM_HECATE, FBA.instaDash(),
-  BA123.hitDash(), FBA.instaCancel(), Skill, FBA.holdCancel(),
-  ScarletCoda.mashCancel(), Liberation.mashSwap(), Outro,
+  SWAPIN, BA23.firstHit(), NM_HECATE, FBA, DASH,
+  BA123.firstHit(), DASH, FBA, Skill, FBA,
+  ScarletCoda, Liberation, Outro,
   
-  Intro, EIntro, BA3.hitDash(), FBA.instaCancel(), NM_HECATE,
-  BA123.hitDash(), FBA.instaCancel(), Skill, FBA.holdCancel(),
-  ScarletCoda.mashCancel(), Liberation.mashSwap(), Outro,
+  Intro, EIntro, BA3.firstHit(), DASH, FBA, NM_HECATE,
+  BA123.firstHit(), DASH, FBA, Skill, FBA,
+  ScarletCoda, Liberation, Outro,
 ]);
 const PHRO_3FBA_S2 = new Rotation([
-  SWAPIN, BA23.instaCancel(), NM_HECATE, FBA.instaDash(),
-  BA123.instaDash(), FBA.instaCancel(), Skill, FBA.holdCancel(),
-  ScarletCoda.mashCancel(), Liberation.mashSwap(), Outro,
+  SWAPIN, BA23.instant(), NM_HECATE, FBA, DASH,
+  BA123.instant(), DASH, FBA, Skill, FBA,
+  ScarletCoda, Liberation, Outro,
   
-  Intro, EIntro, BA3.hitDash(), FBA.instaCancel(), NM_HECATE,
-  BA123.hitDash(), FBA.instaCancel(), Skill, FBA.holdCancel(),
-  ScarletCoda.mashCancel(), Liberation.mashSwap(), Outro,
+  Intro, EIntro, BA3.firstHit(), DASH, FBA, NM_HECATE,
+  BA123.firstHit(), DASH, FBA, Skill, FBA,
+  ScarletCoda, Liberation, Outro,
 ]);
 
 const PHRO_4FBA = new Rotation([
-  SWAPIN, BA23.hitCancel(), NM_HECATE, FBA.instaDash(),
-  BA123.hitDash(), FBA.instaCancel(), Skill, FBA.holdCancel(),
-  ScarletCoda.mashCancel(), Liberation.mashSwap(), Outro,
+  SWAPIN, BA23.firstHit(), NM_HECATE, FBA, DASH,
+  BA123.firstHit(), DASH, FBA, Skill, FBA,
+  ScarletCoda, Liberation, Outro,
 
-  Intro, EIntro, BA3.hitDash(), FBA.instaDash(),
-  BA123.instaDash(), FBA.instaCancel(),  NM_HECATE,
-  BA123.instaDash(), FBA.instaCancel(), Skill, FBA.holdCancel(),
-  ScarletCoda.mashCancel(), Liberation.mashSwap(), Outro,
+  Intro, EIntro, BA3.firstHit(), DASH, FBA, DASH,
+  BA123.instant(), DASH, FBA,  NM_HECATE,
+  BA123.instant(), DASH, FBA, Skill, FBA,
+  ScarletCoda, Liberation, Outro,
 ]);
 const PHRO_4FBA_S2 = new Rotation([
-  SWAPIN, BA23.instaCancel(), NM_HECATE, FBA.instaDash(),
-  BA123.instaDash(), FBA.instaCancel(), Skill, FBA.holdCancel(),
-  ScarletCoda.mashCancel(), Liberation.mashSwap(), Outro,
+  SWAPIN, BA23.instant(), NM_HECATE, FBA, DASH,
+  BA123.instant(), DASH, FBA, Skill, FBA,
+  ScarletCoda, Liberation, Outro,
 
-  Intro, EIntro, BA3.hitDash(), FBA.instaDash(),
-  BA123.instaDash(), FBA.instaCancel(), NM_HECATE,
-  BA123.instaDash(), FBA.instaCancel(), Skill, FBA.holdCancel(),
-  ScarletCoda.mashCancel(), Liberation.mashSwap(), Outro,
+  Intro, EIntro, BA3.firstHit(), DASH, FBA, DASH,
+  BA123.instant(), DASH, FBA, NM_HECATE,
+  BA123.instant(), DASH, FBA, Skill, FBA,
+  ScarletCoda, Liberation, Outro,
 ]);
 
 const PHRO_5FBA = new Rotation([
-  SWAPIN, BA23.hitCancel(), NM_HECATE, FBA.instaDash(),
-  BA123.hitDash(), FBA.instaCancel(), Skill, FBA.holdCancel(),
-  ScarletCoda.mashCancel(), Liberation.mashSwap(), Outro,
+  SWAPIN, BA23.firstHit(), NM_HECATE, FBA, DASH,
+  BA123.firstHit(), DASH, FBA, Skill, FBA,
+  ScarletCoda, Liberation, Outro,
 
-  Intro, EIntro, BA3.instaDash(), FBA.instaDash(),
-  BA123.instaDash(), FBA.instaDash(),
-  BA123.instaDash(), FBA.instaCancel(),  NM_HECATE,
-  BA123.instaDash(), FBA.instaCancel(), Skill, FBA.holdCancel(),
-  ScarletCoda.mashCancel(), Liberation.mashSwap(), Outro,
+  Intro, EIntro, BA3.instant(), DASH, FBA, DASH,
+  BA123.instant(), DASH, FBA, DASH,
+  BA123.instant(), DASH, FBA,  NM_HECATE,
+  BA123.instant(), DASH, FBA, Skill, FBA,
+  ScarletCoda, Liberation, Outro,
 ]);
 const PHRO_5FBA_S2 = new Rotation([
-  SWAPIN, BA23.instaCancel(), NM_HECATE, FBA.instaDash(),
-  BA123.instaDash(), FBA.instaCancel(), Skill, FBA.holdCancel(),
-  ScarletCoda.mashCancel(), Liberation.mashSwap(), Outro,
+  SWAPIN, BA23.instant(), NM_HECATE, FBA, DASH,
+  BA123.instant(), DASH, FBA, Skill, FBA,
+  ScarletCoda, Liberation, Outro,
 
-  Intro, EIntro, BA3.instaDash(), FBA.instaDash(),
-  BA123.instaDash(), FBA.instaDash(),
-  BA123.instaDash(), FBA.instaCancel(), NM_HECATE,
-  BA123.instaDash(), FBA.instaCancel(), Skill, FBA.holdCancel(),
-  ScarletCoda.mashCancel(), Liberation.mashSwap(), Outro,
+  Intro, EIntro, BA3.instant(), DASH, FBA, DASH,
+  BA123.instant(), DASH, FBA, DASH,
+  BA123.instant(), DASH, FBA, NM_HECATE,
+  BA123.instant(), DASH, FBA, Skill, FBA,
+  ScarletCoda, Liberation, Outro,
 ]);
 
 export const PHRO_12s = new Loadout({

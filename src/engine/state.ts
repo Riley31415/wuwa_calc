@@ -980,6 +980,8 @@ export class State {
   /** The visit a handoff into slot `to` opens, timed off its presses (rotation.ts's `chainGates`),
    *  for a handoff with no visit learned yet — set by `runRotations()`, null outside one. */
   plannedGates: ((to: number, visit: object | null) => VisitGate[] | null) | null = null;
+  /** The cut each watched press last played at, by its rotation entry: what a plan reads it as. */
+  readonly playedCuts = new Map<object, number>();
   /** Whether a handoff holds for the incoming visit's cooldowns: on inside `runRotations()`. */
   handoffWaits = false;
   /** The game frame the fight is cut at (`runRotations()`'s limit): nothing is pressed from then on. */

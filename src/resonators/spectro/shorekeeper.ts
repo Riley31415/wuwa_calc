@@ -36,7 +36,7 @@ import {
   concerto,
   grounded,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, START_LAST, SWAPIN, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, START_LAST, SWAPIN, SUCCESSFUL_DODGE, JUMP } from "../../engine/rotation.js";
 import { HEALS, heal } from "../status.js";
 import { STELLAR_SYMPHONY } from "../../weapons/rectifier.js";
 import { VARIATION } from "../../weapons/standard.js";
@@ -390,18 +390,18 @@ const BA12 = new ActionGroup("Basic - Origin Calculus 12", [BA1, BA2]);
  *  3. try that loop behind each of those openers: the fastest it plays behind as fast is the opener here */
 const SK_LOOP = new Rotation([
   SWAPIN,
-  BA12.cancel(), FALLACY.instaCancel(), SPACETREK_EXPLORER.instaCancel(), FORMRENDER.instaCancel(), Liberation,
-  BA123.jumpCancel(), FMA, BA23.cancel(), Skill, BA2.holdCancel(), FHA.instaJump(), MA.instaSwap(), Outro,
+  BA12, FALLACY.instant(), SPACETREK_EXPLORER.instant(), FORMRENDER.instant(), Liberation,
+  BA123, JUMP, FMA, BA23, Skill, BA2.firstHit(), FHA, JUMP, MA.instant(), Outro,
 
   Intro, EIntro,
-  BA12.cancel(), Skill.cancel(), FALLACY.instaCancel(), SPACETREK_EXPLORER.instaCancel(), FORMRENDER.instaCancel(), Liberation,
+  BA12, Skill, FALLACY.instant(), SPACETREK_EXPLORER.instant(), FORMRENDER.instant(), Liberation,
   // Illation's butterflies land after the swap, into the next Intro's Concerto
-  BA12.holdCancel(), FHA.instaJump(), MA.instaSwap(), Outro,
+  BA12.firstHit(), FHA, JUMP, MA.instant(), Outro,
 
   // a first arrival with no opener before it carries no forte in: Basic 3 makes up the 1
   Intro.firstIntro(),
-  BA123.cancel(), Skill.cancel(), FALLACY.instaCancel(), SPACETREK_EXPLORER.instaCancel(), FORMRENDER.instaCancel(), Liberation,
-  BA12.holdCancel(), FHA.instaJump(), MA.instaSwap(), Outro,
+  BA123, Skill, FALLACY.instant(), SPACETREK_EXPLORER.instant(), FORMRENDER.instant(), Liberation,
+  BA12.firstHit(), FHA, JUMP, MA.instant(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

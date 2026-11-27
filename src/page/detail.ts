@@ -7,7 +7,7 @@ import type { Gear } from "../engine/gear.js";
 import { menuStats } from "../engine/context.js";
 import { TUNE_BREAK_ENEMY, ENEMY_MAX_OFFTUNE } from "../resonators/tunebreak.js";
 import type { ChainGroup, ResolvedSnapshot } from "../engine/evaluate.js";
-import { buildReport, fmt, fmtPct, fmtPctCell, digitsOf, PAD_DIGITS_COLUMNS, GROUPED_COLUMNS, RATE_SECTIONS } from "./display.js";
+import { buildReport, fmt, fmtPct, fmtPctCell, digitsOf, PAD_DIGITS_COLUMNS, GROUPED_COLUMNS, RATE_SECTIONS, SWAP_IN_TAG } from "./display.js";
 import type { Report, Column, ReportRow, ReportPart } from "./display.js";
 import type { TeamRun } from "../solve/teamrun.js";
 import type { Member } from "../solve/solver.js";
@@ -40,36 +40,6 @@ function cell(col: Column, { cls = [], html = "", pop = "", style = "", attr = "
   const classes = ["c", col.align === "left" ? "" : "num", ...cls].filter(Boolean).join(" ");
   return `<span class="${classes}"${style ? ` style="${style}"` : ""}${attr}${pop}>${html}</span>`;
 }
-
-/** Which colour a cut's tag box wears (index.css `.ctag-*`). */
-const TAG_KIND: Partial<Record<Transition, string>> = {
-  [Transition.InstaCancel]: "insta", [Transition.InstaDash]: "insta", [Transition.InstaJump]: "insta", [Transition.InstaSwap]: "insta",
-  [Transition.SwapCancel]: "swap", [Transition.MashSwap]: "swap", [Transition.MashCancel]: "easy", [Transition.MashDash]: "easy", [Transition.MashJump]: "easy", [Transition.HoldCancel]: "easy",
-  [Transition.DashCancel]: "dash", [Transition.JumpCancel]: "jump", [Transition.Cancel]: "cancel", [Transition.HitCancel]: "hit", [Transition.HitDash]: "hit", [Transition.HitJump]: "hit", [Transition.HitSwap]: "hit",
-  [Transition.TimedCancel]: "timed",
-};
-
-/** How each cut is played, for its tag box's panel. */
-const TAG_NOTE: Partial<Record<Transition, string>> = {
-  [Transition.InstaCancel]: "After casting, input the next action instantly",
-  [Transition.InstaDash]: "After casting, dash instantly",
-  [Transition.InstaJump]: "After casting, jump instantly",
-  [Transition.InstaSwap]: "After casting, swap instantly",
-  [Transition.Cancel]: "After the final hit, input the next action to cancel endlag",
-  [Transition.DashCancel]: "After the final hit, dash to cancel endlag",
-  [Transition.JumpCancel]: "After the final hit, jump to cancel endlag",
-  [Transition.SwapCancel]: "After the final hit, swap to cancel endlag",
-  [Transition.MashSwap]: "After casting, mash swap to swap out the moment it allows",
-  [Transition.MashCancel]: "After casting, mash the next input to cancel when available",
-  [Transition.MashDash]: "After casting, mash dash to dash the moment it allows",
-  [Transition.MashJump]: "After casting, mash jump to jump the moment it allows",
-  [Transition.HoldCancel]: "After casting, hold the next input to cancel when available",
-  [Transition.HitCancel]: "After the first hit, input the next action",
-  [Transition.HitDash]: "After the first hit, dash",
-  [Transition.HitJump]: "After the first hit, jump",
-  [Transition.HitSwap]: "After the first hit, swap",
-  [Transition.TimedCancel]: "Input the next action on the frame shown",
-};
 
 /** One row of the log. A running column is blank where the row left it exactly as it came in
  *  (`before:`), unless something fed it; `buffed` underlines a cell a buff actually moved, or a
@@ -154,13 +124,14 @@ function cellParts(
       html = `${html}<span class="caret">▸</span>`;
     }
     const tag = col.key === "action" ? String(row.raw["tag:action"] ?? "") : "";
-    // the tag's own box, coloured by what cut the press — an insta anything red (insta swap too), a
-    // swap form yellow, a mash or hold cancel green, then a dash, a jump, and a plain cancel — or gray
-    // for a press beside the fight
+    // the SWAP IN box, floated after the cancel tag so it sits to that one's left
+    if (col.key === "action" && row.raw["swapin:action"]) {
+      html = `<span class="ctag ctag-swapin"${lazyPop(`<span class="pop note">Forced by swap in</span>`)}>${SWAP_IN_TAG}</span>${html}`;
+    }
+    // the tag's own box, coloured by where the cut fell (`tagOf()`): its panel names the timing meant
     if (tag) {
-      const own = tag.startsWith("cancel @ ") ? Transition.TimedCancel : tag as Transition;
-      const kind = TAG_KIND[own] ?? "cancel", note = TAG_NOTE[own];
-      const tagPop = note ? lazyPop(`<span class="pop note">${esc(note)}</span>`) : "";
+      const kind = String(row.raw["tagkind:action"] ?? "cancel"), note = String(row.raw["tagnote:action"] ?? "");
+      const tagPop = lazyPop(`<span class="pop note">${esc(note)}</span>`);
       html = `<span class="ctag ctag-${kind}"${tagPop}>${esc(tag.toUpperCase())}</span>${html}`;
     }
     const suffix = col.key === "mv" && row.scaling !== null ? ` ${SCALING_NAME[row.scaling]}` : "";
@@ -1171,9 +1142,10 @@ addEventListener("focusin", (e) => {
 
 /** A cell's text as copied: a cut's tag, drawn ahead of the action's name, follows it. */
 function copyText(c: HTMLElement): string {
-  const tag = c.querySelector(".ctag");
-  const name = [...c.childNodes].filter((n) => n !== tag).map((n) => n.textContent ?? "").join("").replace(/[▸▾]/g, "").trim();
-  return tag ? `${name} ${(tag.textContent ?? "").trim()}` : name;
+  const tags = [...c.querySelectorAll(":scope > .ctag")];
+  const name = [...c.childNodes].filter((n) => !tags.includes(n as Element)).map((n) => n.textContent ?? "").join("").replace(/[▸▾]/g, "").trim();
+  // in reading order, left to right: the floats stand reversed
+  return [name, ...tags.reverse().map((t) => (t.textContent ?? "").trim())].join(" ");
 }
 
 /** Ctrl+C takes a copy of the block, a row to a line and a tab between columns — the figures as the

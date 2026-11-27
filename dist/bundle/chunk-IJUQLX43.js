@@ -231,10 +231,9 @@ var TAG_NAME = {
 };
 var scopedStat = (tag, stat) => stat | tag;
 var splitStat = (key) => [key & STAT_BITS, key & TAG_BITS || null];
-var BASE_DELAYS = { precision: 10, mash: 5, holdBuffer: 17 };
+var BASE_DELAYS = { precision: 10, holdBuffer: 12 };
 var DELAYS = BASE_DELAYS;
 var INPUT_PRECISION = BASE_DELAYS.precision;
-var MASH_SPEED = BASE_DELAYS.mash;
 var HOLD_BUFFER = BASE_DELAYS.holdBuffer;
 var delaysWith = (d) => ({ ...BASE_DELAYS, ...Object.fromEntries(Object.entries(d).filter(([, v]) => v !== void 0)) });
 var delaysOf = (d) => d ?? BASE_DELAYS;
@@ -243,7 +242,7 @@ function useDelays(d) {
   if (at === DELAYS)
     return;
   DELAYS = at;
-  ({ precision: INPUT_PRECISION, mash: MASH_SPEED, holdBuffer: HOLD_BUFFER } = at);
+  ({ precision: INPUT_PRECISION, holdBuffer: HOLD_BUFFER } = at);
 }
 function atDelays(d, f) {
   const was = DELAYS;
@@ -613,6 +612,7 @@ var ctx = {
   pressCut: "",
   cutReplaced: "",
   holdNext: null,
+  driveCut: null,
   nextPresses: () => [],
   bankLoose: () => {
     throw new Error("bankLoose() before evaluate.ts loaded");
@@ -1950,6 +1950,8 @@ var State = class {
   /** The visit a handoff into slot `to` opens, timed off its presses (rotation.ts's `chainGates`),
    *  for a handoff with no visit learned yet — set by `runRotations()`, null outside one. */
   plannedGates = null;
+  /** The cut each watched press last played at, by its rotation entry: what a plan reads it as. */
+  playedCuts = /* @__PURE__ */ new Map();
   /** Whether a handoff holds for the incoming visit's cooldowns: on inside `runRotations()`. */
   handoffWaits = false;
   /** The game frame the fight is cut at (`runRotations()`'s limit): nothing is pressed from then on. */
@@ -3960,15 +3962,15 @@ function cancelCost(a, cut) {
   else if (t === "lastcommit")
     [aim, delay] = [whole.cutFrame, INPUT_PRECISION];
   else if (t === "onhit")
-    [aim, delay] = [whole.onHitAt ?? whole.cutFrame, INPUT_PRECISION];
+    [aim, delay] = [whole.onHitAt ?? (whole.bullets.length ? Math.min(...whole.bullets.map((h) => h.hitFrame)) : whole.cutFrame), INPUT_PRECISION];
   else if (t === "timed")
     aim = whole.timedAt ?? a.timedAt ?? full;
   else if (kind === Transition.MashSwap)
-    [aim, delay] = [Math.max(whole.noSwapFrames, INPUT_PRECISION), MASH_SPEED];
+    [aim, delay] = [whole.noSwapFrames, INPUT_PRECISION];
   else if (t === "hold")
     aim = INPUT_PRECISION + HOLD_BUFFER;
   else if (t === "mash")
-    [aim, delay] = [INPUT_PRECISION, MASH_SPEED];
+    aim = INPUT_PRECISION;
   else
     aim = full;
   const action = Math.min(aim, full), global = aim - action + delay;
@@ -4103,7 +4105,7 @@ var Action = class _Action extends Gear {
   slot;
   /** `ActionDef.input` (`Input.None` on a press nobody makes). */
   input;
-  /** Its own condition fields joined, null where it has none; `isValid()` adds
+  /** Its own condition fields joined, null where it has none; `available()` adds
    *  whether a press above it on its input takes the input (`outranked()`). */
   validFn;
   /** `ActionDef.inputPriority`. */
@@ -4294,8 +4296,9 @@ var Action = class _Action extends Gear {
     const w = this.half !== null ? this.formOf ?? this : this;
     return w.input === 14 && !w.def.onField && (w.cast !== 11 || w.bullets.length > 0) || isSwap(w);
   }
-  /** Can it be pressed now (its conditions and `inputPriority`), read through the "current" pointers as they stand? */
-  isValid() {
+  /** Is it available now, read through the "current" pointers as they stand: every condition it declares met
+   *  (`validFn`), and no press above it on its input (`inputPriority`) with its own met — what its input gives. */
+  available() {
     const fn = this.validFn, owner = ctx.slot;
     if (fn === null && !this.rivals(owner).length)
       return true;
@@ -4310,22 +4313,27 @@ var Action = class _Action extends Gear {
     this.validFn = buildValid(this.def);
     this.chainBound = true;
   }
-  /** The presses above this one on its input in `owner`'s list (`inputActions()`), made once per list. */
+  /** The presses above this one on its input in `owner`'s list (`inputActions()`), and those level with it — a tie
+   *  `outranked()` refuses — made once per list. */
   rivals(owner) {
     const list = inputActions(owner, this.input);
     let out = (this.above ??= /* @__PURE__ */ new WeakMap()).get(list);
     if (!out) {
-      let base = this;
-      while (base.cancelOf ?? base.formOf)
-        base = base.cancelOf ?? base.formOf;
-      out = list.filter((r) => r !== base && r.inputPriority > this.inputPriority);
+      const root = (a) => {
+        while (a.cancelOf ?? a.formOf)
+          a = a.cancelOf ?? a.formOf;
+        return a;
+      };
+      const base = root(this);
+      out = list.filter((r) => root(r) !== base && r.inputPriority >= this.inputPriority);
       this.above.set(list, out);
     }
     return out;
   }
   above;
-  /** Does a press above this one on its input take the input now: its conditions hold, a charge ready. Read
-   *  as no where chain, stand or buffs read as met and on a swap-in opener (its pick is `swapInPress()`'s). */
+  /** Does a press above this one on its input take the input now: its conditions hold, a charge ready. One level
+   *  with it doing so is a tie, which throws: its input would give either. Read as no where chain, stand or buffs
+   *  read as met and on a swap-in opener (its pick is `swapInPress()`'s). */
   outranked(owner) {
     if (ctx.validChainFree || ctx.validAnyStand || ctx.validAnyBuff)
       return false;
@@ -4333,24 +4341,30 @@ var Action = class _Action extends Gear {
     if (!above.length)
       return false;
     const miss = ctx.validMiss;
-    let by = null;
+    let by = null, tie = null;
     for (const r of above) {
-      if ((r.validFn === null || r.validFn()) && r.ready(owner)) {
+      if (!((r.validFn === null || r.validFn()) && r.ready(owner)))
+        continue;
+      if (r.inputPriority > this.inputPriority) {
         by = r;
         break;
       }
+      tie ??= r;
+    }
+    if (!by && tie && !tiesAllowed) {
+      throw new Error(`${owner.name}: ${this.name} and ${tie.name} are both available on ${INPUT_NAME[this.input]} at inputPriority ${this.inputPriority} \u2014 give one of them a higher inputPriority, or conditions that keep them apart`);
     }
     ctx.validMiss = miss || (by?.chainBound ?? false);
     return by !== null;
   }
   /** Has `owner` a charge of its cooldown now: part of what makes it valid to pick or search (`validFor()`,
-   *  `pickInput()`); a written press is waited for instead, its charge spent before `isValid()` reads it. */
+   *  `pickInput()`); a written press is waited for instead, its charge spent before `available()` reads it. */
   ready(owner) {
     return !this.cooldown || owner.cooldownAt(this.cooldown, ctx.state?.frame ?? 0).charges > 0;
   }
-  /** `isValid()` as `owner` with bars `bars` (null: theirs), after `prev` and at `position` (undefined:
+  /** `available()` as `owner` with bars `bars` (null: theirs), after `prev` and at `position` (undefined:
    *  their own last press / stand). Everything it moves is put back. */
-  validOn(owner, bars, prev, position) {
+  availableOn(owner, bars, prev, position) {
     const fn = this.validFn;
     if (fn === null && !this.rivals(owner).length)
       return true;
@@ -4451,12 +4465,12 @@ var Action = class _Action extends Gear {
         return true;
     return false;
   }
-  /** `validOn()` on the bars alone, chain, stand and buffs read as met — what a hold or a visit's plan banks
+  /** `availableOn()` on the bars alone, chain, stand and buffs read as met — what a hold or a visit's plan banks
    *  toward, the buffs to come unknown. */
   paysOn(owner, bars) {
     return this.validIn(owner, bars, true);
   }
-  /** `validOn()` with its chain and stand read as met: bars and buffs only — a held press waiting. */
+  /** `availableOn()` with its chain and stand read as met: bars and buffs only — a held press waiting. */
   standsOn(owner, bars) {
     return this.validIn(owner, bars, false);
   }
@@ -4467,7 +4481,7 @@ var Action = class _Action extends Gear {
     ctx.validChainFree = ctx.validAnyStand = true;
     ctx.validAnyBuff = anyBuff;
     try {
-      return this.validOn(owner, bars);
+      return this.availableOn(owner, bars);
     } finally {
       ctx.validChainFree = chain;
       ctx.validAnyStand = stand;
@@ -4484,7 +4498,7 @@ var Action = class _Action extends Gear {
       ctx.validAnyStand = was;
     }
   }
-  /** Does `validOn()` fail on its chain or stand rather than a buff or bar — what a break or dash ahead of
+  /** Does `availableOn()` fail on its chain or stand rather than a buff or bar — what a break or dash ahead of
    *  it changes. Handlers read those first, so a missing buff never hides one. */
   missesOn(owner, prev, position) {
     if (this.validFn === null && !this.rivals(owner).length)
@@ -4492,7 +4506,7 @@ var Action = class _Action extends Gear {
     const was = ctx.validMiss;
     ctx.validMiss = false;
     try {
-      return !this.validOn(owner, null, prev, position) && ctx.validMiss;
+      return !this.availableOn(owner, null, prev, position) && ctx.validMiss;
     } finally {
       ctx.validMiss = was;
     }
@@ -4534,23 +4548,14 @@ var Action = class _Action extends Gear {
     return this.transformFrames;
   }
   /** Where a hold (or `mash`) cancel paid at `paid` (`holdPays()`) lets go: a hold the frame `next` can follow
-   *  it, no sooner than `INPUT_PRECISION + HOLD_BUFFER`; a mash `MASH_SPEED` after it, no sooner than `INPUT_PRECISION`. */
+   *  it, no sooner than `INPUT_PRECISION + HOLD_BUFFER`; a mash the frame it can, no sooner than `INPUT_PRECISION`
+   *  (into a swap, never buffered: `INPUT_PRECISION` after it opens). */
   letGo(paid, mash = false, next = null) {
     if (!mash)
       return Math.min(this.freeForNext(next, Math.max(INPUT_PRECISION + HOLD_BUFFER, paid)), this.animFrames);
-    let at = this.freeForNext(next, Math.max(INPUT_PRECISION, paid));
-    if (at === Infinity)
-      return this.animFrames;
-    at += MASH_SPEED;
-    while (at < this.animFrames) {
-      const free = this.freeForNext(next, at);
-      if (free === at)
-        break;
-      if (free === Infinity)
-        return this.animFrames;
-      at = free + MASH_SPEED;
-    }
-    return at;
+    const swaps = !!next && (next.cast === 6 || isSwap(next));
+    const at = this.freeForNext(next, swaps ? paid : Math.max(INPUT_PRECISION, paid));
+    return at === Infinity ? this.animFrames : swaps ? at + INPUT_PRECISION : at;
   }
   /** `letGo()` of `holdPays()`: where a hold (or `mash`) cancel of this press lets go. */
   holdAt(owner, bars, cap, next, castGain = null, pending = [], mash = false) {
@@ -4600,6 +4605,11 @@ var Action = class _Action extends Gear {
       throw new Error(`${this.name}: ${INPUT_NAME[this.input]} has no held form`);
     return this.onInput(to);
   }
+  /** Meant to hand over at its last commit + `INPUT_PRECISION`, the engine solving the cut (`Timing.LastCommit`) — what
+   *  an unwritten press means once the solver plays the whole fight. */
+  lastCommit() {
+    return withTiming(this, { kind: Timing.LastCommit, frame: 0 });
+  }
   /** Meant to hand over at exactly `INPUT_PRECISION` — the engine solves the cut (`Timing.Instant`). */
   instant() {
     return withTiming(this, { kind: Timing.Instant, frame: 0 });
@@ -4631,22 +4641,6 @@ var Action = class _Action extends Gear {
   holdCancel() {
     return new CancelledStep(this, Transition.HoldCancel);
   }
-  /** The same, cut by a dash: a group of this press and the dash after it (`dashed()`). */
-  dashCancel() {
-    return dashed(this, Transition.DashCancel);
-  }
-  /** The same, cut by a jump. */
-  jumpCancel() {
-    return dashed(this, Transition.JumpCancel);
-  }
-  /** The same, a dash mashed in: out the moment the dash can be cast. */
-  mashDash() {
-    return dashed(this, Transition.MashDash);
-  }
-  /** The same, a jump mashed in. */
-  mashJump() {
-    return dashed(this, Transition.MashJump);
-  }
   /** This Intro, cut or not, opening the chain played on the resonator's first arrival instead of
    *  every visit's (`IntroEntry`). */
   firstIntro() {
@@ -4672,14 +4666,6 @@ var Action = class _Action extends Gear {
    *  none of its hit: no motion value, element, types, scaling, or energy/concerto/off-tune/forte. */
   instaCancel() {
     return this.instaForm(Transition.InstaCancel);
-  }
-  /** The same, the press cut by a dash, which follows it (`dashed()`). */
-  instaDash() {
-    return dashed(this, Transition.InstaDash);
-  }
-  /** The same, the press cut by a jump. */
-  instaJump() {
-    return dashed(this, Transition.InstaJump);
   }
   /** The insta forms, pointed back at the cast they cancel so `runningAction()` still reads the two
    *  as one: the cast's own effects and the bullets committed inside `INPUT_PRECISION`. */
@@ -4859,18 +4845,6 @@ var Action = class _Action extends Gear {
     out.cancelOf = this;
     return out;
   }
-  /** The same cut by a dash after its first hit — HIT DASH — the dash a press of its own. */
-  hitDash() {
-    return this.dashOnHit(Transition.HitDash);
-  }
-  /** The same by a jump — HIT JUMP. */
-  hitJump() {
-    return this.dashOnHit(Transition.HitJump);
-  }
-  dashOnHit(kind) {
-    const cut = this.resolveFn ? this.swapResolver((a) => a.cutOnHit(kind)) : this.cutOnHit(kind);
-    return new ActionGroup(this.resolveFn ? "" : this.name, [cut, new DashMarker(kind === Transition.HitJump, this, kind)], 1);
-  }
   /** The same cast swapped out of at its last commit, `INPUT_PRECISION` later: SWAP CANCEL. It plays on
    *  behind the swap, and the SWAP after it (or a 0-MV Outro) takes it off the field. */
   swapCancel() {
@@ -4889,8 +4863,7 @@ var Action = class _Action extends Gear {
     out.cancelOf = this;
     return out;
   }
-  /** The same cast swapped out of `MASH_SPEED` after its no-swap frames end (no sooner than
-   *  `INPUT_PRECISION`): MASH SWAP. */
+  /** The same cast swapped out as its no-swap frames end (no sooner than `INPUT_PRECISION`): MASH SWAP. */
   mashSwap() {
     return this.swapForm(Transition.MashSwap, (a) => a.mashSwap());
   }
@@ -4963,20 +4936,11 @@ var ActionGroup = class _ActionGroup extends Action {
   holdCancel() {
     return this.withLast((a) => a.holdCancel());
   }
-  dashCancel() {
-    return this.dashLast((a) => a.dashCancel());
-  }
-  jumpCancel() {
-    return this.dashLast((a) => a.jumpCancel());
-  }
-  mashDash() {
-    return this.dashLast((a) => a.mashDash());
-  }
-  mashJump() {
-    return this.dashLast((a) => a.mashJump());
-  }
   hitSwap() {
     return this.withLast((a) => a.hitSwap());
+  }
+  lastCommit() {
+    return this.withLast((a) => a.lastCommit());
   }
   instant() {
     return this.withLast((a) => a.instant());
@@ -4990,12 +4954,6 @@ var ActionGroup = class _ActionGroup extends Action {
   instaCancel() {
     return this.withLast((a) => a.instaCancel());
   }
-  instaDash() {
-    return this.dashLast((a) => a.instaDash());
-  }
-  instaJump() {
-    return this.dashLast((a) => a.instaJump());
-  }
   swapCancel() {
     return this.withLast((a) => a.swapCancel());
   }
@@ -5007,12 +4965,6 @@ var ActionGroup = class _ActionGroup extends Action {
   }
   cancelAt(frames) {
     return this.withLast((a) => a.cancelAt(frames));
-  }
-  hitDash() {
-    return this.dashLast((a) => a.hitDash());
-  }
-  hitJump() {
-    return this.dashLast((a) => a.hitJump());
   }
   instaSwap() {
     return this.withLast((a) => a.instaSwap());
@@ -5026,18 +4978,34 @@ var ActionGroup = class _ActionGroup extends Action {
   withLast(cut) {
     return new _ActionGroup(this.name, [...this.actions.slice(0, -1), cut(this.actions[this.actions.length - 1])]);
   }
-  /** The last press's dash group, flattened into this one — `run()` expands a single level. */
-  dashLast(cut) {
-    const tail = cut(this.actions[this.actions.length - 1]);
-    return new _ActionGroup(this.name, [...this.actions.slice(0, -1), ...tail.actions], tail.trailing);
-  }
 };
-function dashed(after2, kind) {
-  const insta = KIND_OF[kind] === "instant";
-  const cut = insta ? after2.instaForm(kind) : new CancelledStep(after2, kind);
-  const jump = VIA_OF[kind] === 2;
-  return new ActionGroup(after2.resolveFn ? "" : after2.name, [cut, new DashMarker(jump, after2, kind)], 1);
-}
+var FIRST_GROUND_DASH = new Buff({ duration: 30 });
+var NO_DASH = new Buff({ name: "No Dash/Dodge", duration: 60 });
+var NO_AIR_DASH = new Buff({
+  name: "No Air Dash/Dodge",
+  // grounded as the press is cast (an arrival) or once it ends (a plunge), or into a transform echo
+  updateBuffs: () => {
+    if (ctx.slot.position === 0 || transforms(ctx.act))
+      revokeCurrent(NO_AIR_DASH);
+  },
+  afterAction: () => {
+    if (ctx.slot.position === 0)
+      revokeCurrent(NO_AIR_DASH);
+  }
+});
+var transforms = (a) => {
+  while (a.formOf ?? a.cancelOf)
+    a = a.formOf ?? a.cancelOf;
+  return a.transformFrames > 0;
+};
+var pressedMidair = () => ctx.slot.position === 1;
+var DODGE_GRANTS = [
+  { on: () => !pressedMidair() && ctx.slot.isHeld(FIRST_GROUND_DASH), buff: NO_DASH },
+  { on: () => !pressedMidair() && !ctx.slot.isHeld(FIRST_GROUND_DASH), buff: FIRST_GROUND_DASH },
+  { on: pressedMidair, buff: NO_AIR_DASH }
+];
+var GROUND_DODGE_LACKS = [NO_DASH];
+var AIR_DODGE_LACKS = [NO_DASH, NO_AIR_DASH];
 var DEFAULT_DASH = new Action("Dash - Grounded", {
   input: 7,
   inputPriority: -1,
@@ -5046,14 +5014,17 @@ var DEFAULT_DASH = new Action("Dash - Grounded", {
   animPriority: { 0: 9 },
   castPriority: 6,
   endPosition: 0,
-  position: 0
+  position: 0,
+  lacks: GROUND_DODGE_LACKS,
+  grants: DODGE_GRANTS
 });
 var DEFAULT_AIR_DASH = DEFAULT_DASH.variant("Dash - Mid-air", {
   castPriority: 7,
   endPosition: 1,
-  position: 1
+  position: 1,
+  lacks: AIR_DODGE_LACKS
 });
-var SUCCESSFUL_DODGE = DEFAULT_DASH.variant("Dodge - Successful", { input: 8, castPriority: 8, position: void 0 });
+var SUCCESSFUL_DODGE = DEFAULT_DASH.variant("Dodge - Successful", { input: 8, castPriority: 8, position: void 0, lacks: GROUND_DODGE_LACKS });
 var DEFAULT_JUMP = new Action("Jump", {
   input: 10,
   inputPriority: -1,
@@ -5078,7 +5049,7 @@ var byPriority = (list) => {
   return out;
 };
 function pickInput(member2, input, prev) {
-  const valid = inputActions(member2, input).filter((a) => a.validOn(member2, null, prev));
+  const valid = inputActions(member2, input).filter((a) => a.availableOn(member2, null, prev));
   return valid.find((a) => a.ready(member2)) ?? valid[0] ?? null;
 }
 function swapInPress(member2, at) {
@@ -5093,17 +5064,22 @@ function validFor(member2, a, input, at) {
   ctx.validChainFree = input === 13;
   ctx.validAnyStand = ctx.validAnyBuff = false;
   try {
-    return input === 13 ? a.validOn(member2, null, null, at) : a.validOn(member2, null);
+    return input === 13 ? a.availableOn(member2, null, null, at) : a.availableOn(member2, null);
   } finally {
     ctx.validChainFree = chain;
     ctx.validAnyStand = stand;
     ctx.validAnyBuff = buff;
   }
 }
+var tiesAllowed = false;
 var dashFor = (isJump, after2) => {
   const member2 = currentMember(), input = isJump ? 10 : 7;
-  return pickInput(member2, input, after2) ?? inputActions(member2, input)[0] ?? (isJump ? DEFAULT_JUMP : DEFAULT_DASH);
+  const plain = isJump ? DEFAULT_JUMP : DEFAULT_DASH;
+  const valid = inputActions(member2, input).length ? pickInput(member2, input, after2) : plain.availableOn(member2, null, after2) ? plain : null;
+  return valid ?? (isJump ? NO_VALID_JUMP : NO_VALID_DASH);
 };
+var NO_VALID_DASH = new Action("No Valid Dash", { input: 7, maxConcerto: -1 });
+var NO_VALID_JUMP = new Action("No Valid Jump", { input: 10, maxConcerto: -1 });
 var lastPress = () => {
   const last = ctx.state?.lastOwn;
   let a = last && last.member === currentMember().name ? last.action : null;
@@ -5117,21 +5093,6 @@ var lastPress = () => {
 };
 var DASH = new Action("Dash Marker", { resolve: () => dashFor(false, lastPress()) });
 var JUMP = new Action("Jump Marker", { resolve: () => dashFor(true, lastPress()) });
-var DashMarker = class extends Action {
-  after;
-  kind;
-  constructor(isJump, after2, kind) {
-    super(isJump ? "Jump Placeholder" : "Dash Placeholder", {
-      resolve: () => {
-        if (after2.mainslot && after2.resolveFn() === SKIP)
-          return SKIP;
-        return dashFor(isJump, after2 instanceof IntroEntry ? resolvedIntro() : after2);
-      }
-    });
-    this.after = after2;
-    this.kind = kind;
-  }
-};
 var barGain = (b, k) => k === 0 ? b.energy : k === 1 ? b.concerto : k === 2 ? b.forte1 : k === 3 ? b.forte2 : k === 4 ? b.forte3 : k === 5 ? b.forte4 : b.forte5;
 var CancelledStep = class _CancelledStep extends Action {
   of;
@@ -5164,19 +5125,22 @@ var TimedStep = class _TimedStep extends CancelledStep {
     return new _TimedStep(of, this.timing);
   }
 };
+var timingTarget = (a, t) => t.kind === Timing.Instant ? 0 : t.kind === Timing.Timed ? t.frame : t.kind === Timing.FirstHit && a.bullets.length ? Math.min(...a.bullets.map((h) => h.hitFrame)) : a.cutFrame;
+var PLAN_LAST_COMMIT = { kind: Timing.LastCommit, frame: 0 };
+var PLANNED_CUT = {
+  [Timing.LastCommit]: Transition.Cancel,
+  [Timing.Instant]: Transition.InstaCancel,
+  [Timing.FirstHit]: Transition.HitCancel
+};
 function timingProblem(a, t) {
   const lc = a.cutFrame;
+  const first = a.bullets.length ? Math.min(...a.bullets.map((h) => h.hitFrame)) : null;
   if (t.kind === Timing.Instant && lc <= INPUT_PRECISION)
     return `its last commit is at frame ${lc}, inside INPUT_PRECISION \u2014 leave it at last commit`;
-  if (t.kind === Timing.FirstHit) {
-    if (!a.bullets.length)
-      return "it has no bullet to hit";
-    const first = Math.min(...a.bullets.map((h) => h.hitFrame));
-    if (first <= INPUT_PRECISION)
-      return `its first hit is at frame ${first}, inside INPUT_PRECISION \u2014 write .instant() instead`;
-    if (first + INPUT_PRECISION >= lc)
-      return `its first hit + INPUT_PRECISION (${first + INPUT_PRECISION}) is no sooner than its last commit (${lc}) \u2014 leave it at last commit`;
-  }
+  if (t.kind === Timing.Instant && first !== null && first <= INPUT_PRECISION)
+    return `its first hit is at frame ${first}, inside INPUT_PRECISION \u2014 write .firstHit() instead`;
+  if (t.kind === Timing.FirstHit && first === null)
+    return "it has no bullet to hit";
   if (t.kind === Timing.Timed && (!Number.isInteger(t.frame) || t.frame < 0))
     return `a timed cut needs a whole frame, not ${t.frame}`;
   return null;
@@ -5208,20 +5172,11 @@ var EveryOther = class extends Action {
   holdCancel() {
     return this.gated.holdCancel().everyOther();
   }
-  dashCancel() {
-    return this.gated.dashCancel().everyOther();
-  }
-  jumpCancel() {
-    return this.gated.jumpCancel().everyOther();
-  }
-  mashDash() {
-    return this.gated.mashDash().everyOther();
-  }
-  mashJump() {
-    return this.gated.mashJump().everyOther();
-  }
   hitSwap() {
     return this.gated.hitSwap().everyOther();
+  }
+  lastCommit() {
+    return this.gated.lastCommit().everyOther();
   }
   instant() {
     return this.gated.instant().everyOther();
@@ -5235,23 +5190,11 @@ var EveryOther = class extends Action {
   instaCancel() {
     return this.gated.instaCancel().everyOther();
   }
-  instaDash() {
-    return this.gated.instaDash().everyOther();
-  }
-  instaJump() {
-    return this.gated.instaJump().everyOther();
-  }
   hitCancel() {
     return this.gated.hitCancel().everyOther();
   }
   cancelAt(frames) {
     return this.gated.cancelAt(frames).everyOther();
-  }
-  hitDash() {
-    return this.gated.hitDash().everyOther();
-  }
-  hitJump() {
-    return this.gated.hitJump().everyOther();
   }
   swapCancel() {
     return this.gated.swapCancel().everyOther();
@@ -5317,23 +5260,9 @@ var IntroEntry = class extends Action {
   hitCancel() {
     throw new Error(`${this.name}: an Intro opening a chain can't be cut on hit`);
   }
-  hitDash() {
-    throw new Error(`${this.name}: an Intro opening a chain can't be cut on hit`);
-  }
-  hitJump() {
-    throw new Error(`${this.name}: an Intro opening a chain can't be cut on hit`);
-  }
   hitSwap() {
     throw new Error(`${this.name}: an Intro opening a chain can't be cut on hit`);
   }
-};
-var DASH_OF = {
-  [Transition.DashCancel]: (a) => a.dashCancel(),
-  [Transition.JumpCancel]: (a) => a.jumpCancel(),
-  [Transition.InstaDash]: (a) => a.instaDash(),
-  [Transition.InstaJump]: (a) => a.instaJump(),
-  [Transition.MashDash]: (a) => a.mashDash(),
-  [Transition.MashJump]: (a) => a.mashJump()
 };
 var FORM_OF = {
   [Transition.InstaCancel]: (a) => a.instaCancel(),
@@ -5351,9 +5280,10 @@ function introForm(a) {
     return form(a.of, a.kind, (e) => a.rewrap(e));
   if (a instanceof ActionGroup) {
     const dash = a.actions[1];
-    if (a.actions.length !== 2 || !(dash instanceof DashMarker) || !DASH_OF[dash.kind])
+    if (a.actions.length !== 2 || dash !== DASH && dash !== JUMP)
       return null;
-    return form(dash.after, dash.kind, DASH_OF[dash.kind]);
+    const f = introForm(a.actions[0]);
+    return f && { ...f, apply: (e) => new ActionGroup(a.name, [f.apply(e), dash], a.trailing) };
   }
   const base = a.cancelOf ?? a.formOf;
   if (base && FORM_OF[a.transition])
@@ -5436,7 +5366,7 @@ var SWAP = new Action("Swap", {
 });
 var isSwap = (a) => a === SWAP || a === SWAP_GROUNDED || a === SWAP_MIDAIR;
 DEFAULT_PRESSES.fallbacks = [DEFAULT_DASH, DEFAULT_AIR_DASH, DEFAULT_JUMP, SWAP];
-function chainGates(chain, owner, hasIntro, resolve, bars, cap) {
+function chainGates(chain, owner, hasIntro, resolve, bars, cap, played = /* @__PURE__ */ new Map()) {
   const presses = [];
   const { members, lastMarker } = chainMembers(chain);
   const seen = [...bars];
@@ -5447,12 +5377,15 @@ function chainGates(chain, owner, hasIntro, resolve, bars, cap) {
       break;
     const stepped = m instanceof CancelledStep, marked = stepped ? m.of : m;
     const pressed = marked.resolveFn ? resolve(marked, seen) : marked;
-    if (!pressed || pressed === SKIP)
+    if (!pressed || pressed === SKIP || pressed === NO_VALID_DASH || pressed === NO_VALID_JUMP)
       continue;
     if (pressed.resolveFn)
       break;
-    const [a, cut] = stepped && m.kind ? pressed.cutAs(m.kind) : [pressed, null];
-    presses.push({ pressed, a, cut });
+    const watched = pressed.transition === Transition.Temporary && pressed.animFrames > 0 && !pressed.castsWithNext && pressed.cast !== 6 && !(stepped && m.kind);
+    const timing = m instanceof TimedStep ? m.timing : watched ? PLAN_LAST_COMMIT : void 0;
+    const kind = timing ? PLANNED_CUT[timing.kind] ?? null : stepped ? m.kind || null : null;
+    const [a, cut] = kind ? pressed.cutAs(kind) : [pressed, null];
+    presses.push({ pressed, a, cut, ...timing ? { at: played.get(m), timing } : {} });
     if (a.cooldown)
       gated = true;
     if (n < lastMarker)
@@ -5461,18 +5394,26 @@ function chainGates(chain, owner, hasIntro, resolve, bars, cap) {
   if (!gated)
     return [];
   let lastHold = -1;
-  for (let n = 0; n < presses.length; n++)
-    if (presses[n].cut && waitsForNext(presses[n].cut))
+  for (let n = 0; n < presses.length; n++) {
+    const { cut, timing } = presses[n];
+    if (cut && waitsForNext(cut) || timing && presses[n + 1]?.pressed.heldInput)
       lastHold = n;
+  }
   const out = [];
   const g = [...bars];
   let t = 0;
   for (let n = 0; n < presses.length; n++) {
-    const { pressed, a, cut } = presses[n];
+    const { pressed, a, cut, at, timing } = presses[n];
     if (a.cooldown)
       out.push({ cd: a.cooldown, offset: t, press: pressed.name });
-    const hold = cut && waitsForNext(cut) ? a.holdAt(owner, g, cap, presses[n + 1]?.pressed ?? null, null, [], KIND_OF[cut] === "mash") : -1;
-    t += (hold >= 0 ? a.holdCost(hold) : a.cost(cut ?? a.transition)).total;
+    const next = presses[n + 1]?.pressed ?? null;
+    let hold = at ?? -1;
+    if (hold < 0 && timing && next?.heldInput) {
+      const paid = pressed.holdPays(owner, g, cap, next).at;
+      hold = Math.min(pressed.freeForNext(next, Math.max(HOLD_BUFFER, paid, timingTarget(pressed, timing))), pressed.animFrames);
+    } else if (hold < 0 && cut && waitsForNext(cut))
+      hold = a.holdAt(owner, g, cap, next, null, [], KIND_OF[cut] === "mash");
+    t += (hold >= 0 ? (timing ? pressed : a).holdCost(hold) : a.cost(cut ?? a.transition)).total;
     if (n < lastHold)
       bankPress(g, a, cap, hold);
   }
@@ -6043,7 +5984,7 @@ function playRotations(state, rotations, count, limit) {
       into,
       11
       /* Input.Intro */
-    ).length > 0, resolve, [into.energy, into.concerto, ...into.forte], into.resonator?.caps ?? NO_CAPS));
+    ).length > 0, resolve, [into.energy, into.concerto, ...into.forte], into.resonator?.caps ?? NO_CAPS, state.playedCuts));
   };
   state.plannedGates = (to, visit2) => planned(to, false, visit2);
   state.handoffWaits = true;
@@ -6457,7 +6398,8 @@ function evaluate(state, action, triggered = false, source = null, cut = null) {
   const mash = KIND_OF[tag] === "mash";
   const cap = slot.resonator?.caps ?? NO_CAPS;
   const invalid = castSide && pressInvalid;
-  pressInvalid = false;
+  const swapIn = castSide && pressSwapIn;
+  pressInvalid = pressSwapIn = false;
   const realStart = state.real;
   const pending = held ? pendingHits(state, slot, held, realStart) : NO_PENDING;
   let charged = held ? action.holdCost(held.holdAt(slot, barsOf(slot), cap, ctx.holdNext, null, pending, mash)) : action.cost(tag);
@@ -6530,18 +6472,9 @@ function evaluate(state, action, triggered = false, source = null, cut = null) {
     charged = action.holdCost(ctx.holdCut);
   }
   const holdCut = held ? ctx.holdCut : -1;
-  const realLen = charged.action + charged.global;
-  const stop = splitStop(action.timestopFrom, action.timestop, charged.action, realLen);
-  if (castSide && stop.own + stop.banked)
-    state.freeze(realStart + action.timestopFrom, stop.own, stop.banked);
-  const frozenIn = Math.min(realLen, state.frozenWithin(realStart, realStart + realLen));
-  const timestopBanked = Math.max(0, frozenIn - charged.timestop);
-  ctx.actFrames = realLen - frozenIn;
-  ctx.actReal = realLen;
-  const frames = ctx.actFrames;
-  const hold = splitStop(action.motionStopFrom, action.motionStop, charged.action, realLen);
-  ctx.offFieldFrom = realStart + action.motionStopFrom;
-  ctx.offFieldShift = castSide && hold.own + hold.banked ? state.holdOffField(ctx.offFieldFrom, hold.own, hold.banked) : 0;
+  const drive = castSide && !hitSide ? ctx.driveCut : null;
+  ctx.driveCut = null;
+  let { realLen, timestopBanked, frames } = drive ? NO_LENGTH : pressLength(state, action, charged, realStart, castSide);
   if (hitSide) {
     ctx.hit = action.lastBullet;
     ctx.inHit = true;
@@ -6691,6 +6624,14 @@ function evaluate(state, action, triggered = false, source = null, cut = null) {
   const forte = slot.forte;
   for (let i = 0; i < 5; i++)
     forte[i] = bank(action.resetForte[i] ? 0 : forte[i], own[2 + i] + gain[2 + i], cap[2 + i]);
+  if (drive) {
+    const solved = drive();
+    if (solved >= 0) {
+      ctx.holdCut = solved;
+      charged = action.holdCost(solved);
+    }
+    ({ realLen, timestopBanked, frames } = pressLength(state, action, charged, realStart, castSide));
+  }
   if (lands) {
     capture(slot, state);
     actionHook(action.onHitFn, 8);
@@ -6729,6 +6670,9 @@ function evaluate(state, action, triggered = false, source = null, cut = null) {
     groupEnd: false,
     groupSpill: null,
     queued: false,
+    cutAt: -1,
+    nextInput: 14,
+    timing: null,
     mv,
     avg,
     variantAvg,
@@ -6797,13 +6741,12 @@ function evaluate(state, action, triggered = false, source = null, cut = null) {
     offtuneBefore,
     seq: ++traceSeq,
     invalid,
+    swapIn,
     delays: DELAYS,
     endsLoop,
     frame: frameStart,
     frames,
     tag,
-    cutAt: -1,
-    nextInput: 14,
     active,
     timestopBanked,
     holdPaid,
@@ -6943,6 +6886,21 @@ function scoreWithAfter(state, slot, action, effective, pre, constRow, anyDry) {
   ctx.guarded = false;
   return variantAvg;
 }
+function pressLength(state, action, charged, realStart, castSide) {
+  const realLen = charged.action + charged.global;
+  const stop = splitStop(action.timestopFrom, action.timestop, charged.action, realLen);
+  if (castSide && stop.own + stop.banked)
+    state.freeze(realStart + action.timestopFrom, stop.own, stop.banked);
+  const frozenIn = Math.min(realLen, state.frozenWithin(realStart, realStart + realLen));
+  const timestopBanked = Math.max(0, frozenIn - charged.timestop);
+  ctx.actFrames = realLen - frozenIn;
+  ctx.actReal = realLen;
+  const hold = splitStop(action.motionStopFrom, action.motionStop, charged.action, realLen);
+  ctx.offFieldFrom = realStart + action.motionStopFrom;
+  ctx.offFieldShift = castSide && hold.own + hold.banked ? state.holdOffField(ctx.offFieldFrom, hold.own, hold.banked) : 0;
+  return { realLen, timestopBanked, frames: ctx.actFrames };
+}
+var NO_LENGTH = { realLen: 0, timestopBanked: 0, frames: 0 };
 function letGo(state, slot, held, tag, pays, realStart) {
   const mash = KIND_OF[tag] === "mash";
   const next = ctx.holdNext;
@@ -7117,6 +7075,7 @@ function run(state, rotation, flush = false, until = Infinity) {
       const [a, cut] = unwrap(m);
       const s = newStep(a, -1, null, group, group !== null && k === members.length - 1, null, false, cut);
       s.timing = m.timing ?? null;
+      s.source = m;
       written.push(s);
     }
   }
@@ -7127,7 +7086,7 @@ function run(state, rotation, flush = false, until = Infinity) {
   let spillGroup = null;
   let guard = 0;
   while (steps.size || flush && (state.timed.length || state.behindNext.length)) {
-    if (++guard > 1e4)
+    if (++guard > 2e5)
       throw new Error("action queue did not drain");
     settleHold(state);
     if (flush && until < Infinity) {
@@ -7189,12 +7148,18 @@ function run(state, rotation, flush = false, until = Infinity) {
         state.slot.everyOther++;
       if (!action)
         continue;
+      if ((action === NO_VALID_DASH || action === NO_VALID_JUMP) && step.slot < 0 && !step.queued) {
+        throw new Error(`${state.slot.name}: no ${action === NO_VALID_JUMP ? "jump" : "dash"} of theirs is valid after ${state.lastOwn?.action.name ?? "their arrival"}`);
+      }
       if (action === SKIP) {
         if (step.group) {
           while (steps.size && steps.peek().group === step.group)
             steps.take();
           ctx.insideGroup = false;
         }
+        const after2 = steps.size ? steps.peek() : null;
+        if (after2 && after2.slot < 0 && !after2.queued && (after2.action === DASH || after2.action === JUMP))
+          steps.take();
         continue;
       }
     }
@@ -7205,16 +7170,17 @@ function run(state, rotation, flush = false, until = Infinity) {
         state.slot,
         12
         /* Input.Outro */
-      ).includes(action) && !action.isValid()) {
+      ).includes(action) && !action.available()) {
         action = inputActions(
           state.slot,
           12
           /* Input.Outro */
-        ).find((a) => a !== SWAP && a.isValid()) ?? action;
+        ).find((a) => a !== SWAP && a.available()) ?? action;
       }
     }
-    const behind = state.lastOwn, marker = step.action;
-    if (marker.after !== void 0 && isPlainDash(action) && action.cast === 9 && behind && behind.member === state.slot.name && state.enemy.resonator?.takesCut && dashTaken(state, steps, step, action, behind, marker.kind, spillGroup))
+    const behind = state.lastOwn;
+    const writtenDash = step.action === DASH && step.slot < 0 && !step.queued;
+    if (writtenDash && isPlainDash(action) && action.cast === 9 && behind && behind.member === state.slot.name && state.enemy.resonator?.takesCut && dashTaken(state, steps, step, action, behind, state.lastOwnCut, spillGroup))
       continue;
     if (step.slot < 0 && !step.queued && STEP_CUTS.has(state.lastOwnCut) && behind && behind.member === state.slot.name && state.enemy.resonator?.takesCut && cutTaken(state, steps, step, behind, spillGroup))
       continue;
@@ -7239,16 +7205,12 @@ function run(state, rotation, flush = false, until = Infinity) {
       pendingQueue.length = 0;
     const by = step.by;
     const triggered = action.offField || action.cast === 6 || by !== null;
-    const dashMarker = step.action.after !== void 0;
-    const dash = dashMarker && dashOutranked(state, steps, action);
-    if (dashMarker && step.slot < 0 && !step.queued)
-      checkDashValid(state, step.action, action);
-    let cut = dash ? Transition.InstaCancel : step.cut;
+    let cut = step.cut;
     const pressed = action;
-    if (cut && !dash)
+    if (cut)
       [action, cut] = action.cutAs(cut);
     const kind = cut ?? action.transition;
-    const checked = !dash && action.half === null;
+    const checked = action.half === null;
     const aimsLast = checked && (!step.action.resolveFn || !!step.action.mainslot) && KIND_OF[kind] === "lastcommit";
     if (aimsLast && action.cutFrame === 0) {
       throw new Error(`${action.name}: its ${kind} aims at frame 0, its last commit \u2014 write ${instaOf(kind)} instead`);
@@ -7259,6 +7221,11 @@ function run(state, rotation, flush = false, until = Infinity) {
     const mover = step.slot < 0 && !step.queued && by === null && !pressed.offField && (pressed.cast !== 11 || pressed.bullets.length > 0) ? state.slot : null;
     if (mover)
       checkPress(state, pressed, step.at ?? state.real);
+    if (openTransition && step.slot < 0 && !step.queued && by === null && !pressed.castsWithNext && (mover || pressed.offField)) {
+      if (openTransition.owner === state.slot && (mover || isSwap(pressed)))
+        checkTransition(state, openTransition, pressed);
+      openTransition = null;
+    }
     const breaker = pressed.cast === 8 && pressed.half === null ? state.slot : null;
     if (step.slot < 0 && !step.queued && weighed(kind)) {
       ctx.state = state;
@@ -7267,7 +7234,7 @@ function run(state, rotation, flush = false, until = Infinity) {
       const after2 = !ahead2 || ahead2.queued || ahead2.slot >= 0 ? null : ahead2.action.resolveFn ? resolving(ahead2.action.resolveFn) : ahead2.action;
       const by2 = after2?.castsWithNext ? pastCastsWithNext(steps) : after2;
       const precise = KIND_OF[kind] === "lastcommit" || KIND_OF[kind] === "instant";
-      if (precise && !dash && VIA_OF[kind] === 0 && by2 && by2 !== SKIP && by2.heldInput) {
+      if (precise && VIA_OF[kind] === 0 && by2 && by2 !== SKIP && by2.heldInput) {
         throw new Error(`${action.name}: its ${kind} goes into ${by2.name}, a held input \u2014 write a hold cancel instead`);
       }
       checkPriority(action, cut, by2);
@@ -7325,8 +7292,22 @@ function run(state, rotation, flush = false, until = Infinity) {
     }
     const barsBefore = mover && TRANSITION_CHECK.on && !step.into ? [...barsOf(mover)] : null;
     const pendingBefore = barsBefore ? pendingHits(state, mover, whole, castAt) : NO_PENDING;
+    const watch = mover && !step.into && kind === Transition.Temporary && splits && whole.animFrames > 0 && !pressed.castsWithNext && whole.cast !== 6 ? openWatch(state, steps, mover, pressed, whole, castAt, step.timing ?? LAST_COMMIT, step.source ?? step) : null;
+    if (watch)
+      ctx.driveCut = () => watch.horizon + 1;
     ctx.hitsLeft = step.into?.pending ?? 1;
+    drivenAs = watch?.label ?? null;
+    if (watch)
+      ctx.pressCut = watch.label;
     const result = evaluate(state, action, triggered, by, cut);
+    ctx.driveCut = null;
+    const asCut = drivenAs;
+    drivenAs = null;
+    if (watch) {
+      watch.row = result;
+      watch.playsToBefore = state.playsTo;
+      watching = watch;
+    }
     if (step.into?.pending)
       step.into.pending--;
     ctx.hitsLeft = 1;
@@ -7339,7 +7320,7 @@ function run(state, rotation, flush = false, until = Infinity) {
       state.drainUntil = until = Math.max(until, state.playsTo);
     const motionAdd = ctx.offFieldShift, stamp = ctx.actionStamp;
     if (ctx.holdCut >= 0) {
-      if (split)
+      if (split && !(asCut && isSwapTransition(asCut)))
         split = dropUncommitted(state, split, whole, ctx.holdCut);
       ctx.holdCut = -1;
     }
@@ -7353,7 +7334,7 @@ function run(state, rotation, flush = false, until = Infinity) {
     if (ctx.offFieldShift !== 0)
       shiftOffField(state, ctx.offFieldShift, Math.max(now, ctx.offFieldFrom));
     if (split)
-      splitEnd = queueEnd(state, whole, split, castAt, cut, kind, away, triggered, step.holdShift ?? 0);
+      splitEnd = queueEnd(state, whole, split, castAt, cut, asCut ?? kind, away, triggered, step.holdShift ?? 0, !!watch);
     const stander = mover ?? breaker ?? state.slot;
     if (ctx.tracing)
       result.position = stander !== mover && state.real - stander.endsAt >= DESPAWN_TIME ? null : stander.position;
@@ -7367,17 +7348,21 @@ function run(state, rotation, flush = false, until = Infinity) {
       mover.lastPress = mover.chainKept ?? (pressed.keepsChain && mover.lastPress ? mover.lastPress : pressed);
       mover.lastCast = pressed;
       mover.chainKept = null;
-      const short = kind !== Transition.Temporary && (kind === Transition.InstaSwap || ctx.actReal <= INPUT_PRECISION) && pressed.cast !== 10;
+      const own = asCut ?? kind;
+      const short = own !== Transition.Temporary && (own === Transition.InstaSwap || ctx.actReal <= INPUT_PRECISION) && pressed.cast !== 10;
       if (pressed.endPosition !== null && !short)
         mover.position = pressed.endPosition;
-      mover.endsAt = castAt + (isSwapTransition(kind) ? whole.animFrames : ctx.actReal) + (step.holdShift ?? 0);
+      mover.endsAt = castAt + (isSwapTransition(own) ? whole.animFrames : ctx.actReal) + (step.holdShift ?? 0);
     }
     if (mover && !step.into) {
-      const nextPress = nextWritten(state, steps);
       result.cutAt = ctx.actReal;
-      result.nextInput = nextPress?.input ?? 14;
-      if (barsBefore && nextPress)
-        checkTransition(state, mover, pressed, kind, step.timing ?? null, nextPress, barsBefore, pendingBefore, result);
+      result.nextInput = nextWritten(state, steps)?.input ?? 14;
+      result.timing = step.timing ?? null;
+      if (barsBefore && !pressed.castsWithNext) {
+        const cap = mover.resonator?.caps ?? NO_CAPS;
+        const bars = split ? [...barsOf(mover)] : barsBefore.map((v, k) => bankBar(k, v, whole.castGains[k], whole.resetBars[k], cap));
+        openTransition = { owner: mover, pressed, kind, timing: step.timing ?? null, bars, pending: pendingBefore, row: result };
+      }
     }
     if (step.at !== void 0) {
       state.setReal(Math.max(now, state.real));
@@ -7398,7 +7383,9 @@ function run(state, rotation, flush = false, until = Infinity) {
         result.action = whole;
       }
       out.push(result);
-      const tag = cut ?? action.transition;
+      if (TRANSITION_CHECK.on)
+        TRANSITION_CHECK.rows.push(result);
+      const tag = asCut ?? cut ?? action.transition;
       if (isSwapTransition(tag))
         state.swapPaid = true;
       if (!step.queued && !triggered && !isCast(
@@ -7615,14 +7602,6 @@ function cooldownWaits(state, steps, step, action, cd) {
   state.slot.spendCooldown(cd, state.frame, action.cooldownFrames || void 0);
   return false;
 }
-function dashOutranked(state, steps, dash) {
-  const ahead = steps.ahead(state);
-  let next = !ahead || ahead.queued || ahead.slot >= 0 ? null : ahead.action.resolveFn ? resolving(ahead.action.resolveFn) : ahead.action;
-  if (next?.castsWithNext)
-    next = pastCastsWithNext(steps);
-  const c = dash.cost(Transition.InstaCancel);
-  return !!next && next !== SKIP && next.cutIn !== null && next.cutIn > dash.priorityAt(c.action + c.global);
-}
 function queueHits(state, whole, castAt, away) {
   const split = [];
   for (let k = 0; k < whole.bullets.length; k++) {
@@ -7635,7 +7614,7 @@ function queueHits(state, whole, castAt, away) {
     insertByDue(state.timed, h);
   return split;
 }
-function queueEnd(state, whole, split, castAt, cut, kind, away, triggered, holdShift) {
+function queueEnd(state, whole, split, castAt, cut, kind, away, triggered, holdShift, watched = false) {
   for (const h of split) {
     h.frames = ctx.actFrames;
     h.triggered = triggered;
@@ -7644,7 +7623,7 @@ function queueEnd(state, whole, split, castAt, cut, kind, away, triggered, holdS
   for (const h of split)
     last = Math.max(last, h.due);
   const plays = whole.castsInstantly || isSwapTransition(kind);
-  const stops = castAt + (plays ? whole.animFrames : ctx.actReal) + holdShift;
+  const stops = castAt + (plays || watched ? whole.animFrames : ctx.actReal) + holdShift;
   const end = timedEntry(cut && !plays ? stops : Math.max(last, stops), whole.endPart(), state.active, null, away, void 0, ctx.actFrames, true, triggered);
   end.cut = kind;
   end.behind = isSwapTransition(kind);
@@ -7684,8 +7663,8 @@ function landBehind(state, steps, step) {
 function askTakesCut(enemy, behind, kind) {
   asSource(enemy, () => enemy.takesCut(behind, kind));
 }
-function atCutCheck(enemy, whole, tag) {
-  return () => asSource(enemy, () => enemy.atCut(whole, tag));
+function atCutCheck(enemy, whole, tag, open = true) {
+  return () => void asSource(enemy, () => enemy.atCut(whole, tag, open));
 }
 function dropUncommitted(state, split, whole, cut) {
   return split.filter((h, k) => {
@@ -7811,11 +7790,12 @@ function checkPress(state, press, at) {
   slot.chainKept = null;
   let ok;
   try {
-    ok = press.isValid();
+    ok = press.available();
   } finally {
     ctx.validChainFree = false;
   }
   pressInvalid = !ok;
+  pressSwapIn = opens;
   if (!ok)
     warnInvalid(state, slot, press);
   if (press.cast === 5 && press.endPosition === null)
@@ -7837,7 +7817,7 @@ function checkLetGo(press, kind, next, open, at) {
 }
 var STEP_CUTS = /* @__PURE__ */ new Set([Transition.SwapCancel, Transition.HitSwap, Transition.Cancel, Transition.HitCancel, Transition.InstaCancel, Transition.TimedCancel]);
 var TAKEN_CUTS = /* @__PURE__ */ new Set([...STEP_CUTS, Transition.DashCancel, Transition.InstaDash, Transition.HitDash]);
-var TRANSITION_CHECK = { on: false, found: [] };
+var TRANSITION_CHECK = { on: false, found: [], trace: null, traced: [], rows: [] };
 function nextWritten(state, steps) {
   ctx.state = state;
   ctx.slot = state.slot;
@@ -7849,45 +7829,299 @@ function nextWritten(state, steps) {
     next = pastCastsWithNext(steps);
   return next && next !== SKIP ? next : null;
 }
-function timingOfOld(kind, pressed) {
+function timingOfOld(kind, pressed, root) {
   const k = KIND_OF[kind];
-  if (k === "instant")
-    return { kind: Timing.Instant, frame: 0 };
-  if (k === "onhit")
-    return { kind: Timing.FirstHit, frame: 0 };
   if (k === "timed")
     return { kind: Timing.Timed, frame: pressed.timedAt ?? 0 };
-  return { kind: Timing.LastCommit, frame: 0 };
+  const hit = { kind: Timing.FirstHit, frame: 0 }, insta = { kind: Timing.Instant, frame: 0 }, last = { kind: Timing.LastCommit, frame: 0 };
+  if (k === "onhit" && !timingProblem(root, hit))
+    return hit;
+  if (k !== "onhit" && k !== "instant")
+    return last;
+  if (!timingProblem(root, insta))
+    return insta;
+  return root.cutFrame > INPUT_PRECISION && !timingProblem(root, hit) ? hit : last;
 }
-function checkTransition(state, owner, pressed, kind, given, next, bars, pending, row) {
+var openTransition = null;
+function checkTransition(state, open, next) {
+  const { owner, pressed, kind, row } = open;
   let root = pressed;
   while (root.cancelOf)
     root = root.cancelOf;
-  const t = given ?? timingOfOld(kind, pressed);
+  const t = open.timing ?? timingOfOld(kind, pressed, root);
+  const via = VIA_OF[kind];
+  if ((via === 1 || via === 2) && next.input !== 7 && next.input !== 10) {
+    ctx.state = state;
+    ctx.slot = owner;
+    next = dashFor(via === 2, root);
+  }
   let solved = null, error = null;
   try {
-    solved = solveCut(state, owner, root, pressed, next, t, bars, pending);
+    solved = solveCut(state, owner, root, pressed, next, t, open.bars, open.pending);
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
   }
+  let asLastCommit = null;
+  if (t.kind !== Timing.LastCommit) {
+    try {
+      asLastCommit = solveCut(state, owner, root, pressed, next, { kind: Timing.LastCommit, frame: 0 }, open.bars, open.pending);
+    } catch {
+    }
+  }
   const timing = t.kind === Timing.Timed ? `timed(${t.frame})` : t.kind;
-  TRANSITION_CHECK.found.push({ member: owner.name, press: pressed.name, next: next.name, timing, written: kind || "(none)", solved, error, row });
+  TRANSITION_CHECK.found.push({ member: owner.name, press: pressed.name, next: next.name, timing, written: kind || "(none)", solved, error, row, asLastCommit });
 }
-var TAP_OF = {
-  [
-    1
-    /* Input.BasicHold */
-  ]: 0,
-  [
-    3
-    /* Input.SkillHold */
-  ]: 2,
-  [
-    5
-    /* Input.LiberationHold */
-  ]: 4
-  /* Input.Liberation */
+var watching = null;
+var LAST_COMMIT = { kind: Timing.LastCommit, frame: 0 };
+function openWatch(state, steps, owner, pressed, whole, castAt, timing, source) {
+  const stood = owner.position;
+  const asNext = (read) => {
+    const was = owner.lastPress, at = owner.position;
+    owner.lastPress = pressed;
+    if (pressed.endPosition !== null)
+      owner.position = pressed.endPosition;
+    try {
+      return read();
+    } finally {
+      owner.lastPress = was;
+      owner.position = at;
+    }
+  };
+  const next = asNext(() => nextWritten(state, steps));
+  if (!next)
+    return null;
+  const written = asNext(() => {
+    const ahead = steps.ahead(state);
+    const a = ahead && (ahead.action.resolveFn ? resolving(ahead.action.resolveFn) : ahead.action);
+    if (!a?.castsWithNext)
+      return ahead;
+    for (const s of steps.written()) {
+      const b = s.action.resolveFn ? resolving(s.action.resolveFn) : s.action;
+      if (b && b !== SKIP && !b.castsWithNext)
+        return s;
+    }
+    return void 0;
+  })?.action;
+  const resolveFn = written?.resolveFn && !next.castsWithNext ? written.resolveFn : null;
+  const resolve = resolveFn ? () => resolving(resolveFn) : null;
+  let x = pressed;
+  while (x.cancelOf)
+    x = x.cancelOf;
+  const fail = (why2) => {
+    throw new Error(`${owner.name}: ${pressed.name}: ${why2}`);
+  };
+  const why = timingProblem(x, timing);
+  if (why)
+    fail(why);
+  if (next.heldInput && timing.kind === Timing.Timed && timing.frame < HOLD_BUFFER) {
+    fail(`a hold into ${next.name} can't make frame ${timing.frame}: it is out ${HOLD_BUFFER} frames at the soonest`);
+  }
+  let last = Math.max(whole.animFrames, whole.noSwapFrames, whole.lastHitDelay());
+  for (const h of state.timed)
+    if (state.slots[h.slot] === owner && h.due > castAt)
+      last = Math.max(last, h.due - castAt);
+  const swaps = swapsOut(next);
+  return {
+    state,
+    owner,
+    pressed,
+    x,
+    whole,
+    next,
+    timing,
+    source,
+    start: castAt,
+    horizon: last + INPUT_PRECISION + HOLD_BUFFER + 1,
+    swaps,
+    label: swaps ? Transition.InstaSwap : Transition.Temporary,
+    standBefore: stood,
+    row: null,
+    playsToBefore: 0,
+    resolve,
+    castable: [],
+    mashSafe: [],
+    available: [],
+    breaks: state.enemy.resonator?.atCut ? [] : null
+  };
+}
+function settleTransition(state) {
+  const w = watching;
+  if (!w || w.state !== state || !w.row)
+    return;
+  if (state.frame >= state.fightEnd) {
+    watching = null;
+    return;
+  }
+  const now = state.real - w.start;
+  while (w.castable.length <= now) {
+    const f = w.castable.length;
+    recordFrame(w, f);
+    const cut = decideCut(w, f);
+    if (cut !== null) {
+      watching = null;
+      applyCut(state, w, cut);
+      return;
+    }
+  }
+  if (now >= w.horizon) {
+    watching = null;
+    const target = w.timing.kind === Timing.Timed ? w.timing.frame : targetOf(w);
+    throw new Error(`${w.owner.name}: ${w.pressed.name}: ${w.timing.kind} timing into ${w.next.name} found no frame to cut on \u2014 ${whyNoCut(w, target)}`);
+  }
+}
+function whyNoCut(w, target) {
+  const from = Math.min(target, w.castable.length - 1), end = w.castable.length - 1;
+  const span = `frames ${from}-${end}`;
+  const frames = (on) => on.flatMap((v, f) => v && f >= from ? [f] : []);
+  const runs = (fs) => fs.reduce((out, f) => {
+    const last = out[out.length - 1];
+    if (last && last[1] === f - 1)
+      last[1] = f;
+    else
+      out.push([f, f]);
+    return out;
+  }, []).map(([a, b]) => a === b ? `${a}` : `${a}-${b}`).join(", ");
+  const avail = frames(w.available), cast = frames(w.castable);
+  if (!avail.length)
+    return `${w.next.name} never became castable over ${span} (its conditions never held: a buff, a gauge, a cooldown or its position)`;
+  if (!cast.length) {
+    return `${w.next.name} was available on frames ${runs(avail)}, but ${w.x.name} never let it out there (its priority${w.swaps ? ", no-swap frames" : ""} or its input giving another press)`;
+  }
+  if (w.next.heldInput)
+    return `${w.next.name} was castable on frames ${runs(cast)}, never early enough for a hold's ${HOLD_BUFFER}-frame buffer from the target`;
+  return `${w.next.name} was castable on frames ${runs(cast)}, but never for the ${INPUT_PRECISION} frames running that an input needs${w.swaps ? "" : ", nor shut long enough to buffer into"}`;
+}
+var targetOf = (w) => {
+  const first = w.x.bullets.length ? Math.min(...w.x.bullets.map((b) => b.hitFrame)) : 0;
+  return w.timing.kind === Timing.Instant ? 0 : w.timing.kind === Timing.FirstHit ? first : w.x.cutFrame;
 };
+function recordFrame(w, f) {
+  ctx.state = w.state;
+  ctx.slot = w.owner;
+  const now = w.resolve?.();
+  if (now && now !== SKIP && now.input === w.next.input)
+    w.next = now;
+  const { owner, x, next } = w;
+  const prev = owner.lastPress ?? w.pressed;
+  const root = (a) => {
+    while (a.cancelOf ?? a.formOf)
+      a = a.cancelOf ?? a.formOf;
+    return a;
+  };
+  const givesOn = (input) => {
+    const valid = inputActions(owner, input).filter((a) => a.availableOn(owner, null, prev));
+    return valid.find((a) => a.ready(owner)) ?? valid[0] ?? null;
+  };
+  const available = next.availableOn(owner, null, prev);
+  const listed = inputActions(owner, next.input).some((a) => root(a) === root(next));
+  const given = available ? next : listed ? givesOn(next.input) : null;
+  const isNext = !!given && root(given) === root(next);
+  const gate = x.freeForNext(next, f) === f && (!isSwap(next) || f >= x.noSwapFrames);
+  w.available[f] = available;
+  w.castable[f] = gate && isNext;
+  w.mashSafe[f] = given === null || isNext;
+  const enemy = w.state.enemy.resonator;
+  if (w.breaks && enemy?.atCut)
+    w.breaks[f] = asSource(enemy, () => enemy.atCut(w.whole, Transition.DashCancel, false)) === true;
+}
+function decideCut(w, f) {
+  const t = w.timing, c = w.castable;
+  const what = `${t.kind} timing into ${w.next.name}`;
+  const fail = (why) => {
+    throw new Error(`${w.owner.name}: ${w.pressed.name}: ${why}`);
+  };
+  if (t.kind === Timing.Timed) {
+    if (f !== t.frame)
+      return null;
+    if (!c[f])
+      fail(`${what}: ${w.next.name} isn't castable at frame ${f}`);
+    return f;
+  }
+  if (!cutsAt(f, t, targetOf(w), w.next.heldInput, w.swaps, (g) => c[g], (g) => w.available[g], (g) => w.mashSafe[g]))
+    return null;
+  if (w.swaps)
+    return f;
+  const lc = w.x.cutFrame, first = w.x.bullets.length ? Math.min(...w.x.bullets.map((b) => b.hitFrame)) : 0;
+  if (t.kind !== Timing.LastCommit && f >= lc)
+    fail(`${what} cuts at frame ${f}, at or past its last commit (${lc}) \u2014 leave it at last commit`);
+  if (t.kind === Timing.Instant && first > INPUT_PRECISION && f > first)
+    fail(`${what} cuts at frame ${f}, past its first hit (${first}) \u2014 write .firstHit() instead`);
+  return f;
+}
+function cutsAt(f, t, target, held, swaps, castable, available, mashSafe) {
+  const P = INPUT_PRECISION;
+  if (f < target || !castable(f))
+    return false;
+  if (held)
+    return f - P - HOLD_BUFFER >= Math.max(-P, target - P - HOLD_BUFFER);
+  const p = f - P;
+  if (p < 0)
+    return false;
+  let precise = p >= target, buffered = !swaps;
+  for (let g = p; g < f && (precise || buffered); g++) {
+    const open = g === 0 && t.kind === Timing.Instant ? available(0) : castable(g);
+    if (!open)
+      precise = false;
+    if (castable(g) || !mashSafe(g))
+      buffered = false;
+  }
+  return precise || buffered;
+}
+function applyCut(state, w, cut) {
+  const row = w.row, at = w.start + cut, held = w.start + w.horizon + 1;
+  if (state.playsTo === held)
+    state.playsTo = Math.max(w.playsToBefore === held ? w.start : w.playsToBefore, at);
+  let last = at;
+  state.timed = state.timed.filter((h) => {
+    if (h.into !== row || h.action?.half !== "hit")
+      return true;
+    if (!w.swaps && w.whole.bullets[h.action.hitIndex].commitFrame > cut)
+      return false;
+    last = Math.max(last, h.due);
+    return true;
+  });
+  const frames = cut - Math.min(cut, state.frozenWithin(w.start, at));
+  const swap = !w.swaps ? null : cut <= INPUT_PRECISION ? Transition.InstaSwap : cut === w.x.cutFrame + INPUT_PRECISION ? Transition.SwapCancel : Transition.MashSwap;
+  const label2 = oldCutFor(cut, w.next.input, swap);
+  for (const h of state.timed) {
+    if (h.into !== row)
+      continue;
+    if (h.action?.half === "end") {
+      if (!w.swaps)
+        h.due = last;
+      h.cut = label2;
+    }
+    h.frames = frames;
+  }
+  sortByDue(state.timed);
+  const shown = row;
+  if (shown.frames !== void 0)
+    shown.frames = frames;
+  row.cutAt = cut;
+  state.playedCuts.set(w.source, cut);
+  w.owner.endsAt = w.start + (w.swaps ? w.whole.animFrames : cut);
+  if (cut <= INPUT_PRECISION && !w.swaps && w.pressed.cast !== 10)
+    w.owner.position = w.standBefore;
+  if (state.lastOwn === row) {
+    state.lastOwnCut = label2;
+    const enemy = state.enemy.resonator;
+    const b = w.breaks, t = w.timing;
+    const open = !b || (t.kind === Timing.Timed ? !!b[cut] : cutsAt(cut, t, targetOf(w), false, false, (g) => !!b[g], (g) => !!b[g], () => true));
+    if (enemy?.atCut && TAKEN_CUTS.has(label2))
+      atCutCheck(enemy, w.whole, label2, open)();
+  }
+}
+function oldCutFor(cut, next, swap) {
+  if (swap)
+    return swap;
+  const insta = cut <= INPUT_PRECISION;
+  if (next === 7 || next === 8)
+    return insta ? Transition.InstaDash : Transition.DashCancel;
+  if (next === 10)
+    return insta ? Transition.InstaJump : Transition.JumpCancel;
+  return insta ? Transition.InstaCancel : Transition.Cancel;
+}
+var drivenAs = null;
 var gainOn = (b, k) => [b.energy, b.concerto, b.forte1, b.forte2, b.forte3, b.forte4, b.forte5][k];
 function solveCut(state, owner, x, prev, next, t, bars, pending) {
   if (t.kind !== Timing.LastCommit) {
@@ -7899,7 +8133,7 @@ function solveCut(state, owner, x, prev, next, t, bars, pending) {
   const first = x.bullets.length ? Math.min(...x.bullets.map((b) => b.hitFrame)) : 0;
   const cap = owner.resonator?.caps ?? NO_CAPS;
   const lands = [...x.bullets.map((b) => ({ at: b.hitFrame, b })), ...pending.map((p) => ({ at: p.at, b: p.bullet }))].sort((a, b) => a.at - b.at);
-  const cast = bars.map((v, k) => bankBar(k, v, x.castGains[k], x.resetBars[k], cap));
+  const cast = bars;
   const barsAt = (f) => {
     const g = [...cast];
     for (const e of lands) {
@@ -7910,77 +8144,76 @@ function solveCut(state, owner, x, prev, next, t, bars, pending) {
     }
     return g;
   };
-  const validAt = (a, f) => {
-    if (x.freeForNext(a, f) !== f || isSwap(a) && f < x.noSwapFrames)
-      return false;
-    ctx.state = state;
-    ctx.slot = owner;
-    return a.validOn(owner, barsAt(f), prev);
-  };
-  const firstFrom = (from2, ok) => {
-    for (let f = from2; f < anim; f++)
-      if (ok(f))
-        return f;
-    return Math.max(from2, anim);
-  };
-  const at = (f, what) => {
-    if (!validAt(next, f))
-      throw new Error(`${what}: ${next.name} isn't valid at frame ${f}`);
-    return f;
-  };
-  if (!next.heldInput) {
-    let cut;
-    if (t.kind === Timing.Instant)
-      cut = P;
-    else if (t.kind === Timing.FirstHit)
-      cut = first + P;
-    else if (t.kind === Timing.Timed)
-      cut = t.frame;
-    else {
-      const from2 = Math.max(0, lc - P), open = firstFrom(from2, (f) => validAt(next, f));
-      cut = open - from2 < P ? lc + P : open + MASH_SPEED;
-    }
-    if (cut > anim && chainsInto(next, prev))
-      cut = anim;
-    return at(cut, t.kind === Timing.LastCommit ? "cancel automation failed" : `${t.kind} timing`);
-  }
-  const tap = TAP_OF[next.input];
-  const tapValid = (f) => inputActions(owner, tap).some((a) => validAt(a, f));
-  if (t.kind === Timing.Instant)
-    throw new Error(`a hold cancel into ${next.name} can't achieve an instant timing`);
-  if (t.kind === Timing.Timed || t.kind === Timing.FirstHit) {
-    const want = t.kind === Timing.Timed ? t.frame : first + P, start = t.kind === Timing.Timed ? want - HB : want - HB - P;
-    if (start < 0)
-      throw new Error(`a hold into ${next.name} can't make ${t.kind} timing (frame ${want}): it would start buffering before the cast`);
-    if (tapValid(start))
-      throw new Error(`a hold into ${next.name} at frame ${want}: its tap is valid at frame ${start}, where the hold starts buffering`);
-    return at(want, `hold into ${next.name}`);
-  }
-  const from = Math.max(0, lc - P - HB), tapOpen = firstFrom(from, tapValid);
-  if (tapOpen - from < P + HB)
-    throw new Error(`not enough room to buffer a hold into ${next.name}: its tap is valid from frame ${tapOpen}`);
-  const held = firstFrom(lc, (f) => validAt(next, f));
-  if (held > tapOpen)
-    throw new Error(`a valid hold into ${next.name} comes too late: frame ${held}, past its tap from frame ${tapOpen}`);
-  return at(held, `hold into ${next.name}`);
-}
-function chainsInto(next, prev) {
+  const swaps = swapsOut(next);
+  const end = swaps ? Math.max(anim, x.noSwapFrames, ...lands.map((e) => e.at)) : anim;
+  const gate = (f) => x.freeForNext(next, f) === f && (!isSwap(next) || f >= x.noSwapFrames);
   const root = (a) => {
     while (a.cancelOf ?? a.formOf)
       a = a.cancelOf ?? a.formOf;
     return a;
   };
-  const after2 = next.def.after;
-  return !!after2 && after2.some((a) => root(a) === root(prev));
+  const listed = inputActions(owner, next.input).some((a) => root(a) === root(next));
+  const givesOn = (input, f) => {
+    ctx.state = state;
+    ctx.slot = owner;
+    const g = barsAt(f), valid = inputActions(owner, input).filter((a) => a.availableOn(owner, g, prev));
+    return valid.find((a) => a.ready(owner)) ?? valid[0] ?? null;
+  };
+  const givenAt = (f) => {
+    ctx.state = state;
+    ctx.slot = owner;
+    if (next.availableOn(owner, barsAt(f), prev))
+      return next;
+    return listed ? givesOn(next.input, f) : null;
+  };
+  const isNext = (a) => !!a && root(a) === root(next);
+  const once = (fn) => {
+    const seen = /* @__PURE__ */ new Map();
+    return (f) => seen.get(f) ?? (seen.set(f, fn(f)), seen.get(f));
+  };
+  const castable = once((f) => gate(f) && isNext(givenAt(f)));
+  const available = (f) => {
+    ctx.state = state;
+    ctx.slot = owner;
+    return next.availableOn(owner, barsAt(f), prev);
+  };
+  const mashSafe = once((f) => {
+    const g = givenAt(f);
+    return g === null || isNext(g);
+  });
+  const target = t.kind === Timing.Instant ? 0 : t.kind === Timing.FirstHit ? first : lc;
+  const until = Math.max(end, ...lands.map((e) => e.at));
+  const what = `${t.kind} timing into ${next.name}`;
+  const laterThan = (cut) => {
+    if (swaps)
+      return cut;
+    if (t.kind !== Timing.LastCommit && cut >= lc)
+      throw new Error(`${what} cuts at frame ${cut}, at or past its last commit (${lc}) \u2014 leave it at last commit`);
+    if (t.kind === Timing.Instant && first > P && cut > first)
+      throw new Error(`${what} cuts at frame ${cut}, past its first hit (${first}) \u2014 write .firstHit() instead`);
+    return cut;
+  };
+  if (t.kind === Timing.Timed) {
+    if (next.heldInput && t.frame < HB)
+      throw new Error(`a hold into ${next.name} can't make frame ${t.frame}: it is out ${HB} frames at the soonest`);
+    if (!castable(t.frame))
+      throw new Error(`${what}: ${next.name} isn't castable at frame ${t.frame}`);
+    return t.frame;
+  }
+  if (TRANSITION_CHECK.trace && x.name.includes(TRANSITION_CHECK.trace)) {
+    let line = "";
+    for (let f = 0; f <= until + P; f++)
+      line += castable(f) ? "C" : available(f) ? "a" : !mashSafe(f) ? "!" : ".";
+    TRANSITION_CHECK.traced.push(`${x.name} -> ${next.name} (${t.kind}, target ${target}, last commit ${lc}, anim ${anim}):
+${line}`);
+  }
+  for (let f = target; f <= until + P + 1; f++) {
+    if (cutsAt(f, t, target, next.heldInput, swaps, castable, available, mashSafe))
+      return laterThan(f);
+  }
+  throw new Error(`cancel automation failed: ${what} finds no frame from ${target} on where it can come out`);
 }
-function checkDashValid(state, marker, dashAction) {
-  ctx.state = state;
-  ctx.slot = state.slot;
-  if (dashAction.isValid())
-    return;
-  const jump = dashAction.cast === 10 || dashAction.input === 10;
-  throw new Error(`${state.slot.name}: the ${marker.kind} after ${marker.after.name} puts in ${dashAction.name}, but no ${jump ? "jump" : "dash"} of theirs is valid there`);
-}
+var swapsOut = (next) => isSwap(next) || next.cast === 6 && !next.animFrames;
 var CAST_KEEPS = /* @__PURE__ */ new Set([
   "action",
   "member",
@@ -7997,12 +8230,14 @@ var CAST_KEEPS = /* @__PURE__ */ new Set([
   "tag",
   "cutAt",
   "nextInput",
+  "timing",
   "active",
   "timestopBanked",
   "holdPaid",
   "holdCut",
   "endsLoop",
   "invalid",
+  "swapIn",
   "delays",
   "energyBefore",
   "concertoBefore",
@@ -8075,8 +8310,8 @@ function settleWatch(state, w) {
     return;
   state.holdWatch = null;
   const paid = Math.max(w.paid, state.real - w.start);
-  const mash = KIND_OF[w.kind] === "mash";
-  const at = Math.min(end, Math.max(w.least, state.real + (mash ? MASH_SPEED : 0))), cut = at - w.start;
+  const late = KIND_OF[w.kind] === "mash" && (w.next.cast === 6 || isSwap(w.next)) ? INPUT_PRECISION : 0;
+  const at = Math.min(end, Math.max(w.least, state.real + late)), cut = at - w.start;
   checkLetGo(w.press, w.kind, w.next, paid, cut);
   if (state.playsTo === end)
     state.playsTo = Math.max(w.playsToBefore, at);
@@ -8117,12 +8352,17 @@ function warnInvalid(state, slot, action) {
   console.warn(`[${team}] ${slot.name}: ${action.name} cast where it isn't valid (after ${slot.lastPress?.name ?? "nothing"}, ${bars})`);
 }
 var pressInvalid = false;
+var pressSwapIn = false;
 function walk(state, steps, spillGroup) {
   while (state.real < state.playsTo) {
+    settleTransition(state);
+    if (state.real >= state.playsTo)
+      break;
     const next = state.timed.length ? state.timed[0].due : Infinity;
     const from = state.real;
     const ahead = Math.min(state.nextFreezeAfter(from), state.motionFrom > from ? state.motionFrom : Infinity);
-    const to = Math.min(next < state.playsTo ? Math.max(from, next) : state.playsTo, ahead);
+    const watched = watching?.state === state ? from + 1 : Infinity;
+    const to = Math.min(next < state.playsTo ? Math.max(from, next) : state.playsTo, ahead, watched);
     const thaw = Math.min(to, from + state.frozenFrom(from)), gameFrom = state.frame;
     const stop = Math.max(0, Math.min(to, state.motionUntil) - Math.max(thaw, state.motionFrom));
     ctx.state = state;
@@ -9071,11 +9311,13 @@ var TUNE_BREAK_ENEMY = new Resonator({
     queueEvent(TUNE_BREAK_PRESS);
   },
   // whether a break is castable on the frame a press is cut, ahead of its bullets still to land
-  atCut: (behind, cut) => {
+  atCut: (behind, cut, open = true) => {
     revokeEnemy(READY_AT_CUT);
     const dodged = cut === Transition.DashCancel || cut === Transition.InstaDash || cut === Transition.HitDash;
-    if (BREAK_CUTS.has(cut) && breakReady(behind, dodged))
+    const ready = BREAK_CUTS.has(cut) && breakReady(behind, dodged);
+    if (ready && open)
       applyEnemy(READY_AT_CUT, 1);
+    return ready;
   },
   // A break castable on that cut frame plays once the cut's delay is out — in a plain dodge's place,
   // or ahead of the next step after a swap form or a plain cancel — mid-group or not: the cut
@@ -13749,15 +13991,15 @@ var CARTETHYIA_RESONATOR = new Resonator({
 });
 var CT_ROTATION = new Rotation([
   Intro,
-  BA234.cancel(),
+  BA234,
   Skill,
-  PlungeResolver.cancel(),
-  FLEURDELYS.instaCancel(),
+  PlungeResolver,
+  FLEURDELYS.instant(),
   Liberation,
-  FBA12345.cancel(),
+  FBA12345,
   FSkill1,
   FSkill2,
-  FBA345.cancel(),
+  FBA345,
   Lib2,
   Outro
 ]);
@@ -14387,75 +14629,94 @@ var BA34 = new ActionGroup("Basic - Quadruple Time Steps 34", [BA32, BA42]);
 var BA2342 = new ActionGroup("Basic - Quadruple Time Steps 234", [BA22, BA32, BA42]);
 var CI_ROTATION = new Rotation([
   SWAPIN,
-  BA12.instaCancel(),
+  BA12,
   Skill2,
-  BA2342.instaJump(),
+  BA2342,
+  JUMP,
   MA12,
-  BA42.instaJump(),
+  BA42,
+  JUMP,
   MA12,
-  BA42.holdCancel(),
-  Downbeat.cancel(),
-  NM_KELPIE.instaDash(),
-  HERON.instaDash(),
-  Liberation2.swapCancel(),
+  BA42,
+  Downbeat,
+  NM_KELPIE.instant(),
+  DASH,
+  HERON.instant(),
+  DASH,
+  Liberation2,
   Outro2,
   Intro2,
-  BA34.instaJump(),
+  BA34,
+  JUMP,
   MA12,
-  BA42.instaCancel(),
+  BA42,
   Skill2,
-  Downbeat.cancel(),
-  NM_KELPIE.instaDash(),
-  HERON.instaDash(),
-  Liberation2.swapCancel(),
+  Downbeat,
+  NM_KELPIE.instant(),
+  DASH,
+  HERON.instant(),
+  DASH,
+  Liberation2,
   Outro2
 ]);
 var CI_ROTATION_YELLOW = new Rotation([
   SWAPIN,
-  BA12.instaCancel(),
+  BA12,
   Skill2,
-  BA2342.instaJump(),
+  BA2342,
+  JUMP,
   MA12,
-  BA42.instaJump(),
+  BA42,
+  JUMP,
   MA12,
-  BA42.holdCancel(),
-  Downbeat.cancel(),
-  NM_KELPIE.instaDash(),
-  HERON.instaDash(),
-  LiberationYellow.swapCancel(),
+  BA42,
+  Downbeat,
+  NM_KELPIE.instant(),
+  DASH,
+  HERON.instant(),
+  DASH,
+  LiberationYellow,
   Outro2,
   Intro2,
-  BA34.instaJump(),
+  BA34,
+  JUMP,
   MA12,
-  BA42.instaCancel(),
+  BA42,
   Skill2,
-  Downbeat.cancel(),
-  NM_KELPIE.instaDash(),
-  HERON.instaDash(),
-  LiberationYellow.swapCancel(),
+  Downbeat,
+  NM_KELPIE.instant(),
+  DASH,
+  HERON.instant(),
+  DASH,
+  LiberationYellow,
   Outro2
 ]);
 var CI_ROTATION_S3 = new Rotation([
   SWAPIN,
-  BA12.instaCancel(),
+  BA12,
   Skill2,
-  BA2342.instaJump(),
+  BA2342,
+  JUMP,
   MA12,
-  BA42.instaCancel(),
+  BA42,
   Skill2,
-  Downbeat.cancel(),
-  NM_KELPIE.instaDash(),
-  HERON.instaDash(),
-  Liberation2.swapCancel(),
+  Downbeat,
+  NM_KELPIE.instant(),
+  DASH,
+  HERON.instant(),
+  DASH,
+  Liberation2,
   Outro2,
   Intro2,
-  BA34.instaCancel(),
+  BA34,
   Skill2,
-  Downbeat.cancel(),
+  Downbeat,
   Skill2,
-  NM_KELPIE.instaDash(),
-  HERON.instaDash(),
-  Liberation2.swapCancel(),
+  NM_KELPIE.instant(),
+  DASH,
+  HERON.instant(),
+  DASH,
+  Liberation2,
   Outro2
 ]);
 var CIACCONA_BUILD = {
@@ -15381,7 +15642,7 @@ var ROVER_AERO_RESONATOR = new Resonator({
 });
 var AR_ROTATION = new Rotation([
   SWAPIN,
-  BA13.instaCancel(),
+  BA13,
   Skill3,
   Intro3,
   Cloudburst1,
@@ -15389,10 +15650,11 @@ var AR_ROTATION = new Rotation([
   SkyfallSeverance,
   MA,
   BA43,
-  FALLACY.instaCancel(),
-  BELL_BORNE_GEOCHELONE.instaCancel(),
-  HERON.instaDash(),
-  FLEURDELYS.instaCancel(),
+  FALLACY.instant(),
+  BELL_BORNE_GEOCHELONE,
+  HERON.instant(),
+  DASH,
+  FLEURDELYS.instant(),
   Liberation3,
   Skill3,
   Cloudburst1,
@@ -15400,7 +15662,7 @@ var AR_ROTATION = new Rotation([
   MA,
   BA43,
   UnboundFlow1,
-  UnboundFlow2.instaSwap(),
+  UnboundFlow2.instant(),
   Outro3
 ]);
 var ROVER_AERO = new Loadout({
@@ -15827,16 +16089,18 @@ var IO_S6 = new Sequence({
 var IO_SEQUENCES = [IO_S1, IO_S2, IO_S3, IO_S4, IO_S5, IO_S6];
 var IO_ROTATION = new Rotation([
   Intro4,
-  MYA.instaCancel(),
-  HERON.instaDash(),
-  FALLACY.instaCancel(),
-  NM_KELPIE.instaDash(),
+  MYA.instant(),
+  HERON.instant(),
+  DASH,
+  FALLACY.instant(),
+  NM_KELPIE.instant(),
+  DASH,
   Liberation4,
   JumpHeavy,
-  FMA123.cancel(),
+  FMA123,
   FMSkill,
-  FMSkill.cancel(),
-  FHA2.instaSwap(),
+  FMSkill,
+  FHA2.instant(),
   Outro4
 ]);
 var IO_ROTATION_MDPS = new Rotation([
@@ -15844,13 +16108,13 @@ var IO_ROTATION_MDPS = new Rotation([
   ESkill,
   JumpHeavy,
   FMSkill,
-  FMA123.cancel(),
-  MYA.instaCancel(),
+  FMA123,
+  MYA.instant(),
   Liberation4,
-  FMA123.cancel(),
+  FMA123,
   FMSkill,
-  MA123.cancel(),
-  FHA2.instaSwap(),
+  MA123,
+  FHA2.instant(),
   Outro4
 ]);
 var IO_ROTATION_MDPS_S6 = new Rotation([
@@ -15858,12 +16122,12 @@ var IO_ROTATION_MDPS_S6 = new Rotation([
   Liberation4,
   JumpHeavy,
   FMSkill,
-  FMA123.cancel(),
-  FMSkill.cancel(),
+  FMA123,
+  FMSkill,
   FHA2,
   MYA,
   FMSkill,
-  FMA123.cancel(),
+  FMA123,
   FMSkill,
   Outro4
 ]);
@@ -16083,7 +16347,7 @@ var ChiStrike = jianxinAction("Forte Heavy - Zhoutian: Chi Strike", {
 });
 var InnerShock = jianxinAction("Forte Heavy - Major Zhoutian (Inner): Shock", {
   input: 1,
-  inputPriority: 3,
+  inputPriority: 4,
   after: [ChiStrike],
   holds: MINOR_ZHOUTIAN,
   animFrames: 132,
@@ -16115,7 +16379,7 @@ var YieldingPull = jianxinAction("Forte Heavy - Yielding Pull", {
 });
 var OuterShock = jianxinAction("Forte Heavy - Major Zhoutian (Outer): Shock", {
   input: 1,
-  inputPriority: 3,
+  inputPriority: 5,
   after: [ChiStrike],
   holds: MAJOR_INNER_ZHOUTIAN,
   castPriority: 6,
@@ -16181,7 +16445,7 @@ var JX_ROTATION_S2 = new Rotation([
   ChiParry,
   Liberation5,
   ZHOUTIAN_4,
-  HERON.instaSwap(),
+  HERON.instant(),
   Outro5
 ]);
 var JIANXIN = new Loadout({
@@ -16820,38 +17084,52 @@ var JY_S6 = new Sequence({
 var JY_SEQUENCES = [JY_S1, JY_S2, JY_S3, JY_S4, JY_S5, JY_S6];
 var JY_ROTATION = new Rotation([
   START_LAST,
-  BA16.instaCancel(),
-  Skill5.instaSwap(),
+  BA16.instant(),
+  Skill5.instant(),
+  SWAP,
   Intro6,
-  NM_FEILIAN_BERINGAL.instaCancel(),
+  NM_FEILIAN_BERINGAL.instant(),
   Liberation6,
-  Lance1.cancel(),
+  Lance1,
   Skill5,
-  Lance1.dashCancel(),
-  Lance1.dashCancel(),
-  Lance1.dashCancel(),
-  Lance1.dashCancel(),
-  Lance1.dashCancel(),
-  Lance1.dashCancel(),
-  Skill5.instaSwap(),
+  Lance1,
+  DASH,
+  Lance1,
+  DASH,
+  Lance1,
+  DASH,
+  Lance1,
+  DASH,
+  Lance1,
+  DASH,
+  Lance1,
+  DASH,
+  Skill5.instant(),
   Outro6
 ]);
 var JY_ROTATION_S6 = new Rotation([
   START_LAST,
-  BA16.instaCancel(),
-  Skill5.instaSwap(),
+  BA16.instant(),
+  Skill5.instant(),
+  SWAP,
   Intro6,
-  NM_FEILIAN_BERINGAL.instaCancel(),
+  NM_FEILIAN_BERINGAL.instant(),
   Liberation6,
-  Lance1.cancel(),
+  Lance1,
   Skill5,
-  Lance1.dashCancel(),
-  Lance1.dashCancel(),
-  Lance1.dashCancel(),
-  Lance1.dashCancel(),
-  Lance1.dashCancel(),
-  Lance1.dashCancel(),
-  Skill5.instaSwap(),
+  Lance1,
+  DASH,
+  Lance1,
+  DASH,
+  Lance1,
+  DASH,
+  Lance1,
+  DASH,
+  Lance1,
+  DASH,
+  Lance1,
+  DASH,
+  Skill5.instant(),
   Outro6
 ]);
 var JIYAN = new Loadout({
@@ -17740,18 +18018,19 @@ var MA1232 = new ActionGroup("Mid-air - Stringblade 123", [MA14, MA24, MA33]);
 var BA342 = new ActionGroup("Basic - Stringblade 34", [BA38, BA46]);
 var QX_ROTATION = new Rotation([
   START_LAST,
-  BA17.instaCancel(),
+  BA17.instant(),
   Liberation7,
-  CALAMITY_EFFIGY.instaSwap(),
+  CALAMITY_EFFIGY.instant(),
+  SWAP,
   Intro7,
   MA1232,
   BA342,
   Skill6,
   HA6,
-  FBA1234.holdCancel(),
+  FBA1234,
   FHA4,
   Liberation7,
-  CALAMITY_EFFIGY.instaSwap(),
+  CALAMITY_EFFIGY.instant(),
   Outro7
 ]);
 var QINGXIAO = new Loadout({
@@ -18138,69 +18417,75 @@ var EBA12 = new ActionGroup("Basic - Thus Spoke the Blade: Inkwash 12", [EBA1, E
 var EBA34 = new ActionGroup("Basic - Thus Spoke the Blade: Inkwash 34", [EBA3, EBA4]);
 var QY_ROTATION = new Rotation([
   SWAPIN,
-  BA18.instaCancel(),
+  BA18,
   HA7,
-  EBA4.instaCancel(),
-  FENRICO.instaCancel(),
-  HERON.instaDash(),
-  BELL_BORNE_GEOCHELONE.instaCancel(),
-  FALLACY.instaCancel(),
+  EBA4,
+  FENRICO.instant(),
+  HERON.instant(),
+  DASH,
+  BELL_BORNE_GEOCHELONE,
+  FALLACY.instant(),
   Liberation8,
   HA7,
-  EBA4.instaDash(),
-  EBA12.instaDash(),
-  EBA12.holdCancel(),
-  FHA123.cancel(),
+  EBA4,
+  DASH,
+  EBA12.instant(),
+  DASH,
+  EBA12.instant(),
+  FHA123,
   Outro8,
   /*
-  Intro,SkillHold.instaCancel(),
-  FENRICO.instaCancel(), HERON.instaDash(), BELL_BORNE_GEOCHELONE.instaCancel(), FALLACY.instaCancel(),
-  Liberation,  EBA12.holdCancel(),
-  FHA123.cancel(),
+  Intro,SkillHold.instant(),
+  FENRICO.instant(), HERON.instant(), DASH, BELL_BORNE_GEOCHELONE, FALLACY.instant(),
+  Liberation,  EBA12.instant(),
+  FHA123,
   */
   Intro8,
-  EBA34.instaCancel(),
-  FENRICO.instaCancel(),
-  HERON.instaDash(),
-  BELL_BORNE_GEOCHELONE.instaCancel(),
-  FALLACY.instaCancel(),
+  EBA34,
+  FENRICO.instant(),
+  HERON.instant(),
+  DASH,
+  BELL_BORNE_GEOCHELONE,
+  FALLACY.instant(),
   Liberation8,
-  SkillHold.cancel(),
-  FHA123.cancel(),
+  SkillHold,
+  FHA123,
   Outro8
 ]);
 var QY_ROTATION_MDPS = new Rotation([
   Intro8,
-  EBA34.instaCancel(),
+  EBA34,
   FENRICO,
   HERON,
   BELL_BORNE_GEOCHELONE,
   FALLACY,
-  SkillHold.holdCancel(),
+  SkillHold.instant(),
   FHA123,
   HA7,
-  EBA4.holdCancel(),
+  EBA4,
   Liberation8,
   HA7,
-  EBA4.instaDash(),
-  EBA12.instaDash(),
-  EBA12.holdCancel(),
-  FHA123.cancel(),
+  EBA4,
+  DASH,
+  EBA12.instant(),
+  DASH,
+  EBA12.instant(),
+  FHA123,
   Outro8
 ]);
 var QY_ROTATION_MDPS_S3 = new Rotation([
   Intro8,
-  EBA34.instaCancel(),
+  EBA34,
   FENRICO,
   HERON,
   BELL_BORNE_GEOCHELONE,
   FALLACY,
-  SkillHold.holdCancel(),
-  FHA123.cancel(),
+  SkillHold.instant(),
+  FHA123,
   Liberation8,
   StrawCape,
-  EBA34.holdCancel(),
-  FHA123.cancel(),
+  EBA34,
+  FHA123,
   OutroS3
 ]);
 var QIUYUAN = new Loadout({
@@ -18508,21 +18793,23 @@ var YANGYANG_RESONATOR = new Resonator({
 var HA12 = new ActionGroup("Heavy - Feather as Blade + Zephyr Song", [HA8, ZephyrSong]);
 var YY_ROTATION = new Rotation([
   SWAPIN,
-  HA12.instaCancel(),
+  HA12,
   Liberation9,
-  HA12.instaCancel(),
-  Skill8.jumpCancel(),
-  FeatherRelease.cancel(),
-  HERON.instaSwap(),
+  HA12,
+  Skill8,
+  JUMP,
+  FeatherRelease,
+  HERON.instant(),
   Outro9,
   Intro9,
-  MA6.cancel(),
+  MA6,
   Liberation9,
   BA19,
-  HA12.instaCancel(),
-  Skill8.jumpCancel(),
-  FeatherRelease.cancel(),
-  HERON.instaSwap(),
+  HA12,
+  Skill8,
+  JUMP,
+  FeatherRelease,
+  HERON.instant(),
   Outro9
 ]);
 var YANGYANG = new Loadout({
@@ -19597,50 +19884,52 @@ var SR_ROTATION = new Rotation([
   Intro10,
   NAMELESS_EXPLORER,
   BA2343,
-  EBASIC.cancel(),
-  FHA5.cancel(),
+  EBASIC,
+  FHA5,
   Liberation10,
   BA234_START,
-  EBASIC.cancel(),
-  FHA5.holdCancel(),
+  EBASIC,
+  FHA5,
   FSkill,
   Skill9,
   BA343,
-  EBASIC.cancel(),
+  EBASIC,
   Outro10
 ]);
 var SR_ROTATION_DOUBLE = new Rotation([
   START_LAST,
-  BA110.instaCancel(),
+  BA110.instant(),
   Liberation10,
   Skill9,
   BA343,
-  EBASIC.instaSwap(),
+  EBASIC.instant(),
+  SWAP,
   Intro10.inLastSlot(),
   NAMELESS_EXPLORER,
-  FHA5.dashCancel(),
+  FHA5,
+  DASH,
   BA2343,
   ESKILL,
   BA2343,
-  EBASIC.cancel(),
-  FHA5.holdCancel(),
+  EBASIC,
+  FHA5,
   FSkill,
   Liberation10,
   Skill9,
   BA343,
-  EBASIC.cancel(),
+  EBASIC,
   Outro10
 ]);
 var SR_ROTATION_FAST = new Rotation([
   Intro10,
   NAMELESS_EXPLORER,
   BA2343,
-  EBASIC.cancel(),
-  FHA5.cancel(),
+  EBASIC,
+  FHA5,
   Liberation10,
   BA234_START,
-  EBASIC.cancel(),
-  FHA5.holdCancel(),
+  EBASIC,
+  FHA5,
   FSkill,
   Outro10
 ]);
@@ -20028,15 +20317,15 @@ var AG_ROTATION = new Rotation([
   Skill10,
   FHA12,
   FHA23,
-  HA10.cancel(),
+  HA10,
   Lib1,
-  HA10.cancel(),
+  HA10,
   FSkill12,
   FSkill22,
-  FSkill3.holdCancel(),
+  FSkill3,
   Lib22,
   FJump2,
-  FALSE_SOVEREIGN.instaSwap(),
+  FALSE_SOVEREIGN.instant(),
   Outro11
 ]);
 var AUGUSTA = new Loadout({
@@ -20451,86 +20740,96 @@ var IncBA34 = new ActionGroup("Basic - Incarnation 34", [IncBA3, IncBA4]);
 var IncBA123 = new ActionGroup("Basic - Incarnation 123", [IncBA1, IncBA2, IncBA3]);
 var JX_ROTATION_FULL = new Rotation([
   START_LAST,
-  BA112.instaCancel(),
+  BA112.instant(),
   Liberation11,
-  Skill11.instaSwap(),
+  Skill11.instant(),
+  SWAP,
   Intro12.doubleIntro(),
   Skill22,
-  IncBA12.cancel(),
+  IncBA12,
   Skill32,
-  IncBA34.instaCancel(),
+  IncBA34,
   JUE,
   SUHSIN,
   Skill4_Unison,
   OutroUnison,
   Intro12,
   Skill22,
-  IncBA12.cancel(),
+  IncBA12,
   Skill32,
-  IncBA34.instaCancel(),
+  IncBA34,
   Skill42,
   Liberation11,
   Outro12
 ]);
 var JX_ROTATION_EVERY_OTHER = new Rotation([
   START_LAST,
-  BA212.instaCancel(),
+  BA212.instant(),
   Liberation11.everyOther(),
-  Skill11.instaSwap(),
+  Skill11.instant(),
+  SWAP,
   SWAPIN,
-  BA2344.instaCancel(),
-  Skill22.instaCancel(),
+  BA2344.instant(),
+  Skill22.instant(),
   JUE,
   SUHSIN,
   Liberation11.everyOther(),
   IncBA1,
-  IncBA2.instaJump(),
-  IncBA3.instaJump(),
-  IncBA4.instaCancel(),
+  IncBA2.instant(),
+  JUMP,
+  IncBA3.instant(),
+  JUMP,
+  IncBA4,
   Skill4_Unison,
   OutroUnison,
   Intro12.doubleIntro(),
-  Skill22.instaDash(),
-  IncBA12.cancel(),
+  Skill22.instant(),
+  DASH,
+  IncBA12,
   Skill32,
-  IncBA34.instaCancel(),
+  IncBA34,
   JUE,
   SUHSIN,
   Skill4_Unison,
   Liberation11.everyOther(),
   OutroUnison,
   Intro12,
-  Skill22.instaDash(),
-  IncBA12.cancel(),
+  Skill22.instant(),
+  DASH,
+  IncBA12,
   Skill32,
-  IncBA34.instaCancel(),
+  IncBA34,
   Skill42,
   Outro12
 ]);
 var JX_ROTATION_SUPPORT = new Rotation([
   START_LAST,
-  BA212.instaCancel(),
+  BA212.instant(),
   Liberation11.everyOther(),
-  Skill11.instaSwap(),
+  Skill11.instant(),
+  SWAP,
   SWAPIN,
-  BA2344.instaCancel(),
-  Skill22.instaCancel(),
+  BA2344.instant(),
+  Skill22.instant(),
   JUE,
   SUHSIN,
   Liberation11.everyOther(),
   IncBA1,
-  IncBA2.instaJump(),
-  IncBA3.instaJump(),
-  IncBA4.instaCancel(),
+  IncBA2.instant(),
+  JUMP,
+  IncBA3.instant(),
+  JUMP,
+  IncBA4,
   Skill4_Unison,
   OutroUnison,
   Intro12,
-  Skill22.instaDash(),
+  Skill22.instant(),
+  DASH,
   JUE,
   SUHSIN,
-  IncBA12.cancel(),
+  IncBA12,
   Skill32,
-  IncBA34.instaCancel(),
+  IncBA34,
   Skill4_Unison,
   Liberation11.everyOther(),
   OutroUnison
@@ -21149,10 +21448,13 @@ var UBA1234 = new ActionGroup("Basic - Unfurled Canopy 1234", [UBA1, UBA2, UBA3,
 var UBA123 = new ActionGroup("Basic - Unfurled Canopy 123", [UBA1, UBA2, UBA3]);
 var SM_ROTATION = new Rotation([
   SWAPIN,
-  BA124.dashCancel(),
-  BA124.dashCancel(),
-  BA113.dashCancel(),
-  BA113.cancel(),
+  BA124,
+  DASH,
+  BA124,
+  DASH,
+  BA113,
+  DASH,
+  BA113,
   SealedDelusion,
   IntroFlashRift.doubleIntro(),
   IntroSealedDelusion.doubleIntro(),
@@ -21164,36 +21466,39 @@ var SM_ROTATION = new Rotation([
   IntroSealedDelusion,
   IntroThunderRending,
   IntroWhirlingThunder,
-  UHA2.dashCancel(),
-  UBA12.cancel(),
+  UHA2,
+  DASH,
+  UBA12,
   UnforsakenMind,
-  EngravedHeart.mashCancel(),
-  HERON.instaSwap(),
-  SUHSIN.instaSwap(),
-  SOULFRAYER.instaSwap(),
+  EngravedHeart,
+  HERON.instant(),
+  SUHSIN.instant(),
+  SOULFRAYER.instant(),
   Outro13
 ]);
 var SM_ROTATION_MDPS = new Rotation([
-  IntroFlashRift.mashCancel(),
-  IntroSealedDelusion.mashCancel(),
-  IntroThunderRending.mashCancel(),
-  IntroWhirlingThunder.mashCancel(),
+  IntroFlashRift,
+  IntroSealedDelusion,
+  IntroThunderRending.instant(),
+  IntroWhirlingThunder.instant(),
   Liberation12,
-  RiftCleaver.instaDash(),
-  UBA12UHA12.dashCancel(),
-  UBA12UHA12.cancel(),
+  RiftCleaver,
+  DASH,
+  UBA12UHA12,
+  DASH,
+  UBA12UHA12,
   UnforsakenMind,
-  EngravedHeart.mashCancel(),
-  HERON.instaSwap(),
-  SUHSIN.instaSwap(),
-  SOULFRAYER.instaSwap(),
+  EngravedHeart,
+  HERON.instant(),
+  SUHSIN.instant(),
+  SOULFRAYER.instant(),
   Outro13
 ]);
 var SM_ROTATION_MDPS_SIMPLE = new Rotation([
-  IntroFlashRift.mashCancel(),
-  IntroSealedDelusion.mashCancel(),
-  IntroThunderRending.mashCancel(),
-  IntroWhirlingThunder.mashCancel(),
+  IntroFlashRift,
+  IntroSealedDelusion,
+  IntroThunderRending.instant(),
+  IntroWhirlingThunder.instant(),
   Liberation12,
   RiftCleaver,
   UBA3,
@@ -21202,10 +21507,10 @@ var SM_ROTATION_MDPS_SIMPLE = new Rotation([
   UBA3,
   UBA4,
   UnforsakenMind,
-  EngravedHeart.mashCancel(),
-  HERON.instaSwap(),
-  SUHSIN.instaSwap(),
-  SOULFRAYER.instaSwap(),
+  EngravedHeart,
+  HERON.instant(),
+  SUHSIN.instant(),
+  SOULFRAYER.instant(),
   Outro13
 ]);
 var SM_ROTATION_MDPS_DOUBLE = new Rotation([
@@ -21213,21 +21518,24 @@ var SM_ROTATION_MDPS_DOUBLE = new Rotation([
   IntroSealedDelusion.doubleIntro(),
   IntroThunderRending.doubleIntro(),
   IntroWhirlingThunder.doubleIntro(),
-  UBA1.instaSwap(),
+  UBA1.instant(),
+  SWAP,
   IntroFlashRift,
   IntroSealedDelusion,
   IntroThunderRending,
   IntroWhirlingThunder,
-  UHA2.cancel(),
+  UHA2,
   Liberation12,
-  RiftCleaver.instaDash(),
-  UBA12UHA12.dashCancel(),
-  UBA12UHA12.cancel(),
+  RiftCleaver,
+  DASH,
+  UBA12UHA12,
+  DASH,
+  UBA12UHA12,
   UnforsakenMind,
-  EngravedHeart.mashCancel(),
-  HERON.instaSwap(),
-  SUHSIN.instaSwap(),
-  SOULFRAYER.instaSwap(),
+  EngravedHeart,
+  HERON.instant(),
+  SUHSIN.instant(),
+  SOULFRAYER.instant(),
   Outro13
 ]);
 var SUOMING = new Loadout({
@@ -22780,70 +23088,74 @@ var FBA123 = new ActionGroup("Basic - Illumining Form: Pillars Aligned 123", [FB
 var FBA122 = new ActionGroup("Basic - Illumining Form: Pillars Aligned 12", [FBA13, FBA23]);
 var HS_ROTATION_FLARE = new Rotation([
   FlareIntro,
-  BA411.holdCancel(),
+  BA411,
   RealmProtector,
-  SUHSIN_HSIN.instaCancel(),
+  SUHSIN_HSIN.instant(),
   Lib12,
-  IBA1.instaCancel(),
-  ISkill.mashCancel(),
+  IBA1,
+  ISkill,
   //IBA123.instaCancel(), ISkill.holdCancel(),
   PillarsAligned,
   //FBA1234.holdCancel(), FHA,
   //FBA12.dashCancel(), FBA12.dashCancel(), FBA1.holdCancel(),FHA,
-  FBA122.dashCancel(),
-  FBA123.holdCancel(),
+  FBA122,
+  DASH,
+  FBA123.firstHit(),
   FHA6,
   Lib23,
-  BA114.instaSwap(),
+  BA114.instant(),
   Outro14
 ]);
 var HS_ROTATION_FLARE_S2 = new Rotation([
   FlareIntro.firstIntro(),
   RealmProtector,
-  SUHSIN_HSIN.instaCancel(),
+  SUHSIN_HSIN.instant(),
   Lib12,
-  IBA1.instaCancel(),
-  ISkill.mashCancel(),
+  IBA1,
+  ISkill,
   PillarsAligned,
-  FBA122.dashCancel(),
-  FBA123.holdCancel(),
+  FBA122,
+  DASH,
+  FBA123.firstHit(),
   FHA6,
   Lib23,
-  BA114.instaSwap(),
+  BA114.instant(),
   Outro14,
   FlareIntro,
-  BA411.holdCancel(),
+  BA411,
   RealmProtector,
-  SUHSIN_HSIN.instaCancel(),
+  SUHSIN_HSIN.instant(),
   Lib12,
-  IBA1.instaCancel(),
-  ISkill.mashCancel(),
+  IBA1,
+  ISkill,
   PillarsAligned,
-  FBA122.dashCancel(),
-  FBA123.holdCancel(),
+  FBA122,
+  DASH,
+  FBA123.firstHit(),
   FHA6,
   Lib23,
-  BA114.instaSwap(),
+  BA114.instant(),
   Outro14
 ]);
 var HS_ROTATION_UNISON = new Rotation([
   UIntro.doubleIntro(),
   ManifoldAnswering.doubleIntro(),
   ManifoldAnsweringSI.doubleIntro(),
-  BA344.holdCancel(),
+  BA344,
   RealmProtector,
   Lib12,
-  IBA1.instaCancel(),
-  ISkill.instaSwap(),
+  IBA1,
+  ISkill,
   OutroUnison3,
   ManifoldIllumining,
   ManifoldIlluminingSI,
-  FBA122.dashCancel(),
-  FBA123.holdCancel(),
-  SUHSIN_HSIN.instaCancel(),
+  FBA122,
+  DASH,
+  FBA123.firstHit(),
+  SUHSIN_HSIN,
   FHA6,
   Lib23,
-  Skill12.instaSwap(),
+  Skill12.instant(),
   Outro14
 ]);
 var HS_ROTATION_UNISON_S2 = new Rotation([
@@ -22852,26 +23164,27 @@ var HS_ROTATION_UNISON_S2 = new Rotation([
   ManifoldAnsweringSI.firstDoubleIntro(),
   RealmProtector,
   Lib12,
-  IBA1.instaCancel(),
-  ISkill.instaSwap(),
+  IBA1,
+  ISkill,
   OutroUnison3,
   UIntro.doubleIntro(),
   ManifoldAnswering.doubleIntro(),
   ManifoldAnsweringSI.doubleIntro(),
-  BA344.holdCancel(),
+  BA344,
   RealmProtector,
   Lib12,
-  IBA1.instaCancel(),
-  ISkill.instaSwap(),
+  IBA1,
+  ISkill,
   OutroUnison3,
   ManifoldIllumining,
   ManifoldIlluminingSI,
-  FBA122.dashCancel(),
-  FBA123.holdCancel(),
-  SUHSIN_HSIN.instaCancel(),
+  FBA122,
+  DASH,
+  FBA123.firstHit(),
+  SUHSIN_HSIN,
   FHA6,
   Lib23,
-  Skill12.instaSwap(),
+  Skill12.instant(),
   Outro14
 ]);
 var HSIN_FLARE = new Loadout({
@@ -23275,16 +23588,17 @@ var BULING_RESONATOR = new Resonator({
 });
 var BL_ROTATION = new Rotation([
   SWAPIN,
-  BA115.instaCancel(),
-  Intro13.mashCancel(),
+  BA115,
+  Intro13,
   Skill13,
-  BA412.jumpCancel(),
+  BA412,
+  JUMP,
   MA15,
-  BA125.instaCancel(),
+  BA125,
   HA14,
-  HA14.cancel(),
-  FALLACY.instaCancel(),
-  FORMRENDER.instaCancel(),
+  HA14,
+  FALLACY.instant(),
+  FORMRENDER.instant(),
   // TODO maybe cancel HA?
   LIB,
   Outro15
@@ -23835,12 +24149,13 @@ var BA2345 = new ActionGroup("Basic - Locked Thread 234", [BA216, BA317, BA413])
 var EBA234 = new ActionGroup("Basic - Thread Shredding 234", [EBA22, EBA32, EBA42]);
 var LC_ROTATION = new Rotation([
   START_LAST,
-  BA116.instaCancel(),
+  BA116.instant(),
   Lib,
   ADAM_SMASHER_LUCY,
-  HA1.instaSwap(),
+  HA1.instant(),
+  SWAP,
   Intro14.inLastSlot(),
-  BA2345.cancel(),
+  BA2345,
   Skill1,
   Skill33,
   Deadlock,
@@ -23850,7 +24165,7 @@ var LC_ROTATION = new Rotation([
   ADAM_SMASHER_LUCY,
   ELib,
   HA1,
-  HA23.instaSwap(),
+  HA23.firstHit(),
   Outro16
 ]);
 var LC_ECHOES = [
@@ -24229,7 +24544,7 @@ var JINGRAN_TALENTS = new Talent({
   name: "Jingran: Talents",
   stats: [[9, 8], [7, 11.9999997]]
 });
-var ShadowStep = jingranAction("Dash - Shadow Step", { input: 7, position: 0, cast: 9, animFrames: 20, animPriority: { 20: 0 }, castPriority: 6, type: 4096, scaling: 5, bullets: [{ hitFrame: 4, mv: 3e3 }, { hitFrame: 16, mv: 2500 }] });
+var ShadowStep = jingranAction("Dash - Shadow Step", { input: 7, position: 0, lacks: GROUND_DODGE_LACKS, grants: DODGE_GRANTS, cast: 9, animFrames: 20, animPriority: { 20: 0 }, castPriority: 6, type: 4096, scaling: 5, bullets: [{ hitFrame: 4, mv: 3e3 }, { hitFrame: 16, mv: 2500 }] });
 var BA217 = jingranAction("Basic - Devil's Bane 2", { input: 0, inputPriority: 2, after: [BA117, MA17, ShadowStep, Skill23, EFHA, Intro15, TUNE_BREAK], holds: YANG_FONT, animFrames: 43, animPriority: { 43: 0 }, castPriority: 2, node: 0, cast: 1, type: 4096, bullets: [
   { hitFrame: 16, mv: 5968, energy: 101, concerto: 201, offtune: 3202 },
   { hitFrame: 30, mv: 3979, energy: 67, concerto: 134, offtune: 2135 }
@@ -24306,29 +24621,30 @@ var JR_ROTATION = new Rotation([
   Intro15,
   Lib3,
   FHA7,
-  EBA2342.cancel(),
+  EBA2342,
   EFHA,
   Skill122,
   FHA7,
-  ESkill12.cancel(),
+  ESkill12,
   EFHA,
-  MYRIAD_SNARE.instaSwap(),
+  MYRIAD_SNARE.instant(),
   Outro17
 ]);
 var JR_ROTATION_S2 = new Rotation([
   START,
-  BA117.instaCancel(),
-  FHA7.instaSwap(),
+  BA117.instant(),
+  FHA7.instant(),
+  SWAP,
   Intro15,
   Lib3,
   EFHA,
-  BA2346.cancel(),
+  BA2346,
   FHA7,
-  ESkill12.cancel(),
+  ESkill12,
   EFHA,
   Skill122,
   FHA7,
-  MYRIAD_SNARE.instaSwap(),
+  MYRIAD_SNARE.instant(),
   Outro17
 ]);
 var JINGRAN = new Loadout({
@@ -24563,6 +24879,8 @@ var HTD = rebeccaAction("Dash - Tactical Dodge: Huntress", {
   input: 7,
   position: 0,
   holds: HUNTRESS,
+  lacks: GROUND_DODGE_LACKS,
+  grants: DODGE_GRANTS,
   animFrames: 36,
   animPriority: { 36: 2 },
   castPriority: 7,
@@ -24582,6 +24900,8 @@ var GTD = rebeccaAction("Dash - Tactical Dodge: Guts", {
   input: 7,
   position: 0,
   holds: GUTS,
+  lacks: GROUND_DODGE_LACKS,
+  grants: DODGE_GRANTS,
   animFrames: 40,
   animPriority: { 40: 2 },
   castPriority: 7,
@@ -24870,33 +25190,39 @@ var Lib1234 = new ActionGroup("Liberation - Party 'til Dawn! + Mk. 31 HMG", [Lib
 var RB_ROTATION = new Rotation([
   Intro16.firstIntro(),
   EIntro.firstIntro(),
-  GBA1.hitDash(),
-  GBA23.cancel(),
-  GHA.holdCancel(),
+  GBA1.firstHit(),
+  DASH,
+  GBA23,
+  GHA,
   FHAGuts,
-  GHA.cancel(),
-  ADAM_SMASHER_REBECCA.instaCancel(),
-  HYVATIA.instaCancel(),
-  HERON.instaDash(),
-  STONEWALL_BRACER_1.instaDash(),
+  GHA,
+  ADAM_SMASHER_REBECCA.instant(),
+  HYVATIA.instant(),
+  HERON.instant(),
+  DASH,
+  STONEWALL_BRACER_1.instant(),
+  DASH,
   Lib1234,
-  Boom.instaSwap(),
+  Boom.instant(),
   Outro18,
-  Intro16.mashCancel(),
-  EIntro.mashCancel(),
+  Intro16,
+  EIntro,
   JUMP,
   HMA,
   // cancel is too slow
-  Skill15.dashCancel(),
-  GBA1.cancel(),
+  Skill15,
+  DASH,
+  GBA1,
   FHAGuts,
-  GHA.cancel(),
-  ADAM_SMASHER_REBECCA.instaCancel(),
-  HYVATIA.instaCancel(),
-  HERON.instaDash(),
-  STONEWALL_BRACER_1.instaDash(),
+  GHA,
+  ADAM_SMASHER_REBECCA.instant(),
+  HYVATIA.instant(),
+  HERON.instant(),
+  DASH,
+  STONEWALL_BRACER_1.instant(),
+  DASH,
   Lib1234,
-  Boom.instaSwap(),
+  Boom.instant(),
   Outro18
 ]);
 var RB_ECHOES = [
@@ -25234,12 +25560,12 @@ var ER_ROTATION = new Rotation([
   Intro17,
   BA12344,
   Skill16,
-  Repel.cancel(),
+  Repel,
   Liberation13,
   Overshock,
-  HERON.instaSwap(),
-  SOULFRAYER.instaSwap(),
-  SUHSIN.instaSwap(),
+  HERON.instant(),
+  SOULFRAYER.instant(),
+  SUHSIN.instant(),
   Outro19
 ]);
 var THRUM_SPECTRO = new ActionGroup("Skill - Thrum: Spectro 123", [
@@ -25262,9 +25588,9 @@ var ER_ROTATION_MDPS = new Rotation([
   THRUM_SPECTRO,
   THRUM_HAVOC,
   SilencingBlade,
-  HERON.instaSwap(),
-  SOULFRAYER.instaSwap(),
-  SUHSIN.instaSwap(),
+  HERON.instant(),
+  SOULFRAYER.instant(),
+  SUHSIN.instant(),
   Outro19
 ]);
 var ThrumMaHavoc1 = roverAction2("Skill - Thrum: Havoc Mid-air 1", { input: 2, inputPriority: 1, position: 1, minForte2: 1, holds: APEX_RESONANCE, animFrames: 14, animPriority: { 14: 1 }, castPriority: 2, bullets: [{ hitFrame: 12, mv: 5063, energy: 59, concerto: 210, offtune: 4660, forte2: 256 }], node: 2, cast: 3, type: 12288, element: 384, hitGlobal: () => queue(ThunderBane) });
@@ -25451,7 +25777,7 @@ var UBA32 = xlyAction("Basic - Pivot: Impale 3", { input: 0, inputPriority: 1, a
   { hitFrame: 60, mv: 13325, energy: 146, concerto: 292, offtune: 4668 },
   { hitFrame: 60, mv: 13325, energy: 146, concerto: 292, offtune: 4668, forte2: 2 }
 ] });
-var USkill = xlyAction("Skill - Divergence", { endPosition: 1, input: 2, holds: INTUITION, animFrames: 85, castPriority: 4, cooldown: 60 * 7, node: 3, cast: 3, type: 12288, bullets: [
+var USkill = xlyAction("Skill - Divergence", { endPosition: 1, input: 2, inputPriority: 1, holds: INTUITION, animFrames: 85, castPriority: 4, cooldown: 60 * 7, node: 3, cast: 3, type: 12288, bullets: [
   { hitFrame: 85, mv: 4959, energy: 100, concerto: 50, offtune: 932 },
   { hitFrame: 85, mv: 4959, energy: 100, concerto: 50, offtune: 932 },
   { hitFrame: 85, mv: 4959, energy: 100, concerto: 50, offtune: 932 },
@@ -25465,7 +25791,7 @@ var UDC2 = xlyAction("Dodge Counter - Unfathomed", { input: 0, after: [SUCCESSFU
 ], castConcerto: 1e3 });
 var UForte = xlyAction("Forte Skill - Law of Reigns", {
   input: 2,
-  inputPriority: 1,
+  inputPriority: 2,
   minForte2: 5,
   holds: INTUITION,
   animFrames: 93,
@@ -25654,7 +25980,7 @@ var XLY_ROTATION = new Rotation([
   USkill,
   FBA,
   UForte,
-  NM_MEPHIS.instaSwap(),
+  NM_MEPHIS.instant(),
   Outro20
 ]);
 var XIANGLI_YAO = new Loadout({
@@ -25993,8 +26319,8 @@ var YL_ROTATION = new Rotation([
   BA12345,
   Skill24,
   FHA8,
-  NM_TEMPEST_MEPHIS.instaSwap(),
-  HERON.instaSwap(),
+  NM_TEMPEST_MEPHIS.instant(),
+  HERON.instant(),
   Outro21
 ]);
 var YINLIN_MATRIX_TEAM = new Buff({
@@ -26669,61 +26995,63 @@ var ABA34 = new ActionGroup("Basic - Aemeath 34", [ABA3, ABA4]);
 var AE_ROTATION_BURST = new Rotation([
   Intro20,
   SIGILLUM,
-  ABA34.cancel(),
+  ABA34,
   Lib14,
-  MBA234.cancel(),
+  MBA234,
   Duet,
-  ABA234.cancel(),
+  ABA234,
   Duet,
-  MHA2.cancel(),
+  MHA2,
   Lib25,
   Outro22
 ]);
 var AE_ROTATION_S1_BURST = new Rotation([
   START,
-  ABA1.instaCancel(),
-  AHA2.instaSwap(),
+  ABA1.instant(),
+  AHA2.instant(),
+  SWAP,
   Intro20,
   SIGILLUM,
-  ABA34.cancel(),
+  ABA34,
   Lib14,
-  MBA234.cancel(),
+  MBA234,
   Duet,
-  ABA234.cancel(),
+  ABA234,
   Duet,
-  MHA2.cancel(),
+  MHA2,
   Lib25,
   Outro22
 ]);
 var AE_ROTATION_RUPTURE = new Rotation([
   Intro20,
   SIGILLUM,
-  ABA34.cancel(),
+  ABA34,
   Lib14,
-  MBA234.cancel(),
+  MBA234,
   Duet,
-  ABA234.cancel(),
+  ABA234,
   Duet,
-  MHA2.cancel(),
+  MHA2,
   Lib25,
-  ABA123.instaSwap(),
+  ABA123.firstHit(),
   Outro22
 ]);
 var AE_ROTATION_S1_RUPTURE = new Rotation([
   START,
-  ABA1.instaCancel(),
-  AHA2.instaSwap(),
+  ABA1.instant(),
+  AHA2.instant(),
+  SWAP,
   Intro20,
   SIGILLUM,
-  ABA34.cancel(),
+  ABA34,
   Lib14,
-  MBA234.cancel(),
+  MBA234,
   Duet,
-  ABA234.cancel(),
+  ABA234,
   Duet,
-  MHA2.cancel(),
+  MHA2,
   Lib25,
-  ABA123.instaSwap(),
+  ABA123.firstHit(),
   Outro22
 ]);
 var AEMEATH_RUPTURE = new Loadout({
@@ -27132,7 +27460,7 @@ var BRANT_RESONATOR = new Resonator({
   inherent2: BR_VOYAGE_INHERENT,
   element: 192,
   weapon: 0,
-  color: "#d1257f",
+  color: "#2b40b9",
   actions: [Intro21, Outro23, Skill19, Liberation16, FSkill5, BA121, BA121.swapIn(), BA221, BA322, BA418, HA17, HARiff, DC19, Plunge5, MA110, MA110.swapIn(), MA1C, MA25, MA2C, MA34, MA42, midairBreak(tuneBreak(90, 90, [0, 90], [0, 70], SWORD_BREAK))],
   maxEnergy: 17500,
   forteScale: [0.01, 1, 1, 1, 1],
@@ -27145,27 +27473,28 @@ var BR_ROTATION = new Rotation([
   Liberation16,
   MA2C,
   MA34,
-  FSkill5.swapCancel(),
+  FSkill5,
   Outro23
 ]);
 var BR_ROTATION_MDPS = new Rotation([
   Intro21.doubleIntro(),
   MA2C,
-  MA34.hitCancel(),
-  DRAGON_OF_DIRGE.instaDash(),
-  NM_INFERNO_RIDER.instaDash(),
+  MA34.firstHit(),
+  DRAGON_OF_DIRGE.instant(),
+  NM_INFERNO_RIDER.instant(),
+  DASH,
   MA34,
   MA42,
   SWAP,
   Intro21,
-  MA25.instaCancel(),
-  FSkill5.cancel(),
+  MA25.instant(),
+  FSkill5,
   Liberation16,
   MA110,
   MA2C,
   MA34,
-  MA42.hitCancel(),
-  FSkill5.swapCancel(),
+  MA42,
+  FSkill5,
   Outro23
 ]);
 var BRANT = new Loadout({
@@ -27472,23 +27801,25 @@ var BA12346 = new ActionGroup("Basic - Blazing Enlightenment 1234", [BA126, BA22
 var BA345 = new ActionGroup("Basic - Blazing Enlightenment 34", [BA323, BA419]);
 var CH_ROTATION = new Rotation([
   START_LAST,
-  BA126.instaCancel(),
-  Skill20.hitCancel(),
+  BA126.instant(),
+  Skill20.firstHit(),
   Liberation17,
-  FlamingSacrifice.instaSwap(),
+  FlamingSacrifice.firstHit(),
+  SWAP,
   Intro22,
   SMA,
   MHA,
-  BA345.dashCancel(),
+  BA345,
+  DASH,
   SBA,
   Skill20,
   SBA,
   Skill20,
   SBA,
   // cance?
-  FlamingSacrifice.cancel(),
+  FlamingSacrifice,
   Liberation17,
-  FlamingSacrifice.swapCancel(),
+  FlamingSacrifice,
   Outro24
 ]);
 var CHANGLI = new Loadout({
@@ -27950,33 +28281,33 @@ var Jump23 = new ActionGroup("Mid-air - Scythe: Resection 23", [MA2R, MA3R]);
 var LK_ROTATION = new Rotation([
   // start lib costs too much ER
   Intro23,
-  Jump23.mashCancel(),
+  Jump23,
   Ring,
   GoldenImpale,
-  Jump123.mashCancel(),
+  Jump123,
   Breach,
   GoldenImpale,
-  Jump123.mashCancel(),
-  Glare.mashCancel(),
-  Gavel.cancel(),
+  Jump123,
+  Glare,
+  Gavel,
   Liberation18,
-  Skill21.instaSwap(),
+  Skill21.instant(),
   Outro25
 ]);
 var LK_ROTATION_16s = new Rotation([
   Intro23,
-  Jump23.mashCancel(),
+  Jump23,
   Ring,
   GoldenImpale,
-  Jump123.mashCancel(),
+  Jump123,
   Breach,
   GoldenImpale,
-  Jump123.mashCancel(),
-  Glare.mashCancel(),
-  Gavel.cancel(),
+  Jump123,
+  Glare,
+  Gavel,
   Liberation18,
-  Jump123.mashCancel(),
-  Ring.instaSwap(),
+  Jump123,
+  Ring.instant(),
   Outro25
 ]);
 var LUUK = new Loadout({
@@ -28624,46 +28955,47 @@ var UMBA12 = new ActionGroup("Mid-air - Breakdown Form 12", [UMBA1, UMBA2]);
 var USkill12 = new ActionGroup("Skill - Banish 12", [Banish1, Banish2]);
 var DN_ROTATION_BURST = new Rotation([
   SWAPIN,
-  BA128.instaCancel(),
-  Skill25.instaCancel(),
+  BA128,
+  Skill25,
   Lib15,
-  UBA122.jumpCancel(),
-  UMBA1234.cancel(),
-  USkill12.mashCancel(),
+  UBA122,
+  JUMP,
+  UMBA1234,
+  USkill12,
   Lib26,
-  TRICKSTER.instaSwap(),
-  LIONESS_OF_GLORY.instaSwap(),
-  SIGILLUM.instaSwap(),
-  VOIDWING_MOTH.instaSwap(),
-  HYVATIA.instaSwap(),
+  TRICKSTER.instant(),
+  LIONESS_OF_GLORY.instant(),
+  SIGILLUM.instant(),
+  VOIDWING_MOTH.instant(),
+  HYVATIA.instant(),
   Outro26,
   Intro24,
-  BA421.instaCancel(),
-  Skill25.instaCancel(),
+  BA421,
+  Skill25,
   Lib15,
-  UBA12342.cancel(),
-  USkill12.mashCancel(),
+  UBA12342,
+  USkill12,
   Lib26,
-  TRICKSTER.instaSwap(),
-  LIONESS_OF_GLORY.instaSwap(),
-  SIGILLUM.instaSwap(),
-  VOIDWING_MOTH.instaSwap(),
-  HYVATIA.instaSwap(),
+  TRICKSTER.instant(),
+  LIONESS_OF_GLORY.instant(),
+  SIGILLUM.instant(),
+  VOIDWING_MOTH.instant(),
+  HYVATIA.instant(),
   Outro26
 ]);
 var DN_ROTATION_BURST_S3 = new Rotation([
   SWAPIN,
-  BA128.instaCancel(),
+  BA128,
   Intro24,
   Lib15,
-  UBA12342.cancel(),
-  USkill12.mashCancel(),
+  UBA12342,
+  USkill12,
   Lib26,
-  TRICKSTER.instaSwap(),
-  LIONESS_OF_GLORY.instaSwap(),
-  SIGILLUM.instaSwap(),
-  VOIDWING_MOTH.instaSwap(),
-  HYVATIA.instaSwap(),
+  TRICKSTER.instant(),
+  LIONESS_OF_GLORY.instant(),
+  SIGILLUM.instant(),
+  VOIDWING_MOTH.instant(),
+  HYVATIA.instant(),
   Outro26
 ]);
 var DENIA_BURST = new Loadout({
@@ -28694,49 +29026,53 @@ var DENIA_BURST = new Loadout({
 });
 var DN_ROTATION_STRAIN = new Rotation([
   SWAPIN,
-  BA128.instaCancel(),
-  Skill25.instaCancel(),
+  BA128,
+  Skill25,
   Lib15,
-  UBA122.dashCancel(),
-  UBA122.jumpCancel(),
-  UMBA12.cancel(),
-  USkill12.mashCancel(),
+  UBA122,
+  DASH,
+  UBA122,
+  JUMP,
+  UMBA12,
+  USkill12,
   Lib26,
-  TRICKSTER.instaSwap(),
-  LIONESS_OF_GLORY.instaSwap(),
-  SIGILLUM.instaSwap(),
-  VOIDWING_MOTH.instaSwap(),
-  HYVATIA.instaSwap(),
+  TRICKSTER.instant(),
+  LIONESS_OF_GLORY.instant(),
+  SIGILLUM.instant(),
+  VOIDWING_MOTH.instant(),
+  HYVATIA.instant(),
   Outro26,
   Intro24,
-  BA421.instaCancel(),
-  Skill25.instaCancel(),
+  BA421,
+  Skill25,
   Lib15,
-  UBA122.jumpCancel(),
-  UMBA12.cancel(),
-  USkill12.mashCancel(),
+  UBA122,
+  JUMP,
+  UMBA12,
+  USkill12,
   Lib26,
-  TRICKSTER.instaSwap(),
-  LIONESS_OF_GLORY.instaSwap(),
-  SIGILLUM.instaSwap(),
-  VOIDWING_MOTH.instaSwap(),
-  HYVATIA.instaSwap(),
+  TRICKSTER.instant(),
+  LIONESS_OF_GLORY.instant(),
+  SIGILLUM.instant(),
+  VOIDWING_MOTH.instant(),
+  HYVATIA.instant(),
   Outro26
 ]);
 var DN_ROTATION_STRAIN_S3 = new Rotation([
   SWAPIN,
-  BA128.instaCancel(),
+  BA128,
   Intro24,
   Lib15,
-  UBA122.jumpCancel(),
-  UMBA12.cancel(),
-  USkill12.mashCancel(),
+  UBA122,
+  JUMP,
+  UMBA12,
+  USkill12,
   Lib26,
-  TRICKSTER.instaSwap(),
-  LIONESS_OF_GLORY.instaSwap(),
-  SIGILLUM.instaSwap(),
-  VOIDWING_MOTH.instaSwap(),
-  HYVATIA.instaSwap(),
+  TRICKSTER.instant(),
+  LIONESS_OF_GLORY.instant(),
+  SIGILLUM.instant(),
+  VOIDWING_MOTH.instant(),
+  HYVATIA.instant(),
   Outro26
 ]);
 var DENIA_STRAIN = new Loadout({
@@ -28993,12 +29329,13 @@ var EN_ROTATION = new Rotation([
   NM_INFERNO_RIDER,
   Skill110,
   Liberation19,
-  UBA12343.cancel(),
+  UBA12343,
   USkill2,
-  UBA12343.dashCancel(),
-  UBA12343.cancel(),
+  UBA12343,
+  DASH,
+  UBA12343,
   USkill2,
-  FHA9.instaSwap(),
+  FHA9.instant(),
   Outro27
 ]);
 var ENCORE = new Loadout({
@@ -29305,7 +29642,7 @@ var GALBRENA_TALENTS = new Talent({
   name: "Galbrena: Talents",
   stats: [[6, 11.9999997], [10, 16]]
 });
-var Hellstride = galbrenaAction("Dash - Hellstride", { input: 7, position: 0, cast: 9, animFrames: 24, animPriority: { 19: 2 }, castPriority: 7, type: 4096, scaling: 5, bullets: [{ hitFrame: 4, mv: 66600 }], ...DRIVE });
+var Hellstride = galbrenaAction("Dash - Hellstride", { input: 7, position: 0, lacks: GROUND_DODGE_LACKS, grants: DODGE_GRANTS, cast: 9, animFrames: 24, animPriority: { 19: 2 }, castPriority: 7, type: 4096, scaling: 5, bullets: [{ hitFrame: 4, mv: 66600 }], ...DRIVE });
 var GB_WEAPONS = [LUX_UMBRA, NEW_STD_PISTOL, STATIC_MIST, THUNDERBOLT, SOLAR_FLAME];
 var GB_ECHOES = [new EchoLoadout(CORROSAURUS_MAINSLOT, FLAMEWING_SHADOW_3PC, CLAWPRINT_2PC)];
 var BA226 = galbrenaAction("Basic - Slayer's Trigger 2", { input: 0, inputPriority: 1, animFrames: 42, castPriority: 2, node: 0, cast: 1, type: 8192, bullets: [
@@ -29406,35 +29743,42 @@ var SeraphicExecution2345 = new ActionGroup("Forte Basic - Seraphic Execution 23
 var SeraphicExecution345 = new ActionGroup("Forte Basic - Seraphic Execution 345", [SeraphicExecution3, SeraphicExecution4, SeraphicExecution5]);
 var SeraphicExecution45 = new ActionGroup("Forte Basic - Seraphic Execution 45", [SeraphicExecution4, SeraphicExecution5]);
 var GB_ROTATION = new Rotation([
-  Intro26.holdCancel(),
+  Intro26,
   HA232,
   BA327,
-  Encroach.cancel(),
+  Encroach,
   MA29,
-  BA327.mashCancel(),
-  AscentOfMalice.cancel(),
-  CORROSAURUS.instaCancel(),
+  BA327,
+  AscentOfMalice,
+  CORROSAURUS.instant(),
   Liberation20,
-  SeraphicExecution2345.dashCancel(),
+  SeraphicExecution2345,
+  DASH,
   SeraphicExecution345,
   Outro28
 ]);
 var GB_ROTATION_ECHO = new Rotation([
-  Intro26.holdCancel(),
+  Intro26,
   HA232,
   BA327,
-  Encroach.cancel(),
+  Encroach,
   MA29,
-  BA327.mashCancel(),
-  AscentOfMalice.cancel(),
-  CORROSAURUS.instaCancel(),
+  BA327,
+  AscentOfMalice,
+  CORROSAURUS.instant(),
   Liberation20,
-  SeraphicExecution2.hitDash(),
-  SeraphicExecution3.instaDash(),
-  SeraphicExecution45.dashCancel(),
-  SeraphicExecution3.hitDash(),
-  SeraphicExecution45.dashCancel(),
-  SeraphicExecution3.instaDash(),
+  SeraphicExecution2.firstHit(),
+  DASH,
+  SeraphicExecution3.instant(),
+  DASH,
+  SeraphicExecution45,
+  DASH,
+  SeraphicExecution3.firstHit(),
+  DASH,
+  SeraphicExecution45,
+  DASH,
+  SeraphicExecution3.instant(),
+  DASH,
   SeraphicExecution45,
   Outro28
 ]);
@@ -29975,18 +30319,19 @@ var LUPA_RESONATOR = new Resonator({
 var MA122 = new ActionGroup("Mid-air - Flaming Star 12", [MA113, MA210]);
 var LP_LOOP = new Rotation([
   SWAPIN,
-  BA131.instaCancel(),
-  Skill111.cancel(),
-  EIntro4.mashCancel(),
-  HERON.instaDash(),
-  Intro27.mashCancel(),
-  LIONESS_OF_GLORY.instaCancel(),
+  BA131.firstHit(),
+  Skill111,
+  EIntro4,
+  HERON.instant(),
+  DASH,
+  Intro27,
+  LIONESS_OF_GLORY.instant(),
   Liberation21,
   USkill3,
   MA122,
   EMA3,
-  EHA4.mashCancel(),
-  UFSkill.swapCancel(),
+  EHA4,
+  UFSkill,
   Outro29
 ]);
 var LUPA = new Loadout({
@@ -30379,33 +30724,35 @@ var BA1232 = new ActionGroup("Basic - Ground State Calibration 123", [BA132, BA2
 var WBA123 = new ActionGroup("Basic - Wide Field Observation 123", [WBA1, WBA2, WBA3]);
 var MO_ROTATION = new Rotation([
   START_LAST,
-  BA132.instaCancel(),
-  Skill28.instaSwap(),
+  BA132.firstHit(),
+  Skill28,
+  SWAP,
   SWAPIN,
   BA1232,
   GeopotentialShift,
-  Intro28.mashCancel(),
+  Intro28,
   Liberation22,
-  WBA123.cancel(),
+  WBA123,
   DistributedArray,
   Inversion,
-  REACTOR_HUSK.instaSwap(),
-  SPACETREK_EXPLORER.instaSwap(),
+  REACTOR_HUSK.instant(),
+  SPACETREK_EXPLORER.instant(),
   Outro30
 ]);
 var MO_ROTATION_S3 = new Rotation([
   START_LAST,
-  BA132.instaCancel(),
-  Skill28.instaSwap(),
+  BA132.firstHit(),
+  Skill28,
+  SWAP,
   SWAPIN,
   BA1232,
   GeopotentialShift,
-  Intro28.mashCancel(),
+  Intro28,
   Liberation22,
   DistributedArray,
   Inversion,
-  REACTOR_HUSK.instaSwap(),
-  SPACETREK_EXPLORER.instaSwap(),
+  REACTOR_HUSK.instant(),
+  SPACETREK_EXPLORER.instant(),
   Outro30
 ]);
 var MO_ECHOES = [
@@ -30693,12 +31040,12 @@ var MO_ROTATION2 = new Rotation([
   Intro29,
   Skill29,
   FSkill7,
-  BA12347.cancel(),
-  FSkill7.cancel(),
+  BA12347,
+  FSkill7,
   Liberation23,
-  HERON.instaSwap(),
-  STONEWALL_BRACER_1.instaSwap(),
-  HECATE.instaSwap(),
+  HERON.instant(),
+  STONEWALL_BRACER_1.instant(),
+  HECATE.instant(),
   Outro31
 ]);
 var MORTEFI = new Loadout({
@@ -30941,7 +31288,7 @@ var Intro30 = carlottaAction("Intro - Wintertime Aria", {
   castConcerto: 1e3,
   castForte2: 30
 });
-var SuccessfulDodge = carlottaAction("Dodge - Successful Dodge", { input: 8, cast: 9, animFrames: 25, animPriority: { 25: 2 }, castPriority: 8, castForte1: 3 });
+var SuccessfulDodge = carlottaAction("Dodge - Successful Dodge", { input: 8, lacks: GROUND_DODGE_LACKS, grants: DODGE_GRANTS, cast: 9, animFrames: 25, animPriority: { 25: 2 }, castPriority: 8, castForte1: 3 });
 var Outro32 = carlottaAction("Outro - Closing Remark", { animFrames: 0, castPriority: 11, cast: 6, type: 24576, bullets: [
   { hitFrame: 0, mv: 79420 },
   // S3's Kaleidoscope Sparks, queued where wuwalab sets it off
@@ -31118,31 +31465,33 @@ var Skill123 = new ActionGroup("Skill - Art of Violence + Chromatic Splendor", [
 var NM123 = new ActionGroup("Silent Execution: Necessary Measures 123", [NM1, NM2, NM3]);
 var CL_ROTATION = new Rotation([
   START,
-  BA134.instaCancel(),
-  Skill123.instaSwap(),
+  BA134.instant(),
+  Skill123.instant(),
+  SWAP,
   Intro30,
   Skill123,
-  MA115.holdCancel(),
-  FHA10.cancel(),
+  MA115,
+  FHA10,
   Lib16,
   DeathKnellx4,
   FatalFinaleResolver,
-  Skill123.cancel(),
-  SENTRY_CONSTRUCT.instaSwap(),
+  Skill123,
+  SENTRY_CONSTRUCT.instant(),
   Outro32
 ]);
 var CL_ROTATION_FAST = new Rotation([
   START,
-  BA134.instaCancel(),
-  Skill123.instaSwap(),
+  BA134.instant(),
+  Skill123.instant(),
+  SWAP,
   Intro30,
   Skill123,
-  MA115.holdCancel(),
-  FHA10.cancel(),
+  MA115,
+  FHA10,
   Lib16,
   DeathKnellx4,
   FatalFinaleResolver,
-  Skill123.instaSwap(),
+  Skill123.instant(),
   Outro32
 ]);
 var CARLOTTA = new Loadout({
@@ -31397,19 +31746,19 @@ var TQ_ROTATION = new Rotation([
   SWAPIN,
   Skill30,
   BA12348,
-  BA1233.cancel(),
+  BA1233,
   Liberation24,
-  BA12348.cancel(),
-  HERON.instaSwap(),
+  BA12348,
+  HERON.instant(),
   Outro33,
   // loop: Timed Counters off the Intro's Caliber, the shields, Basic 4 to bank them for the next Intro
   Intro31,
   TC123,
   Skill30,
-  BA12348.cancel(),
+  BA12348,
   Liberation24,
-  BA135.cancel(),
-  HERON.instaSwap(),
+  BA135,
+  HERON.instant(),
   Outro33
 ]);
 var TAOQI = new Loadout({
@@ -31591,7 +31940,7 @@ var USkill1 = hiyukiAction("Skill - Frostblight: Jade Cleave", { input: 2, posit
   { hitFrame: 29, mv: 6601, energy: 250, concerto: 75, offtune: 1328 },
   { hitFrame: 34, mv: 6601, energy: 250, concerto: 75, offtune: 1328 }
 ] });
-var USkill22 = hiyukiAction("Skill - Frostblight: Petalfall", { input: 2, position: 1, holds: FORECLAIMED_SELF, animFrames: 55, animPriority: { 57: 2 }, castPriority: 4, cooldown: USKILL_CD, node: 1, cast: 3, type: 12288, bullets: [
+var USkill22 = hiyukiAction("Skill - Frostblight: Petalfall", { input: 2, position: 1, endPosition: 0, holds: FORECLAIMED_SELF, animFrames: 55, animPriority: { 57: 2 }, castPriority: 4, cooldown: USKILL_CD, node: 1, cast: 3, type: 12288, bullets: [
   { hitFrame: 16, mv: 6402, energy: 206, concerto: 73, offtune: 1288, forte2: 75 },
   { hitFrame: 20, mv: 6402, energy: 206, concerto: 73, offtune: 1288 },
   { hitFrame: 26, mv: 6402, energy: 206, concerto: 73, offtune: 1288 },
@@ -32062,7 +32411,7 @@ var Iai = hiyukiAction("Forte Basic - Iai", {
   ],
   castForte2: -100
 });
-var IaiFlash = hiyukiAction("Dash - Iai Stance", { input: 7, after: [UBA16, UBA25, UBA36, FBA44, FBA52, UHA3, FMA13, FMA23, FMA33, FDC3, USkill1, USkill22, Iai, Intro32, FIntro2], minForte2: 100, cast: 9, animFrames: 30, castPriority: 6, animPriority: { 0: 9 }, updateBuffs: () => applyCurrent(IAI_STANCE, 1) });
+var IaiFlash = hiyukiAction("Dash - Iai Stance", { input: 7, lacks: GROUND_DODGE_LACKS, grants: DODGE_GRANTS, after: [UBA16, UBA25, UBA36, FBA44, FBA52, UHA3, FMA13, FMA23, FMA33, FDC3, USkill1, USkill22, Iai, Intro32, FIntro2], minForte2: 100, cast: 9, animFrames: 30, castPriority: 6, animPriority: { 0: 9 }, updateBuffs: () => applyCurrent(IAI_STANCE, 1) });
 Iai.setAfter([IaiFlash, Iai]);
 var HIYUKI_RESONATOR = new Resonator({
   id: 1108,
@@ -32134,114 +32483,156 @@ var HIYUKI_RESONATOR = new Resonator({
 });
 var HY_ROTATION = new Rotation([
   SWAPIN_OPENER,
-  BA1235.instaCancel(),
+  BA1235.firstHit(),
   Skill31,
   BA332,
-  FrostSplinter.mashCancel(),
+  FrostSplinter,
   Lib17,
-  UBA1233.dashCancel(),
-  UBA1233.dashCancel(),
-  Iai.instaJump(),
-  USkill22.dashCancel(),
-  Iai.instaJump(),
-  USkill22.dashCancel(),
-  Iai.hitDash(),
+  UBA1233,
+  DASH,
+  UBA1233,
+  DASH,
+  Iai,
+  JUMP,
+  USkill22,
+  DASH,
+  Iai,
+  JUMP,
+  USkill22,
+  DASH,
+  Iai,
+  DASH,
   FHA11,
-  VOIDBORNE_CONSTRUCT.instaCancel(),
+  VOIDBORNE_CONSTRUCT.instant(),
   Lib2Tap,
   Outro34,
   Intro32.firstIntro(),
   BA332,
-  FrostSplinter.mashCancel(),
+  FrostSplinter,
   Lib17,
-  UBA1233.dashCancel(),
-  UBA1233.dashCancel(),
-  Iai.instaJump(),
-  USkill22.dashCancel(),
-  Iai.instaJump(),
-  USkill22.dashCancel(),
-  Iai.hitDash(),
+  UBA1233,
+  DASH,
+  UBA1233,
+  DASH,
+  Iai,
+  JUMP,
+  USkill22,
+  DASH,
+  Iai,
+  JUMP,
+  USkill22,
+  DASH,
+  Iai,
+  DASH,
   FHA11,
-  VOIDBORNE_CONSTRUCT.instaCancel(),
+  VOIDBORNE_CONSTRUCT.instant(),
   Lib2Tap,
-  Skill31.instaSwap(),
+  Skill31.instant(),
   Outro34,
   SWAPIN,
-  BA1235.instaCancel(),
+  BA1235.firstHit(),
   Skill31,
   Intro32,
   BA332,
-  FrostSplinter.mashCancel(),
+  FrostSplinter,
   Lib17,
-  UBA1233.dashCancel(),
-  UBA1233.dashCancel(),
-  Iai.instaJump(),
-  USkill22.dashCancel(),
-  Iai.instaJump(),
-  USkill22.dashCancel(),
-  Iai.hitDash(),
+  UBA1233,
+  DASH,
+  UBA1233,
+  DASH,
+  Iai,
+  JUMP,
+  USkill22,
+  DASH,
+  Iai,
+  JUMP,
+  USkill22,
+  DASH,
+  Iai,
+  DASH,
   FHA11,
-  VOIDBORNE_CONSTRUCT.instaCancel(),
+  VOIDBORNE_CONSTRUCT,
   Lib2Hold,
-  Skill31.instaSwap(),
+  Skill31.instant(),
   Outro34
 ]);
 var HY_ROTATION_S2 = new Rotation([
   SWAPIN_OPENER,
-  BA1235.instaCancel(),
+  BA1235.firstHit(),
   Skill31,
   BA332,
-  FrostSplinter.mashCancel(),
+  FrostSplinter,
   Lib17,
-  UBA1233.dashCancel(),
-  UBA1233.dashCancel(),
-  Iai.instaJump(),
-  USkill22.dashCancel(),
-  Iai.instaJump(),
-  USkill22.dashCancel(),
+  UBA1233,
+  DASH,
+  UBA1233,
+  DASH,
   Iai,
-  Iai.hitDash(),
+  JUMP,
+  USkill22,
+  DASH,
+  Iai,
+  JUMP,
+  USkill22,
+  DASH,
+  Iai,
+  Iai,
+  DASH,
   // extra from s2
   FHA11,
-  VOIDBORNE_CONSTRUCT.instaCancel(),
+  VOIDBORNE_CONSTRUCT.instant(),
   Lib2Tap,
   Outro34,
   Intro32.firstIntro(),
   BA332,
-  FrostSplinter.mashCancel(),
+  FrostSplinter,
   Lib17,
-  UBA1233.dashCancel(),
-  UBA1233.dashCancel(),
-  Iai.instaJump(),
-  USkill22.dashCancel(),
-  Iai.instaJump(),
-  USkill22.dashCancel(),
+  UBA1233,
+  DASH,
+  UBA1233,
+  DASH,
   Iai,
-  Iai.hitDash(),
+  JUMP,
+  USkill22,
+  DASH,
+  Iai,
+  JUMP,
+  USkill22,
+  DASH,
+  Iai,
+  Iai,
+  DASH,
   // extra from s2
   FHA11,
-  VOIDBORNE_CONSTRUCT.instaCancel(),
+  VOIDBORNE_CONSTRUCT.instant(),
   Lib2Tap,
-  Skill31.instaSwap(),
+  Skill31.instant(),
   Outro34,
   SWAPIN,
-  BA1235.instaCancel(),
+  BA1235.firstHit(),
   Skill31,
   Intro32,
   BA332,
-  FrostSplinter.mashCancel(),
+  FrostSplinter,
   Lib17,
-  UBA1233.dashCancel(),
-  UBA1233.dashCancel(),
-  Iai.instaJump(),
-  USkill22.dashCancel(),
-  Iai.instaJump(),
-  USkill22.dashCancel(),
-  Iai.hitDash(),
+  UBA1233,
+  DASH,
+  UBA1233,
+  DASH,
+  Iai,
+  JUMP,
+  USkill22,
+  DASH,
+  Iai,
+  JUMP,
+  USkill22,
+  DASH,
+  Iai,
+  DASH,
   FHA11,
-  VOIDBORNE_CONSTRUCT.instaCancel(),
+  VOIDBORNE_CONSTRUCT,
   Lib2Hold,
-  Skill31.instaSwap(),
+  Skill31.instant(),
   Outro34
 ]);
 var HIYUKI = new Loadout({
@@ -32746,30 +33137,31 @@ var LY_ROTATION_BASIC = new Rotation([
   SENTRY_CONSTRUCT,
   LAMPYLUMEN_MYRIAD_1,
   LAMPYLUMEN_MYRIAD_2,
-  LAMPYLUMEN_MYRIAD_3.dashCancel(),
+  LAMPYLUMEN_MYRIAD_3,
+  DASH,
   Liberation25,
   StridingLionEntry,
   // best Striding Lion fill for Sanhua + Shorekeeper (window search, 31068 team DPS)
-  FMA14.hitCancel(),
+  FMA14.firstHit(),
   MountainRoamer,
-  FMA24.instaCancel(),
+  FMA24.instant(),
   MountainRoamer,
-  FMA14.hitCancel(),
+  FMA14.firstHit(),
   MountainRoamer,
-  FMA24.instaCancel(),
+  FMA24.instant(),
   MountainRoamer,
-  FMA14.instaCancel(),
+  FMA14.instant(),
   MountainRoamer,
-  FMA24.instaCancel(),
+  FMA24.instant(),
   MountainRoamer,
-  FMA14.instaCancel(),
+  FMA14.instant(),
   MountainRoamer,
-  FMA24.instaCancel(),
+  FMA24.instant(),
   MountainRoamer,
-  FMA14.hitCancel(),
+  FMA14.firstHit(),
   MountainRoamer,
-  //FMA2.instaCancel(), MountainRoamer, // best is 9 skill in practice?
-  StormyKicks.instaSwap(),
+  //FMA2.instant(), MountainRoamer, // best is 9 skill in practice?
+  StormyKicks.instant(),
   Outro35
 ]);
 var LINGYANG = new Loadout({
@@ -33222,29 +33614,30 @@ var LC_S62 = new Sequence({
 var LC_SEQUENCES = [LC_S12, LC_S22, LC_S32, LC_S42, LC_S52, LC_S62];
 var UBA1235 = new ActionGroup("Basic - Tracing Forms 123", [UBA17, UBA26, UBA37]);
 var LC_ROTATION2 = new Rotation([
-  Intro34.holdCancel(),
+  Intro34,
   Spotlight,
   Liberation26,
   UBA1235,
   LettingGo,
-  BELL_BORNE_GEOCHELONE.instaSwap(),
-  HERON.instaSwap(),
-  FALLACY.instaSwap(),
-  GLOMMOTH.instaSwap(),
+  BELL_BORNE_GEOCHELONE,
+  HERON.instant(),
+  FALLACY.instant(),
+  GLOMMOTH.instant(),
   Outro36,
   START_LAST,
-  BA138.instaCancel(),
+  BA138.instant(),
   Spotlight,
   SWAP,
-  Intro34.inLastSlot().mashCancel(),
-  BELL_BORNE_GEOCHELONE.instaCancel(),
-  HERON.instaDash(),
-  FALLACY.instaCancel(),
-  GLOMMOTH.instaCancel(),
+  Intro34.inLastSlot(),
+  BELL_BORNE_GEOCHELONE,
+  HERON.instant(),
+  DASH,
+  FALLACY.instant(),
+  GLOMMOTH.instant(),
   Liberation26,
   UBA1235,
   LettingGo,
-  BA138.instaCancel(),
+  BA138.instant(),
   Spotlight,
   Outro36
 ]);
@@ -33560,26 +33953,26 @@ var SH_ROTATION_S5 = new Rotation([
   SWAPIN,
   BA238,
   Intro35,
-  Skill34.cancel(),
+  Skill34,
   Liberation27,
   FHA13,
-  HERON.instaSwap(),
+  HERON.instant(),
   Outro37
 ]);
 var SH_ROTATION = new Rotation([
   SWAPIN,
-  BA2348.cancel(),
+  BA2348,
   Skill34,
   Liberation27,
   FHA13,
-  HERON.instaSwap(),
+  HERON.instant(),
   Outro37,
   Intro35,
   FHA13,
-  Skill34.cancel(),
+  Skill34,
   Liberation27,
   FHA13,
-  HERON.instaSwap(),
+  HERON.instant(),
   Outro37
 ]);
 var SANHUA = new Loadout({
@@ -33669,7 +34062,7 @@ var ESkill4 = suisuiAction("Skill - Awakening Spring", {
 });
 var ESkillSky = suisuiAction("Skill - Awakening Spring (Sky Over Water)", {
   input: 2,
-  inputPriority: 1,
+  inputPriority: 2,
   minForte1: 120,
   ...SPRING,
   cooldown: SKY_CD,
@@ -33751,7 +34144,7 @@ var FSkill8 = suisuiAction("Skill - Vernal Screen: Drizzle Stance", {
   animPriority: { 54: 2 },
   castPriority: 5,
   input: 2,
-  inputPriority: 2,
+  inputPriority: 3,
   holds: DRIZZLE_STANCE,
   cooldown: SKILL_CD8,
   node: 1,
@@ -34108,38 +34501,38 @@ var FBA1232 = new ActionGroup("Basic - Drizzle Stance 123", [FBA14, FBA24, FBA34
 var FBA124 = new ActionGroup("Basic - Drizzle Stance 12", [FBA14, FBA24]);
 var SS_ROTATION = new Rotation([
   SWAPIN,
-  BA1236.cancel(),
+  BA1236,
   ESkillSky,
-  FHA14.hitCancel(),
+  FHA14.firstHit(),
   FSkill8,
-  FBA124.cancel(),
-  FHA14.hitCancel(),
+  FBA124,
+  FHA14.firstHit(),
   Liberation28,
-  FORBIDDEN_BASTION.instaSwap(),
+  FORBIDDEN_BASTION.instant(),
   Outro38,
-  //FHA.hitCancel(), FSkill, FBA12.cancel(), FHA.hitCancel(), // needs r3 weapon, 4.33s loop
+  //FHA.hitCancel(), FSkill, FBA12.lastCommit(), FHA.hitCancel(), // needs r3 weapon, 4.33s loop
   IntroSky,
-  FHA14.hitCancel(),
+  FHA14.firstHit(),
   FSkill8,
-  FBA124.cancel(),
-  FHA14.hitCancel(),
-  FMA.cancel(),
+  FBA124,
+  FHA14.firstHit(),
+  FMA,
   // needs r1 weapons, 5.03 loop
   Liberation28,
-  FORBIDDEN_BASTION.instaSwap(),
+  FORBIDDEN_BASTION.instant(),
   Outro38
 ]);
 var SS_ROTATION_S3 = new Rotation([
   SWAPIN,
-  BA1236.cancel(),
+  BA1236,
   ESkillSky,
   IntroSky,
   //FSkill, FBA4.cancel(),
   FSkill8,
   FBA45,
-  FBA1232.cancel(),
+  FBA1232,
   // filler for s0 er match: Drizzle Stance replaces the Zephyr basics
-  FORBIDDEN_BASTION.instaCancel(),
+  FORBIDDEN_BASTION.instant(),
   Liberation28,
   Outro38
 ]);
@@ -34460,15 +34853,18 @@ var ZZ_ROTATION = new Rotation([
   SWAPIN,
   BA1237,
   Intro36,
-  BA1237.cancel(),
-  NM_LAMPY.instaCancel(),
-  HERON.instaDash(),
+  BA1237,
+  NM_LAMPY.instant(),
+  HERON.instant(),
+  DASH,
   Liberation29,
   Skill36,
-  FHA15.mashCancel(),
-  FSkill9.jumpCancel(),
-  FSkill9.jumpCancel(),
-  FSkill32.instaSwap(),
+  FHA15,
+  FSkill9,
+  JUMP,
+  FSkill9,
+  JUMP,
+  FSkill32.instant(),
   Outro39
 ]);
 var BRUSHWORKS_FINISH = new Buff({
@@ -34842,19 +35238,20 @@ var CM_SEQUENCES = [CM_S1, CM_S2, CM_S3, CM_S4, CM_S5, CM_S6];
 var VW1234 = new ActionGroup("Basic - Vining Waltz 123H4", [VW1, VW2, VW3, BlazingWaltz, VW4]);
 var CM_ROTATION_16s = new Rotation([
   Intro37,
-  CrimsonBlossom.cancel(),
-  NM_CROWNLESS.instaDash(),
+  CrimsonBlossom,
+  NM_CROWNLESS,
+  DASH,
   VW1234,
   Liberation30,
   VW1,
   Ephemeral,
   VW1234,
-  FloralRavage.instaSwap(),
+  FloralRavage.instant(),
   OutroEphemeral
 ]);
 var CM_ROTATION_16s_S6 = new Rotation([
   Intro37,
-  CrimsonBlossom.cancel(),
+  CrimsonBlossom,
   NM_CROWNLESS,
   VW1234,
   Liberation30,
@@ -34862,7 +35259,8 @@ var CM_ROTATION_16s_S6 = new Rotation([
   Ephemeral,
   VW1234,
   FloralRavage,
-  Perennial.instaSwap()
+  Perennial.instant(),
+  SWAP
 ]);
 var BA142 = camellyaAction("Basic - Burgeoning 1", { input: 0, position: 0, lacks: BLOSSOM_MODE, animFrames: 19, castPriority: 2, node: 0, cast: 1, type: 4096, bullets: [{ hitFrame: 9, mv: 6253, energy: 93, concerto: 185, offtune: 2960, forte1: -615 }] });
 var BA241 = camellyaAction("Basic - Burgeoning 2", { input: 0, inputPriority: 1, after: [BA142], animFrames: 33, castPriority: 2, node: 0, cast: 1, type: 4096, bullets: [
@@ -35270,7 +35668,7 @@ var COMMANDS = NOTE_MOVES.map((move, i) => move.variant(`${move.name} (Command)`
   holds: [MAESTRO, NOTE_LEFT[i]],
   updateBuffs: () => startEnhanced()
 }));
-var HecateDash = DEFAULT_DASH.variant("Dash - Hecate", { inputPriority: 0, position: 0, holds: MAESTRO });
+var HecateDash = DEFAULT_DASH.variant("Dash - Hecate", { inputPriority: 0, position: 0, holds: MAESTRO, lacks: GROUND_DODGE_LACKS });
 var PHRO_TUNE_BREAK = breakWhen(CLASS_TUNE_BREAK[
   4
   /* WeaponType.Rectifier */
@@ -35630,191 +36028,232 @@ var BA2310 = new ActionGroup("Basic - Movement of Life and Death 23", [BA242, BA
 var HBA122 = new ActionGroup("Basic - Hecate 12", [HBA12, HBA22]);
 var PHRO_3FBA_MANUAL = new Rotation([
   SWAPIN,
-  BA2310.hitCancel(),
+  BA2310.firstHit(),
   NM_HECATE,
-  FBA6.instaDash(),
-  BA1238.hitDash(),
-  FBA6.instaCancel(),
+  FBA6,
+  DASH,
+  BA1238.firstHit(),
+  DASH,
+  FBA6,
   Skill37,
-  FBA6.holdCancel(),
-  ScarletCoda.mashCancel(),
-  Liberation31.mashSwap(),
+  FBA6,
+  ScarletCoda,
+  Liberation31,
   Outro41,
   Intro38,
   EIntro5,
-  BA339.hitDash(),
-  FBA6.instaCancel(),
+  BA339.firstHit(),
+  DASH,
+  FBA6,
   NM_HECATE,
-  BA1238.hitDash(),
-  FBA6.instaCancel(),
+  BA1238.firstHit(),
+  DASH,
+  FBA6,
   Skill37,
-  FBA6.holdCancel(),
-  ScarletCoda.mashCancel(),
+  FBA6,
+  ScarletCoda,
   Liberation31,
-  HBA122.instaDash(),
-  EnhancedHecate.instaSwap(),
+  HBA122.firstHit(),
+  DASH,
+  EnhancedHecate.instant(),
   Outro41
 ]);
 var PHRO_3FBA = new Rotation([
   SWAPIN,
-  BA2310.hitCancel(),
+  BA2310.firstHit(),
   NM_HECATE,
-  FBA6.instaDash(),
-  BA1238.hitDash(),
-  FBA6.instaCancel(),
+  FBA6,
+  DASH,
+  BA1238.firstHit(),
+  DASH,
+  FBA6,
   Skill37,
-  FBA6.holdCancel(),
-  ScarletCoda.mashCancel(),
-  Liberation31.mashSwap(),
+  FBA6,
+  ScarletCoda,
+  Liberation31,
   Outro41,
   Intro38,
   EIntro5,
-  BA339.hitDash(),
-  FBA6.instaCancel(),
+  BA339.firstHit(),
+  DASH,
+  FBA6,
   NM_HECATE,
-  BA1238.hitDash(),
-  FBA6.instaCancel(),
+  BA1238.firstHit(),
+  DASH,
+  FBA6,
   Skill37,
-  FBA6.holdCancel(),
-  ScarletCoda.mashCancel(),
-  Liberation31.mashSwap(),
+  FBA6,
+  ScarletCoda,
+  Liberation31,
   Outro41
 ]);
 var PHRO_3FBA_S2 = new Rotation([
   SWAPIN,
-  BA2310.instaCancel(),
+  BA2310.instant(),
   NM_HECATE,
-  FBA6.instaDash(),
-  BA1238.instaDash(),
-  FBA6.instaCancel(),
+  FBA6,
+  DASH,
+  BA1238.instant(),
+  DASH,
+  FBA6,
   Skill37,
-  FBA6.holdCancel(),
-  ScarletCoda.mashCancel(),
-  Liberation31.mashSwap(),
+  FBA6,
+  ScarletCoda,
+  Liberation31,
   Outro41,
   Intro38,
   EIntro5,
-  BA339.hitDash(),
-  FBA6.instaCancel(),
+  BA339.firstHit(),
+  DASH,
+  FBA6,
   NM_HECATE,
-  BA1238.hitDash(),
-  FBA6.instaCancel(),
+  BA1238.firstHit(),
+  DASH,
+  FBA6,
   Skill37,
-  FBA6.holdCancel(),
-  ScarletCoda.mashCancel(),
-  Liberation31.mashSwap(),
+  FBA6,
+  ScarletCoda,
+  Liberation31,
   Outro41
 ]);
 var PHRO_4FBA = new Rotation([
   SWAPIN,
-  BA2310.hitCancel(),
+  BA2310.firstHit(),
   NM_HECATE,
-  FBA6.instaDash(),
-  BA1238.hitDash(),
-  FBA6.instaCancel(),
+  FBA6,
+  DASH,
+  BA1238.firstHit(),
+  DASH,
+  FBA6,
   Skill37,
-  FBA6.holdCancel(),
-  ScarletCoda.mashCancel(),
-  Liberation31.mashSwap(),
+  FBA6,
+  ScarletCoda,
+  Liberation31,
   Outro41,
   Intro38,
   EIntro5,
-  BA339.hitDash(),
-  FBA6.instaDash(),
-  BA1238.instaDash(),
-  FBA6.instaCancel(),
+  BA339.firstHit(),
+  DASH,
+  FBA6,
+  DASH,
+  BA1238.instant(),
+  DASH,
+  FBA6,
   NM_HECATE,
-  BA1238.instaDash(),
-  FBA6.instaCancel(),
+  BA1238.instant(),
+  DASH,
+  FBA6,
   Skill37,
-  FBA6.holdCancel(),
-  ScarletCoda.mashCancel(),
-  Liberation31.mashSwap(),
+  FBA6,
+  ScarletCoda,
+  Liberation31,
   Outro41
 ]);
 var PHRO_4FBA_S2 = new Rotation([
   SWAPIN,
-  BA2310.instaCancel(),
+  BA2310.instant(),
   NM_HECATE,
-  FBA6.instaDash(),
-  BA1238.instaDash(),
-  FBA6.instaCancel(),
+  FBA6,
+  DASH,
+  BA1238.instant(),
+  DASH,
+  FBA6,
   Skill37,
-  FBA6.holdCancel(),
-  ScarletCoda.mashCancel(),
-  Liberation31.mashSwap(),
+  FBA6,
+  ScarletCoda,
+  Liberation31,
   Outro41,
   Intro38,
   EIntro5,
-  BA339.hitDash(),
-  FBA6.instaDash(),
-  BA1238.instaDash(),
-  FBA6.instaCancel(),
+  BA339.firstHit(),
+  DASH,
+  FBA6,
+  DASH,
+  BA1238.instant(),
+  DASH,
+  FBA6,
   NM_HECATE,
-  BA1238.instaDash(),
-  FBA6.instaCancel(),
+  BA1238.instant(),
+  DASH,
+  FBA6,
   Skill37,
-  FBA6.holdCancel(),
-  ScarletCoda.mashCancel(),
-  Liberation31.mashSwap(),
+  FBA6,
+  ScarletCoda,
+  Liberation31,
   Outro41
 ]);
 var PHRO_5FBA = new Rotation([
   SWAPIN,
-  BA2310.hitCancel(),
+  BA2310.firstHit(),
   NM_HECATE,
-  FBA6.instaDash(),
-  BA1238.hitDash(),
-  FBA6.instaCancel(),
+  FBA6,
+  DASH,
+  BA1238.firstHit(),
+  DASH,
+  FBA6,
   Skill37,
-  FBA6.holdCancel(),
-  ScarletCoda.mashCancel(),
-  Liberation31.mashSwap(),
+  FBA6,
+  ScarletCoda,
+  Liberation31,
   Outro41,
   Intro38,
   EIntro5,
-  BA339.instaDash(),
-  FBA6.instaDash(),
-  BA1238.instaDash(),
-  FBA6.instaDash(),
-  BA1238.instaDash(),
-  FBA6.instaCancel(),
+  BA339.instant(),
+  DASH,
+  FBA6,
+  DASH,
+  BA1238.instant(),
+  DASH,
+  FBA6,
+  DASH,
+  BA1238.instant(),
+  DASH,
+  FBA6,
   NM_HECATE,
-  BA1238.instaDash(),
-  FBA6.instaCancel(),
+  BA1238.instant(),
+  DASH,
+  FBA6,
   Skill37,
-  FBA6.holdCancel(),
-  ScarletCoda.mashCancel(),
-  Liberation31.mashSwap(),
+  FBA6,
+  ScarletCoda,
+  Liberation31,
   Outro41
 ]);
 var PHRO_5FBA_S2 = new Rotation([
   SWAPIN,
-  BA2310.instaCancel(),
+  BA2310.instant(),
   NM_HECATE,
-  FBA6.instaDash(),
-  BA1238.instaDash(),
-  FBA6.instaCancel(),
+  FBA6,
+  DASH,
+  BA1238.instant(),
+  DASH,
+  FBA6,
   Skill37,
-  FBA6.holdCancel(),
-  ScarletCoda.mashCancel(),
-  Liberation31.mashSwap(),
+  FBA6,
+  ScarletCoda,
+  Liberation31,
   Outro41,
   Intro38,
   EIntro5,
-  BA339.instaDash(),
-  FBA6.instaDash(),
-  BA1238.instaDash(),
-  FBA6.instaDash(),
-  BA1238.instaDash(),
-  FBA6.instaCancel(),
+  BA339.instant(),
+  DASH,
+  FBA6,
+  DASH,
+  BA1238.instant(),
+  DASH,
+  FBA6,
+  DASH,
+  BA1238.instant(),
+  DASH,
+  FBA6,
   NM_HECATE,
-  BA1238.instaDash(),
-  FBA6.instaCancel(),
+  BA1238.instant(),
+  DASH,
+  FBA6,
   Skill37,
-  FBA6.holdCancel(),
-  ScarletCoda.mashCancel(),
-  Liberation31.mashSwap(),
+  FBA6,
+  ScarletCoda,
+  Liberation31,
   Outro41
 ]);
 var PHRO_12s = new Loadout({
@@ -36282,41 +36721,23 @@ var FBA1233 = new ActionGroup("Forte Basic - Phantom Sting 123", [FBA15, FBA25, 
 var BA1239 = new ActionGroup("Basic - Illusion Collapse 123", [BA144, BA243, BA340]);
 var CA_ROTATION = new Rotation([
   Intro39,
-  BA340.cancel(),
-  Skill38.instaCancel(),
-  LORELEI.dashCancel(),
-  FALLACY.instaCancel(),
-  HERON.instaDash(),
-  HECATE.instaCancel(),
-  NM_CROWNLESS.instaDash(),
+  BA340,
+  Skill38.instant(),
+  LORELEI,
+  DASH,
+  FALLACY.instant(),
+  HERON.instant(),
+  DASH,
+  HECATE.instant(),
+  NM_CROWNLESS.instant(),
+  DASH,
   Liberation32,
   EHA5,
-  FBA15.mashCancel(),
+  FBA15,
   ESkill5,
   FBA15,
-  FBA25.mashCancel(),
+  FBA25.firstHit(),
   FSkill11,
-  FBA15,
-  FBA25.instaSwap(),
-  Outro42
-]);
-var CA_ROTATION_MDPS = new Rotation([
-  Intro39,
-  BA340.cancel(),
-  Skill38.instaCancel(),
-  LORELEI.dashCancel(),
-  FALLACY.instaCancel(),
-  HERON,
-  HECATE.instaCancel(),
-  NM_CROWNLESS,
-  Liberation32,
-  EHA5,
-  FBA1233.cancel(),
-  FSkill11,
-  NM_CROWNLESS.instaDash(),
-  ESkill5,
-  // TODO check if fskill cancelled by echo
-  FBA1233,
   Outro42
 ]);
 var CANTARELLA = new Loadout({
@@ -36345,30 +36766,6 @@ var CANTARELLA = new Loadout({
   // an ER 3-cost is on the table as a support: her Liberation is what the team is waiting on, and
   // the rolls it frees off the spread often outweigh the elemental bonus it gives up
   rotation: CA_ROTATION,
-  sequences: CA_SEQUENCES
-});
-var CANTARELLA_MDPS = new Loadout({
-  id: 16072,
-  resonator: CANTARELLA_RESONATOR,
-  weapons: [WHISPERS_OF_SIRENS, COSMIC_RIPPLES, NEW_STD_RECTIFIER, STRINGMASTER, LETHEAN_ELEGY, RIME_DRAPED_SPROUTS, AUGMENT, RADIANT_DAWN],
-  echoes: new Echoes({
-    sets: [
-      new EchoLoadout(NM_CROWNLESS_MAINSLOT, HAVOC_ECLIPSE_5PC)
-    ],
-    mainstats: mainstatOptions(
-      0,
-      1,
-      5,
-      6,
-      14,
-      15
-      /* Mainstat.ATK1 */
-    ),
-    substats: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Skill),
-    highSubstats: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Skill, Substat.Heavy)
-  }),
-  // same ER 3-cost her support build carries: her own bar wants more than a spread holds
-  rotation: { 1: CA_ROTATION_MDPS },
   sequences: CA_SEQUENCES
 });
 
@@ -36919,36 +37316,38 @@ var CHISA_RESONATOR = new Resonator({
 var CS_ROTATION = new Rotation([
   SWAPIN,
   BA145,
-  BA244.cancel(),
+  BA244,
   Skill39,
   RendingLunge,
   DeathSnip,
   Spread2,
-  ThreadWithdrawn.instaCancel(),
-  THRENODIAN_LEVIATHAN.instaCancel(),
-  FALLACY.instaCancel(),
-  HERON.instaDash(),
-  BELL_BORNE_GEOCHELONE.instaCancel(),
+  ThreadWithdrawn,
+  THRENODIAN_LEVIATHAN,
+  FALLACY.instant(),
+  HERON.instant(),
+  DASH,
+  BELL_BORNE_GEOCHELONE,
   Liberation33,
   SerratedLoop,
   Blitz2Hold,
   Blitz3Hold,
-  Eradication.instaSwap(),
+  Eradication.instant(),
   Outro43,
   Intro40,
   Skill39,
   RendingLunge,
   DeathSnip,
   Spread2,
-  THRENODIAN_LEVIATHAN.instaCancel(),
-  FALLACY.instaCancel(),
-  HERON.instaDash(),
-  BELL_BORNE_GEOCHELONE.instaCancel(),
+  THRENODIAN_LEVIATHAN,
+  FALLACY.instant(),
+  HERON.instant(),
+  DASH,
+  BELL_BORNE_GEOCHELONE,
   Liberation33,
   SerratedLoop,
   Blitz2Hold,
   Blitz3Hold,
-  Eradication.instaSwap(),
+  Eradication.instant(),
   Outro43
 ]);
 var CS_ECHOES = [
@@ -37331,16 +37730,16 @@ var Sanguine123 = new ActionGroup("Skill - Sanguine Pulse 123", [SanguinePulse1,
 var Forte12 = new ActionGroup("Forte Heavy - Chaoscleave + Scatterbloom", [Chaoscleave, Scatterbloom]);
 var DJ_ROTATION = new Rotation([
   Intro41,
-  Crimson12.cancel(),
+  Crimson12,
   Liberation34,
   CarmineGleam,
   BA12310,
   Sanguine123,
   Forte12,
-  NM_HERON.instaSwap(),
-  HERON.instaSwap(),
-  FALLACY.instaSwap(),
-  CROWNLESS_1.instaSwap(),
+  NM_HERON.instant(),
+  HERON.instant(),
+  FALLACY.instant(),
+  CROWNLESS_1,
   Outro44
 ]);
 var DANJIN = new Loadout({
@@ -37660,56 +38059,61 @@ var FBA1235 = new ActionGroup("Forte Basic - Real Fantasy 123", [FBA16, FBA26, F
 var FBA123Success = new ActionGroup("Forte Basic - Real Fantasy 123 (Success)", [FBA16, FBA26, FBA3Success]);
 var RC_ROTATION = new Rotation([
   SWAPIN,
-  BA12349.cancel(),
+  BA12349,
   Liberation35,
-  Skill40.instaDash(),
+  Skill40.instant(),
+  DASH,
   JUMP,
   FBA1235,
-  NM_HERON.instaSwap(),
-  HERON.instaSwap(),
-  BELL_BORNE_GEOCHELONE.instaSwap(),
-  NM_CROWNLESS.instaSwap(),
+  NM_HERON.instant(),
+  HERON.instant(),
+  BELL_BORNE_GEOCHELONE,
+  NM_CROWNLESS,
   Outro45,
   Intro42,
-  BA432.cancel(),
+  BA432,
   Liberation35,
-  Skill40.instaDash(),
+  Skill40.instant(),
+  DASH,
   JUMP,
   FBA1235,
-  NM_HERON.instaSwap(),
-  HERON.instaSwap(),
-  BELL_BORNE_GEOCHELONE.instaSwap(),
-  NM_CROWNLESS.instaSwap(),
+  NM_HERON.instant(),
+  HERON.instant(),
+  BELL_BORNE_GEOCHELONE,
+  NM_CROWNLESS,
   Outro45
 ]);
 var RC_ROTATION_S1 = new Rotation([
   SWAPIN,
   BA12311,
-  Skill40.instaDash(),
+  Skill40.instant(),
+  DASH,
   JUMP,
   FBA1235,
   Liberation35,
-  NM_HERON.instaSwap(),
-  HERON.instaSwap(),
-  BELL_BORNE_GEOCHELONE.instaSwap(),
-  NM_CROWNLESS.instaSwap(),
+  NM_HERON.instant(),
+  HERON.instant(),
+  BELL_BORNE_GEOCHELONE,
+  NM_CROWNLESS,
   Outro45,
   Intro42,
-  Skill40.instaDash(),
+  Skill40.instant(),
+  DASH,
   JUMP,
   FBA1235,
   Liberation35,
-  NM_HERON.instaSwap(),
-  HERON.instaSwap(),
-  BELL_BORNE_GEOCHELONE.instaSwap(),
-  NM_CROWNLESS.instaSwap(),
+  NM_HERON.instant(),
+  HERON.instant(),
+  BELL_BORNE_GEOCHELONE,
+  NM_CROWNLESS,
   Outro45
 ]);
 var RC_ROTATION_S6_MDPS = new Rotation([
   Intro42,
-  BA432.cancel(),
+  BA432,
   Liberation35,
-  Skill40.instaDash(),
+  Skill40.instant(),
+  DASH,
   JUMP,
   FBA123Success,
   RealityRecreation,
@@ -38384,38 +38788,40 @@ var BA_A1234 = new ActionGroup("Basic - Azure Sword Stance 1234", [BA_A1, BA_A2,
 var HiB123 = new ActionGroup("Forte Basic: Havoc in Bloom 123", [HiB1, HiB2, HiB3]);
 var XUANLING_ROTATION = new Rotation([
   START_LAST,
-  BA_A1.instaCancel(),
-  SwitchFeather.instaSwap(),
+  BA_A1.instant(),
+  SwitchFeather.instant(),
+  SWAP,
   // start in feather stance, so the first cast is a switch to Azure
   IntroFeather.inLastSlot(),
-  BA_F1234.cancel(),
-  FlowAzure.holdCancel(),
-  HeavyAzure.cancel(),
+  BA_F1234,
+  FlowAzure,
+  HeavyAzure,
   Lib5,
-  FlowFeather.cancel(),
+  FlowFeather,
   THOUSAND_PUPPET_PAVILION,
   HeavyFeather,
   FeatherFall,
-  HiB123.swapCancel(),
+  HiB123,
   Outro46
 ]);
 var XUANLING_ROTATION_S2 = new Rotation([
   START_LAST,
-  BA_A1.instaCancel(),
+  BA_A1.instant(),
   HeavyAzure,
-  BA_A1.instaCancel(),
-  SwitchFeather.instaSwap(),
+  BA_A1.instant(),
+  SwitchFeather.instant(),
+  SWAP,
   // start in feather stance, so the first cast is a switch to Azure
   IntroFeather.inLastSlot(),
-  BA_F1234.cancel(),
-  FlowAzure.holdCancel(),
-  HeavyAzure.cancel(),
+  BA_F1234,
+  FlowAzure,
+  HeavyAzure,
   Lib5,
-  FlowFeather.cancel(),
+  FlowFeather,
   THOUSAND_PUPPET_PAVILION,
   HeavyFeather,
   FeatherFall,
-  HiB123.swapCancel(),
+  HiB123,
   Outro46
 ]);
 var XUANLING_ECHOES = [
@@ -38843,48 +39249,48 @@ var BA1211 = new ActionGroup("Basic - Mend and Cleanse 12", [BA148, BA247]);
 var BA12312 = new ActionGroup("Basic - Mend and Cleanse 123", [BA148, BA247, BA348]);
 var SL_ROTATION = new Rotation([
   SWAPIN,
-  BA1211.cancel(),
+  BA1211,
   SkillPhantasm,
   BA148,
-  WovenPhantasm.holdCancel(),
-  PhantasmsEnd.cancel(),
-  FALLACY.instaCancel(),
-  FORMRENDER.instaCancel(),
-  SPACETREK_EXPLORER.instaCancel(),
-  Liberation36.mashSwap(),
+  WovenPhantasm.firstHit(),
+  PhantasmsEnd,
+  FALLACY.instant(),
+  FORMRENDER.instant(),
+  SPACETREK_EXPLORER.instant(),
+  Liberation36.instant(),
   Outro47,
   // ba3 c skill is barely faster than skill ba1
   IntroEternalPhantasm,
-  BA348.cancel(),
+  BA348,
   SkillFairytale,
-  WovenFairytale.holdCancel(),
-  FairytalesFinale.cancel(),
-  FALLACY.instaCancel(),
-  FORMRENDER.instaCancel(),
-  SPACETREK_EXPLORER.instaCancel(),
-  Liberation36.mashSwap(),
+  WovenFairytale.firstHit(),
+  FairytalesFinale,
+  FALLACY.instant(),
+  FORMRENDER.instant(),
+  SPACETREK_EXPLORER.instant(),
+  Liberation36.instant(),
   Outro47,
   IntroEternalFairytale,
-  BA348.cancel(),
+  BA348,
   SkillPhantasm,
-  WovenPhantasm.holdCancel(),
-  PhantasmsEnd.cancel(),
-  FALLACY.instaCancel(),
-  FORMRENDER.instaCancel(),
-  SPACETREK_EXPLORER.instaCancel(),
-  Liberation36.mashSwap(),
+  WovenPhantasm.firstHit(),
+  PhantasmsEnd,
+  FALLACY.instant(),
+  FORMRENDER.instant(),
+  SPACETREK_EXPLORER.instant(),
+  Liberation36.instant(),
   Outro47,
   // unenhanced intro, untested
   IntroBase,
   BA348,
-  BA433.cancel(),
+  BA433,
   SkillPhantasm,
-  WovenPhantasm.holdCancel(),
-  PhantasmsEnd.cancel(),
-  FALLACY.instaCancel(),
-  FORMRENDER.instaCancel(),
-  SPACETREK_EXPLORER.instaCancel(),
-  Liberation36.mashSwap(),
+  WovenPhantasm.firstHit(),
+  PhantasmsEnd,
+  FALLACY.instant(),
+  FORMRENDER.instant(),
+  SPACETREK_EXPLORER.instant(),
+  Liberation36.instant(),
   Outro47
 ]);
 var LILY = new Loadout({
@@ -39334,16 +39740,19 @@ var LYNAE_RESONATOR = new Resonator({
 });
 var PolychromeLeap123 = new ActionGroup("Forte - Polychrome Leap 123", [PolychromeLeap1, PolychromeLeap2, PolychromeLeap3]);
 var LY_ROTATION = new Rotation([
-  Intro43.mashCancel(),
-  Skill41.cancel(),
-  VOIDWING_MOTH.instaDash(),
-  HYVATIA.instaCancel(),
-  HERON.instaDash(),
-  STONEWALL_BRACER_1.instaDash(),
+  Intro43,
+  Skill41,
+  VOIDWING_MOTH.instant(),
+  DASH,
+  HYVATIA.instant(),
+  HERON.instant(),
+  DASH,
+  STONEWALL_BRACER_1.instant(),
+  DASH,
   Liberation37,
-  SparkCollision.cancel(),
+  SparkCollision,
   PolychromeLeap123,
-  VisualImpact.cancel(),
+  VisualImpact,
   Outro48
 ]);
 var LYNAE_RUPTURE = build2(MODE_RUPTURE2);
@@ -39540,6 +39949,7 @@ var libHit = (mv, offtune) => [{ hitFrame: 186, mv, offtune, updateDebuffs: () =
 } }];
 var LibPlain = phoebeAction("Liberation - Dawn of Enlightenment", {
   input: 4,
+  position: 0,
   animFrames: 220,
   castPriority: 10,
   timestop: [0, 220],
@@ -39649,10 +40059,10 @@ var SILENT_PRAYER_S2 = new Buff({
   ]]
 });
 var PHOEBE_S1 = new Sequence({ name: "Phoebe S1: Warm Light and Bedside Wishes" });
-var LibAbsolution = LibPlain.variant("Liberation - Dawn of Enlightenment (Absolution)", { inputPriority: 2, holds: ABSOLUTION, lacks: PHOEBE_S1, bullets: libHit(142567, 84e3) });
-var LibAbsolutionS1 = LibPlain.variant("Liberation - Dawn of Enlightenment (Absolution S1)", { inputPriority: 2, holds: [ABSOLUTION, PHOEBE_S1], bullets: libHit(232926, 48e3) });
-var LibConfession = LibPlain.variant("Liberation - Dawn of Enlightenment (Confession)", { inputPriority: 1, holds: CONFESSION, lacks: PHOEBE_S1 });
-var LibConfessionS1 = LibPlain.variant("Liberation - Dawn of Enlightenment (Confession S1)", { inputPriority: 1, holds: [CONFESSION, PHOEBE_S1], bullets: libHit(76304, 84e3) });
+var LibAbsolution = LibPlain.variant("Liberation - Dawn of Enlightenment (Absolution)", { inputPriority: 2, position: 0, holds: ABSOLUTION, lacks: PHOEBE_S1, bullets: libHit(142567, 84e3) });
+var LibAbsolutionS1 = LibPlain.variant("Liberation - Dawn of Enlightenment (Absolution S1)", { inputPriority: 2, position: 0, holds: [ABSOLUTION, PHOEBE_S1], bullets: libHit(232926, 48e3) });
+var LibConfession = LibPlain.variant("Liberation - Dawn of Enlightenment (Confession)", { inputPriority: 1, position: 0, holds: CONFESSION, lacks: PHOEBE_S1 });
+var LibConfessionS1 = LibPlain.variant("Liberation - Dawn of Enlightenment (Confession S1)", { inputPriority: 1, position: 0, holds: [CONFESSION, PHOEBE_S1], bullets: libHit(76304, 84e3) });
 var PHOEBE_S2 = new Sequence({ name: "Phoebe S2: A Boat Adrift in Tears" });
 var PHOEBE_S3 = new Sequence({
   name: "Phoebe S3: Daisy Wreaths and Dreams",
@@ -39754,42 +40164,56 @@ var PHOEBE_RESONATOR = new Resonator({
 var PHOEBE_CONFESSION_ROTATION = new Rotation([
   // leading, she has no Intro's 10 Concerto: one more chains make up the OUTRO's 100
   SWAPIN,
-  BA150.instaCancel(),
-  SkillConf.instaCancel(),
+  BA150.instant(),
+  SkillConf,
   Liberation38,
-  Skill43.instaDash(),
-  CBA123.instaDash(),
+  Skill43,
+  DASH,
+  CBA123,
+  DASH,
   Starflash,
-  CBA123.instaDash(),
-  CBA123.instaDash(),
-  Starflash.cancel(),
-  HERON.instaCancel(),
+  CBA123,
+  DASH,
+  CBA123,
+  DASH,
+  Starflash,
+  HERON.instant(),
   Outro49,
-  Intro44.mashCancel(),
+  Intro44,
   Liberation38,
-  SkillConf.instaDash(),
-  Skill43.instaDash(),
-  CBA123.instaDash(),
+  SkillConf,
+  DASH,
+  Skill43,
+  DASH,
+  CBA123,
+  DASH,
   Starflash,
-  CBA123.instaDash(),
-  Starflash.cancel(),
-  HERON.instaCancel(),
+  CBA123,
+  DASH,
+  Starflash,
+  HERON.instant(),
   Outro49
 ]);
 var PHOEBE_ABSOLUTION_ROTATION = new Rotation([
-  Intro44.mashCancel(),
-  CAPITANEUS.instaCancel(),
+  Intro44,
+  CAPITANEUS.instant(),
   Liberation38,
-  HeavyAbs.instaDash(),
-  Skill43.instaDash(),
-  CBA123.instaDash(),
+  HeavyAbs,
+  DASH,
+  Skill43,
+  DASH,
+  CBA123,
+  DASH,
   Starflash,
-  CBA123.instaDash(),
+  CBA123,
+  DASH,
   Starflash,
-  CBA123.instaDash(),
+  CBA123,
+  DASH,
   Starflash,
-  CBA123.instaDash(),
-  Starflash.cancel(),
+  CBA123,
+  DASH,
+  Starflash,
   Outro49
 ]);
 var PHOEBE_BUILD = {
@@ -40039,18 +40463,18 @@ var SPR_ROTATION = new Rotation([
   HA1232,
   HA1232,
   FSkill13,
-  FALLACY.instaSwap(),
-  HERON.instaSwap(),
+  FALLACY.instant(),
+  HERON.instant(),
   Outro50,
   Intro45,
   FSkill13,
-  FBA7.cancel(),
+  FBA7,
   Liberation39,
   HA1232,
   HA1232,
   FSkill13,
-  FALLACY.instaSwap(),
-  HERON.instaSwap(),
+  FALLACY.instant(),
+  HERON.instant(),
   Outro50
 ]);
 var ROVER_SPECTRO = new Loadout({
@@ -40367,43 +40791,47 @@ var BA2311 = new ActionGroup("Basic - Origin Calculus 23", [BA251, BA352]);
 var BA1212 = new ActionGroup("Basic - Origin Calculus 12", [BA152, BA251]);
 var SK_LOOP = new Rotation([
   SWAPIN,
-  BA1212.cancel(),
-  FALLACY.instaCancel(),
-  SPACETREK_EXPLORER.instaCancel(),
-  FORMRENDER.instaCancel(),
+  BA1212,
+  FALLACY.instant(),
+  SPACETREK_EXPLORER.instant(),
+  FORMRENDER.instant(),
   Liberation40,
-  BA12313.jumpCancel(),
+  BA12313,
+  JUMP,
   FMA4,
-  BA2311.cancel(),
+  BA2311,
   Skill45,
-  BA251.holdCancel(),
-  FHA17.instaJump(),
-  MA55.instaSwap(),
+  BA251.firstHit(),
+  FHA17,
+  JUMP,
+  MA55.instant(),
   Outro51,
   Intro46,
   EIntro7,
-  BA1212.cancel(),
-  Skill45.cancel(),
-  FALLACY.instaCancel(),
-  SPACETREK_EXPLORER.instaCancel(),
-  FORMRENDER.instaCancel(),
+  BA1212,
+  Skill45,
+  FALLACY.instant(),
+  SPACETREK_EXPLORER.instant(),
+  FORMRENDER.instant(),
   Liberation40,
   // Illation's butterflies land after the swap, into the next Intro's Concerto
-  BA1212.holdCancel(),
-  FHA17.instaJump(),
-  MA55.instaSwap(),
+  BA1212.firstHit(),
+  FHA17,
+  JUMP,
+  MA55.instant(),
   Outro51,
   // a first arrival with no opener before it carries no forte in: Basic 3 makes up the 1
   Intro46.firstIntro(),
-  BA12313.cancel(),
-  Skill45.cancel(),
-  FALLACY.instaCancel(),
-  SPACETREK_EXPLORER.instaCancel(),
-  FORMRENDER.instaCancel(),
+  BA12313,
+  Skill45,
+  FALLACY.instant(),
+  SPACETREK_EXPLORER.instant(),
+  FORMRENDER.instant(),
   Liberation40,
-  BA1212.holdCancel(),
-  FHA17.instaJump(),
-  MA55.instaSwap(),
+  BA1212.firstHit(),
+  FHA17,
+  JUMP,
+  MA55.instant(),
   Outro51
 ]);
 var SHOREKEEPER = new Loadout({
@@ -40641,44 +41069,48 @@ var VERINA_RESONATOR = new Resonator({
 var BA3452 = new ActionGroup("Basic - Cultivation 345", [BA353, BA436, BA56]);
 var VR_LOOP = new Rotation([
   SWAPIN,
-  BA3452.cancel(),
+  BA3452,
   Liberation41,
-  Skill46.jumpCancel(),
+  Skill46,
+  JUMP,
   ForteMidair1,
   ForteMidair2,
-  FALLACY.instaSwap(),
-  SPACETREK_EXPLORER.instaSwap(),
-  FORMRENDER.instaSwap(),
+  FALLACY.instant(),
+  SPACETREK_EXPLORER.instant(),
+  FORMRENDER.instant(),
   Outro52,
   Intro47,
   Liberation41,
-  Skill46.jumpCancel(),
+  Skill46,
+  JUMP,
   ForteMidair1,
   ForteMidair2,
-  FALLACY.instaSwap(),
-  SPACETREK_EXPLORER.instaSwap(),
-  FORMRENDER.instaSwap(),
+  FALLACY.instant(),
+  SPACETREK_EXPLORER.instant(),
+  FORMRENDER.instant(),
   Outro52
 ]);
 var VR_S2 = new Rotation([
   SWAPIN,
-  BA353.instaCancel(),
+  BA353.instant(),
   Liberation41,
-  Skill46.jumpCancel(),
+  Skill46,
+  JUMP,
   ForteMidair1,
   ForteMidair2,
-  FALLACY.instaSwap(),
-  SPACETREK_EXPLORER.instaSwap(),
-  FORMRENDER.instaSwap(),
+  FALLACY.instant(),
+  SPACETREK_EXPLORER.instant(),
+  FORMRENDER.instant(),
   Outro52,
   Intro47,
   Liberation41,
-  Skill46.jumpCancel(),
+  Skill46,
+  JUMP,
   ForteMidair1,
   ForteMidair2,
-  FALLACY.instaSwap(),
-  SPACETREK_EXPLORER.instaSwap(),
-  FORMRENDER.instaSwap(),
+  FALLACY.instant(),
+  SPACETREK_EXPLORER.instant(),
+  FORMRENDER.instant(),
   Outro52
 ]);
 var VERINA = new Loadout({
@@ -40947,19 +41379,19 @@ var BA1213 = new ActionGroup("Basic - Destined Promise 12", [BA154, BA253]);
 var BZ_ROTATION = new Rotation([
   // opener: Ultimate, Skill and a Heavy off Basic 2s, swapping out as the Heavy's Concerto lands
   SWAPIN,
-  BA1213.cancel(),
+  BA1213,
   Liberation42,
-  BA1213.cancel(),
+  BA1213,
   Skill47,
-  BA1213.cancel(),
-  HA42.instaSwap(),
+  BA1213,
+  HA42.instant(),
   Outro53,
   // loop
   Intro48,
-  BA1213.cancel(),
+  BA1213,
   Liberation42,
-  BA12314.cancel(),
-  Skill47.swapCancel(),
+  BA12314,
+  Skill47,
   Outro53
 ]);
 var BAIZHI = new Loadout({
@@ -41356,10 +41788,10 @@ var ZANI_ROTATION = new Rotation([
   TargetedAction,
   Lib18,
   UBA1236,
-  UBA1236.cancel(),
+  UBA1236,
   Lib27,
-  CAPITANEUS.instaSwap(),
-  NM_MOURNING_AIX.instaSwap(),
+  CAPITANEUS.instant(),
+  NM_MOURNING_AIX.instant(),
   Outro54
 ]);
 var ZANI_ROTATION_S6 = new Rotation([
@@ -41370,10 +41802,10 @@ var ZANI_ROTATION_S6 = new Rotation([
   Lib18,
   UBA1236,
   UBA1236,
-  UBA1236.cancel(),
+  UBA1236,
   Lib27,
-  CAPITANEUS.instaSwap(),
-  NM_MOURNING_AIX.instaSwap(),
+  CAPITANEUS.instant(),
+  NM_MOURNING_AIX.instant(),
   Outro54
 ]);
 var BA155 = zaniAction("Basic - Routine Negotiation 1", { input: 0, position: 0, animFrames: 24, castPriority: 2, node: 0, cast: 1, type: 4096, bullets: [{ hitFrame: 16, mv: 5885, energy: 93, concerto: 185, offtune: 2960, forte1: 5 }] });
@@ -41677,20 +42109,23 @@ var OutroOrSwap = new Action("Outro Or Swap Resolver", { cast: 6, resolve: () =>
 ) });
 var RH_ROTATION = new Rotation([
   START,
-  BA156.instaCancel(),
+  BA156.instant(),
   Liberation43,
-  Skill49.instaSwap(),
+  Skill49.instant(),
+  SWAP,
   Intro50,
   MA58,
   Skill49,
-  NM_CROWNLESS.instaDash(),
+  NM_CROWNLESS,
+  DASH,
   BA12315,
   FHA18,
-  NM_CROWNLESS.instaDash(),
-  EBA12345.cancel(),
+  NM_CROWNLESS,
+  DASH,
+  EBA12345,
   ESkill6,
   Liberation43,
-  EBA12345.swapCancel(),
+  EBA12345,
   OutroOrSwap
 ]);
 var ROVER_HAVOC = new Loadout({
@@ -41719,7 +42154,6 @@ var ROVER_HAVOC = new Loadout({
 var INTERCHANGEABLE = /* @__PURE__ */ new Set([SHOREKEEPER, MORNYE, SUISUI, BULING, VERINA, LILY, BAIZHI]);
 var TEAMS = [
   // suoming mdps, electro basic unison
-  [[SHOREKEEPER], [JINHSI_SUPPORT], SUOMING_MDPS],
   [[SHOREKEEPER, VERINA, BAIZHI, MORNYE, LILY], [SANHUA], SUOMING_MDPS_DOUBLE],
   [[SHOREKEEPER, VERINA, BAIZHI, MORNYE, LILY], [JINHSI_SUPPORT], SUOMING_MDPS],
   [[MORNYE, SHOREKEEPER, VERINA, BAIZHI, LILY], [LYNAE_RUPTURE, REBECCA], SUOMING_MDPS],
@@ -41899,11 +42333,11 @@ var TEAMS = [
   [[LUPA], [BRANT], CHANGLI],
   //[[LUPA], [BRANT], ENCORE],
   // cantarella: havoc basic, echo
-  [[SHOREKEEPER], [SANHUA, ROCCIA], CANTARELLA_MDPS],
-  [[SHOREKEEPER, VERINA, BAIZHI, MORNYE, SUISUI], [SANHUA, ROCCIA], CANTARELLA_MDPS],
-  [[LILY], [SANHUA, ROCCIA], CANTARELLA_MDPS],
-  [[MORNYE], [REBECCA], CANTARELLA_MDPS],
-  [[MORNYE], [LYNAE_RUPTURE], CANTARELLA_MDPS],
+  //[[SHOREKEEPER], [SANHUA, ROCCIA], CANTARELLA_MDPS],
+  //[[SHOREKEEPER, VERINA, BAIZHI, MORNYE, SUISUI], [SANHUA, ROCCIA], CANTARELLA_MDPS],
+  //[[LILY], [SANHUA, ROCCIA], CANTARELLA_MDPS],
+  //[[MORNYE], [REBECCA], CANTARELLA_MDPS],
+  //[[MORNYE], [LYNAE_RUPTURE], CANTARELLA_MDPS],
   // carlotta: glacio skill
   // Baizhi shares too little Energy for Carlotta to fill her bar beside Brant (4 ER rolls wanted)
   [[SHOREKEEPER, BULING, LILY, VERINA, MORNYE, SUISUI], [BRANT], CARLOTTA],
@@ -42655,6 +43089,7 @@ export {
   MV_UNIT,
   statDisplayScale,
   Transition,
+  Timing,
   KIND_OF,
   isSwapTransition,
   INPUT_NAME,

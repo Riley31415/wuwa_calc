@@ -36,7 +36,7 @@ import {
   concerto,
   lacks,
 } from "../../engine/context.js";
-import { Action, Rotation, SWAPIN, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { Action, Rotation, SWAPIN, SUCCESSFUL_DODGE, DASH } from "../../engine/rotation.js";
 import { AERO_EROSION, SPECTRO_FRAZZLE, HAVOC_BANE, FUSION_BURST, GLACIO_CHAFE, ELECTRO_FLARE, HEALS, heal } from "../status.js";
 import { BLOODPACTS_PLEDGE, BLOODPACT_AERO_AMP } from "../../weapons/standard.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
@@ -332,12 +332,12 @@ export const ROVER_AERO_RESONATOR = new Resonator({
 // never the team's own lead, so this covers opener and loop both.
 
 const AR_ROTATION = new Rotation([
-  SWAPIN, BA1.instaCancel(), Skill,
+  SWAPIN, BA1, Skill,
   Intro, Cloudburst1, Cloudburst2, SkyfallSeverance,  MA, BA4,
-  FALLACY.instaCancel(), BELL_BORNE_GEOCHELONE.instaCancel(), HERON.instaDash(), FLEURDELYS.instaCancel(),
+  FALLACY.instant(), BELL_BORNE_GEOCHELONE, HERON.instant(), DASH, FLEURDELYS.instant(),
   Liberation,
   Skill, Cloudburst1, Cloudburst2, MA, BA4,
-  UnboundFlow1, UnboundFlow2.instaSwap(), Outro,
+  UnboundFlow1, UnboundFlow2.instant(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

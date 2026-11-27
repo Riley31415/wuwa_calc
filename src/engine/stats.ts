@@ -211,14 +211,14 @@ export const enum Rarity {
  *  whoever intros next (an outro handoff, `queueOutro`). */
 export const enum BuffTarget { Self, Team, Enemy, Next }
 
-/** Input timings, in frames: how late a precise input lands past its aim, how long a mashed one takes once
- *  the next press can come out, and how long a press is held before it becomes a held input. */
-export interface Delays { precision: number; mash: number; holdBuffer: number }
-let BASE_DELAYS: Delays = { precision: 10, mash: 5, holdBuffer: 17 };
+/** Input timings, in frames: how late a precise input lands past its aim, and how long a press is held before it
+ *  becomes a held input. */
+export interface Delays { precision: number; holdBuffer: number }
+let BASE_DELAYS: Delays = { precision: 10, holdBuffer: 12 };
 /** The set in effect — the defaults, or a rotation's own while its member presses (`useDelays()`) — one
  *  object per set, so a cache made under one can tell it no longer stands; and each of it by name. */
 export let DELAYS: Delays = BASE_DELAYS;
-export let INPUT_PRECISION = BASE_DELAYS.precision, MASH_SPEED = BASE_DELAYS.mash, HOLD_BUFFER = BASE_DELAYS.holdBuffer;
+export let INPUT_PRECISION = BASE_DELAYS.precision, HOLD_BUFFER = BASE_DELAYS.holdBuffer;
 
 /** The defaults with `d` laid over them, a key left undefined keeping its default: a rotation's own set
  *  (`Rotation.withDelays()`). */
@@ -237,7 +237,7 @@ export function useDelays(d: Delays | null): void {
   const at = delaysOf(d);
   if (at === DELAYS) return;
   DELAYS = at;
-  ({ precision: INPUT_PRECISION, mash: MASH_SPEED, holdBuffer: HOLD_BUFFER } = at);
+  ({ precision: INPUT_PRECISION, holdBuffer: HOLD_BUFFER } = at);
 }
 /** `f` with `d` in effect, the set before it put back after: what reads a press's cut after its run (the
  *  page's frames) or ahead of it (a visit planned at a handoff). */
@@ -290,7 +290,7 @@ export enum Transition {
   InstaJump = "instant jump",
   InstaSwap = "instant swap",
 
-  // out the moment the next press can be cast (no sooner than `INPUT_PRECISION`), `MASH_SPEED` later
+  // out the moment the next press can be cast (no sooner than `INPUT_PRECISION`)
   MashCancel = "mash cancel",
   MashDash = "mash dash",
   MashJump = "mash jump",

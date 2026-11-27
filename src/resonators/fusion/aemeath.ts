@@ -70,7 +70,7 @@ import {
   grounded,
   lacks,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, START, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, START, SUCCESSFUL_DODGE, SWAP } from "../../engine/rotation.js";
 import type { BulletDef } from "../../engine/rotation.js";
 import { TUNE_RUPTURE_SHIFTING, TUNE_SHIFTABLE, TUNE_BREAK, applyRupture, tuneRuptureResponse, tuneBreak, SWORD_BREAK, breakWhen } from "../tunebreak.js";
 import { FUSION_BURST, FUSION_BURST_ACTIONS, queueOnApplier } from "../status.js";
@@ -735,39 +735,39 @@ const MBA234 = new ActionGroup("Basic - Mech 234", [MBA2, MBA3, MBA4]);
 const ABA34 = new ActionGroup("Basic - Aemeath 34", [ABA3, ABA4]);
 
 const AE_ROTATION_BURST = new Rotation([
-  Intro, SIGILLUM, ABA34.cancel(), Lib1,
-  MBA234.cancel(), Duet,
-  ABA234.cancel(), Duet,
-  MHA2.cancel(), Lib2,
+  Intro, SIGILLUM, ABA34, Lib1,
+  MBA234, Duet,
+  ABA234, Duet,
+  MHA2, Lib2,
   Outro,
 ]);
 
 // S1: Brilliance stands at the opening, so the Charged II ahead of Overdrive is amplified and
 // hands back the whole 100 Synchronization Rate it would otherwise take a chain to rebuild
 const AE_ROTATION_S1_BURST = new Rotation([
-  START, ABA1.instaCancel(), AHA2.instaSwap(),
+  START, ABA1.instant(), AHA2.instant(), SWAP,
 
-  Intro, SIGILLUM, ABA34.cancel(), Lib1,
-  MBA234.cancel(), Duet,
-  ABA234.cancel(), Duet,
-  MHA2.cancel(), Lib2,
+  Intro, SIGILLUM, ABA34, Lib1,
+  MBA234, Duet,
+  ABA234, Duet,
+  MHA2, Lib2,
   Outro,
 ]);
 
 const AE_ROTATION_RUPTURE = new Rotation([
-  Intro, SIGILLUM, ABA34.cancel(), Lib1,
-  MBA234.cancel(), Duet,
-  ABA234.cancel(), Duet,
-  MHA2.cancel(), Lib2, ABA123.instaSwap(),
+  Intro, SIGILLUM, ABA34, Lib1,
+  MBA234, Duet,
+  ABA234, Duet,
+  MHA2, Lib2, ABA123.firstHit(),
   Outro,
 ]);
 const AE_ROTATION_S1_RUPTURE = new Rotation([
-  START, ABA1.instaCancel(), AHA2.instaSwap(),
+  START, ABA1.instant(), AHA2.instant(), SWAP,
 
-  Intro, SIGILLUM, ABA34.cancel(), Lib1,
-  MBA234.cancel(), Duet,
-  ABA234.cancel(), Duet,
-  MHA2.cancel(), Lib2, ABA123.instaSwap(),
+  Intro, SIGILLUM, ABA34, Lib1,
+  MBA234, Duet,
+  ABA234, Duet,
+  MHA2, Lib2, ABA123.firstHit(),
   Outro,
 ]);
 

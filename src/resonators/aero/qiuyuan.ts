@@ -40,7 +40,7 @@ import {
   lacks,
   grounded,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, START_LAST, SWAPIN } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, START_LAST, SWAPIN, DASH } from "../../engine/rotation.js";
 import { EMERALD_SENTENCE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
@@ -377,25 +377,25 @@ const EBA34 = new ActionGroup("Basic - Thus Spoke the Blade: Inkwash 34", [EBA3,
 
 const QY_ROTATION = new Rotation([
 
-  SWAPIN, BA1.instaCancel(),
-  HA, EBA4.instaCancel(),
-  FENRICO.instaCancel(), HERON.instaDash(), BELL_BORNE_GEOCHELONE.instaCancel(), FALLACY.instaCancel(),
-  Liberation, HA, EBA4.instaDash(),
-  EBA12.instaDash(), EBA12.holdCancel(),
-  FHA123.cancel(),
+  SWAPIN, BA1,
+  HA, EBA4,
+  FENRICO.instant(), HERON.instant(), DASH, BELL_BORNE_GEOCHELONE, FALLACY.instant(),
+  Liberation, HA, EBA4, DASH,
+  EBA12.instant(), DASH, EBA12.instant(),
+  FHA123,
   Outro,
 
   /* 
-  Intro,SkillHold.instaCancel(),
-  FENRICO.instaCancel(), HERON.instaDash(), BELL_BORNE_GEOCHELONE.instaCancel(), FALLACY.instaCancel(),
-  Liberation,  EBA12.holdCancel(),
-  FHA123.cancel(),
+  Intro,SkillHold.instant(),
+  FENRICO.instant(), HERON.instant(), DASH, BELL_BORNE_GEOCHELONE, FALLACY.instant(),
+  Liberation,  EBA12.instant(),
+  FHA123,
   */
 
-  Intro, EBA34.instaCancel(),
-  FENRICO.instaCancel(), HERON.instaDash(), BELL_BORNE_GEOCHELONE.instaCancel(), FALLACY.instaCancel(),
-  Liberation, SkillHold.cancel(),
-  FHA123.cancel(),
+  Intro, EBA34,
+  FENRICO.instant(), HERON.instant(), DASH, BELL_BORNE_GEOCHELONE, FALLACY.instant(),
+  Liberation, SkillHold,
+  FHA123,
   Outro,
 ]);
 
@@ -404,19 +404,19 @@ const QY_ROTATION = new Rotation([
  *  Outro that follows is Sheath Fallen. The opener has no full bar before its first Outro, so it
  *  stays as it is. */
 const QY_ROTATION_MDPS = new Rotation([
-  Intro, EBA34.instaCancel(), FENRICO, HERON, BELL_BORNE_GEOCHELONE, FALLACY, SkillHold.holdCancel(),
+  Intro, EBA34, FENRICO, HERON, BELL_BORNE_GEOCHELONE, FALLACY, SkillHold.instant(),
   FHA123,
-  HA, EBA4.holdCancel(), Liberation, HA, EBA4.instaDash(),
-  EBA12.instaDash(), EBA12.holdCancel(),
-  FHA123.cancel(),
+  HA, EBA4, Liberation, HA, EBA4, DASH,
+  EBA12.instant(), DASH, EBA12.instant(),
+  FHA123,
   Outro,
 ]);
 
 const QY_ROTATION_MDPS_S3 = new Rotation([
-  Intro, EBA34.instaCancel(), FENRICO, HERON, BELL_BORNE_GEOCHELONE, FALLACY, SkillHold.holdCancel(),
-  FHA123.cancel(), Liberation,
-  StrawCape, EBA34.holdCancel(),
-  FHA123.cancel(),
+  Intro, EBA34, FENRICO, HERON, BELL_BORNE_GEOCHELONE, FALLACY, SkillHold.instant(),
+  FHA123, Liberation,
+  StrawCape, EBA34,
+  FHA123,
   OutroS3,
 ]);
 

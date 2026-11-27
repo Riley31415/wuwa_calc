@@ -74,7 +74,7 @@ import {
   midair,
   grounded,
 } from "../../engine/context.js";
-import { ActionGroup, Action, ActionField, Cooldown, Rotation, START_LAST, SWAP, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, ActionField, Cooldown, Rotation, START_LAST, SWAP, SUCCESSFUL_DODGE, DASH } from "../../engine/rotation.js";
 import { GLACIO_CHAFE, GLACIO_CHAFE_ACTIONS, OWN_CHAFE_RUNGS } from "../status.js";
 import { FREEZE_FRAME, STRINGMASTER, LETHEAN_ELEGY } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
@@ -446,14 +446,14 @@ const LC_SEQUENCES = [LC_S1, LC_S2, LC_S3, LC_S4, LC_S5, LC_S6];
 const UBA123 = new ActionGroup("Basic - Tracing Forms 123", [UBA1, UBA2, UBA3]);
 
 const LC_ROTATION = new Rotation([
-  Intro.holdCancel(), Spotlight, Liberation,
-  UBA123, LettingGo, BELL_BORNE_GEOCHELONE.instaSwap(), HERON.instaSwap(), FALLACY.instaSwap(), GLOMMOTH.instaSwap(), Outro,
+  Intro, Spotlight, Liberation,
+  UBA123, LettingGo, BELL_BORNE_GEOCHELONE, HERON.instant(), FALLACY.instant(), GLOMMOTH.instant(), Outro,
 
-  START_LAST, BA1.instaCancel(), Spotlight, SWAP,
+  START_LAST, BA1.instant(), Spotlight, SWAP,
 
-  Intro.inLastSlot().mashCancel(),
-  BELL_BORNE_GEOCHELONE.instaCancel(), HERON.instaDash(), FALLACY.instaCancel(), GLOMMOTH.instaCancel(),
-  Liberation, UBA123, LettingGo, BA1.instaCancel(),
+  Intro.inLastSlot(),
+  BELL_BORNE_GEOCHELONE, HERON.instant(), DASH, FALLACY.instant(), GLOMMOTH.instant(),
+  Liberation, UBA123, LettingGo, BA1.instant(),
   Spotlight,
   Outro,
 ]);

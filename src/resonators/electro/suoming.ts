@@ -71,7 +71,7 @@ import {
   concerto,
   grounded,
 } from "../../engine/context.js";
-import { Action, ActionField, ActionGroup, Rotation, SWAPIN, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { Action, ActionField, ActionGroup, Rotation, SWAPIN, SUCCESSFUL_DODGE, DASH, SWAP } from "../../engine/rotation.js";
 import { tuneBreak, SWORD_BREAK } from "../tunebreak.js";
 import { NINE_SHADOWS, UNISON, UNISON_BOON, BOON_REACTOR, grantBoon, takeBoon, respondToUnison, unisonIntro, unisonOutro, unisonResponse, UNISON_HANDOFF } from "../unison.js";
 import { RED_SPRING, UNSPOKEN_RUE } from "../../weapons/sword.js";
@@ -567,13 +567,13 @@ const UBA123 = new ActionGroup("Basic - Unfurled Canopy 123", [UBA1, UBA2, UBA3]
 
 const SM_ROTATION = new Rotation([
  
-  SWAPIN, BA12.dashCancel(), BA12.dashCancel(), BA1.dashCancel(), BA1.cancel(), SealedDelusion,
+  SWAPIN, BA12, DASH, BA12, DASH, BA1, DASH, BA1, SealedDelusion,
   IntroFlashRift.doubleIntro(), IntroSealedDelusion.doubleIntro(), IntroThunderRending.doubleIntro(), IntroWhirlingThunder.doubleIntro(),
   Liberation, OutroUnison,
 
   IntroFlashRift, IntroSealedDelusion, IntroThunderRending, IntroWhirlingThunder,
-  UHA2.dashCancel(), UBA12.cancel(),
-  UnforsakenMind, EngravedHeart.mashCancel(), HERON.instaSwap(), SUHSIN.instaSwap(), SOULFRAYER.instaSwap(), Outro,
+  UHA2, DASH, UBA12,
+  UnforsakenMind, EngravedHeart, HERON.instant(), SUHSIN.instant(), SOULFRAYER.instant(), Outro,
 ]);
 
 /** The Seal Master main-DPS loop, the kit's other way to spend a Unison. Her Intro drops her into
@@ -585,31 +585,31 @@ const SM_ROTATION = new Rotation([
  *  loop's Flash Rift is written for. */
 const SM_ROTATION_MDPS = new Rotation([
 
-  IntroFlashRift.mashCancel(), IntroSealedDelusion.mashCancel(), IntroThunderRending.mashCancel(), IntroWhirlingThunder.mashCancel(),
+  IntroFlashRift, IntroSealedDelusion, IntroThunderRending.instant(), IntroWhirlingThunder.instant(),
   Liberation,
-  RiftCleaver.instaDash(),
-  UBA12UHA12.dashCancel(),
-  UBA12UHA12.cancel(),
-  UnforsakenMind, EngravedHeart.mashCancel(), HERON.instaSwap(), SUHSIN.instaSwap(), SOULFRAYER.instaSwap(),
+  RiftCleaver, DASH,
+  UBA12UHA12, DASH,
+  UBA12UHA12,
+  UnforsakenMind, EngravedHeart, HERON.instant(), SUHSIN.instant(), SOULFRAYER.instant(),
   Outro,
 ]);
 const SM_ROTATION_MDPS_SIMPLE = new Rotation([
 
-  IntroFlashRift.mashCancel(), IntroSealedDelusion.mashCancel(), IntroThunderRending.mashCancel(), IntroWhirlingThunder.mashCancel(),
+  IntroFlashRift, IntroSealedDelusion, IntroThunderRending.instant(), IntroWhirlingThunder.instant(),
   Liberation,
   RiftCleaver, UBA3, UBA4, UBA2, UBA3, UBA4,
-  UnforsakenMind, EngravedHeart.mashCancel(), HERON.instaSwap(), SUHSIN.instaSwap(), SOULFRAYER.instaSwap(),
+  UnforsakenMind, EngravedHeart, HERON.instant(), SUHSIN.instant(), SOULFRAYER.instant(),
   Outro,
 ]);
 const SM_ROTATION_MDPS_DOUBLE = new Rotation([
-  IntroFlashRift.doubleIntro(), IntroSealedDelusion.doubleIntro(), IntroThunderRending.doubleIntro(), IntroWhirlingThunder.doubleIntro(), UBA1.instaSwap(),
+  IntroFlashRift.doubleIntro(), IntroSealedDelusion.doubleIntro(), IntroThunderRending.doubleIntro(), IntroWhirlingThunder.doubleIntro(), UBA1.instant(), SWAP,
 
-  IntroFlashRift, IntroSealedDelusion, IntroThunderRending, IntroWhirlingThunder, UHA2.cancel(),
+  IntroFlashRift, IntroSealedDelusion, IntroThunderRending, IntroWhirlingThunder, UHA2,
   Liberation,
-  RiftCleaver.instaDash(),
-  UBA12UHA12.dashCancel(),
-  UBA12UHA12.cancel(),
-  UnforsakenMind, EngravedHeart.mashCancel(), HERON.instaSwap(), SUHSIN.instaSwap(), SOULFRAYER.instaSwap(),
+  RiftCleaver, DASH,
+  UBA12UHA12, DASH,
+  UBA12UHA12,
+  UnforsakenMind, EngravedHeart, HERON.instant(), SUHSIN.instant(), SOULFRAYER.instant(),
   Outro,
 ]);
 

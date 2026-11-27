@@ -92,7 +92,7 @@ import {
   forte2,
   concerto,
 } from "../../engine/context.js";
-import { Action, ActionField, ActionGroup, Rotation, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { Action, ActionField, ActionGroup, Rotation, SUCCESSFUL_DODGE, DASH } from "../../engine/rotation.js";
 import { UNISON, UNISON_BOON, UNISON_RESPONSE, BOON_REACTOR, grantBoon, respondToUnison, unisonIntro, unisonOutro, unisonResponse, UNISON_HANDOFF } from "../unison.js";
 import { ELECTRO_FLARE, ELECTRO_RAGE, FLARE_RETAINED, inflictElectroFlare } from "../status.js";
 import { BLOOMING_JADEHAVEN, FREEZE_FRAME, LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";
@@ -998,31 +998,31 @@ const FBA12 = new ActionGroup("Basic - Illumining Form: Pillars Aligned 12", [FB
  *  kit's state calls for there. */
 
 const HS_ROTATION_FLARE = new Rotation([
-  FlareIntro, BA4.holdCancel(),
-  RealmProtector, SUHSIN_HSIN.instaCancel(), Lib1,
-  IBA1.instaCancel(), ISkill.mashCancel(),
+  FlareIntro, BA4,
+  RealmProtector, SUHSIN_HSIN.instant(), Lib1,
+  IBA1, ISkill,
   //IBA123.instaCancel(), ISkill.holdCancel(),
   PillarsAligned,
   //FBA1234.holdCancel(), FHA,
   //FBA12.dashCancel(), FBA12.dashCancel(), FBA1.holdCancel(),FHA,
-  FBA12.dashCancel(), FBA123.holdCancel(),FHA,
-  Lib2, BA1.instaSwap(), Outro,
+  FBA12, DASH, FBA123.firstHit(),FHA,
+  Lib2, BA1.instant(), Outro,
 ]);
 // her first arrival skips the Stage 4 the loop opens on
 const HS_ROTATION_FLARE_S2 = new Rotation([
   FlareIntro.firstIntro(),
-  RealmProtector, SUHSIN_HSIN.instaCancel(), Lib1,
-  IBA1.instaCancel(), ISkill.mashCancel(),
+  RealmProtector, SUHSIN_HSIN.instant(), Lib1,
+  IBA1, ISkill,
   PillarsAligned,
-  FBA12.dashCancel(), FBA123.holdCancel(),FHA,
-  Lib2, BA1.instaSwap(), Outro,
+  FBA12, DASH, FBA123.firstHit(),FHA,
+  Lib2, BA1.instant(), Outro,
 
-  FlareIntro, BA4.holdCancel(),
-  RealmProtector, SUHSIN_HSIN.instaCancel(), Lib1,
-  IBA1.instaCancel(), ISkill.mashCancel(),
+  FlareIntro, BA4,
+  RealmProtector, SUHSIN_HSIN.instant(), Lib1,
+  IBA1, ISkill,
   PillarsAligned,
-  FBA12.dashCancel(), FBA123.holdCancel(),FHA,
-  Lib2, BA1.instaSwap(), Outro,
+  FBA12, DASH, FBA123.firstHit(),FHA,
+  Lib2, BA1.instant(), Outro,
 ]);
 
 // The Unison-mode loop, Jinhsi's double-Intro shape. The Answering pre-visit: the Intro (its
@@ -1033,27 +1033,27 @@ const HS_ROTATION_FLARE_S2 = new Rotation([
 // Leading, the Intro's 68 Answering Heart and its stages 1-2 are a full chain and then Stage 1-2
 // again, so the section's own Stage 3-4 continue it: 126 Heart into Realm Protector's 100.
 const HS_ROTATION_UNISON = new Rotation([
-  UIntro.doubleIntro(), ManifoldAnswering.doubleIntro(), ManifoldAnsweringSI.doubleIntro(), BA34.holdCancel(),
+  UIntro.doubleIntro(), ManifoldAnswering.doubleIntro(), ManifoldAnsweringSI.doubleIntro(), BA34,
   RealmProtector, Lib1,
-  IBA1.instaCancel(), ISkill.instaSwap(), OutroUnison,
+  IBA1, ISkill, OutroUnison,
 
   ManifoldIllumining, ManifoldIlluminingSI,
-  FBA12.dashCancel(), FBA123.holdCancel(), SUHSIN_HSIN.instaCancel(), FHA,
-  Lib2, Skill.instaSwap(), Outro,
+  FBA12, DASH, FBA123.firstHit(), SUHSIN_HSIN, FHA,
+  Lib2, Skill.instant(), Outro,
 ]);
 // her first pre-visit skips the Stage 3-4 the loop's opens on
 const HS_ROTATION_UNISON_S2 = new Rotation([
   UIntro.firstDoubleIntro(), ManifoldAnswering.firstDoubleIntro(), ManifoldAnsweringSI.firstDoubleIntro(),
   RealmProtector, Lib1,
-  IBA1.instaCancel(), ISkill.instaSwap(), OutroUnison,
+  IBA1, ISkill, OutroUnison,
 
-  UIntro.doubleIntro(), ManifoldAnswering.doubleIntro(), ManifoldAnsweringSI.doubleIntro(), BA34.holdCancel(),
+  UIntro.doubleIntro(), ManifoldAnswering.doubleIntro(), ManifoldAnsweringSI.doubleIntro(), BA34,
   RealmProtector, Lib1,
-  IBA1.instaCancel(), ISkill.instaSwap(), OutroUnison,
+  IBA1, ISkill, OutroUnison,
 
   ManifoldIllumining, ManifoldIlluminingSI,
-  FBA12.dashCancel(), FBA123.holdCancel(), SUHSIN_HSIN.instaCancel(), FHA,
-  Lib2, Skill.instaSwap(), Outro,
+  FBA12, DASH, FBA123.firstHit(), SUHSIN_HSIN, FHA,
+  Lib2, Skill.instant(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

@@ -278,8 +278,8 @@ const ZZ_ROTATION = new Rotation([
   SWAPIN, BA123,
 
   Intro,
-  BA123.cancel(), NM_LAMPY.instaCancel(), HERON.instaDash(), Liberation,
-  Skill, FHA.mashCancel(), FSkill.jumpCancel(), FSkill.jumpCancel(), FSkill3.instaSwap(),
+  BA123, NM_LAMPY.instant(), HERON.instant(), DASH, Liberation,
+  Skill, FHA, FSkill, JUMP, FSkill, JUMP, FSkill3.instant(),
   Outro,
 ]);
 

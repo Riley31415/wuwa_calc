@@ -47,7 +47,7 @@ import {
   concerto,
   lacks,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, START_LAST, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, START_LAST, SUCCESSFUL_DODGE, SWAP, DASH } from "../../engine/rotation.js";
 import type { ActionDef } from "../../engine/rotation.js";
 import { SOLSWORN_CIPHERS } from "../../weapons/gauntlet.js";
 import { NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
@@ -547,20 +547,20 @@ const BA34 = new ActionGroup("Basic - One, Two, Three 34", [BA3, BA4]);
 
 const SR_ROTATION = new Rotation([
   Intro, NAMELESS_EXPLORER,
-  BA234, EBASIC.cancel(), FHA.cancel(), Liberation,
-  BA234_START, EBASIC.cancel(), FHA.holdCancel(), FSkill,
-  Skill, BA34, EBASIC.cancel(),
+  BA234, EBASIC, FHA, Liberation,
+  BA234_START, EBASIC, FHA, FSkill,
+  Skill, BA34, EBASIC,
   Outro,
 ]);
 
 const SR_ROTATION_DOUBLE = new Rotation([
-  START_LAST, BA1.instaCancel(), Liberation,
-  Skill, BA34, EBASIC.instaSwap(),
+  START_LAST, BA1.instant(), Liberation,
+  Skill, BA34, EBASIC.instant(), SWAP,
 
-  Intro.inLastSlot(), NAMELESS_EXPLORER, FHA.dashCancel(),
-  BA234, ESKILL, BA234, EBASIC.cancel(),
-  FHA.holdCancel(), FSkill, Liberation,
-  Skill, BA34, EBASIC.cancel(),
+  Intro.inLastSlot(), NAMELESS_EXPLORER, FHA, DASH,
+  BA234, ESKILL, BA234, EBASIC,
+  FHA, FSkill, Liberation,
+  Skill, BA34, EBASIC,
   Outro,
 ]);
 
@@ -568,8 +568,8 @@ const SR_ROTATION_DOUBLE = new Rotation([
 
 const SR_ROTATION_FAST = new Rotation([
   Intro, NAMELESS_EXPLORER,
-  BA234, EBASIC.cancel(), FHA.cancel(), Liberation,
-  BA234_START, EBASIC.cancel(), FHA.holdCancel(), FSkill,
+  BA234, EBASIC, FHA, Liberation,
+  BA234_START, EBASIC, FHA, FSkill,
   Outro,
 ]);
 

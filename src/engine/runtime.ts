@@ -123,6 +123,9 @@ export const ctx: {
   cutReplaced: string;
   /** The press a hold cancel holds into, set by `run()` for evaluate() to read where it lets go. */
   holdNext: Action | null;
+  /** Set by `run()` on a press with no written cut: its solved cut, read once its cast has run and banked (-1: it
+   *  plays out). */
+  driveCut: (() => number) | null;
   /** The acting member's presses still to come off the rotation, each resolved as reached (`nextPresses()`); set by `run()`. */
   nextPresses: () => Iterable<Action>;
   /** evaluate.ts's `bankLoose()`, set where it is defined: context.ts importing it would close an
@@ -200,6 +203,7 @@ export const ctx: {
   pressCut: "",
   cutReplaced: "",
   holdNext: null,
+  driveCut: null,
   nextPresses: () => [],
   bankLoose: () => {
     throw new Error("bankLoose() before evaluate.ts loaded");

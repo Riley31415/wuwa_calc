@@ -59,7 +59,7 @@ import {
   concerto,
   lacks,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, SWAPIN, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, SWAPIN, SUCCESSFUL_DODGE, DASH } from "../../engine/rotation.js";
 import { WILDFIRE_MARK } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { AUTUMNTRACE, AUREATE_ZENITH } from "../../weapons/battlepass.js";
@@ -510,10 +510,10 @@ const LUPA_RESONATOR = new Resonator({
 const MA12 = new ActionGroup("Mid-air - Flaming Star 12", [MA1, MA2]);
 
 const LP_LOOP = new Rotation([
-  SWAPIN, BA1.instaCancel(), Skill1.cancel(),
+  SWAPIN, BA1.firstHit(), Skill1,
   
-  EIntro.mashCancel(), HERON.instaDash(), Intro.mashCancel(), LIONESS_OF_GLORY.instaCancel(), Liberation,
-  USkill, MA12, EMA3, EHA4.mashCancel(), UFSkill.swapCancel(), Outro,
+  EIntro, HERON.instant(), DASH, Intro, LIONESS_OF_GLORY.instant(), Liberation,
+  USkill, MA12, EMA3, EHA4, UFSkill, Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

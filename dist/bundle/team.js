@@ -35,13 +35,14 @@ import {
   wireDistribution,
   wireSourcePanels,
   zoom
-} from "./chunk-OBGCER6G.js";
+} from "./chunk-EXNDPST4.js";
 import {
   FALLBACK_HUE,
   GROUPED_COLUMNS,
   PAD_DIGITS_COLUMNS,
   RATE_SECTIONS,
   ROW_CAP,
+  SWAP_IN_TAG,
   TEAMS,
   admitBuild,
   admitTeam,
@@ -84,7 +85,7 @@ import {
   tagTeam,
   weaponHue,
   workerPool
-} from "./chunk-NMUZQX2E.js";
+} from "./chunk-PF5NFSRD.js";
 import {
   CONCERTO_UNIT,
   ENEMY_MAX_OFFTUNE,
@@ -93,7 +94,6 @@ import {
   RESOURCE_NAME,
   SCALING_NAME,
   TUNE_BREAK_ENEMY,
-  Transition,
   comboOf,
   compares,
   echoPicks,
@@ -108,7 +108,7 @@ import {
   sequenceLevels,
   statLabel,
   weaponBase
-} from "./chunk-UAEIIFKI.js";
+} from "./chunk-IJUQLX43.js";
 
 // dist/src/page/pickmenu.js
 var FIELDS = ["weapon", "echo", "mainstat", "sequence", "refine", "highSubs"];
@@ -401,46 +401,6 @@ function cell(col, { cls = [], html = "", pop = "", style = "", attr = "" } = {}
   const classes = ["c", col.align === "left" ? "" : "num", ...cls].filter(Boolean).join(" ");
   return `<span class="${classes}"${style ? ` style="${style}"` : ""}${attr}${pop}>${html}</span>`;
 }
-var TAG_KIND = {
-  [Transition.InstaCancel]: "insta",
-  [Transition.InstaDash]: "insta",
-  [Transition.InstaJump]: "insta",
-  [Transition.InstaSwap]: "insta",
-  [Transition.SwapCancel]: "swap",
-  [Transition.MashSwap]: "swap",
-  [Transition.MashCancel]: "easy",
-  [Transition.MashDash]: "easy",
-  [Transition.MashJump]: "easy",
-  [Transition.HoldCancel]: "easy",
-  [Transition.DashCancel]: "dash",
-  [Transition.JumpCancel]: "jump",
-  [Transition.Cancel]: "cancel",
-  [Transition.HitCancel]: "hit",
-  [Transition.HitDash]: "hit",
-  [Transition.HitJump]: "hit",
-  [Transition.HitSwap]: "hit",
-  [Transition.TimedCancel]: "timed"
-};
-var TAG_NOTE = {
-  [Transition.InstaCancel]: "After casting, input the next action instantly",
-  [Transition.InstaDash]: "After casting, dash instantly",
-  [Transition.InstaJump]: "After casting, jump instantly",
-  [Transition.InstaSwap]: "After casting, swap instantly",
-  [Transition.Cancel]: "After the final hit, input the next action to cancel endlag",
-  [Transition.DashCancel]: "After the final hit, dash to cancel endlag",
-  [Transition.JumpCancel]: "After the final hit, jump to cancel endlag",
-  [Transition.SwapCancel]: "After the final hit, swap to cancel endlag",
-  [Transition.MashSwap]: "After casting, mash swap to swap out the moment it allows",
-  [Transition.MashCancel]: "After casting, mash the next input to cancel when available",
-  [Transition.MashDash]: "After casting, mash dash to dash the moment it allows",
-  [Transition.MashJump]: "After casting, mash jump to jump the moment it allows",
-  [Transition.HoldCancel]: "After casting, hold the next input to cancel when available",
-  [Transition.HitCancel]: "After the first hit, input the next action",
-  [Transition.HitDash]: "After the first hit, dash",
-  [Transition.HitJump]: "After the first hit, jump",
-  [Transition.HitSwap]: "After the first hit, swap",
-  [Transition.TimedCancel]: "Input the next action on the frame shown"
-};
 function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = true, bars = null } = {}) {
   const snap = "line" in row ? row.line.snap : row.snap;
   const aggregate = "line" in row && !!row.line.aggregate;
@@ -504,10 +464,12 @@ function cellParts(col, row, slotHue, gearByMember, part, caret) {
       html = `${html}<span class="caret">\u25B8</span>`;
     }
     const tag = col.key === "action" ? String(row.raw["tag:action"] ?? "") : "";
+    if (col.key === "action" && row.raw["swapin:action"]) {
+      html = `<span class="ctag ctag-swapin"${lazyPop(`<span class="pop note">Forced by swap in</span>`)}>${SWAP_IN_TAG}</span>${html}`;
+    }
     if (tag) {
-      const own = tag.startsWith("cancel @ ") ? Transition.TimedCancel : tag;
-      const kind = TAG_KIND[own] ?? "cancel", note = TAG_NOTE[own];
-      const tagPop = note ? lazyPop(`<span class="pop note">${esc(note)}</span>`) : "";
+      const kind = String(row.raw["tagkind:action"] ?? "cancel"), note = String(row.raw["tagnote:action"] ?? "");
+      const tagPop = lazyPop(`<span class="pop note">${esc(note)}</span>`);
       html = `<span class="ctag ctag-${kind}"${tagPop}>${esc(tag.toUpperCase())}</span>${html}`;
     }
     const suffix = col.key === "mv" && row.scaling !== null ? ` ${SCALING_NAME[row.scaling]}` : "";
@@ -1309,9 +1271,9 @@ addEventListener("focusin", (e) => {
     t.blur();
 }, true);
 function copyText(c) {
-  const tag = c.querySelector(".ctag");
-  const name = [...c.childNodes].filter((n) => n !== tag).map((n) => n.textContent ?? "").join("").replace(/[▸▾]/g, "").trim();
-  return tag ? `${name} ${(tag.textContent ?? "").trim()}` : name;
+  const tags = [...c.querySelectorAll(":scope > .ctag")];
+  const name = [...c.childNodes].filter((n) => !tags.includes(n)).map((n) => n.textContent ?? "").join("").replace(/[▸▾]/g, "").trim();
+  return [name, ...tags.reverse().map((t) => (t.textContent ?? "").trim())].join(" ");
 }
 addEventListener("keydown", (e) => {
   if (!cellSel || e.key !== "c" || !(e.ctrlKey || e.metaKey) || e.altKey)

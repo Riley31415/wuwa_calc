@@ -419,14 +419,14 @@ const ZANI_TALENTS = new Talent({
 const ZANI_ROTATION = new Rotation([
   Intro, Skill, BA3Follow, TargetedAction,
   Lib1,
-  UBA123, UBA123.cancel(),
-  Lib2, CAPITANEUS.instaSwap(), NM_MOURNING_AIX.instaSwap(), Outro,
+  UBA123, UBA123,
+  Lib2, CAPITANEUS.instant(), NM_MOURNING_AIX.instant(), Outro,
 ]);
 const ZANI_ROTATION_S6 = new Rotation([
   Intro, Skill, BA3Follow, TargetedAction,
   Lib1,
-  UBA123, UBA123, UBA123.cancel(),
-  Lib2, CAPITANEUS.instaSwap(), NM_MOURNING_AIX.instaSwap(), Outro,
+  UBA123, UBA123, UBA123,
+  Lib2, CAPITANEUS.instant(), NM_MOURNING_AIX.instant(), Outro,
 ]);
 
 // --- Routine Negotiation: the ordinary chain, every hit of which banks Redundant Energy. Stage 3

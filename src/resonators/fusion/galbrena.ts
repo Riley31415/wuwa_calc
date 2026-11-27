@@ -49,7 +49,7 @@ import {
   grounded,
   lacks,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, SUCCESSFUL_DODGE, DASH, DODGE_GRANTS, GROUND_DODGE_LACKS } from "../../engine/rotation.js";
 import { LUX_UMBRA } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
 import { THUNDERBOLT, SOLAR_FLAME } from "../../weapons/battlepass.js";
@@ -332,7 +332,7 @@ const GALBRENA_TALENTS = new Talent({
 
 /** Hellstride: a dodge on the ground during any of her own casts — a fixed 666 Fusion, Basic
  *  Attack DMG no DMG buff touches. */
-const Hellstride = galbrenaAction("Dash - Hellstride", { input: Input.Dash, position: Position.Grounded, cast: Cast.Dash, animFrames: 24, animPriority: { 19: 2 }, castPriority: 7, type: Type.Basic, scaling: Scaling.Fixed, bullets: [{ hitFrame: 4, mv: 66600 }], ...DRIVE });
+const Hellstride = galbrenaAction("Dash - Hellstride", { input: Input.Dash, position: Position.Grounded, lacks: GROUND_DODGE_LACKS, grants: DODGE_GRANTS, cast: Cast.Dash, animFrames: 24, animPriority: { 19: 2 }, castPriority: 7, type: Type.Basic, scaling: Scaling.Fixed, bullets: [{ hitFrame: 4, mv: 66600 }], ...DRIVE });
 
 /* ----------------------------------------------------------------------------------- loadout */
 
@@ -440,21 +440,21 @@ const SeraphicExecution345 = new ActionGroup("Forte Basic - Seraphic Execution 3
 const SeraphicExecution45 = new ActionGroup("Forte Basic - Seraphic Execution 45", [SeraphicExecution4, SeraphicExecution5]);
 
 const GB_ROTATION = new Rotation([
-  Intro.holdCancel(), HA23, BA3, Encroach.cancel(), MA, BA3.mashCancel(),
-  AscentOfMalice.cancel(), CORROSAURUS.instaCancel(), Liberation,
-  SeraphicExecution2345.dashCancel(),
+  Intro, HA23, BA3, Encroach, MA, BA3,
+  AscentOfMalice, CORROSAURUS.instant(), Liberation,
+  SeraphicExecution2345, DASH,
   SeraphicExecution345,
   Outro,
 ]);
 
 const GB_ROTATION_ECHO = new Rotation([
-  Intro.holdCancel(), HA23, BA3, Encroach.cancel(), MA, BA3.mashCancel(),
-  AscentOfMalice.cancel(), CORROSAURUS.instaCancel(), Liberation,
-  SeraphicExecution2.hitDash(),SeraphicExecution3.instaDash(),
-  SeraphicExecution45.dashCancel(),
-  SeraphicExecution3.hitDash(),
-  SeraphicExecution45.dashCancel(),
-  SeraphicExecution3.instaDash(),
+  Intro, HA23, BA3, Encroach, MA, BA3,
+  AscentOfMalice, CORROSAURUS.instant(), Liberation,
+  SeraphicExecution2.firstHit(), DASH,SeraphicExecution3.instant(), DASH,
+  SeraphicExecution45, DASH,
+  SeraphicExecution3.firstHit(), DASH,
+  SeraphicExecution45, DASH,
+  SeraphicExecution3.instant(), DASH,
   SeraphicExecution45,
   Outro,
 ]);

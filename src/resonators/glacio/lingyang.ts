@@ -34,7 +34,7 @@ import {
   midair,
   grounded,
 } from "../../engine/context.js";
-import { Action, Rotation, SWAPIN, SUCCESSFUL_DODGE, ActionGroup } from "../../engine/rotation.js";
+import { Action, Rotation, SWAPIN, SUCCESSFUL_DODGE, ActionGroup, DASH } from "../../engine/rotation.js";
 import { tuneBreak } from "../tunebreak.js";
 import { ABYSS_SURGES, NEW_STD_GAUNTLET } from "../../weapons/standard.js";
 import { LAMPYLUMEN_MYRIAD_MAINSLOT, FREEZING_FROST_5PC, LAMPYLUMEN_MYRIAD_1, MECH_ABOMINATION_MAINSLOT, LINGERING_TUNES_5PC, MECH_ABOMINATION, LAMPYLUMEN_MYRIAD_3, LAMPYLUMEN_MYRIAD_2 } from "../../echoes/jinzhou.js";
@@ -363,15 +363,15 @@ const LINGYANG_RESONATOR = new Resonator({
 const FMA12 = new ActionGroup("Mid-air - Feral Gyrate 12", [FMA1, FMA2]);
 
 const LY_ROTATION_BASIC = new Rotation([
-  Intro, MECH_ABOMINATION, SENTRY_CONSTRUCT, LAMPYLUMEN_MYRIAD_1, LAMPYLUMEN_MYRIAD_2, LAMPYLUMEN_MYRIAD_3.dashCancel(),
+  Intro, MECH_ABOMINATION, SENTRY_CONSTRUCT, LAMPYLUMEN_MYRIAD_1, LAMPYLUMEN_MYRIAD_2, LAMPYLUMEN_MYRIAD_3, DASH,
   Liberation, StridingLionEntry,
   // best Striding Lion fill for Sanhua + Shorekeeper (window search, 31068 team DPS)
-  FMA1.hitCancel(), MountainRoamer, FMA2.instaCancel(), MountainRoamer,
-  FMA1.hitCancel(), MountainRoamer, FMA2.instaCancel(), MountainRoamer,
-  FMA1.instaCancel(), MountainRoamer, FMA2.instaCancel(), MountainRoamer,
-  FMA1.instaCancel(), MountainRoamer, FMA2.instaCancel(), MountainRoamer,
-  FMA1.hitCancel(), MountainRoamer, //FMA2.instaCancel(), MountainRoamer, // best is 9 skill in practice?
-  StormyKicks.instaSwap(),
+  FMA1.firstHit(), MountainRoamer, FMA2.instant(), MountainRoamer,
+  FMA1.firstHit(), MountainRoamer, FMA2.instant(), MountainRoamer,
+  FMA1.instant(), MountainRoamer, FMA2.instant(), MountainRoamer,
+  FMA1.instant(), MountainRoamer, FMA2.instant(), MountainRoamer,
+  FMA1.firstHit(), MountainRoamer, //FMA2.instant(), MountainRoamer, // best is 9 skill in practice?
+  StormyKicks.instant(),
   Outro,
 ]);
 

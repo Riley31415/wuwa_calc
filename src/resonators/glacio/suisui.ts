@@ -171,7 +171,8 @@ const SPRING = {
 };
 const ESkill = suisuiAction("Skill - Awakening Spring", { input: Input.Skill, inputPriority: 1, minForte1: 120, ...SPRING, cooldown: 60 * 15,
   bullets: [{ hitFrame: 60, mv: 2863, energy: 500, concerto: 960, offtune: 9600 }] });
-const ESkillSky = suisuiAction("Skill - Awakening Spring (Sky Over Water)", { input: Input.Skill, inputPriority: 1, minForte1: 120, ...SPRING, cooldown: SKY_CD,
+// above the plain Awakening Spring: it needs its inherent off cooldown (SKY_CD)
+const ESkillSky = suisuiAction("Skill - Awakening Spring (Sky Over Water)", { input: Input.Skill, inputPriority: 2, minForte1: 120, ...SPRING, cooldown: SKY_CD,
   bullets: [{ hitFrame: 60, mv: 2863, energy: 1800, concerto: 2760, offtune: 81600 }] });
 
 // --- Drizzle Stance: the same buttons, banking Floral Epistle (forte2) for the Outro. Illuminating
@@ -232,7 +233,7 @@ const FMA = suisuiAction("Basic - Swallow's Cut", {
   node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 33, mv: 10765, energy: 282, concerto: 903, offtune: 9024 }]});
 const FSkill = suisuiAction("Skill - Vernal Screen: Drizzle Stance", {
   endPosition: Position.Grounded,  animFrames: 54, animPriority: { 54: 2 }, castPriority: 5,
-  input: Input.Skill, inputPriority: 2, holds: DRIZZLE_STANCE, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+  input: Input.Skill, inputPriority: 3, holds: DRIZZLE_STANCE, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
     { hitFrame: 26, mv: 1193, energy: 19, concerto: 60, offtune: 600, forte2: 100 },
     { hitFrame: 30, commitFrame: 26, mv: 1193, energy: 19, concerto: 60, offtune: 600 },
     { hitFrame: 35, commitFrame: 26, mv: 1193, energy: 19, concerto: 60, offtune: 600 },
@@ -606,26 +607,26 @@ const FBA12 = new ActionGroup("Basic - Drizzle Stance 12", [FBA1, FBA2]);
  *  the scramble's Liberation is already banked) and 122.2 every loop after — both well clear of the
  *  100 the Outro spends. */
 const SS_ROTATION = new Rotation([
-  SWAPIN, BA123.cancel(), ESkillSky, FHA.hitCancel(),
+  SWAPIN, BA123, ESkillSky, FHA.firstHit(),
   FSkill,
-  FBA12.cancel(),
-  FHA.hitCancel(),
-  Liberation, FORBIDDEN_BASTION.instaSwap(), Outro,
-  //FHA.hitCancel(), FSkill, FBA12.cancel(), FHA.hitCancel(), // needs r3 weapon, 4.33s loop
+  FBA12,
+  FHA.firstHit(),
+  Liberation, FORBIDDEN_BASTION.instant(), Outro,
+  //FHA.hitCancel(), FSkill, FBA12.lastCommit(), FHA.hitCancel(), // needs r3 weapon, 4.33s loop
 
   IntroSky,
-  FHA.hitCancel(), FSkill, FBA12.cancel(), FHA.hitCancel(), FMA.cancel(), // needs r1 weapons, 5.03 loop
-  Liberation, FORBIDDEN_BASTION.instaSwap(), Outro,
+  FHA.firstHit(), FSkill, FBA12, FHA.firstHit(), FMA, // needs r1 weapons, 5.03 loop
+  Liberation, FORBIDDEN_BASTION.instant(), Outro,
 ]);
 
 /** From S3 the Drizzle skill chains straight into a Stage 4 that spends Kingfisher — +20 Concerto
  *  and +350 Floral Epistle — before the ordinary four-stage chain. */
 const SS_ROTATION_S3 = new Rotation([
-  SWAPIN, BA123.cancel(), ESkillSky,
+  SWAPIN, BA123, ESkillSky,
   IntroSky,
   //FSkill, FBA4.cancel(),
-  FSkill, FBA4, FBA123.cancel(), // filler for s0 er match: Drizzle Stance replaces the Zephyr basics
-  FORBIDDEN_BASTION.instaCancel(), Liberation, Outro,
+  FSkill, FBA4, FBA123, // filler for s0 er match: Drizzle Stance replaces the Zephyr basics
+  FORBIDDEN_BASTION.instant(), Liberation, Outro,
 ]);
 
 export const SUISUI = new Loadout({

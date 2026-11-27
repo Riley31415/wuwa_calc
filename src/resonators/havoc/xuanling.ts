@@ -82,7 +82,7 @@ import {
   grounded,
   concerto,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, START_LAST, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, START_LAST, SUCCESSFUL_DODGE, SWAP } from "../../engine/rotation.js";
 import { tuneBreak, SWORD_BREAK } from "../tunebreak.js";
 import { HAVOC_BANE, anyNegativeStatusInflicted } from "../status.js";
 import { AZURE_OATH, EMERALD_SENTENCE } from "../../weapons/sword.js";
@@ -635,18 +635,18 @@ const HiB123 = new ActionGroup("Forte Basic: Havoc in Bloom 123", [HiB1, HiB2, H
  *  one per Havoc Bane she inflicts, and the four casts that inflict one all come after it. She is
  *  always the team's main DPS, so this covers the loop and there is no opener chain. */
 const XUANLING_ROTATION = new Rotation([
-  START_LAST, BA_A1.instaCancel(), SwitchFeather.instaSwap(), // start in feather stance, so the first cast is a switch to Azure
+  START_LAST, BA_A1.instant(), SwitchFeather.instant(), SWAP, // start in feather stance, so the first cast is a switch to Azure
 
-  IntroFeather.inLastSlot(), BA_F1234.cancel(), FlowAzure.holdCancel(), HeavyAzure.cancel(),
-  Lib, FlowFeather.cancel(), THOUSAND_PUPPET_PAVILION, HeavyFeather, FeatherFall, HiB123.swapCancel(),
+  IntroFeather.inLastSlot(), BA_F1234, FlowAzure, HeavyAzure,
+  Lib, FlowFeather, THOUSAND_PUPPET_PAVILION, HeavyFeather, FeatherFall, HiB123,
   Outro,
 ]);
 
 const XUANLING_ROTATION_S2 = new Rotation([
-  START_LAST, BA_A1.instaCancel(), HeavyAzure, BA_A1.instaCancel(), SwitchFeather.instaSwap(), // start in feather stance, so the first cast is a switch to Azure
+  START_LAST, BA_A1.instant(), HeavyAzure, BA_A1.instant(), SwitchFeather.instant(), SWAP, // start in feather stance, so the first cast is a switch to Azure
 
-  IntroFeather.inLastSlot(), BA_F1234.cancel(), FlowAzure.holdCancel(), HeavyAzure.cancel(),
-  Lib, FlowFeather.cancel(), THOUSAND_PUPPET_PAVILION, HeavyFeather, FeatherFall, HiB123.swapCancel(),
+  IntroFeather.inLastSlot(), BA_F1234, FlowAzure, HeavyAzure,
+  Lib, FlowFeather, THOUSAND_PUPPET_PAVILION, HeavyFeather, FeatherFall, HiB123,
   Outro,
 ]);
 

@@ -252,13 +252,13 @@ const BA12 = new ActionGroup("Basic - Destined Promise 12", [BA1, BA2]);
 
 const BZ_ROTATION = new Rotation([
   // opener: Ultimate, Skill and a Heavy off Basic 2s, swapping out as the Heavy's Concerto lands
-  SWAPIN, BA12.cancel(), Liberation,
-  BA12.cancel(), Skill,
-  BA12.cancel(), HA.instaSwap(), Outro,
+  SWAPIN, BA12, Liberation,
+  BA12, Skill,
+  BA12, HA.instant(), Outro,
 
   // loop
-  Intro, BA12.cancel(), Liberation,
-  BA123.cancel(), Skill.swapCancel(), Outro,
+  Intro, BA12, Liberation,
+  BA123, Skill, Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

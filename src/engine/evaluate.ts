@@ -2,9 +2,9 @@
  * Running an action: the phase order, the snapshot each one resolves into, and `run()`, which
  * walks a rotation and drains whatever the casts queued behind them.
  */
-import { Stat, EnemyStat, Type, Cast, Transition, Timing, KIND_OF, VIA_OF, Via, isSwapTransition, waitsForNext, instaOf, Scaling, INPUT_PRECISION, MASH_SPEED, HOLD_BUFFER, DESPAWN_TIME, Position, POSITION_NAME, splitStop, useDelays, DELAYS, Input } from "./stats.js";
-import type { Action, ActionGroup, ActionField, CancelledStep, TimedStep, StepTiming, DashMarker, Bullet, Cooldown } from "./rotation.js";
-import { SWAP, SKIP, EveryOther, ANY_INTRO, DEFAULT_DASH, DEFAULT_AIR_DASH, bank, bankBar, isSwap, isPlainDash, pickInput, inputActions, swapInPress, timingProblem } from "./rotation.js";
+import { Stat, EnemyStat, Type, Cast, Transition, Timing, KIND_OF, VIA_OF, Via, isSwapTransition, waitsForNext, instaOf, Scaling, INPUT_PRECISION, HOLD_BUFFER, DESPAWN_TIME, Position, POSITION_NAME, splitStop, useDelays, DELAYS, Input } from "./stats.js";
+import type { Action, ActionGroup, ActionField, CancelledStep, TimedStep, StepTiming, Bullet, Cooldown } from "./rotation.js";
+import { SWAP, SKIP, DASH, JUMP, EveryOther, ANY_INTRO, DEFAULT_DASH, DEFAULT_AIR_DASH, bank, bankBar, isSwap, isPlainDash, pickInput, inputActions, swapInPress, timingProblem, dashFor, NO_VALID_DASH, NO_VALID_JUMP } from "./rotation.js";
 import type { GainAdd } from "./runtime.js";
 import { ctx, pendingQueue, tagWordOf, RESOURCE_STATS, replay, readAny, READ_APPLY, READ_CONVERT, READ_AFTER, applied as appliedRecord, resolving, hookReads, moved, noteBackground } from "./runtime.js";
 import { Gear, PHASE_COUNT, NO_CAPS } from "./gear.js";
@@ -77,7 +77,12 @@ export interface Result {
    *  summon echo is triggered but not queued): it is exactly "spliced in behind something else", which
    *  is what the scheduler reads to keep an Intro's own follow-ups with it (rotation.ts). */
   queued: boolean;
-  /** This action's own average damage under each of the acting member's main-stat variants (see
+  /** Real frames from its cast to where the next written press started (-1: none followed it), and that press's
+   *  input: what its row's tag box reads. */
+  cutAt: number;
+  nextInput: Input;
+  /** The timing the rotation wrote on the press (`.instant()`, `.firstHit()`, `.timed(n)`); null where none was. */
+  timing: StepTiming | null;  /** This action's own average damage under each of the acting member's main-stat variants (see
    *  `TeamMember.variants`), in their order — `null` on every action of a member without any, and
    *  on every traced run. Its hit record carries it (`State.hits`), which teamrun.ts sums the way it
    *  sums the real `avg`; a split press's row keeps its cast's. */
@@ -162,6 +167,8 @@ export interface ResolvedSnapshot extends Result, Snapshot {
   shownShort?: boolean[];
   /** The press was cast where its `valid` handler read false: what the report reads to flag its row red. */
   invalid: boolean;
+  /** The press an arrival with no Intro opened on, its swap-in press (`checkPress()`): its row's SWAP IN tag. */
+  swapIn: boolean;
   /** The delays the press played at (its member's rotation's, `Rotation.withDelays()`): what its cut is read at after. */
   delays: Delays;
   /** Whether this is the outro that ends its owner's loop — every one but a double-Intro visit's
@@ -173,10 +180,6 @@ export interface ResolvedSnapshot extends Result, Snapshot {
   frames: number;
   /** The press's old written cut, where the rotation cut it. */
   tag: Transition;
-  /** Real frames from its cast to where the next press started (-1: none followed it), and that press's input:
-   *  what its row's tag box reads. */
-  cutAt: number;
-  nextInput: Input;
   /** Was its owner the resonator on field (`State.onField`) — what dims a row whose owner was off it. */
   active: boolean;
   /** Real frames of this press the game timer stood still for past its own time stop — another
@@ -280,7 +283,8 @@ export function evaluate(state: State, action: Action, triggered = false, source
   const cap = slot.resonator?.caps ?? NO_CAPS;
   // the press's own `valid`, read as it was pressed (`checkPress()`)
   const invalid = castSide && pressInvalid;
-  pressInvalid = false;
+  const swapIn = castSide && pressSwapIn;
+  pressInvalid = pressSwapIn = false;
   const realStart = state.real;
   // its owner's hits already on the clock (an earlier press's committed bullets) bank while it holds;
   // its own split hits are queued there too, and `holdPaid()` walks those itself
@@ -372,24 +376,11 @@ export function evaluate(state: State, action: Action, triggered = false, source
     charged = action.holdCost(ctx.holdCut);
   }
   const holdCut = held ? ctx.holdCut : -1;
-  // the press plays its real frames whatever stops; its time stop freezes the game timer from its
-  // own start frame, over its animation alongside any other, and what outlasts that stacks behind it all
-  const realLen = charged.action + charged.global;
-  const stop = splitStop(action.timestopFrom, action.timestop, charged.action, realLen);
-  if (castSide && stop.own + stop.banked) state.freeze(realStart + action.timestopFrom, stop.own, stop.banked);
-  const frozenIn = Math.min(realLen, state.frozenWithin(realStart, realStart + realLen));
-  const timestopBanked = Math.max(0, frozenIn - charged.timestop);
-  ctx.actFrames = realLen - frozenIn;
-  ctx.actReal = realLen;
-
-  // A part lands where it is due and a whole press on its cast; the rest of the press is only time
-  // on the clock, which `run()` walks after it, landing each hit at its own frame.
-  const frames = ctx.actFrames;
-  // its motion stop holds every inactive resonator's animations and clocks from its cast the same
-  // way, pushing their queued hits back (`shiftOffField()`)
-  const hold = splitStop(action.motionStopFrom, action.motionStop, charged.action, realLen);
-  ctx.offFieldFrom = realStart + action.motionStopFrom;
-  ctx.offFieldShift = castSide && hold.own + hold.banked ? state.holdOffField(ctx.offFieldFrom, hold.own, hold.banked) : 0;
+  // a press with no written cut is let go where the engine solves it: its length is set once its cast has run and
+  // banked (below), so the solve reads its buffs and bars as the cast leaves them
+  const drive = castSide && !hitSide ? ctx.driveCut : null;
+  ctx.driveCut = null;
+  let { realLen, timestopBanked, frames } = drive ? NO_LENGTH : pressLength(state, action, charged, realStart, castSide);
 
   // Every hit: the action's own updateDebuffs() and the hit's, every held Gear's, then the same for
   // hitGlobal(), then the grants its inflictions trigger
@@ -606,6 +597,14 @@ export function evaluate(state: State, action: Action, triggered = false, source
   // `resetForteN` cast (rotation.ts's own ActionDef) empties the gauge ahead of its own delta.
   const forte = slot.forte;
   for (let i = 0; i < 5; i++) forte[i] = bank(action.resetForte[i] ? 0 : forte[i]!, own[2 + i]! + gain[2 + i]!, cap[2 + i]!);
+  if (drive) {
+    const solved = drive();
+    if (solved >= 0) {
+      ctx.holdCut = solved;
+      charged = action.holdCost(solved);
+    }
+    ({ realLen, timestopBanked, frames } = pressLength(state, action, charged, realStart, castSide));
+  }
 
   // the hit is dealt and banked: its onHit grants, which pay from the next hit on
   if (lands) {
@@ -645,7 +644,7 @@ export function evaluate(state: State, action: Action, triggered = false, source
   // mid-action reads them, unlike `triggered`, so none has to be threaded through this call
   const result: Result = {
     action, member: slot.name, slot: action.slot ?? slot.name, triggered, source,
-    group: null, groupEnd: false, groupSpill: null, queued: false, mv, avg, variantAvg, starts: frameStart,
+    group: null, groupEnd: false, groupSpill: null, queued: false, cutAt: -1, nextInput: Input.None, timing: null, mv, avg, variantAvg, starts: frameStart,
     gain: anyNonZero(gain) ? gain.slice() : null,
     // the last hit is in at its own frame, not at the press's end or after the delay a cut costs
     realStarts: realStart,
@@ -679,10 +678,10 @@ export function evaluate(state: State, action: Action, triggered = false, source
     energy: (slot.shownEr >= 0 ? slot.shownEnergy : slot.energy) - (behind?.[0] ?? 0), concerto: slot.concerto - (behind?.[1] ?? 0), offtune: state.offtune,
     energyBefore, concertoBefore, offtuneBefore,
     seq: ++traceSeq,
-    invalid,
+    invalid, swapIn,
     delays: DELAYS,
     endsLoop,
-    frame: frameStart, frames, tag, cutAt: -1, nextInput: Input.None, active, timestopBanked, holdPaid, holdCut,
+    frame: frameStart, frames, tag, active, timestopBanked, holdPaid, holdCut,
     heldLocal, heldGlobal, heldEnemy,
     opensFields,
   };
@@ -807,6 +806,25 @@ function scoreWithAfter(state: State, slot: TeamMember, action: Action, effectiv
   return variantAvg;
 }
 
+/** A press's real frames as `charged` charges them: its time stop frozen from its own start frame (what outlasts the
+ *  animation stacked behind it all) and its motion stop holding every inactive resonator — `ctx.actFrames` its game ones. */
+function pressLength(state: State, action: Action, charged: ReturnType<Action["cost"]>, realStart: number, castSide: boolean): { realLen: number; timestopBanked: number; frames: number } {
+  const realLen = charged.action + charged.global;
+  const stop = splitStop(action.timestopFrom, action.timestop, charged.action, realLen);
+  if (castSide && stop.own + stop.banked) state.freeze(realStart + action.timestopFrom, stop.own, stop.banked);
+  const frozenIn = Math.min(realLen, state.frozenWithin(realStart, realStart + realLen));
+  const timestopBanked = Math.max(0, frozenIn - charged.timestop);
+  ctx.actFrames = realLen - frozenIn;
+  ctx.actReal = realLen;
+  // its motion stop holds every inactive resonator's animations and clocks from its cast the same way, pushing their
+  // queued hits back (`shiftOffField()`)
+  const hold = splitStop(action.motionStopFrom, action.motionStop, charged.action, realLen);
+  ctx.offFieldFrom = realStart + action.motionStopFrom;
+  ctx.offFieldShift = castSide && hold.own + hold.banked ? state.holdOffField(ctx.offFieldFrom, hold.own, hold.banked) : 0;
+  return { realLen, timestopBanked, frames: ctx.actFrames };
+}
+const NO_LENGTH = { realLen: 0, timestopBanked: 0, frames: 0 };
+
 /** A hold cancel's let-go (`ctx.holdCut`) from `pays` (`Action.holdPays()`), watched where the next press waits
  *  on a buff and let go where it stands; returns the frame its row reads as paid. */
 function letGo(state: State, slot: TeamMember, held: Action, tag: Transition, pays: { at: number; ready: boolean }, realStart: number): number {
@@ -916,7 +934,7 @@ function closePress(state: State, action: Action, triggered: boolean, cut: strin
  *  Outro evaluated between the queue() call and the follow-up actually running); a plain
  *  rotation entry always runs on whichever slot is active when its turn comes. */
 /** One step `run()` plays. */
-interface Step { action: Action; slot: number; by: HeldBuff | null; group: ActionGroup | null; end: boolean; spill: ActionGroup | null; queued: boolean; event: boolean; cut: Transition | null; timing?: StepTiming | null; at?: number; into?: Result | null; away?: boolean; frames?: number; closes?: boolean; triggered?: boolean; hold?: boolean; waited?: boolean; holdShift?: number; endCut?: string; check?: () => void }
+interface Step { action: Action; slot: number; by: HeldBuff | null; group: ActionGroup | null; end: boolean; spill: ActionGroup | null; queued: boolean; event: boolean; cut: Transition | null; timing?: StepTiming | null; source?: object; at?: number; into?: Result | null; away?: boolean; frames?: number; closes?: boolean; triggered?: boolean; hold?: boolean; waited?: boolean; holdShift?: number; endCut?: string; check?: () => void }
 
 /** The steps still to play: whatever was put in front (a stack, its top playing next) ahead of the
  *  rest of the written list, walked by index — so putting a follow-up in front of the rest moves
@@ -993,6 +1011,7 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
       const [a, cut] = unwrap(m);
       const s = newStep(a, -1, null, group, group !== null && k === members.length - 1, null, false, cut);
       s.timing = (m as TimedStep).timing ?? null;
+      s.source = m;
       written.push(s);
     }
   }
@@ -1006,7 +1025,8 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
   let spillGroup: ActionGroup | null = null;
   let guard = 0;
   while (steps.size || (flush && (state.timed.length || state.behindNext.length))) {
-    if (++guard > 10000) throw new Error("action queue did not drain");
+    // a watched transition walks a frame at a time
+    if (++guard > 200000) throw new Error("action queue did not drain");
     settleHold(state);
     // the fight's end: nothing is coming to cast behind, so what waited for it is cast now — and
     // whatever would land past the end is dropped as it is queued
@@ -1083,12 +1103,19 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
       if (step.action instanceof EveryOther) state.slot.everyOther++;
       // resolved to no cast at all this step (deferred onto a later one — see `queueOnIntro()`)
       if (!action) continue;
+      // a DASH or JUMP with none of the member's valid here: they can't
+      if ((action === NO_VALID_DASH || action === NO_VALID_JUMP) && step.slot < 0 && !step.queued) {
+        throw new Error(`${state.slot.name}: no ${action === NO_VALID_JUMP ? "jump" : "dash"} of theirs is valid after ${state.lastOwn?.action.name ?? "their arrival"}`);
+      }
       // skipped, and the rest of its group with it
       if (action === SKIP) {
         if (step.group) {
           while (steps.size && steps.peek()!.group === step.group) steps.take();
           ctx.insideGroup = false;
         }
+        // ...and the DASH or JUMP written right after it, which was its own
+        const after = steps.size ? steps.peek()! : null;
+        if (after && after.slot < 0 && !after.queued && (after.action === DASH || after.action === JUMP)) steps.take();
         continue;
       }
     }
@@ -1097,17 +1124,19 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
     if (step.slot < 0 && !step.queued && action.input === Input.Outro && action.transition === Transition.Temporary) {
       ctx.state = state;
       ctx.slot = state.slot;
-      if (inputActions(state.slot, Input.Outro).includes(action) && !action.isValid()) {
-        action = inputActions(state.slot, Input.Outro).find((a) => a !== SWAP && a.isValid()) ?? action;
+      if (inputActions(state.slot, Input.Outro).includes(action) && !action.available()) {
+        action = inputActions(state.slot, Input.Outro).find((a) => a !== SWAP && a.available()) ?? action;
       }
     }
     // a plain dodge something takes the place of on the frame it would be cast (the enemy's
     // `takesCut`, a ready Tune Break): the press it cut reads the cut it became, and what
     // replaces it plays here instead — the group the dodge closed closing on that press
-    const behind = state.lastOwn, marker = step.action as unknown as DashMarker;
-    if (marker.after !== undefined && isPlainDash(action) && action.cast === Cast.Dash
+    const behind = state.lastOwn;
+    // (a written DASH after a solved cut reads the cut that press stood for)
+    const writtenDash = step.action === DASH && step.slot < 0 && !step.queued;
+    if (writtenDash && isPlainDash(action) && action.cast === Cast.Dash
       && behind && behind.member === state.slot.name && state.enemy.resonator?.takesCut
-      && dashTaken(state, steps, step, action, behind, marker.kind, spillGroup)) continue;
+      && dashTaken(state, steps, step, action, behind, state.lastOwnCut as Transition, spillGroup)) continue;
     // ...and the same behind a swap form or a plain, on-hit or insta cancel, read once on the frame
     // the rotation's next step would be cast: the cut's delay already played, what goes in plays
     // there ahead of that step — a swap form's Outro or SWAP still after it
@@ -1149,17 +1178,11 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
     const by = step.by;
     // an OFF_FIELD press, an Outro (a handoff), or anything with a source to name, is nobody's press
     const triggered = action.offField || action.cast === Cast.Outro || by !== null;
-    // a dash the next press out-prioritises is cut short by it, an instant cancel that keeps its hit:
-    // its cast priority above the dash's own where an instant cut hands over
-    const dashMarker = (step.action as unknown as DashMarker).after !== undefined;
-    const dash = dashMarker && dashOutranked(state, steps, action);
-    // a jump, dash or swap a cut puts in must be one the member can make there
-    if (dashMarker && step.slot < 0 && !step.queued) checkDashValid(state, step.action as unknown as DashMarker, action);
-    let cut = dash ? Transition.InstaCancel : step.cut;
+    let cut = step.cut;
     const pressed = action;
-    if (cut && !dash) [action, cut] = action.cutAs(cut);
+    if (cut) [action, cut] = action.cutAs(cut);
     const kind = cut ?? action.transition;
-    const checked = !dash && action.half === null;
+    const checked = action.half === null;
     // a plain cut aiming at frame 0 is an instant one; a marker resolving to presses of either kind
     // can't be written instant for the hitless one alone, an echo's stands for its one press
     const aimsLast = checked && (!step.action.resolveFn || !!step.action.mainslot) && KIND_OF[kind] === "lastcommit";
@@ -1175,6 +1198,12 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
     const mover = step.slot < 0 && !step.queued && by === null && !pressed.offField
       && (pressed.cast !== Cast.None || pressed.bullets.length > 0) ? state.slot : null;
     if (mover) checkPress(state, pressed, step.at ?? state.real);
+    // the next written press reached: the open transition is solved into it (a swap too), the fight's buffs as they
+    // stand; one beside the fight closes it unsolved
+    if (openTransition && step.slot < 0 && !step.queued && by === null && !pressed.castsWithNext && (mover || pressed.offField)) {
+      if (openTransition.owner === state.slot && (mover || isSwap(pressed))) checkTransition(state, openTransition, pressed);
+      openTransition = null;
+    }
     const breaker = pressed.cast === Cast.TuneBreak && pressed.half === null ? state.slot : null;
     // a written cut lands only where what cuts in beats the press's priority: its dash or jump, the
     // press a cut-short dash gives way to, else the next press
@@ -1186,7 +1215,7 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
       const by = after?.castsWithNext ? pastCastsWithNext(steps) : after;
       // a held input comes out only on a hold: a plain or instant cut can't make one
       const precise = KIND_OF[kind] === "lastcommit" || KIND_OF[kind] === "instant";
-      if (precise && !dash && VIA_OF[kind] === Via.Next && by && by !== SKIP && by.heldInput) {
+      if (precise && VIA_OF[kind] === Via.Next && by && by !== SKIP && by.heldInput) {
         throw new Error(`${action.name}: its ${kind} goes into ${by.name}, a held input — write a hold cancel instead`);
       }
       checkPriority(action, cut, by);
@@ -1244,8 +1273,24 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
     // the transition check reads the next press's bars off the owner's as this one is cast
     const barsBefore = mover && TRANSITION_CHECK.on && !step.into ? [...barsOf(mover)] : null;
     const pendingBefore = barsBefore ? pendingHits(state, mover!, whole, castAt) : NO_PENDING;
+    // a press written with a timing (and no old cut) plays the cut the engine finds into the next written press,
+    // watched as the fight plays (`TransitionWatch`): it holds the field until that cut comes
+    const watch = mover && !step.into && kind === Transition.Temporary && splits && whole.animFrames > 0 && !pressed.castsWithNext && whole.cast !== Cast.Outro
+      ? openWatch(state, steps, mover, pressed, whole, castAt, step.timing ?? LAST_COMMIT, step.source ?? step) : null;
+    // held one frame past its horizon, so the walk reaches the horizon itself
+    if (watch) ctx.driveCut = () => watch.horizon + 1;
     ctx.hitsLeft = step.into?.pending ?? 1;
+    drivenAs = watch?.label ?? null;
+    if (watch) ctx.pressCut = watch.label;
     const result = evaluate(state, action, triggered, by, cut);
+    ctx.driveCut = null;
+    const asCut = drivenAs;
+    drivenAs = null;
+    if (watch) {
+      watch.row = result;
+      watch.playsToBefore = state.playsTo;
+      watching = watch;
+    }
     if (step.into?.pending) step.into.pending--;
     ctx.hitsLeft = 1;
     // SWAP takes its owner off the field, as an Outro does: whoever presses next takes it
@@ -1256,7 +1301,8 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
     const motionAdd = ctx.offFieldShift, stamp = ctx.actionStamp;
     // ...and a bullet it let go of before its commit never lands
     if (ctx.holdCut >= 0) {
-      if (split) split = dropUncommitted(state, split, whole, ctx.holdCut);
+      // a solved swap cuts nothing: its press plays on behind it
+      if (split && !(asCut && isSwapTransition(asCut))) split = dropUncommitted(state, split, whole, ctx.holdCut);
       ctx.holdCut = -1;
     }
     // cast behind a press that stopped motion on its frame, it is held by that the way everything
@@ -1270,7 +1316,7 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
     if (ctx.offFieldShift !== 0) shiftOffField(state, ctx.offFieldShift, Math.max(now, ctx.offFieldFrom));
     // each hit carries its press's length, and the end (afterAction) is where the press stops: a cut
     // one at its cut and delay, ahead of any committed hit still to land, else past its last hit
-    if (split) splitEnd = queueEnd(state, whole, split, castAt, cut, kind, away, triggered, step.holdShift ?? 0);
+    if (split) splitEnd = queueEnd(state, whole, split, castAt, cut, asCut ?? kind, away, triggered, step.holdShift ?? 0, !!watch);
     // where its member stood as it was cast — one off field this long past their last press has
     // despawned (null), as an arrival would find them
     const stander = mover ?? breaker ?? state.slot;
@@ -1289,18 +1335,24 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
       mover.chainKept = null;
       // cut within an insta cut's frames (an insta swap leaving as it is pressed), a press never gets where it goes;
       // a jump always lifts
-      const short = kind !== Transition.Temporary && (kind === Transition.InstaSwap || ctx.actReal <= INPUT_PRECISION) && pressed.cast !== Cast.Jump;
+      const own = asCut ?? kind;
+      const short = own !== Transition.Temporary && (own === Transition.InstaSwap || ctx.actReal <= INPUT_PRECISION) && pressed.cast !== Cast.Jump;
       if (pressed.endPosition !== null && !short) mover.position = pressed.endPosition;
       // where the press itself stops — a swap form plays on to its animation's end, a cut at its cut —
       // whatever of its hits lands after: past that they are no longer standing there
-      mover.endsAt = castAt + (isSwapTransition(kind) ? whole.animFrames : ctx.actReal) + (step.holdShift ?? 0);
+      mover.endsAt = castAt + (isSwapTransition(own) ? whole.animFrames : ctx.actReal) + (step.holdShift ?? 0);
     }
     // where the next written press started, and its input: what the row's tag box reads
     if (mover && !step.into) {
-      const nextPress = nextWritten(state, steps);
       result.cutAt = ctx.actReal;
-      result.nextInput = nextPress?.input ?? Input.None;
-      if (barsBefore && nextPress) checkTransition(state, mover, pressed, kind, step.timing ?? null, nextPress, barsBefore, pendingBefore, result);
+      result.nextInput = nextWritten(state, steps)?.input ?? Input.None;
+      result.timing = step.timing ?? null;
+      // solved once that press is reached; the bars as cast: read back off a split press's cast, banked here on a whole one
+      if (barsBefore && !pressed.castsWithNext) {
+        const cap = mover.resonator?.caps ?? NO_CAPS;
+        const bars = split ? [...barsOf(mover)] : barsBefore.map((v, k) => bankBar(k, v, whole.castGains[k]!, whole.resetBars[k]!, cap));
+        openTransition = { owner: mover, pressed, kind, timing: step.timing ?? null, bars, pending: pendingBefore, row: result };
+      }
     }
     if (step.at !== undefined) {
       state.setReal(Math.max(now, state.real));
@@ -1321,8 +1373,9 @@ export function run(state: State, rotation: Action[], flush = false, until = Inf
         result.action = whole;
       }
       out.push(result);
+      if (TRANSITION_CHECK.on) TRANSITION_CHECK.rows.push(result);
       // a swap form's own delay is the swap's: the Outro or SWAP after it pays none
-      const tag = cut ?? action.transition;
+      const tag = asCut ?? cut ?? action.transition;
       if (isSwapTransition(tag)) state.swapPaid = true;
       if (!step.queued && !triggered && !isCast(action, Cast.Outro)) {
         state.lastOwn = result;
@@ -1586,16 +1639,6 @@ function cooldownWaits(state: State, steps: StepQueue, step: Step, action: Actio
   return false;
 }
 
-/** Does the next written press out-prioritise `dash`: then the dash is cut short by it, an insta cancel
- *  that keeps its hit — its cast priority above the dash's own where an insta cut hands over. */
-function dashOutranked(state: State, steps: StepQueue, dash: Action): boolean {
-  const ahead = steps.ahead(state);
-  let next = !ahead || ahead.queued || ahead.slot >= 0 ? null : ahead.action.resolveFn ? resolving(ahead.action.resolveFn) : ahead.action;
-  if (next?.castsWithNext) next = pastCastsWithNext(steps);
-  const c = dash.cost(Transition.InstaCancel);
-  return !!next && next !== SKIP && next.cutIn !== null && next.cutIn > dash.priorityAt(c.action + c.global);
-}
-
 /** `whole`'s hits on the clock, each at its own frame from `castAt` (`at` keeps it where a motion
  *  stop's hold moves `due` on). */
 function queueHits(state: State, whole: Action, castAt: number, away: boolean): Timed[] {
@@ -1611,9 +1654,10 @@ function queueHits(state: State, whole: Action, castAt: number, away: boolean): 
 }
 
 /** Each hit carries its press's length, and the end (afterAction) is where the press stops: a cut one at
- *  its cut and delay, ahead of any committed hit still to land, else past its last hit. */
+ *  its cut and delay, ahead of any committed hit still to land, else past its last hit — a watched one where its
+ *  animation runs out, until its cut comes (`applyCut()`). */
 function queueEnd(state: State, whole: Action, split: Timed[], castAt: number, cut: Transition | null, kind: Transition, away: boolean,
-  triggered: boolean, holdShift: number): Timed {
+  triggered: boolean, holdShift: number, watched = false): Timed {
   for (const h of split) {
     h.frames = ctx.actFrames;
     h.triggered = triggered;
@@ -1622,7 +1666,7 @@ function queueEnd(state: State, whole: Action, split: Timed[], castAt: number, c
   for (const h of split) last = Math.max(last, h.due);
   // a swap form cuts nothing: the press plays on behind the swap to its own end
   const plays = whole.castsInstantly || isSwapTransition(kind);
-  const stops = castAt + (plays ? whole.animFrames : ctx.actReal) + holdShift;
+  const stops = castAt + (plays || watched ? whole.animFrames : ctx.actReal) + holdShift;
   const end = timedEntry(
     cut && !plays ? stops : Math.max(last, stops), whole.endPart(), state.active, null, away, undefined,
     ctx.actFrames, true, triggered,
@@ -1677,8 +1721,8 @@ function askTakesCut(enemy: Resonator, behind: Action, kind: Transition): void {
   asSource(enemy, () => enemy.takesCut!(behind, kind));
 }
 /** The clock check reading the enemy's `atCut` behind `whole` cut by `tag`. */
-function atCutCheck(enemy: Resonator, whole: Action, tag: Transition): () => void {
-  return () => asSource(enemy, () => enemy.atCut!(whole, tag));
+function atCutCheck(enemy: Resonator, whole: Action, tag: Transition, open = true): () => void {
+  return () => void asSource(enemy, () => enemy.atCut!(whole, tag, open));
 }
 
 /** `split`'s hits a hold let go of at `cut` before their commit, off the clock: the ones still landing. */
@@ -1804,11 +1848,12 @@ function checkPress(state: State, press: Action, at: number): void {
   slot.chainKept = null;
   let ok: boolean;
   try {
-    ok = press.isValid();
+    ok = press.available();
   } finally {
     ctx.validChainFree = false;
   }
   pressInvalid = !ok;
+  pressSwapIn = opens;
   if (!ok) warnInvalid(state, slot, press);
   // an Intro always places its owner, wherever they came in
   if (press.cast === Cast.Intro && press.endPosition === null) throw new Error(`${slot.name}: ${press.name} declares no endPosition — every Intro places its owner`);
@@ -1838,9 +1883,11 @@ const TAKEN_CUTS = new Set<string>([...STEP_CUTS, Transition.DashCancel, Transit
 /** One written press's transition as the engine solves it, beside the cut that played (`row.cutAt`, read once the run is done). */
 export interface TransitionFinding {
   member: string; press: string; next: string; timing: string; written: string; solved: number | null; error: string | null; row: Result;
+  /** The same solved at last commit, where its timing is another (null: it is, or that throws too). */
+  asLastCommit: number | null;
 }
 /** The transition check, off by default: on, every written press's solved cut lands in `found` (the old cuts still play). */
-export const TRANSITION_CHECK: { on: boolean; found: TransitionFinding[] } = { on: false, found: [] };
+export const TRANSITION_CHECK: { on: boolean; found: TransitionFinding[]; trace: string | null; traced: string[]; rows: Result[] } = { on: false, found: [], trace: null, traced: [], rows: [] };
 
 /** The written press after the one just played, as it resolves — null where none is, or it is queued. */
 function nextWritten(state: State, steps: StepQueue): Action | null {
@@ -1853,37 +1900,314 @@ function nextWritten(state: State, steps: StepQueue): Action | null {
   return next && next !== SKIP ? next : null;
 }
 
-/** The timing an old written cut stands for: instant, on hit and timed as they are, every other last commit. */
-function timingOfOld(kind: Transition, pressed: Action): StepTiming {
+/** The timing an old written cut stands for: instant, on hit and timed as they are, every other last commit — instant
+ *  stepping up to first hit or last commit, where `root`'s frames refuse it (`timingProblem()`). */
+function timingOfOld(kind: Transition, pressed: Action, root: Action): StepTiming {
   const k = KIND_OF[kind];
-  if (k === "instant") return { kind: Timing.Instant, frame: 0 };
-  if (k === "onhit") return { kind: Timing.FirstHit, frame: 0 };
   if (k === "timed") return { kind: Timing.Timed, frame: pressed.timedAt ?? 0 };
-  return { kind: Timing.LastCommit, frame: 0 };
+  const hit = { kind: Timing.FirstHit, frame: 0 }, insta = { kind: Timing.Instant, frame: 0 }, last = { kind: Timing.LastCommit, frame: 0 };
+  if (k === "onhit" && !timingProblem(root, hit)) return hit;
+  if (k !== "onhit" && k !== "instant") return last;
+  if (!timingProblem(root, insta)) return insta;
+  return root.cutFrame > INPUT_PRECISION && !timingProblem(root, hit) ? hit : last;
 }
 
-/** Solve `pressed`'s transition into `next` and keep it beside the cut that played. */
-function checkTransition(state: State, owner: TeamMember, pressed: Action, kind: Transition, given: StepTiming | null, next: Action,
-  bars: readonly number[], pending: readonly { at: number; bullet: Bullet }[], row: Result): void {
+/** A written press whose transition is solved once the next written press is reached, the fight's buffs read there:
+ *  its owner's bars as it was cast (its cast and the cast's hooks banked), and their earlier hits still to land. */
+interface OpenTransition {
+  owner: TeamMember; pressed: Action; kind: Transition; timing: StepTiming | null; bars: number[]; pending: readonly { at: number; bullet: Bullet }[]; row: Result;
+}
+let openTransition: OpenTransition | null = null;
+
+/** Solve `open`'s transition into `next` and keep it beside the cut that played. */
+function checkTransition(state: State, open: OpenTransition, next: Action): void {
+  const { owner, pressed, kind, row } = open;
   let root = pressed;
   while (root.cancelOf) root = root.cancelOf;
-  const t = given ?? timingOfOld(kind, pressed);
+  const t = open.timing ?? timingOfOld(kind, pressed, root);
+  // an old dash or jump cut hands over to the dash or jump it puts in, not the press after it
+  const via = VIA_OF[kind];
+  if ((via === Via.Dash || via === Via.Jump) && next.input !== Input.Dash && next.input !== Input.Jump) {
+    ctx.state = state;
+    ctx.slot = owner;
+    next = dashFor(via === Via.Jump, root);
+  }
   let solved: number | null = null, error: string | null = null;
   try {
-    solved = solveCut(state, owner, root, pressed, next, t, bars, pending);
+    solved = solveCut(state, owner, root, pressed, next, t, open.bars, open.pending);
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
   }
+  let asLastCommit: number | null = null;
+  if (t.kind !== Timing.LastCommit) {
+    try {
+      asLastCommit = solveCut(state, owner, root, pressed, next, { kind: Timing.LastCommit, frame: 0 }, open.bars, open.pending);
+    } catch { /* it throws at last commit too */ }
+  }
   const timing = t.kind === Timing.Timed ? `timed(${t.frame})` : t.kind;
-  TRANSITION_CHECK.found.push({ member: owner.name, press: pressed.name, next: next.name, timing, written: kind || "(none)", solved, error, row });
+  TRANSITION_CHECK.found.push({ member: owner.name, press: pressed.name, next: next.name, timing, written: kind || "(none)", solved, error, row, asLastCommit });
 }
 
-/** Each held input's tap. */
-const TAP_OF: Partial<Record<Input, Input>> = { [Input.BasicHold]: Input.Basic, [Input.SkillHold]: Input.Skill, [Input.LiberationHold]: Input.Liberation };
+/** A press written with a timing, watched as the fight plays until the frame its transition into `next` comes:
+ *  each frame it records what the fight shows there — `next` available, castable, mashing its input safe — and the
+ *  cut is the first frame the timing's rules (`cutsAt()`) are met on frames already seen.
+ *  It holds the field (`horizon` frames on the clock) until then. */
+interface TransitionWatch {
+  state: State; owner: TeamMember; pressed: Action; x: Action; whole: Action; next: Action; timing: StepTiming;
+  start: number; horizon: number; swaps: boolean; label: Transition; standBefore: Position | null; source: object;
+  row: Result | null; playsToBefore: number; resolve: (() => Action | null) | null;
+  castable: boolean[]; mashSafe: boolean[]; available: boolean[];
+  /** Where the enemy's break (a Tune Break) is ready to come out in the next press's place, or ahead of it (`atCut`). */
+  breaks: boolean[] | null;
+}
+let watching: TransitionWatch | null = null;
+/** The timing a press with none written plays at. */
+const LAST_COMMIT: StepTiming = { kind: Timing.LastCommit, frame: 0 };
+
+/** The watch for `pressed`, cast at `castAt`, into the next written press — null where none follows. */
+function openWatch(state: State, steps: StepQueue, owner: TeamMember, pressed: Action, whole: Action, castAt: number, timing: StepTiming, source: object): TransitionWatch | null {
+  // the next press reads this one as what it follows, and stands where it leaves its owner
+  const stood = owner.position;
+  const asNext = <T,>(read: () => T): T => {
+    const was = owner.lastPress, at = owner.position;
+    owner.lastPress = pressed;
+    if (pressed.endPosition !== null) owner.position = pressed.endPosition;
+    try {
+      return read();
+    } finally {
+      owner.lastPress = was;
+      owner.position = at;
+    }
+  };
+  const next = asNext(() => nextWritten(state, steps));
+  if (!next) return null;
+  // a resolver written next is read again each frame: what it gives may change as this press's hits land
+  // (the step `nextWritten()` reads: past an echo cast with the press after it)
+  const written = asNext(() => {
+    const ahead = steps.ahead(state);
+    const a = ahead && (ahead.action.resolveFn ? resolving(ahead.action.resolveFn) : ahead.action);
+    if (!a?.castsWithNext) return ahead;
+    for (const s of steps.written()) {
+      const b = s.action.resolveFn ? resolving(s.action.resolveFn) : s.action;
+      if (b && b !== SKIP && !b.castsWithNext) return s;
+    }
+    return undefined;
+  })?.action;
+  const resolveFn = written?.resolveFn && !next.castsWithNext ? written.resolveFn : null;
+  // ...read as the fight stands once cast: what it follows is the owner's chain by then
+  const resolve = resolveFn ? () => resolving(resolveFn) : null;
+  let x = pressed;
+  while (x.cancelOf) x = x.cancelOf;
+  const fail = (why: string): never => {
+    throw new Error(`${owner.name}: ${pressed.name}: ${why}`);
+  };
+  const why = timingProblem(x, timing);
+  if (why) fail(why);
+  if (next.heldInput && timing.kind === Timing.Timed && timing.frame < HOLD_BUFFER) {
+    fail(`a hold into ${next.name} can't make frame ${timing.frame}: it is out ${HOLD_BUFFER} frames at the soonest`);
+  }
+  // as far as any timing could cut: the animation, its no-swap frames and every hit, then a hold or a precise input
+  let last = Math.max(whole.animFrames, whole.noSwapFrames, whole.lastHitDelay());
+  for (const h of state.timed) if (state.slots[h.slot] === owner && h.due > castAt) last = Math.max(last, h.due - castAt);
+  const swaps = swapsOut(next);
+  return {
+    state, owner, pressed, x, whole, next, timing, source, start: castAt, horizon: last + INPUT_PRECISION + HOLD_BUFFER + 1,
+    swaps, label: swaps ? Transition.InstaSwap : Transition.Temporary, standBefore: stood, row: null, playsToBefore: 0, resolve,
+    castable: [], mashSafe: [], available: [], breaks: state.enemy.resonator?.atCut ? [] : null,
+  };
+}
+
+/** Record every frame of the watched press played since the last, and cut it on the first that its timing's rules
+ *  are met — throwing past its horizon with none. */
+function settleTransition(state: State): void {
+  const w = watching;
+  if (!w || w.state !== state || !w.row) return;
+  // the fight is over: nothing comes after it to hand over to
+  if (state.frame >= state.fightEnd) {
+    watching = null;
+    return;
+  }
+  const now = state.real - w.start;
+  while (w.castable.length <= now) {
+    const f = w.castable.length;
+    recordFrame(w, f);
+    const cut = decideCut(w, f);
+    if (cut !== null) {
+      watching = null;
+      applyCut(state, w, cut);
+      return;
+    }
+  }
+  if (now >= w.horizon) {
+    watching = null;
+    const target = w.timing.kind === Timing.Timed ? w.timing.frame : targetOf(w);
+    throw new Error(`${w.owner.name}: ${w.pressed.name}: ${w.timing.kind} timing into ${w.next.name} found no frame to cut on — ${whyNoCut(w, target)}`);
+  }
+}
+
+/** Why a watch found no cut from frame `target` to its horizon, read off the frames it recorded. */
+function whyNoCut(w: TransitionWatch, target: number): string {
+  const from = Math.min(target, w.castable.length - 1), end = w.castable.length - 1;
+  const span = `frames ${from}-${end}`;
+  const frames = (on: boolean[]): number[] => on.flatMap((v, f) => (v && f >= from ? [f] : []));
+  const runs = (fs: number[]): string => fs.reduce<[number, number][]>((out, f) => {
+    const last = out[out.length - 1];
+    if (last && last[1] === f - 1) last[1] = f; else out.push([f, f]);
+    return out;
+  }, []).map(([a, b]) => (a === b ? `${a}` : `${a}-${b}`)).join(", ");
+  const avail = frames(w.available), cast = frames(w.castable);
+  if (!avail.length) return `${w.next.name} never became castable over ${span} (its conditions never held: a buff, a gauge, a cooldown or its position)`;
+  if (!cast.length) {
+    return `${w.next.name} was available on frames ${runs(avail)}, but ${w.x.name} never let it out there `
+      + `(its priority${w.swaps ? ", no-swap frames" : ""} or its input giving another press)`;
+  }
+  if (w.next.heldInput) return `${w.next.name} was castable on frames ${runs(cast)}, never early enough for a hold's ${HOLD_BUFFER}-frame buffer from the target`;
+  return `${w.next.name} was castable on frames ${runs(cast)}, but never for the ${INPUT_PRECISION} frames running that an input needs`
+    + `${w.swaps ? "" : ", nor shut long enough to buffer into"}`;
+}
+
+/** The frame a watched timing aims at: 0, the first hit, or the last commit. */
+const targetOf = (w: TransitionWatch): number => {
+  const first = w.x.bullets.length ? Math.min(...w.x.bullets.map((b) => b.hitFrame)) : 0;
+  return w.timing.kind === Timing.Instant ? 0 : w.timing.kind === Timing.FirstHit ? first : w.x.cutFrame;
+};
+
+/** What frame `f` of the watched press shows, read off the fight as it stands now. */
+function recordFrame(w: TransitionWatch, f: number): void {
+  ctx.state = w.state;
+  ctx.slot = w.owner;
+  const now = w.resolve?.();
+  if (now && now !== SKIP && now.input === w.next.input) w.next = now;
+  const { owner, x, next } = w;
+  // what the next press follows: the chain as the cast left it (`chainAs()`, a press that keeps it)
+  const prev = owner.lastPress ?? w.pressed;
+  const root = (a: Action): Action => {
+    while (a.cancelOf ?? a.formOf) a = (a.cancelOf ?? a.formOf)!;
+    return a;
+  };
+  // what an input gives: the press itself where it is available, else its highest available one, a charge ready first
+  const givesOn = (input: Input): Action | null => {
+    const valid = inputActions(owner, input).filter((a) => a.availableOn(owner, null, prev));
+    return valid.find((a) => a.ready(owner)) ?? valid[0] ?? null;
+  };
+  const available = next.availableOn(owner, null, prev);
+  const listed = inputActions(owner, next.input).some((a) => root(a) === root(next));
+  const given = available ? next : listed ? givesOn(next.input) : null;
+  const isNext = !!given && root(given) === root(next);
+  // where x lets `next` out: its priority, transform and no-swap frames
+  const gate = x.freeForNext(next, f) === f && (!isSwap(next) || f >= x.noSwapFrames);
+  w.available[f] = available;
+  w.castable[f] = gate && isNext;
+  w.mashSafe[f] = given === null || isNext;
+  // the break is a press of its own, ready or not on each frame as the fight stands (read, never opened here)
+  const enemy = w.state.enemy.resonator;
+  if (w.breaks && enemy?.atCut) w.breaks[f] = asSource(enemy, () => enemy.atCut!(w.whole, Transition.DashCancel, false)) === true;
+}
+
+/** The cut on frame `f` (null: none yet) from the frames seen up to it (`cutsAt()`). */
+function decideCut(w: TransitionWatch, f: number): number | null {
+  const t = w.timing, c = w.castable;
+  const what = `${t.kind} timing into ${w.next.name}`;
+  const fail = (why: string): never => {
+    throw new Error(`${w.owner.name}: ${w.pressed.name}: ${why}`);
+  };
+  if (t.kind === Timing.Timed) {
+    if (f !== t.frame) return null;
+    if (!c[f]) fail(`${what}: ${w.next.name} isn't castable at frame ${f}`);
+    return f;
+  }
+  if (!cutsAt(f, t, targetOf(w), w.next.heldInput, w.swaps, (g) => c[g]!, (g) => w.available[g]!, (g) => w.mashSafe[g]!)) return null;
+  if (w.swaps) return f;
+  // cutting later than another timing aims refuses it for that one
+  const lc = w.x.cutFrame, first = w.x.bullets.length ? Math.min(...w.x.bullets.map((b) => b.hitFrame)) : 0;
+  if (t.kind !== Timing.LastCommit && f >= lc) fail(`${what} cuts at frame ${f}, at or past its last commit (${lc}) — leave it at last commit`);
+  if (t.kind === Timing.Instant && first > INPUT_PRECISION && f > first) fail(`${what} cuts at frame ${f}, past its first hit (${first}) — write .firstHit() instead`);
+  return f;
+}
+
+/** Does a transition into a press at untimed `t`, aimed at `target`, come out at frame `f` (`castable` read up to f),
+ *  castable there and from the target on:
+ *  - held: pressed `INPUT_PRECISION + HOLD_BUFFER` before it comes out, from that long before the target on but never
+ *    sooner than `INPUT_PRECISION` before the cast
+ *  - precise: aimed at f - `INPUT_PRECISION` (from the target on), castable through every frame to f (instant's aim at
+ *    0 only available); the one way into a swap
+ *  - buffered (never a swap): castable at none of the `INPUT_PRECISION` frames before f (from the cast on), its input
+ *    giving no other press through them */
+function cutsAt(f: number, t: StepTiming, target: number, held: boolean, swaps: boolean,
+  castable: (g: number) => boolean, available: (g: number) => boolean, mashSafe: (g: number) => boolean): boolean {
+  const P = INPUT_PRECISION;
+  if (f < target || !castable(f)) return false;
+  if (held) return f - P - HOLD_BUFFER >= Math.max(-P, target - P - HOLD_BUFFER);
+  const p = f - P;
+  if (p < 0) return false;
+  let precise = p >= target, buffered = !swaps;
+  for (let g = p; g < f && (precise || buffered); g++) {
+    const open = g === 0 && t.kind === Timing.Instant ? available(0) : castable(g);
+    if (!open) precise = false;
+    if (castable(g) || !mashSafe(g)) buffered = false;
+  }
+  return precise || buffered;
+}
+
+/** Let the watched press go at frame `cut`: the clock gives back the rest of its horizon, its bullets not committed by
+ *  then never land (a swap's all do), its end comes there, and its row reads the cut. */
+function applyCut(state: State, w: TransitionWatch, cut: number): void {
+  const row = w.row!, at = w.start + cut, held = w.start + w.horizon + 1;
+  if (state.playsTo === held) state.playsTo = Math.max(w.playsToBefore === held ? w.start : w.playsToBefore, at);
+  let last = at;
+  state.timed = state.timed.filter((h) => {
+    if (h.into !== row || h.action?.half !== "hit") return true;
+    if (!w.swaps && w.whole.bullets[h.action.hitIndex]!.commitFrame > cut) return false;
+    last = Math.max(last, h.due);
+    return true;
+  });
+  const frames = cut - Math.min(cut, state.frozenWithin(w.start, at));
+  // the old cut it stands for, to what still reads one (the Tune Break's openings)
+  const swap = !w.swaps ? null : cut <= INPUT_PRECISION ? Transition.InstaSwap
+    : cut === w.x.cutFrame + INPUT_PRECISION ? Transition.SwapCancel : Transition.MashSwap;
+  const label = oldCutFor(cut, w.next.input, swap);
+  for (const h of state.timed) {
+    if (h.into !== row) continue;
+    if (h.action?.half === "end") {
+      if (!w.swaps) h.due = last;
+      h.cut = label;
+    }
+    h.frames = frames;
+  }
+  sortByDue(state.timed);
+  const shown = row as Partial<ResolvedSnapshot>;
+  if (shown.frames !== undefined) shown.frames = frames;
+  row.cutAt = cut;
+  state.playedCuts.set(w.source, cut);
+  w.owner.endsAt = w.start + (w.swaps ? w.whole.animFrames : cut);
+  // cut within an input's precision, a press never gets where it goes; a jump always lifts
+  if (cut <= INPUT_PRECISION && !w.swaps && w.pressed.cast !== Cast.Jump) w.owner.position = w.standBefore;
+  if (state.lastOwn === row) {
+    state.lastOwnCut = label;
+    const enemy = state.enemy.resonator;
+    // the break comes out there only where the cut's own timing would bring it out, as any other press (`cutsAt()`)
+    const b = w.breaks, t = w.timing;
+    const open = !b || (t.kind === Timing.Timed ? !!b[cut] : cutsAt(cut, t, targetOf(w), false, false, (g) => !!b[g], (g) => !!b[g], () => true));
+    if (enemy?.atCut && TAKEN_CUTS.has(label)) atCutCheck(enemy, w.whole, label, open)();
+  }
+}
+
+/** The old cut a solved one at `cut` into a press on `next` stands for: instant inside `INPUT_PRECISION`, through a
+ *  dash or jump where that is the next press. Read by the Tune Break's openings until they read the cut itself. */
+function oldCutFor(cut: number, next: Input, swap: Transition | null): Transition {
+  if (swap) return swap;
+  const insta = cut <= INPUT_PRECISION;
+  if (next === Input.Dash || next === Input.SuccessfulDodge) return insta ? Transition.InstaDash : Transition.DashCancel;
+  if (next === Input.Jump) return insta ? Transition.InstaJump : Transition.JumpCancel;
+  return insta ? Transition.InstaCancel : Transition.Cancel;
+}
+/** Set by `run()` around a watched press's cast for the press's end: the old cut it stands for, fixed once it is cut. */
+let drivenAs: Transition | null = null;
+
 /** A bullet's gain on bar `k` — energy, concerto, forte 1-5. */
 const gainOn = (b: Bullet, k: number): number => [b.energy, b.concerto, b.forte1, b.forte2, b.forte3, b.forte4, b.forte5][k]!;
 
-/** The frame of `x` (cast with `bars`, `pending` still to land) that hands over to `next` at timing `t` —
+/** The frame of `x` (its cast banked on `bars`, `pending` still to land) that hands over to `next` at timing `t` —
  *  `next` valid there on the bars banked by then — or a throw saying why none does. */
 function solveCut(state: State, owner: TeamMember, x: Action, prev: Action, next: Action, t: StepTiming,
   bars: readonly number[], pending: readonly { at: number; bullet: Bullet }[]): number {
@@ -1896,7 +2220,7 @@ function solveCut(state: State, owner: TeamMember, x: Action, prev: Action, next
   const cap = owner.resonator?.caps ?? NO_CAPS;
   // the bars by frame: the cast's, then each bullet and earlier hit as it lands
   const lands = [...x.bullets.map((b) => ({ at: b.hitFrame, b })), ...pending.map((p) => ({ at: p.at, b: p.bullet }))].sort((a, b) => a.at - b.at);
-  const cast = bars.map((v, k) => bankBar(k, v, x.castGains[k]!, x.resetBars[k]!, cap));
+  const cast = bars;
   const barsAt = (f: number): number[] => {
     const g = [...cast];
     for (const e of lands) {
@@ -1905,76 +2229,86 @@ function solveCut(state: State, owner: TeamMember, x: Action, prev: Action, next
     }
     return g;
   };
-  // pressing `a` at frame f comes out: past x's priority, transform and no-swap frames, its conditions met
-  const validAt = (a: Action, f: number): boolean => {
-    if (x.freeForNext(a, f) !== f || (isSwap(a) && f < x.noSwapFrames)) return false;
-    ctx.state = state;
-    ctx.slot = owner;
-    return a.validOn(owner, barsAt(f), prev);
-  };
-  // the first frame from `from` where `ok`, at most the animation's end
-  const firstFrom = (from: number, ok: (f: number) => boolean): number => {
-    for (let f = from; f < anim; f++) if (ok(f)) return f;
-    return Math.max(from, anim);
-  };
-  const at = (f: number, what: string): number => {
-    if (!validAt(next, f)) throw new Error(`${what}: ${next.name} isn't valid at frame ${f}`);
-    return f;
-  };
-  if (!next.heldInput) {
-    let cut: number;
-    if (t.kind === Timing.Instant) cut = P;
-    else if (t.kind === Timing.FirstHit) cut = first + P;
-    else if (t.kind === Timing.Timed) cut = t.frame;
-    else {
-      const from = Math.max(0, lc - P), open = firstFrom(from, (f) => validAt(next, f));
-      cut = open - from < P ? lc + P : open + MASH_SPEED;
-    }
-    // past the end into a press it chains into, it simply plays out
-    if (cut > anim && chainsInto(next, prev)) cut = anim;
-    return at(cut, t.kind === Timing.LastCommit ? "cancel automation failed" : `${t.kind} timing`);
-  }
-  // a held input: its tap must still be refused while the hold is being buffered
-  const tap = TAP_OF[next.input]!;
-  const tapValid = (f: number): boolean => inputActions(owner, tap).some((a) => validAt(a, f));
-  if (t.kind === Timing.Instant) throw new Error(`a hold cancel into ${next.name} can't achieve an instant timing`);
-  if (t.kind === Timing.Timed || t.kind === Timing.FirstHit) {
-    const want = t.kind === Timing.Timed ? t.frame : first + P, start = t.kind === Timing.Timed ? want - HB : want - HB - P;
-    if (start < 0) throw new Error(`a hold into ${next.name} can't make ${t.kind} timing (frame ${want}): it would start buffering before the cast`);
-    if (tapValid(start)) throw new Error(`a hold into ${next.name} at frame ${want}: its tap is valid at frame ${start}, where the hold starts buffering`);
-    return at(want, `hold into ${next.name}`);
-  }
-  const from = Math.max(0, lc - P - HB), tapOpen = firstFrom(from, tapValid);
-  if (tapOpen - from < P + HB) throw new Error(`not enough room to buffer a hold into ${next.name}: its tap is valid from frame ${tapOpen}`);
-  const held = firstFrom(lc, (f) => validAt(next, f));
-  if (held > tapOpen) throw new Error(`a valid hold into ${next.name} comes too late: frame ${held}, past its tap from frame ${tapOpen}`);
-  return at(held, `hold into ${next.name}`);
-}
-
-/** Does `next` chain off `prev` (its `after` names it, any form of either). */
-function chainsInto(next: Action, prev: Action): boolean {
+  // a swap cuts nothing: the press plays on behind it, its hits still landing past the animation's end — and its
+  // no-swap frames may run past that end too
+  const swaps = swapsOut(next);
+  const end = swaps ? Math.max(anim, x.noSwapFrames, ...lands.map((e) => e.at)) : anim;
+  // where x lets `next` out: its priority, transform and no-swap frames
+  const gate = (f: number): boolean => x.freeForNext(next, f) === f && (!isSwap(next) || f >= x.noSwapFrames);
+  // what an input gives at frame f: its press available there (`availableOn()`), one with a charge ready first
   const root = (a: Action): Action => {
     while (a.cancelOf ?? a.formOf) a = (a.cancelOf ?? a.formOf)!;
     return a;
   };
-  const after = next.def.after;
-  return !!after && after.some((a) => root(a) === root(prev));
+  const listed = inputActions(owner, next.input).some((a) => root(a) === root(next));
+  const givesOn = (input: Input, f: number): Action | null => {
+    ctx.state = state;
+    ctx.slot = owner;
+    const g = barsAt(f), valid = inputActions(owner, input).filter((a) => a.availableOn(owner, g, prev));
+    return valid.find((a) => a.ready(owner)) ?? valid[0] ?? null;
+  };
+  // the press itself where it is available (a tie at its priority throws), else whatever else its input gives
+  const givenAt = (f: number): Action | null => {
+    ctx.state = state;
+    ctx.slot = owner;
+    if (next.availableOn(owner, barsAt(f), prev)) return next;
+    return listed ? givesOn(next.input, f) : null;
+  };
+  const isNext = (a: Action | null): boolean => !!a && root(a) === root(next);
+  // castable: its input gives it, and x's priority, transform and no-swap frames let it out
+  const once = (fn: (f: number) => boolean): ((f: number) => boolean) => {
+    const seen = new Map<number, boolean>();
+    return (f) => seen.get(f) ?? (seen.set(f, fn(f)), seen.get(f)!);
+  };
+  const castable = once((f: number): boolean => gate(f) && isNext(givenAt(f)));
+  const available = (f: number): boolean => {
+    ctx.state = state;
+    ctx.slot = owner;
+    return next.availableOn(owner, barsAt(f), prev);
+  };
+  // mashing its input is safe where it gives this press, or nothing at all
+  const mashSafe = once((f: number): boolean => {
+    const g = givenAt(f);
+    return g === null || isNext(g);
+  });
+  const target = t.kind === Timing.Instant ? 0 : t.kind === Timing.FirstHit ? first : lc;
+  // searched to the animation's end, or to the last hit still landing past it (a gauge it fills)
+  const until = Math.max(end, ...lands.map((e) => e.at));
+  const what = `${t.kind} timing into ${next.name}`;
+  // cutting later than another timing aims refuses it for that one
+  const laterThan = (cut: number): number => {
+    // a swap cuts nothing, so swapping past a hit loses none
+    if (swaps) return cut;
+    if (t.kind !== Timing.LastCommit && cut >= lc) throw new Error(`${what} cuts at frame ${cut}, at or past its last commit (${lc}) — leave it at last commit`);
+    if (t.kind === Timing.Instant && first > P && cut > first) throw new Error(`${what} cuts at frame ${cut}, past its first hit (${first}) — write .firstHit() instead`);
+    return cut;
+  };
+  if (t.kind === Timing.Timed) {
+    if (next.heldInput && t.frame < HB) throw new Error(`a hold into ${next.name} can't make frame ${t.frame}: it is out ${HB} frames at the soonest`);
+    if (!castable(t.frame)) throw new Error(`${what}: ${next.name} isn't castable at frame ${t.frame}`);
+    return t.frame;
+  }
+  // a debugging trace of what each frame shows: C castable, a available only, ! its input gives another press
+  if (TRANSITION_CHECK.trace && x.name.includes(TRANSITION_CHECK.trace)) {
+    let line = "";
+    for (let f = 0; f <= until + P; f++) line += castable(f) ? "C" : available(f) ? "a" : !mashSafe(f) ? "!" : ".";
+    TRANSITION_CHECK.traced.push(`${x.name} -> ${next.name} (${t.kind}, target ${target}, last commit ${lc}, anim ${anim}):
+${line}`);
+  }
+  for (let f = target; f <= until + P + 1; f++) {
+    if (cutsAt(f, t, target, next.heldInput, swaps, castable, available, mashSafe)) return laterThan(f);
+  }
+  throw new Error(`cancel automation failed: ${what} finds no frame from ${target} on where it can come out`);
 }
 
-/** The jump or dash a cut puts in (`marker`) must be one its member can make there: none valid, it throws. */
-function checkDashValid(state: State, marker: DashMarker, dashAction: Action): void {
-  ctx.state = state;
-  ctx.slot = state.slot;
-  if (dashAction.isValid()) return;
-  const jump = dashAction.cast === Cast.Jump || dashAction.input === Input.Jump;
-  throw new Error(`${state.slot.name}: the ${marker.kind} after ${marker.after.name} puts in ${dashAction.name}, but no ${jump ? "jump" : "dash"} of theirs is valid there`);
-}
+/** Is `next` the swap out — a SWAP, or an Outro with no animation of its own. */
+const swapsOut = (next: Action): boolean => isSwap(next) || (next.cast === Cast.Outro && !next.animFrames);
 
 /** What a queued hit's row keeps of its cast when a hit lands: who pressed it, how and when, and
  *  the gauges it walked in with. The damage and motion value sum across its hits; the stats, buffs
  *  and gauge readings are the last one's — what the bars held once its last bullet was in. */
 const CAST_KEEPS = new Set(["action", "member", "slot", "triggered", "group", "groupEnd", "groupSpill", "source", "queued",
-  "frame", "realStarts", "frames", "tag", "cutAt", "nextInput", "active", "timestopBanked", "holdPaid", "holdCut", "endsLoop", "invalid", "delays",
+  "frame", "realStarts", "frames", "tag", "cutAt", "nextInput", "timing", "active", "timestopBanked", "holdPaid", "holdCut", "endsLoop", "invalid", "swapIn", "delays",
   "energyBefore", "concertoBefore", "offtuneBefore", "forteBefore", "gain", "adds", "seq", "gaugeLog", "position"]);
 
 /** One hit's damage: on average, on a crit, and on none. */
@@ -2056,11 +2390,11 @@ function settleWatch(state: State, w: HoldWatch): void {
   }
   if (!w.next.standsOn(w.owner, null)) return;
   state.holdWatch = null;
-  // the buff landing is the last thing to give way where it lands after the bars and the window:
-  // a mash's input lands `MASH_SPEED` after it, as after either of those
+  // the buff landing is the last thing to give way where it lands after the bars and the window (a mash into a swap
+  // is pressed there and lands `INPUT_PRECISION` later)
   const paid = Math.max(w.paid, state.real - w.start);
-  const mash = KIND_OF[w.kind] === "mash";
-  const at = Math.min(end, Math.max(w.least, state.real + (mash ? MASH_SPEED : 0))), cut = at - w.start;
+  const late = KIND_OF[w.kind] === "mash" && (w.next.cast === Cast.Outro || isSwap(w.next)) ? INPUT_PRECISION : 0;
+  const at = Math.min(end, Math.max(w.least, state.real + late)), cut = at - w.start;
   checkLetGo(w.press, w.kind, w.next, paid, cut);
   if (state.playsTo === end) state.playsTo = Math.max(w.playsToBefore, at);
   let last = at;
@@ -2099,17 +2433,24 @@ function warnInvalid(state: State, slot: TeamMember, action: Action): void {
 }
 /** Whether the press `checkPress()` just read was cast where it isn't valid — taken by its row (`evaluate()`). */
 let pressInvalid = false;
+/** Whether that press was the one an arrival with no Intro opened on — taken by its row too. */
+let pressSwapIn = false;
 
 /** Walk the clock toward where the last press ends, stopping at the first queued hit due before
  *  then: the timers run up to it, and it lands there. True while the walk is still short of its end. */
 function walk(state: State, steps: StepQueue, spillGroup: ActionGroup | null): boolean {
   while (state.real < state.playsTo) {
+    // a watched transition reads the frame it stands on, everything due there played: it may cut there
+    settleTransition(state);
+    if (state.real >= state.playsTo) break;
     // the earliest due: the clock is kept in due order
     const next = state.timed.length ? state.timed[0]!.due : Infinity;
     const from = state.real;
     // a stop starting ahead (mid-press) ends the stretch there, so each one stands from its start
     const ahead = Math.min(state.nextFreezeAfter(from), state.motionFrom > from ? state.motionFrom : Infinity);
-    const to = Math.min(next < state.playsTo ? Math.max(from, next) : state.playsTo, ahead);
+    // ...and while a transition is watched, every frame (`settleTransition()`)
+    const watched = watching?.state === state ? from + 1 : Infinity;
+    const to = Math.min(next < state.playsTo ? Math.max(from, next) : state.playsTo, ahead, watched);
     // the clocks run on the game timer, which time stop stands still from `from` to where it
     // thaws; an off-field one also loses whatever of the rest motion stop still holds
     const thaw = Math.min(to, from + state.frozenFrom(from)), gameFrom = state.frame;

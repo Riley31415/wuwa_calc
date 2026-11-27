@@ -37,7 +37,7 @@ import {
   concerto,
   grounded,
 } from "../../engine/context.js";
-import { Action, Rotation, SWAPIN, ActionField, ActionGroup, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { Action, Rotation, SWAPIN, ActionField, ActionGroup, SUCCESSFUL_DODGE, JUMP } from "../../engine/rotation.js";
 import { HEALS, heal } from "../status.js";
 import { VARIATION } from "../../weapons/standard.js";
 import { REJUV_5PC, FALLACY } from "../../echoes/jinzhou.js";
@@ -279,23 +279,23 @@ const VERINA_RESONATOR = new Resonator({
 const BA345 = new ActionGroup("Basic - Cultivation 345", [BA3, BA4, BA5]);
 
 const VR_LOOP = new Rotation([
-  SWAPIN, BA345.cancel(), Liberation,
-  Skill.jumpCancel(), ForteMidair1, ForteMidair2,
-  FALLACY.instaSwap(), SPACETREK_EXPLORER.instaSwap(), FORMRENDER.instaSwap(), Outro,
+  SWAPIN, BA345, Liberation,
+  Skill, JUMP, ForteMidair1, ForteMidair2,
+  FALLACY.instant(), SPACETREK_EXPLORER.instant(), FORMRENDER.instant(), Outro,
 
   Intro, Liberation,
-  Skill.jumpCancel(), ForteMidair1, ForteMidair2,
-  FALLACY.instaSwap(), SPACETREK_EXPLORER.instaSwap(), FORMRENDER.instaSwap(), Outro,
+  Skill, JUMP, ForteMidair1, ForteMidair2,
+  FALLACY.instant(), SPACETREK_EXPLORER.instant(), FORMRENDER.instant(), Outro,
 ]);
 
 const VR_S2 = new Rotation([
-  SWAPIN, BA3.instaCancel(), Liberation,
-  Skill.jumpCancel(), ForteMidair1, ForteMidair2,
-  FALLACY.instaSwap(), SPACETREK_EXPLORER.instaSwap(), FORMRENDER.instaSwap(), Outro,
+  SWAPIN, BA3.instant(), Liberation,
+  Skill, JUMP, ForteMidair1, ForteMidair2,
+  FALLACY.instant(), SPACETREK_EXPLORER.instant(), FORMRENDER.instant(), Outro,
 
   Intro, Liberation,
-  Skill.jumpCancel(), ForteMidair1, ForteMidair2,
-  FALLACY.instaSwap(), SPACETREK_EXPLORER.instaSwap(), FORMRENDER.instaSwap(), Outro,
+  Skill, JUMP, ForteMidair1, ForteMidair2,
+  FALLACY.instant(), SPACETREK_EXPLORER.instant(), FORMRENDER.instant(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

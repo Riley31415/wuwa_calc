@@ -57,7 +57,7 @@ import {
   concerto,
   grounded,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, START, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, START, SUCCESSFUL_DODGE, SWAP, DODGE_GRANTS, GROUND_DODGE_LACKS } from "../../engine/rotation.js";
 import { THE_LAST_DANCE } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
 import { THUNDERBOLT, SOLAR_FLAME } from "../../weapons/battlepass.js";
@@ -237,7 +237,7 @@ const Intro = carlottaAction("Intro - Wintertime Aria", {
 });
 /** "Restore 3 Moldable Crystals upon a successful Dodge" — a perfect dodge, so a press a rotation
  *  writes before a Dodge Counter rather than every dash. */
-const SuccessfulDodge = carlottaAction("Dodge - Successful Dodge", { input: Input.SuccessfulDodge, cast: Cast.Dash, animFrames: 25, animPriority: { 25: 2 }, castPriority: 8, castForte1: 3 });
+const SuccessfulDodge = carlottaAction("Dodge - Successful Dodge", { input: Input.SuccessfulDodge, lacks: GROUND_DODGE_LACKS, grants: DODGE_GRANTS, cast: Cast.Dash, animFrames: 25, animPriority: { 25: 2 }, castPriority: 8, castForte1: 3 });
 /** No handoff buff of any kind is described on her own kit page — left as a plain damage hit. */
 const Outro = carlottaAction("Outro - Closing Remark", { animFrames: 0, castPriority: 11, cast: Cast.Outro, type: Type.Outro, bullets: [
     { hitFrame: 0, mv: 79420 },
@@ -411,16 +411,16 @@ const Skill12 = new ActionGroup("Skill - Art of Violence + Chromatic Splendor", 
 const NM123 = new ActionGroup("Silent Execution: Necessary Measures 123", [NM1, NM2, NM3]);
 
 const CL_ROTATION = new Rotation([
-  START, BA1.instaCancel(), Skill12.instaSwap(),
-  Intro, Skill12, MA1.holdCancel(), FHA.cancel(),
+  START, BA1.instant(), Skill12.instant(), SWAP,
+  Intro, Skill12, MA1, FHA,
   Lib1, DeathKnellx4, FatalFinaleResolver,
-  Skill12.cancel(), SENTRY_CONSTRUCT.instaSwap(), Outro,
+  Skill12, SENTRY_CONSTRUCT.instant(), Outro,
 ]);
 const CL_ROTATION_FAST = new Rotation([
-  START, BA1.instaCancel(), Skill12.instaSwap(),
-  Intro, Skill12, MA1.holdCancel(), FHA.cancel(),
+  START, BA1.instant(), Skill12.instant(), SWAP,
+  Intro, Skill12, MA1, FHA,
   Lib1, DeathKnellx4, FatalFinaleResolver,
-  Skill12.instaSwap(), Outro,
+  Skill12.instant(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

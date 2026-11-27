@@ -65,7 +65,7 @@ import {
   concerto,
   grounded,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, SUCCESSFUL_DODGE, DASH, SWAP } from "../../engine/rotation.js";
 import { RED_SPRING } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { LUMINGLOSS, FEATHER_EDGE } from "../../weapons/battlepass.js";
@@ -385,14 +385,14 @@ const CM_SEQUENCES = [CM_S1, CM_S2, CM_S3, CM_S4, CM_S5, CM_S6];
 const VW1234 = new ActionGroup("Basic - Vining Waltz 123H4", [VW1, VW2, VW3, BlazingWaltz, VW4]);
 
 const CM_ROTATION_16s = new Rotation([
-  Intro, CrimsonBlossom.cancel(), NM_CROWNLESS.instaDash(), VW1234,
+  Intro, CrimsonBlossom, NM_CROWNLESS, DASH, VW1234,
   Liberation, VW1, Ephemeral, VW1234,
-  FloralRavage.instaSwap(), OutroEphemeral,
+  FloralRavage.instant(), OutroEphemeral,
 ]);
 const CM_ROTATION_16s_S6 = new Rotation([
-  Intro, CrimsonBlossom.cancel(), NM_CROWNLESS, VW1234,
+  Intro, CrimsonBlossom, NM_CROWNLESS, VW1234,
   Liberation, VW1, Ephemeral, VW1234,
-  FloralRavage, Perennial.instaSwap(),
+  FloralRavage, Perennial.instant(), SWAP,
 ]);
 
 // --- basics, mid-air, dodge counter (Burgeoning), outside Blossom Mode: "Basic Attack and Heavy Attack
@@ -475,30 +475,30 @@ const CAMELLYA_RESONATOR = new Resonator({
 // disabled: the pre-visit casts Heavy and Burgeoning 4 inside Blossom Mode
 /*
 const CM_ROTATION_DOUBLE = new Rotation([
-  Intro.doubleIntro(), CrimsonBlossom.cancel(), NM_CROWNLESS,
-  HA, BA4, FloralRavage.instaSwap(),
+  Intro.doubleIntro(), CrimsonBlossom, NM_CROWNLESS,
+  HA, BA4, FloralRavage.instant(), SWAP,
 
   Intro,
   Liberation, Ephemeral, CrimsonBlossom,
-  VW1234, FloralRavage, NM_CROWNLESS.instaSwap(),
+  VW1234, FloralRavage, NM_CROWNLESS,
   OutroEphemeral,
 ]);
 const CM_ROTATION_DOUBLE_FAST_SUP = new Rotation([
-  Intro.doubleIntro(), CrimsonBlossom.cancel(), NM_CROWNLESS,
-  HA, BA4, FloralRavage.instaSwap(),
+  Intro.doubleIntro(), CrimsonBlossom, NM_CROWNLESS,
+  HA, BA4, FloralRavage.instant(), SWAP,
 
   Intro,
   Liberation, Ephemeral, CrimsonBlossom,
-  VW1234, NM_CROWNLESS.instaDash(), VW1234, FloralRavage, NM_CROWNLESS.instaSwap(),
+  VW1234, NM_CROWNLESS, DASH, VW1234, FloralRavage, NM_CROWNLESS,
   OutroEphemeral,
 ]);
 const CM_ROTATION_DOUBLE_S6 = new Rotation([
-  Intro.doubleIntro(), CrimsonBlossom.cancel(), NM_CROWNLESS,
-  HA, BA4, FloralRavage.instaSwap(),
+  Intro.doubleIntro(), CrimsonBlossom, NM_CROWNLESS,
+  HA, BA4, FloralRavage.instant(), SWAP,
   
   Intro,
   Liberation, Ephemeral, CrimsonBlossom,
-  VW1234, NM_CROWNLESS.instaDash(), VW1, Perennial, VW1234, FloralRavage,
+  VW1234, NM_CROWNLESS, DASH, VW1, Perennial, VW1234, FloralRavage,
   OutroEphemeral,
 ]);
 */

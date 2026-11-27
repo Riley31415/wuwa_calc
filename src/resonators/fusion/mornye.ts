@@ -50,7 +50,7 @@ import {
   grounded,
   lacks,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, SWAPIN, START_LAST, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, SWAPIN, START_LAST, SUCCESSFUL_DODGE, SWAP } from "../../engine/rotation.js";
 import { HEALS, heal } from "../status.js";
 import {
   TUNE_BREAK, TUNE_RUPTURE_INTERFERED, TUNE_STRAIN_INTERFERED, tuneRuptureResponse, strainPayout,
@@ -455,25 +455,25 @@ const BA123 = new ActionGroup("Basic - Ground State Calibration 123", [BA1, BA2,
 const WBA123 = new ActionGroup("Basic - Wide Field Observation 123", [WBA1, WBA2, WBA3]);
 
 const MO_ROTATION = new Rotation([
-  START_LAST, BA1.instaCancel(), Skill.instaSwap(),
+  START_LAST, BA1.firstHit(), Skill, SWAP,
   SWAPIN, BA123, GeopotentialShift,
 
-  Intro.mashCancel(), Liberation,
-  WBA123.cancel(), DistributedArray, Inversion,
-  REACTOR_HUSK.instaSwap(), SPACETREK_EXPLORER.instaSwap(), Outro,
+  Intro, Liberation,
+  WBA123, DistributedArray, Inversion,
+  REACTOR_HUSK.instant(), SPACETREK_EXPLORER.instant(), Outro,
 ]);
 
 /** From S3 on, Distributed Array alone fills Relative Momentum, so every loop drops the Wide Field
  *  chain and goes straight from it into Inversion — the Concerto that chain carried comes back off
  *  S3. The opener alone ends 1.4 Concerto short of its Outro — it has no Intro paying it 30. */
 const MO_ROTATION_S3 = new Rotation([
-  START_LAST, BA1.instaCancel(), Skill.instaSwap(),
+  START_LAST, BA1.firstHit(), Skill, SWAP,
 
   SWAPIN, BA123, GeopotentialShift,
 
-  Intro.mashCancel(), Liberation,
+  Intro, Liberation,
   DistributedArray, Inversion,
-  REACTOR_HUSK.instaSwap(), SPACETREK_EXPLORER.instaSwap(), Outro,
+  REACTOR_HUSK.instant(), SPACETREK_EXPLORER.instant(), Outro,
 ]);
 
 /** ER is the build: her Liberation converts everything past 100% into crit, so the sig's 77% and

@@ -177,10 +177,12 @@ export const TUNE_BREAK_ENEMY = new Resonator({
     queueEvent(TUNE_BREAK_PRESS);
   },
   // whether a break is castable on the frame a press is cut, ahead of its bullets still to land
-  atCut: (behind, cut) => {
+  atCut: (behind, cut, open = true) => {
     revokeEnemy(READY_AT_CUT);
     const dodged = cut === Transition.DashCancel || cut === Transition.InstaDash || cut === Transition.HitDash;
-    if (BREAK_CUTS.has(cut) && breakReady(behind, dodged)) applyEnemy(READY_AT_CUT, 1);
+    const ready = BREAK_CUTS.has(cut) && breakReady(behind, dodged);
+    if (ready && open) applyEnemy(READY_AT_CUT, 1);
+    return ready;
   },
   // A break castable on that cut frame plays once the cut's delay is out — in a plain dodge's place,
   // or ahead of the next step after a swap form or a plain cancel — mid-group or not: the cut

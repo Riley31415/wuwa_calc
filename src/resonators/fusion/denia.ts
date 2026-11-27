@@ -81,7 +81,7 @@ import {
   concerto,
   grounded,
 } from "../../engine/context.js";
-import { Action, Cooldown, Rotation, SWAPIN, ActionGroup, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { Action, Cooldown, Rotation, SWAPIN, ActionGroup, SUCCESSFUL_DODGE, DASH, JUMP } from "../../engine/rotation.js";
 import type { BulletDef } from "../../engine/rotation.js";
 import { applied, applyEnemy, lastHit } from "../../engine/context.js";
 import { FUSION_BURST, FUSION_BURST_ACTIONS, queueOnApplier } from "../status.js";
@@ -701,23 +701,23 @@ const UMBA12 = new ActionGroup("Mid-air - Breakdown Form 12", [UMBA1, UMBA2]);
 const USkill12 = new ActionGroup("Skill - Banish 12", [Banish1, Banish2]);
 
 const DN_ROTATION_BURST = new Rotation([
-  SWAPIN, BA1.instaCancel(), Skill.instaCancel(), Lib1,
-  UBA12.jumpCancel(), UMBA1234.cancel(),
-  USkill12.mashCancel(), Lib2,
-  TRICKSTER.instaSwap(), LIONESS_OF_GLORY.instaSwap(), SIGILLUM.instaSwap(), VOIDWING_MOTH.instaSwap(), HYVATIA.instaSwap(), Outro,
+  SWAPIN, BA1, Skill, Lib1,
+  UBA12, JUMP, UMBA1234,
+  USkill12, Lib2,
+  TRICKSTER.instant(), LIONESS_OF_GLORY.instant(), SIGILLUM.instant(), VOIDWING_MOTH.instant(), HYVATIA.instant(), Outro,
 
-  Intro, BA4.instaCancel(), Skill.instaCancel(), Lib1,
-  UBA1234.cancel(),
-  USkill12.mashCancel(), Lib2,
-  TRICKSTER.instaSwap(), LIONESS_OF_GLORY.instaSwap(), SIGILLUM.instaSwap(), VOIDWING_MOTH.instaSwap(), HYVATIA.instaSwap(), Outro,
+  Intro, BA4, Skill, Lib1,
+  UBA1234,
+  USkill12, Lib2,
+  TRICKSTER.instant(), LIONESS_OF_GLORY.instant(), SIGILLUM.instant(), VOIDWING_MOTH.instant(), HYVATIA.instant(), Outro,
 ]);
 
 const DN_ROTATION_BURST_S3 = new Rotation([
-  SWAPIN, BA1.instaCancel(),
+  SWAPIN, BA1,
   Intro, Lib1,
-  UBA1234.cancel(),
-  USkill12.mashCancel(), Lib2,
-  TRICKSTER.instaSwap(), LIONESS_OF_GLORY.instaSwap(), SIGILLUM.instaSwap(), VOIDWING_MOTH.instaSwap(), HYVATIA.instaSwap(), Outro,
+  UBA1234,
+  USkill12, Lib2,
+  TRICKSTER.instant(), LIONESS_OF_GLORY.instant(), SIGILLUM.instant(), VOIDWING_MOTH.instant(), HYVATIA.instant(), Outro,
 ]);
 
 /** One loadout per Resonance Mode, each with the echo set built for it: Trickster + Chromatic Foam
@@ -743,23 +743,23 @@ export const DENIA_BURST = new Loadout({
 });
 
 const DN_ROTATION_STRAIN = new Rotation([
-  SWAPIN, BA1.instaCancel(), Skill.instaCancel(), Lib1,
-  UBA12.dashCancel(), UBA12.jumpCancel(), UMBA12.cancel(),
-  USkill12.mashCancel(), Lib2,
-  TRICKSTER.instaSwap(), LIONESS_OF_GLORY.instaSwap(), SIGILLUM.instaSwap(), VOIDWING_MOTH.instaSwap(), HYVATIA.instaSwap(), Outro,
+  SWAPIN, BA1, Skill, Lib1,
+  UBA12, DASH, UBA12, JUMP, UMBA12,
+  USkill12, Lib2,
+  TRICKSTER.instant(), LIONESS_OF_GLORY.instant(), SIGILLUM.instant(), VOIDWING_MOTH.instant(), HYVATIA.instant(), Outro,
 
-  Intro, BA4.instaCancel(), Skill.instaCancel(), Lib1,
-  UBA12.jumpCancel(), UMBA12.cancel(),
-  USkill12.mashCancel(), Lib2,
-  TRICKSTER.instaSwap(), LIONESS_OF_GLORY.instaSwap(), SIGILLUM.instaSwap(), VOIDWING_MOTH.instaSwap(), HYVATIA.instaSwap(), Outro,
+  Intro, BA4, Skill, Lib1,
+  UBA12, JUMP, UMBA12,
+  USkill12, Lib2,
+  TRICKSTER.instant(), LIONESS_OF_GLORY.instant(), SIGILLUM.instant(), VOIDWING_MOTH.instant(), HYVATIA.instant(), Outro,
 ]);
 
 const DN_ROTATION_STRAIN_S3 = new Rotation([
-  SWAPIN, BA1.instaCancel(),
+  SWAPIN, BA1,
   Intro, Lib1,
-  UBA12.jumpCancel(), UMBA12.cancel(),
-  USkill12.mashCancel(), Lib2,
-  TRICKSTER.instaSwap(), LIONESS_OF_GLORY.instaSwap(), SIGILLUM.instaSwap(), VOIDWING_MOTH.instaSwap(), HYVATIA.instaSwap(), Outro,
+  UBA12, JUMP, UMBA12,
+  USkill12, Lib2,
+  TRICKSTER.instant(), LIONESS_OF_GLORY.instant(), SIGILLUM.instant(), VOIDWING_MOTH.instant(), HYVATIA.instant(), Outro,
 ]);
 
 export const DENIA_STRAIN = new Loadout({

@@ -796,8 +796,8 @@ export interface ResonatorDef extends GearDef {
   sentOff?: () => void;
   /** The enemy's own, on the frame `behind` is cut by `cut` (a dodge, swap, plain, on-hit or insta
    *  cancel), ahead of its bullets still to land: what is ready there for `takesCut` to act on, the
-   *  cut's delay after it being only the input. */
-  atCut?: (behind: Action, cut: Transition) => void;
+   *  cut's delay after it being only the input. Returns whether it is; `open` false keeps it shut. */
+  atCut?: (behind: Action, cut: Transition, open?: boolean) => boolean | void;
   /** The enemy's own: read on the frame a plain dodge would be cast, or the rotation's next step
    *  after a swap form or a plain, on-hit or insta cancel, `behind` the press its `cut` cut short
    *  — it may `replaceCut()` and queue what plays there (tunebreak.ts's ready break). */
@@ -852,7 +852,7 @@ export class Resonator extends Gear {
   actions: readonly Action[];
   holdFn?: (next: Action) => Action | null;
   sentOff?: () => void;
-  atCut?: (behind: Action, cut: Transition) => void;
+  atCut?: (behind: Action, cut: Transition, open?: boolean) => boolean | void;
   takesCut?: (behind: Action, cut: Transition) => void;
   tier: Rarity;
   constructor(def: ResonatorDef) {

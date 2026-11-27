@@ -8,7 +8,7 @@ const load = (f) => import(new URL(f, dist).href);
 globalThis.self = globalThis;
 const { setDelays } = await load("engine/stats.js");
 const num = (k) => (process.env[k] === undefined ? undefined : +process.env[k]);
-setDelays({ precision: num("PRECISION"), mash: num("MASH") });
+setDelays({ precision: num("PRECISION") });
 const solver = await load("solve/solver.js");
 const teamrun = await load("solve/teamrun.js");
 const display = await load("page/display.js");

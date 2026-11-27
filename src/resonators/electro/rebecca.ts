@@ -69,7 +69,7 @@ import {
   concerto,
   lacks,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, ActionField, JUMP } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, ActionField, JUMP, DASH, DODGE_GRANTS, GROUND_DODGE_LACKS } from "../../engine/rotation.js";
 import { applied, inflicting } from "../../engine/context.js";
 import { applyHack, tuneHackResponse, TUNE_HACK_SHIFTING, TUNE_SHIFTABLE } from "../tunebreak.js";
 import { SKULL_THRASHER } from "../../weapons/pistol.js";
@@ -278,7 +278,7 @@ const EIntro = rebeccaAction("Intro - Hey, Leadhead, Come 'n' Get Me!", { endPos
 const CominInHot = rebeccaAction("Basic - Comin' in Hot!: Huntress", { input: Input.Basic, inputPriority: 1, after: [ESkill, EIntro], position: Position.Midair, holds: HUNTRESS, endPosition: Position.Grounded, castPriority: 2, node: Node.Normal, cast: Cast.Basic });
 // "Can be cast during the following actions (while on the ground)": those presses, any Skill or Intro
 const HTD: Action = rebeccaAction("Dash - Tactical Dodge: Huntress", {
-  input: Input.Dash, position: Position.Grounded, holds: HUNTRESS, animFrames: 36, animPriority: { 36: 2 }, castPriority: 7, node: Node.Normal, cast: Cast.Dash, type: Type.Basic, bullets: [
+  input: Input.Dash, position: Position.Grounded, holds: HUNTRESS, lacks: GROUND_DODGE_LACKS, grants: DODGE_GRANTS, animFrames: 36, animPriority: { 36: 2 }, castPriority: 7, node: Node.Normal, cast: Cast.Dash, type: Type.Basic, bullets: [
     { hitFrame: 6, mv: 1690, energy: 25, concerto: 50, offtune: 800, forte1: 179 },
     { hitFrame: 10, mv: 1690, energy: 25, concerto: 50, offtune: 800, forte1: 179 },
     { hitFrame: 16, mv: 1690, energy: 25, concerto: 50, offtune: 800, forte1: 179 },
@@ -289,7 +289,7 @@ HTD.setAfter([HBA1, HBA2, HBA3, HHA, EatLead, CominInHot, HTD, Skill, ESkill, In
 // cast out of its own list of ground presses, and it "does not reset [the] Basic Attack ... attack
 // cycle": the Basic before it stays the one the next follows
 const GTD: Action = rebeccaAction("Dash - Tactical Dodge: Guts", {
-  input: Input.Dash, position: Position.Grounded, holds: GUTS,
+  input: Input.Dash, position: Position.Grounded, holds: GUTS, lacks: GROUND_DODGE_LACKS, grants: DODGE_GRANTS,
   animFrames: 40, animPriority: { 40: 2 }, castPriority: 7, node: Node.Normal, cast: Cast.Dash, type: Type.Basic, bullets: [{ hitFrame: 6, mv: 10140, energy: 150, concerto: 300, offtune: 4800, forte1: 973 }],
   updateBuffs: () => chainAs(previousPress()),
 });
@@ -584,18 +584,18 @@ const ADAM_SMASHER_REBECCA = new SummonEcho("Echo - Adam Smasher", {
 const GBA23 = new ActionGroup("Basic - Guts 23", [GBA2, GBA3]);
 const Lib1234 = new ActionGroup("Liberation - Party 'til Dawn! + Mk. 31 HMG", [Lib1, Lib2, Lib3, Lib4]);
 const RB_ROTATION = new Rotation([
-  Intro.firstIntro(), EIntro.firstIntro(), GBA1.hitDash(), GBA23.cancel(),
-  GHA.holdCancel(),
+  Intro.firstIntro(), EIntro.firstIntro(), GBA1.firstHit(), DASH, GBA23,
+  GHA,
   FHAGuts,
-  GHA.cancel(),
-  ADAM_SMASHER_REBECCA.instaCancel(), HYVATIA.instaCancel(), HERON.instaDash(), STONEWALL_BRACER_1.instaDash(),Lib1234, Boom.instaSwap(), Outro,
+  GHA,
+  ADAM_SMASHER_REBECCA.instant(), HYVATIA.instant(), HERON.instant(), DASH, STONEWALL_BRACER_1.instant(), DASH,Lib1234, Boom.instant(), Outro,
 
-  Intro.mashCancel(), EIntro.mashCancel(), JUMP, HMA, // cancel is too slow
-  Skill.dashCancel(),
-  GBA1.cancel(),
+  Intro, EIntro, JUMP, HMA, // cancel is too slow
+  Skill, DASH,
+  GBA1,
   FHAGuts,
-  GHA.cancel(),
-  ADAM_SMASHER_REBECCA.instaCancel(), HYVATIA.instaCancel(), HERON.instaDash(), STONEWALL_BRACER_1.instaDash(),Lib1234, Boom.instaSwap(), Outro,
+  GHA,
+  ADAM_SMASHER_REBECCA.instant(), HYVATIA.instant(), HERON.instant(), DASH, STONEWALL_BRACER_1.instant(), DASH,Lib1234, Boom.instant(), Outro,
 ]);
 
 /** Adam Smasher carries its own 1pc set, so the other four echoes run two ordinary 2-piece sets

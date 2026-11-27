@@ -392,7 +392,7 @@ const BRANT_RESONATOR = new Resonator({
   inherent2: BR_VOYAGE_INHERENT,
   element: Attribute.Fusion,
   weapon: WeaponType.Sword,
-  color: "#d1257f",
+  color: "#2b40b9",
   actions: [Intro, Outro, Skill, Liberation, FSkill, BA1, BA1.swapIn(), BA2, BA3, BA4, HA, HARiff, DC, Plunge, MA1, MA1.swapIn(), MA1C, MA2, MA2C, MA3, MA4, midairBreak(tuneBreak(90, 90, [0, 90], [0, 70], SWORD_BREAK))],
   maxEnergy: 17500,
   forteScale: [0.01, 1, 1, 1, 1],
@@ -406,14 +406,14 @@ const BRANT_RESONATOR = new Resonator({
 // he's never the team's own lead, so this same rotation covers both opener and loop
 
 const BR_ROTATION = new Rotation([
-  Intro, Liberation, MA2C, MA3, FSkill.swapCancel(), Outro,
+  Intro, Liberation, MA2C, MA3, FSkill, Outro,
 ]);
 
 const BR_ROTATION_MDPS = new Rotation([
-  Intro.doubleIntro(), MA2C, MA3.hitCancel(), DRAGON_OF_DIRGE.instaDash(), NM_INFERNO_RIDER.instaDash(), MA3, MA4, SWAP,
-  Intro, MA2.instaCancel(), FSkill.cancel(), Liberation,
-  MA1, MA2C, MA3, MA4.hitCancel(),
-  FSkill.swapCancel(), Outro,
+  Intro.doubleIntro(), MA2C, MA3.firstHit(), DRAGON_OF_DIRGE.instant(), NM_INFERNO_RIDER.instant(), DASH, MA3, MA4, SWAP,
+  Intro, MA2.instant(), FSkill, Liberation,
+  MA1, MA2C, MA3, MA4,
+  FSkill, Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

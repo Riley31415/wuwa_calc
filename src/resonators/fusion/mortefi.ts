@@ -296,10 +296,10 @@ const BA1234 = new ActionGroup("Basic - Impromptu Show 1234", [BA1, BA2, BA3, BA
 
 const MO_ROTATION = new Rotation([
   Intro, Skill, FSkill,
-  BA1234.cancel(),
-  FSkill.cancel(),
+  BA1234,
+  FSkill,
   Liberation,
-  HERON.instaSwap(), STONEWALL_BRACER_1.instaSwap(), HECATE.instaSwap(), Outro,
+  HERON.instant(), STONEWALL_BRACER_1.instant(), HECATE.instant(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

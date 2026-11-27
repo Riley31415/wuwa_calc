@@ -47,7 +47,7 @@ import {
   concerto,
   lacks,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Cooldown, Rotation, SUCCESSFUL_DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, SUCCESSFUL_DODGE, DASH } from "../../engine/rotation.js";
 import { applyRupture, applyStrain, TUNE_STRAIN_INTERFERED, TUNE_SHIFTABLE, strainPayout, tuneRuptureResponse } from "../tunebreak.js";
 import { SPECTRUM_BLASTER } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
@@ -501,9 +501,9 @@ const LYNAE_RESONATOR = new Resonator({
 const PolychromeLeap123 = new ActionGroup("Forte - Polychrome Leap 123", [PolychromeLeap1, PolychromeLeap2, PolychromeLeap3]);
 
 const LY_ROTATION = new Rotation([
-  Intro.mashCancel(), Skill.cancel(), VOIDWING_MOTH.instaDash(), HYVATIA.instaCancel(), HERON.instaDash(), STONEWALL_BRACER_1.instaDash(), Liberation, SparkCollision.cancel(),
+  Intro, Skill, VOIDWING_MOTH.instant(), DASH, HYVATIA.instant(), HERON.instant(), DASH, STONEWALL_BRACER_1.instant(), DASH, Liberation, SparkCollision,
   PolychromeLeap123,
-  VisualImpact.cancel(), Outro,
+  VisualImpact, Outro,
 ]);
 
 export const LYNAE_RUPTURE = build(MODE_RUPTURE);

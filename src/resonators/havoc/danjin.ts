@@ -370,12 +370,12 @@ const Sanguine123 = new ActionGroup("Skill - Sanguine Pulse 123", [SanguinePulse
 const Forte12 = new ActionGroup("Forte Heavy - Chaoscleave + Scatterbloom", [Chaoscleave, Scatterbloom])
 
 const DJ_ROTATION = new Rotation([
-  Intro, Crimson12.cancel(),
+  Intro, Crimson12,
   Liberation,
   CarmineGleam, BA123,
   Sanguine123,
   Forte12,
-  NM_HERON.instaSwap(), HERON.instaSwap(), FALLACY.instaSwap(), CROWNLESS_1.instaSwap(), Outro,
+  NM_HERON.instant(), HERON.instant(), FALLACY.instant(), CROWNLESS_1, Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

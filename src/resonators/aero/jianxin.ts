@@ -241,15 +241,16 @@ const JIANXIN_TALENTS = new Talent({
 const ChiStrike = jianxinAction("Forte Heavy - Zhoutian: Chi Strike", { input: Input.BasicHold, inputPriority: 2, holds: ZHOUTIAN_PROGRESS, castPriority: 6,
   node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy,
   bullets: [{ hitFrame: 0, mv: 2486, energy: 30, offtune: 2000 }] });
+// above Yielding Pull, which comes off the same hold: her rotation (ZHOUTIAN_4) plays this one
 const InnerShock = jianxinAction("Forte Heavy - Major Zhoutian (Inner): Shock", {
-  input: Input.BasicHold, inputPriority: 3, after: [ChiStrike], holds: MINOR_ZHOUTIAN, animFrames: 132, castPriority: 6,
+  input: Input.BasicHold, inputPriority: 4, after: [ChiStrike], holds: MINOR_ZHOUTIAN, animFrames: 132, castPriority: 6,
   node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy,
    bullets: [{ hitFrame: 132, mv: 37774, energy: 800, offtune: 5120 }], castConcerto: 1800,
   updateBuffs: () => applyCurrent(MAJOR_INNER_ZHOUTIAN, 1),
   });
 ChiStrike.setAfter([MinorShock, InnerShock]);
-// released right after a Chi Strike once Minor Zhoutian stands; level with the Shock that holding on makes
-// instead, since only the hold's length tells the two apart
+// released right after a Chi Strike once Minor Zhoutian stands; below the Shock that holding on makes, which
+// her rotation plays (only the hold's length tells the two apart in game)
 const YieldingPull = jianxinAction("Forte Heavy - Yielding Pull", { input: Input.BasicHold, inputPriority: 3, after: [ChiStrike], holds: MINOR_ZHOUTIAN, castPriority: 6,
   updateBuffs: () => revokeCurrent(ZHOUTIAN_PROGRESS),
   node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 21870, energy: 300, offtune: 7200 }], castConcerto: 700,
@@ -258,7 +259,8 @@ const YieldingPull = jianxinAction("Forte Heavy - Yielding Pull", { input: Input
     applyCurrent(HEALS, 1);
   },
 });
-const OuterShock = jianxinAction("Forte Heavy - Major Zhoutian (Outer): Shock", { input: Input.BasicHold, inputPriority: 3, after: [ChiStrike], holds: MAJOR_INNER_ZHOUTIAN, castPriority: 6,
+// above Inner Shock, so the second Chi Strike leads into it once Major Inner Zhoutian stands
+const OuterShock = jianxinAction("Forte Heavy - Major Zhoutian (Outer): Shock", { input: Input.BasicHold, inputPriority: 5, after: [ChiStrike], holds: MAJOR_INNER_ZHOUTIAN, castPriority: 6,
   updateBuffs: () => revokeCurrent(ZHOUTIAN_PROGRESS),
   node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 51691, energy: 1561, offtune: 7360 }], castConcerto: 2300,
   updateDebuffs: () => {
@@ -305,7 +307,7 @@ const JIANXIN_RESONATOR = new Resonator({
  *  Concerto and the swap costs 100, and two more presses are 9.58 — BA1234 again would be 22.9,
  *  far more than the bar needs. */
 const JX_ROTATION_S2 = new Rotation([
-  Intro, ChiParry, ChiParry, Liberation, ZHOUTIAN_4, HERON.instaSwap(), Outro,
+  Intro, ChiParry, ChiParry, Liberation, ZHOUTIAN_4, HERON.instant(), Outro,
 ]);
 
 export const JIANXIN = new Loadout({

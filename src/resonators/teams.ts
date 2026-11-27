@@ -44,7 +44,7 @@ import { SANHUA } from "./glacio/sanhua.js";
 import { SUISUI } from "./glacio/suisui.js";
 import { ZHEZHI } from "./glacio/zhezhi.js";
 import { CAMELLYA_123_ALWAYS_OUTRO as CAMELLYA_123_ALWAYS, /* CAMELLYA_DOUBLE_123S6, CAMELLYA_DOUBLE_ALWAYS */ } from "./havoc/camellya.js";
-import { CANTARELLA, CANTARELLA_MDPS } from "./havoc/cantarella.js";
+import { CANTARELLA } from "./havoc/cantarella.js";
 import { CHISA } from "./havoc/chisa.js";
 import { DANJIN } from "./havoc/danjin.js";
 import { PHRO_12s, PHRO_11s, PHRO_9s } from "./havoc/phrolova.js";
@@ -77,7 +77,6 @@ export const INTERCHANGEABLE = new Set<Loadout>([SHOREKEEPER, MORNYE, SUISUI, BU
 const TEAMS: Slot[][] = [
 
   // suoming mdps, electro basic unison
-  [[SHOREKEEPER], [JINHSI_SUPPORT], SUOMING_MDPS],
   [[SHOREKEEPER, VERINA, BAIZHI, MORNYE, LILY], [SANHUA], SUOMING_MDPS_DOUBLE],
   [[SHOREKEEPER, VERINA, BAIZHI, MORNYE, LILY], [JINHSI_SUPPORT], SUOMING_MDPS],
   [[MORNYE, SHOREKEEPER, VERINA, BAIZHI, LILY], [LYNAE_RUPTURE, REBECCA], SUOMING_MDPS],
@@ -278,11 +277,11 @@ const TEAMS: Slot[][] = [
   //[[LUPA], [BRANT], ENCORE],
 
   // cantarella: havoc basic, echo
-  [[SHOREKEEPER], [SANHUA, ROCCIA], CANTARELLA_MDPS],
-  [[SHOREKEEPER, VERINA, BAIZHI, MORNYE, SUISUI], [SANHUA, ROCCIA], CANTARELLA_MDPS],
-  [[LILY], [SANHUA, ROCCIA], CANTARELLA_MDPS],
-  [[MORNYE], [REBECCA], CANTARELLA_MDPS],
-  [[MORNYE], [LYNAE_RUPTURE], CANTARELLA_MDPS],
+  //[[SHOREKEEPER], [SANHUA, ROCCIA], CANTARELLA_MDPS],
+  //[[SHOREKEEPER, VERINA, BAIZHI, MORNYE, SUISUI], [SANHUA, ROCCIA], CANTARELLA_MDPS],
+  //[[LILY], [SANHUA, ROCCIA], CANTARELLA_MDPS],
+  //[[MORNYE], [REBECCA], CANTARELLA_MDPS],
+  //[[MORNYE], [LYNAE_RUPTURE], CANTARELLA_MDPS],
 
   // carlotta: glacio skill
   // Baizhi shares too little Energy for Carlotta to fill her bar beside Brant (4 ER rolls wanted)

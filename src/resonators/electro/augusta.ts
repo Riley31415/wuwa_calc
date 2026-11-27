@@ -372,8 +372,8 @@ const AG_SEQUENCES = [AG_S1, AG_S2, AG_S3, AG_S4, AG_S5, AG_S6];
 // Undying Sunlight chain. She's never the team's own lead, so this covers both opener and loop.
 
 const AG_ROTATION = new Rotation([
-  Intro, FHA1, FHA2, Skill, FHA1, FHA2, HA.cancel(), Lib1, HA.cancel(),
-  FSkill1, FSkill2, FSkill3.holdCancel(), Lib2, FJump, FALSE_SOVEREIGN.instaSwap(), Outro,
+  Intro, FHA1, FHA2, Skill, FHA1, FHA2, HA, Lib1, HA,
+  FSkill1, FSkill2, FSkill3, Lib2, FJump, FALSE_SOVEREIGN.instant(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
